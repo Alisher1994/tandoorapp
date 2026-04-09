@@ -12081,5 +12081,33 @@ body::-webkit-scrollbar,
 }
 
 .admin-stock-import-review-modal {
-    max-width: min(1820px, 98vw) !important;
+    max-width: min(1600px, 95vw) !important;
+}
+
+.admin-stock-preview-photo-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    border-radius: 8px;
+    line-height: 0;
+    cursor: zoom-in;
+}
+
+.admin-stock-preview-photo {
+    width: 46px;
+    height: 46px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid #dbe4f0;
+    background: #f8fafc;
+}
+
+.admin-stock-import-result-head {
+    background: #eaf8ea !important;
+}
+
+.admin-stock-import-result-cell {
+    background: #f0fff2 !important;
+    font-weight: 600;
 }

@@ -7548,7 +7548,13 @@ function AdminDashboard() {
   }, [getVariantStockTemplateRows, language]);
 
   const buildPreparedStockImportRows = useCallback((jsonData = [], rowNumberOffset = 2) => (
-    (Array.isArray(jsonData) ? jsonData : []).map((row, index) => {
+    (Array.isArray(jsonData) ? jsonData : [])
+      .filter((row) => {
+        if (!row || typeof row !== 'object') return false;
+        const values = Object.values(row);
+        return values.some((value) => String(value ?? '').trim() !== '');
+      })
+      .map((row, index) => {
       const rowNo = index + rowNumberOffset;
       const productIdRaw = row['Product ID'] ?? row['ID товара'] ?? row.product_id ?? row.id;
       const variantNameRaw = row['Вариант'] ?? row.variant_name ?? row.variant;
@@ -7621,7 +7627,11 @@ function AdminDashboard() {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-        setStockExcelPreview(rows);
+        const headers = Array.isArray(rows[0]) ? rows[0] : [];
+        const dataRows = rows.slice(1).filter((row) => (
+          (Array.isArray(row) ? row : []).some((cell) => String(cell ?? '').trim() !== '')
+        ));
+        setStockExcelPreview([headers, ...dataRows]);
       } catch (error) {
         console.error('Stock import preview read error:', error);
         setAlertMessage({ type: 'danger', text: 'Ошибка чтения файла остатков' });
@@ -17776,6 +17786,14 @@ function AdminDashboard() {
 
             {stockExcelPreview.length > 0 && (
               <div className="mt-3">
+                {(() => {
+                  const headerRow = stockExcelPreview[0] || [];
+                  const photoColumnIndex = headerRow.findIndex((cell) => {
+                    const normalized = String(cell || '').trim().toLowerCase();
+                    return normalized === 'фото' || normalized === 'photo';
+                  });
+                  return (
+                    <>
                 <strong>
                   {language === 'uz'
                     ? `Oldindan ko'rish (satrlar: ${Math.max(0, stockExcelPreview.length - 1)})`
@@ -17795,7 +17813,31 @@ function AdminDashboard() {
                         <tr key={`stock-preview-row-${rowIdx}`}>
                           {(stockExcelPreview[0] || []).map((_, idx) => (
                             <td key={`stock-preview-cell-${rowIdx}-${idx}`} style={{ fontSize: '0.8rem' }}>
-                              {String(row?.[idx] ?? '')}
+                              {photoColumnIndex === idx ? (
+                                (() => {
+                                  const rawCell = String(row?.[idx] ?? '').trim();
+                                  if (!rawCell) return '';
+                                  const previewSrc = resolveAbsoluteMediaUrl(rawCell);
+                                  return (
+                                    <button
+                                      type="button"
+                                      className="admin-stock-preview-photo-btn"
+                                      onClick={() => {
+                                        setPreviewImageUrl(previewSrc);
+                                        setShowImagePreview(true);
+                                      }}
+                                    >
+                                      <img
+                                        src={previewSrc || PRODUCT_PLACEHOLDER_IMAGE}
+                                        alt="preview"
+                                        className="admin-stock-preview-photo"
+                                      />
+                                    </button>
+                                  );
+                                })()
+                              ) : (
+                                String(row?.[idx] ?? '')
+                              )}
                             </td>
                           ))}
                         </tr>
@@ -17803,6 +17845,9 @@ function AdminDashboard() {
                     </tbody>
                   </table>
                 </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
           </Modal.Body>
@@ -17841,16 +17886,14 @@ function AdminDashboard() {
                 <span>{language === 'uz' ? 'Yaroqli:' : 'Валидных:'} <strong>{preparedStockImportRows.filter((row) => row.isValid).length}</strong></span>
                 <span>{language === 'uz' ? 'Xato:' : 'Невалидных:'} <strong>{preparedStockImportRows.filter((row) => !row.isValid).length}</strong></span>
                 <div className="ms-auto d-flex align-items-center gap-2">
-                  <span className="small text-muted">{language === 'uz' ? "Qo'llash rejimi:" : 'Режим применения:'}</span>
-                  <Form.Select
-                    size="sm"
-                    style={{ minWidth: 220 }}
-                    value={stockImportMode}
-                    onChange={(e) => setStockImportMode(normalizeStockImportMode(e.target.value))}
-                  >
-                    <option value="replace">{language === 'uz' ? "Almashtirish (eski -> yangi)" : 'Заменить (старый -> новый)'}</option>
-                    <option value="add">{language === 'uz' ? "Summalash (eski + yangi)" : 'Суммировать (старый + приход)'}</option>
-                  </Form.Select>
+                  <Form.Check
+                    type="switch"
+                    id="stock-import-add-mode-switch"
+                    className="fw-semibold"
+                    label={language === 'uz' ? "Summalash (eski + kirim)" : 'Суммировать (старый + приход)'}
+                    checked={normalizeStockImportMode(stockImportMode) === 'add'}
+                    onChange={(e) => setStockImportMode(e.target.checked ? 'add' : 'replace')}
+                  />
                 </div>
               </div>
             </Alert>
@@ -17859,25 +17902,34 @@ function AdminDashboard() {
               <Table bordered hover size="sm" className="mb-0">
                 <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                   <tr>
-                    <th style={{ minWidth: 64 }}>#</th>
-                    <th style={{ minWidth: 88 }}>{language === 'uz' ? 'Foto' : 'Фото'}</th>
+                    <th style={{ minWidth: 64, textAlign: 'center' }}>#</th>
+                    <th style={{ minWidth: 88, textAlign: 'center' }}>{language === 'uz' ? 'Foto' : 'Фото'}</th>
                     <th style={{ minWidth: 280 }}>{language === 'uz' ? 'Tovar / Variant' : 'Товар / Вариант'}</th>
                     <th style={{ minWidth: 110 }}>{language === 'uz' ? 'Joriy' : 'Текущий'}</th>
                     <th style={{ minWidth: 140 }}>{language === 'uz' ? 'Kirim' : 'Приход'}</th>
-                    <th style={{ minWidth: 130 }}>{language === 'uz' ? 'Natija' : 'Результат'}</th>
+                    <th style={{ minWidth: 130 }} className="admin-stock-import-result-head">{language === 'uz' ? 'Natija' : 'Результат'}</th>
                     <th style={{ minWidth: 170 }}>{language === 'uz' ? 'Holat' : 'Статус'}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {preparedStockImportRows.map((row) => (
                     <tr key={`prepared-stock-row-${row.rowNo}`} className={row.isValid ? '' : 'table-danger'}>
-                      <td>{row.rowNo}</td>
-                      <td>
-                        <img
-                          src={row.image_url || PRODUCT_PLACEHOLDER_IMAGE}
-                          alt={row.product_name || 'product'}
-                          style={{ width: 46, height: 46, borderRadius: 8, objectFit: 'cover', border: '1px solid #e2e8f0' }}
-                        />
+                      <td style={{ textAlign: 'center' }}>{row.rowNo}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          className="admin-stock-preview-photo-btn"
+                          onClick={() => {
+                            setPreviewImageUrl(row.image_url || PRODUCT_PLACEHOLDER_IMAGE);
+                            setShowImagePreview(true);
+                          }}
+                        >
+                          <img
+                            src={row.image_url || PRODUCT_PLACEHOLDER_IMAGE}
+                            alt={row.product_name || 'product'}
+                            className="admin-stock-preview-photo"
+                          />
+                        </button>
                       </td>
                       <td>
                         <div className="fw-semibold">{row.product_name || '-'}</div>
@@ -17896,7 +17948,7 @@ function AdminDashboard() {
                           onChange={(e) => updatePreparedStockImportQuantity(row.rowNo, e.target.value)}
                         />
                       </td>
-                      <td>{formatQuantity(getStockImportNextQuantity(row))}</td>
+                      <td className="admin-stock-import-result-cell">{formatQuantity(getStockImportNextQuantity(row))}</td>
                       <td>
                         {row.isValid ? (
                           <Badge bg="success">{language === 'uz' ? 'Tayyor' : 'Готово'}</Badge>
