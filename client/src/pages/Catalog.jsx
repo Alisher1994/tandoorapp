@@ -502,6 +502,16 @@ function Catalog() {
     getProductImageItems(product).forEach((item) => addImage(item.url));
 
     if (!result.length) addImage(product?.thumb_url);
+    if (!result.length) {
+      const allVariants = getProductVariantOptions(product);
+      const inStockVariants = allVariants.filter((variant) => variant?.in_stock !== false);
+      const scanList = inStockVariants.length > 0 ? inStockVariants : allVariants;
+      scanList.forEach((variant) => {
+        addImage(variant?.image_url);
+        getProductImageItems(variant).forEach((item) => addImage(item.url));
+        if (!result.length) addImage(variant?.thumb_url);
+      });
+    }
     return result;
   };
   const getProductCardImage = (product, selectedVariant = null) => {
@@ -522,6 +532,26 @@ function Catalog() {
 
       const directVariantImageUrl = resolveImageUrl(selectedVariantDetails?.image_url);
       if (directVariantImageUrl) return directVariantImageUrl;
+    }
+
+    const allVariants = getProductVariantOptions(product);
+    if (allVariants.length > 0) {
+      const inStockVariants = allVariants.filter((variant) => variant?.in_stock !== false);
+      const scanList = inStockVariants.length > 0 ? inStockVariants : allVariants;
+      for (const variant of scanList) {
+        const variantImageItems = getProductImageItems(variant);
+        const variantItemWithThumb = variantImageItems.find((item) => item.thumb_url);
+        if (variantItemWithThumb?.thumb_url) {
+          return resolveImageUrl(variantItemWithThumb.thumb_url);
+        }
+        const directVariantThumbUrl = resolveImageUrl(variant?.thumb_url);
+        if (directVariantThumbUrl) return directVariantThumbUrl;
+        if (variantImageItems[0]?.url) {
+          return resolveImageUrl(variantImageItems[0].url);
+        }
+        const directVariantImageUrl = resolveImageUrl(variant?.image_url);
+        if (directVariantImageUrl) return directVariantImageUrl;
+      }
     }
 
     const imageItems = getProductImageItems(product);
@@ -873,6 +903,13 @@ function Catalog() {
   const getSelectedVariantAvailability = (product, selectedVariant = null) => {
     const variant = getSelectedVariantDetails(product, selectedVariant);
     if (variant) return variant.in_stock !== false;
+    return product?.in_stock !== false;
+  };
+  const getProductOverallAvailability = (product) => {
+    const variants = getProductVariantOptions(product);
+    if (variants.length > 0) {
+      return variants.some((variant) => variant?.in_stock !== false);
+    }
     return product?.in_stock !== false;
   };
   const getSelectedVariantPriceMeta = (product, selectedVariant = null) => {
@@ -2432,7 +2469,7 @@ function Catalog() {
     const productSizeOptions = getProductSizeOptions(product);
     const productPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
     const productDisplayPrice = productPriceMeta.currentPrice;
-    const isAvailable = getSelectedVariantAvailability(product, selectedVariant);
+    const isAvailable = getProductOverallAvailability(product);
     const stockLimit = resolveProductStockLimit(product, selectedVariant);
     const isAtStockLimit = Number.isFinite(stockLimit) && Number(qty || 0) >= stockLimit;
     const renderImageFallback = () => renderStoreLogoFallback({
@@ -3312,7 +3349,7 @@ function Catalog() {
               const cartItem = getCartItem(product.id, selectedVariant);
               const qty = cartItem?.quantity || 0;
               const quantityStep = resolveQuantityStep(cartItem || product);
-              const isAvailable = getSelectedVariantAvailability(product, selectedVariant);
+              const isAvailable = getProductOverallAvailability(product);
               const stockLimit = resolveProductStockLimit(product, selectedVariant);
               const isAtStockLimit = Number.isFinite(stockLimit) && Number(qty || 0) >= stockLimit;
               const displayPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
@@ -3559,6 +3596,9 @@ function Catalog() {
   const activeProductFavorite = activeProduct?.id ? isFavorite(activeProduct.id) : false;
   const activeProductSizeOptions = getProductSizeOptions(activeProduct);
   const activeProductIsAvailable = activeProduct
+    ? getProductOverallAvailability(activeProduct)
+    : false;
+  const activeProductSelectedVariantAvailable = activeProduct
     ? getSelectedVariantAvailability(activeProduct, activeProductSelectedVariant)
     : false;
   const activeProductStockQuantity = Number(
@@ -4498,7 +4538,7 @@ function Catalog() {
                                     position: 'absolute',
                                     inset: 0,
                                     pointerEvents: 'none',
-                                    background: 'linear-gradient(135deg, transparent 46%, rgba(148,163,184,0.8) 48%, rgba(148,163,184,0.8) 52%, transparent 54%)'
+                                    background: 'linear-gradient(135deg, transparent 49%, rgba(148,163,184,0.8) 50%, transparent 51%)'
                                   }}
                                 />
                               )}
@@ -4653,7 +4693,7 @@ function Catalog() {
 
               <div className="product-details-bottom-bar">
                 <div className="product-details-bottom-inner">
-                  {activeProductIsAvailable ? (
+                  {activeProductSelectedVariantAvailable ? (
                     activeProductQty > 0 ? (
                       <>
                         <div className="product-details-bottom-stepper">
