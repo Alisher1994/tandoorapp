@@ -1183,6 +1183,7 @@ function Catalog() {
     () => restaurants.find((restaurant) => Number(restaurant.id) === Number(selectedRestaurant)) || null,
     [restaurants, selectedRestaurant]
   );
+  const isInventoryTrackingEnabled = currentRestaurant?.inventory_tracking_enabled === true;
   const isMenuLiquidGlassEnabled = currentRestaurant?.menu_liquid_glass_enabled === true;
   const menuLiquidGlassOpacity = normalizeMenuGlassOpacity(
     currentRestaurant?.menu_liquid_glass_opacity,
@@ -3466,6 +3467,7 @@ function Catalog() {
   const activeProduct = selectedProductDetails || selectedProductSummary;
   const activeProductName = getProductName(activeProduct);
   const activeProductSelectedVariant = getSelectedVariantForProduct(activeProduct);
+  const activeProductSelectedVariantDetails = getSelectedVariantDetails(activeProduct, activeProductSelectedVariant);
   const activeProductCardImage = getProductCardImage(activeProduct, activeProductSelectedVariant);
   const activeProductGalleryImages = getProductGalleryImages(activeProduct, activeProductSelectedVariant);
   const activeProductGalleryIndex = activeProductGalleryImages.length > 0
@@ -3483,6 +3485,14 @@ function Catalog() {
   const activeProductIsAvailable = activeProduct
     ? getSelectedVariantAvailability(activeProduct, activeProductSelectedVariant)
     : false;
+  const activeProductStockQuantity = Number(
+    activeProductSelectedVariantDetails?.stock_quantity ?? activeProduct?.stock_quantity
+  );
+  const shouldShowActiveProductStockLine = (
+    isInventoryTrackingEnabled
+    && Number.isFinite(activeProductStockQuantity)
+    && activeProductStockQuantity > 0
+  );
 
   return (
     <>
@@ -4304,6 +4314,13 @@ function Catalog() {
                         : (language === 'uz' ? 'Mavjud emas' : 'Нет в наличии')}
                     </span>
                   </div>
+                  {shouldShowActiveProductStockLine && (
+                    <div className="small mb-2" style={{ color: '#166534', fontWeight: 600 }}>
+                      {language === 'uz'
+                        ? `Mavjud: (${formatQuantity(activeProductStockQuantity)}) ${activeProduct?.unit || 'шт'}`
+                        : `Есть в наличии (${formatQuantity(activeProductStockQuantity)}) ${activeProduct?.unit || 'шт'}`}
+                    </div>
+                  )}
 
                   <div className="mb-3 d-flex flex-column" style={{ lineHeight: 1.05 }}>
                     {activeProductPriceMeta.isDiscount && Number.isFinite(activeProductPriceMeta.originalPrice) && (
