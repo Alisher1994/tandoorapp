@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
 import Navbar from 'react-bootstrap/Navbar';
@@ -232,6 +232,7 @@ const resolveLogoUrl = (logoUrl) => (
 
 function ShowcaseDisplay() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { cart } = useCart();
   const { showcaseLayout, showcaseLoading, showcaseVisible, loadShowcase, showcaseError } = useShowcase();
@@ -358,6 +359,17 @@ function ShowcaseDisplay() {
   }, [activeRestaurantId]);
 
   useEffect(() => {
+    if (!activeRestaurantId || typeof window === 'undefined') return;
+    const requestedRestoreOffset = Number.parseInt(
+      String(location.state?.restoreShowcaseScrollOffset || ''),
+      10
+    );
+    if (!Number.isInteger(requestedRestoreOffset) || requestedRestoreOffset < 0) return;
+    window.sessionStorage.setItem(showcaseScrollStorageKey, String(requestedRestoreOffset));
+    hasRestoredShowcaseScrollRef.current = false;
+  }, [activeRestaurantId, showcaseScrollStorageKey, location.state?.restoreShowcaseScrollOffset]);
+
+  useEffect(() => {
     if (!activeRestaurantId || hasRestoredShowcaseScrollRef.current) return undefined;
     if (loading || showcaseLoading) return undefined;
     if (typeof window === 'undefined') return undefined;
@@ -419,7 +431,8 @@ function ShowcaseDisplay() {
     navigate('/showcase/catalog', {
       state: {
         selectedCategoryId: categoryId,
-        navigationSource: 'showcase'
+        navigationSource: 'showcase',
+        showcaseScrollOffset: Math.max(0, Math.round(readShowcaseScrollOffset()))
       }
     });
   };
@@ -429,7 +442,8 @@ function ShowcaseDisplay() {
     navigate('/showcase/catalog', {
       state: {
         selectedProductId: product.id,
-        navigationSource: 'showcase'
+        navigationSource: 'showcase',
+        showcaseScrollOffset: Math.max(0, Math.round(readShowcaseScrollOffset()))
       }
     });
   };

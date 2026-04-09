@@ -201,6 +201,7 @@ function Catalog() {
   const isTabAutoScrollRef = useRef(false);
   const tabActivationSourceRef = useRef('init');
   const activeSubcategoryTabRef = useRef(null);
+  const showcaseEntryScrollOffsetRef = useRef(0);
   const catalogHeaderBackground = '#f8fafc';
   const catalogTabGap = 8;
   const isTelegramWebView = useMemo(() => (
@@ -1904,12 +1905,21 @@ function Catalog() {
       };
     });
   }, [singleListLevel2Categories, productsByCategoryId, childrenByParent, language]);
+  const filteredSingleListSections = useMemo(() => {
+    if (!selectedLevel2Category) return singleListSections;
+    const targetSectionId = `single-${selectedLevel2Category.id}`;
+    return singleListSections.filter(
+      (section) => catalogSectionTabKey(section.id) === catalogSectionTabKey(targetSectionId)
+    );
+  }, [singleListSections, selectedLevel2Category]);
   const visibleProductSections = useMemo(() => (
-    isSingleListMode ? singleListSections : productSections
-  ), [isSingleListMode, singleListSections, productSections]);
+    isSingleListMode
+      ? (selectedCategory === null ? singleListSections : filteredSingleListSections)
+      : productSections
+  ), [isSingleListMode, selectedCategory, singleListSections, filteredSingleListSections, productSections]);
   const activeCatalogTabs = useMemo(() => {
     if (isSingleListMode) {
-      return singleListSections;
+      return selectedCategory === null ? singleListSections : filteredSingleListSections;
     }
     if (selectedCategory === null) {
       return [];
@@ -1933,6 +1943,7 @@ function Catalog() {
   }, [
     isSingleListMode,
     singleListSections,
+    filteredSingleListSections,
     selectedCategory,
     level3Tabs,
     directSelectedProducts,
@@ -1947,12 +1958,6 @@ function Catalog() {
   useEffect(() => {
     productGroupRefs.current = {};
   }, [selectedCategory, isSingleListMode]);
-
-  useEffect(() => {
-    if (!isSingleListMode || selectedCategory === null) return;
-    setSelectedCategory(null);
-    setActiveSubcategoryTab(null);
-  }, [isSingleListMode, selectedCategory]);
 
   useEffect(() => {
     if (normalizedCatalogSearch || loading || activeCatalogTabs.length === 0) {
@@ -2933,6 +2938,13 @@ function Catalog() {
 
   // Handle category filtering from Showcase navigation
   useEffect(() => {
+    const showcaseEntryScrollOffset = Number.parseInt(
+      String(location.state?.showcaseScrollOffset || ''),
+      10
+    );
+    if (Number.isInteger(showcaseEntryScrollOffset) && showcaseEntryScrollOffset >= 0) {
+      showcaseEntryScrollOffsetRef.current = showcaseEntryScrollOffset;
+    }
     const requestedCategoryId = normalizeId(location.state?.selectedCategoryId);
     if (!requestedCategoryId || categories.length === 0) return;
 
@@ -2963,7 +2975,9 @@ function Catalog() {
 
     if (targetLevel2CategoryId) {
       setSelectedCategory(targetLevel2CategoryId);
-      if (targetLevel3TabId) {
+      if (isSingleListMode) {
+        setActiveSubcategoryTab(`single-${targetLevel2CategoryId}`);
+      } else if (targetLevel3TabId) {
         setActiveSubcategoryTab(targetLevel3TabId);
       }
     }
@@ -2971,9 +2985,11 @@ function Catalog() {
     navigate(location.pathname, { replace: true, state: {} });
   }, [
     location.state?.selectedCategoryId,
+    location.state?.showcaseScrollOffset,
     categories.length,
     categoriesById,
     childrenByParent,
+    isSingleListMode,
     navigate,
     location.pathname
   ]);
@@ -3433,7 +3449,11 @@ function Catalog() {
       return;
     }
     if (isShowcaseCatalogRoute) {
-      navigate('/');
+      navigate('/', {
+        state: {
+          restoreShowcaseScrollOffset: showcaseEntryScrollOffsetRef.current
+        }
+      });
     }
   };
   const shouldShowCatalogTabs = Boolean(
