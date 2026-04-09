@@ -1230,6 +1230,41 @@ function Catalog() {
   const storeLogoFallbackUrl = resolveImageUrl(
     currentRestaurant?.logo_url || user?.active_restaurant_logo || ''
   );
+  const renderStoreLogoFallback = ({
+    wrapperStyle = {},
+    imageStyle = {},
+    fallbackSize = '3rem',
+    className = ''
+  } = {}) => (
+    <div
+      className={className}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...wrapperStyle
+      }}
+    >
+      {storeLogoFallbackUrl ? (
+        <img
+          src={storeLogoFallbackUrl}
+          alt={currentRestaurant?.name || 'Store logo'}
+          loading="lazy"
+          decoding="async"
+          style={{
+            width: '60%',
+            maxHeight: '60%',
+            objectFit: 'contain',
+            opacity: 0.22,
+            filter: 'grayscale(0.1)',
+            ...imageStyle
+          }}
+        />
+      ) : (
+        <span style={{ fontSize: fallbackSize, opacity: 0.22 }}>🏪</span>
+      )}
+    </div>
+  );
   useEffect(() => {
     if (currentRestaurant?.currency_code) {
       setCountryCurrency(currentRestaurant.currency_code);
@@ -2400,30 +2435,9 @@ function Catalog() {
     const isAvailable = getSelectedVariantAvailability(product, selectedVariant);
     const stockLimit = resolveProductStockLimit(product, selectedVariant);
     const isAtStockLimit = Number.isFinite(stockLimit) && Number(qty || 0) >= stockLimit;
-    const renderImageFallback = () => (
-      <div
-        style={{ width: '100%', aspectRatio: '4 / 3', background: '#f8f9fa' }}
-        className="d-flex align-items-center justify-content-center"
-      >
-        {storeLogoFallbackUrl ? (
-          <img
-            src={storeLogoFallbackUrl}
-            alt={currentRestaurant?.name || 'Store logo'}
-            loading="lazy"
-            decoding="async"
-            style={{
-              width: '60%',
-              maxHeight: '60%',
-              objectFit: 'contain',
-              opacity: 0.22,
-              filter: 'grayscale(0.1)'
-            }}
-          />
-        ) : (
-          <span style={{ fontSize: '3rem', opacity: 0.22 }}>🏪</span>
-        )}
-      </div>
-    );
+    const renderImageFallback = () => renderStoreLogoFallback({
+      wrapperStyle: { width: '100%', aspectRatio: '4 / 3', background: '#f8f9fa' }
+    });
 
     return (
       <Card
@@ -3359,7 +3373,17 @@ function Catalog() {
                         justifyContent: 'center'
                       }}
                     >
-                      <span style={{ opacity: 0.5 }}>📦</span>
+                      {storeLogoFallbackUrl ? (
+                        <img
+                          src={storeLogoFallbackUrl}
+                          alt={currentRestaurant?.name || 'Store logo'}
+                          loading="lazy"
+                          decoding="async"
+                          style={{ width: '70%', height: '70%', objectFit: 'contain', opacity: 0.22 }}
+                        />
+                      ) : (
+                        <span style={{ opacity: 0.5 }}>🏪</span>
+                      )}
                     </div>
                   )}
                   <button
@@ -4188,7 +4212,11 @@ function Catalog() {
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
                   ) : (
-                    <span style={{ opacity: 0.5 }}>📦</span>
+                    renderStoreLogoFallback({
+                      wrapperStyle: { width: '100%', height: '100%' },
+                      imageStyle: { width: '70%', maxHeight: '70%' },
+                      fallbackSize: '1.6rem'
+                    })
                   )}
                 </div>
                 <div className="min-w-0">
@@ -4311,7 +4339,10 @@ function Catalog() {
                       />
                     </button>
                   ) : (
-                    <div className="product-details-hero-empty">📦</div>
+                    renderStoreLogoFallback({
+                      className: 'product-details-hero-empty',
+                      imageStyle: { width: '48%', maxHeight: '48%' }
+                    })
                   )}
 
                   <div className="product-details-top-actions">
@@ -4434,8 +4465,11 @@ function Catalog() {
                           paddingBottom: 2
                         }}
                       >
-                        {activeProductSizeOptions.map((sizeValue) => {
+                        {getProductVariantOptions(activeProduct).map((variant) => {
+                          const sizeValue = variant?.name || '';
+                          if (!sizeValue) return null;
                           const isActiveVariant = String(getSelectedVariantForProduct(activeProduct)).toLowerCase() === String(sizeValue).toLowerCase();
+                          const isVariantAvailable = variant?.in_stock !== false;
                           return (
                             <button
                               key={`details-size-${activeProduct?.id}-${sizeValue}`}
@@ -4445,16 +4479,29 @@ function Catalog() {
                               style={{
                                 flex: '0 0 auto',
                                 borderRadius: 10,
-                              background: isActiveVariant ? 'rgba(22,163,74,0.14)' : 'rgba(15,23,42,0.04)',
-                              border: isActiveVariant ? '2px solid #16a34a' : '1px solid rgba(15,23,42,0.15)',
-                              color: isActiveVariant ? '#166534' : '#334155',
-                              fontWeight: 500,
-                              fontSize: '0.78rem',
-                              padding: '7px 10px',
-                              whiteSpace: 'nowrap'
+                                background: isActiveVariant ? 'rgba(22,163,74,0.14)' : 'rgba(15,23,42,0.04)',
+                                border: isActiveVariant ? '2px solid #16a34a' : '1px solid rgba(15,23,42,0.15)',
+                                color: isActiveVariant ? '#166534' : '#334155',
+                                fontWeight: 500,
+                                fontSize: '0.78rem',
+                                padding: '7px 10px',
+                                whiteSpace: 'nowrap',
+                                position: 'relative',
+                                overflow: 'hidden'
                               }}
                             >
                               {sizeValue}
+                              {!isVariantAvailable && (
+                                <span
+                                  aria-hidden="true"
+                                  style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    pointerEvents: 'none',
+                                    background: 'linear-gradient(135deg, transparent 46%, rgba(148,163,184,0.8) 48%, rgba(148,163,184,0.8) 52%, transparent 54%)'
+                                  }}
+                                />
+                              )}
                             </button>
                           );
                         })}
