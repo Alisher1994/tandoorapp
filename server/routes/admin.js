@@ -99,9 +99,6 @@ const resolvePrinterAgentExePath = () => {
   candidates.push(path.resolve(process.cwd(), 'printer-agent', 'release', PRINTER_AGENT_FILENAME));
   candidates.push(path.resolve(process.cwd(), 'printer-agent', PRINTER_AGENT_FILENAME));
   candidates.push(path.resolve(process.cwd(), 'server', 'assets', PRINTER_AGENT_FILENAME));
-  candidates.push(path.resolve(process.cwd(), 'printer-agent', 'dist', 'TalablarAgent.exe'));
-  candidates.push(path.resolve(process.cwd(), 'printer-agent', 'TalablarAgent.exe'));
-  candidates.push(path.resolve(process.cwd(), 'server', 'assets', 'TalablarAgent.exe'));
 
   for (const candidatePath of candidates) {
     try {

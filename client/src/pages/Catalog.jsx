@@ -2568,30 +2568,6 @@ function Catalog() {
           <Card.Text className="text-muted small mb-1" style={{ fontSize: '0.7rem' }}>
             {language === 'uz' && product.unit_uz ? product.unit_uz : product.unit}
           </Card.Text>
-          {productSizeOptions.length > 0 && (
-            <div className="d-flex flex-wrap gap-1 mb-2">
-              {productSizeOptions.slice(0, 3).map((sizeValue) => (
-                <span
-                  key={`product-card-size-${product.id}-${sizeValue}`}
-                  className="badge"
-                  style={{
-                    background: 'rgba(22,163,74,0.12)',
-                    color: '#166534',
-                    border: '1px solid rgba(22,163,74,0.35)',
-                    fontWeight: 500,
-                    fontSize: '0.66rem'
-                  }}
-                >
-                  {sizeValue}
-                </span>
-              ))}
-              {productSizeOptions.length > 3 && (
-                <span className="badge bg-light text-secondary border" style={{ fontSize: '0.66rem' }}>
-                  +{productSizeOptions.length - 3}
-                </span>
-              )}
-            </div>
-          )}
           <div className="mt-auto d-flex flex-column" style={{ lineHeight: 1.2 }}>
             {productPriceMeta.isDiscount && Number.isFinite(productPriceMeta.originalPrice) && (
               <span
