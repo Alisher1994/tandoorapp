@@ -105,6 +105,27 @@ const UserLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   </svg>
 );
 
+const ShareLucideIcon = ({ size = 18, color = 'currentColor' }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="18" cy="5" r="3" />
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="19" r="3" />
+    <path d="m8.59 13.51 6.83 3.98" />
+    <path d="m15.41 7.51-6.82 3.98" />
+  </svg>
+);
+
 function Catalog() {
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
@@ -1798,6 +1819,76 @@ function Catalog() {
     navigate('/login');
   };
 
+  const buildProductShareUrl = (product, selectedVariant = '') => {
+    if (typeof window === 'undefined') return '';
+    const productId = normalizeId(product?.id);
+    if (!productId) return '';
+
+    const url = new URL(window.location.href);
+    url.pathname = window.location.pathname || '/catalog';
+    url.hash = '';
+    url.searchParams.set('product_id', String(productId));
+
+    const restaurantId = normalizeId(selectedRestaurant);
+    if (restaurantId) {
+      url.searchParams.set('restaurant_id', String(restaurantId));
+    } else {
+      url.searchParams.delete('restaurant_id');
+    }
+
+    const normalizedVariant = String(selectedVariant || '').trim();
+    if (normalizedVariant) {
+      url.searchParams.set('variant', normalizedVariant);
+    } else {
+      url.searchParams.delete('variant');
+    }
+
+    return url.toString();
+  };
+
+  const handleShareProduct = async (product) => {
+    const productId = normalizeId(product?.id);
+    if (!productId) return;
+
+    const selectedVariant = getSelectedVariantForProduct(product);
+    const shareUrl = buildProductShareUrl(product, selectedVariant);
+    if (!shareUrl) return;
+
+    const shareTitle = getProductName(product) || (language === 'uz' ? 'Mahsulot' : 'Товар');
+    const shareText = language === 'uz'
+      ? `Mahsulotni ko‘ring: ${shareTitle}`
+      : `Посмотрите товар: ${shareTitle}`;
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+        return;
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        const copiedMessage = language === 'uz' ? 'Havola nusxalandi' : 'Ссылка скопирована';
+        if (typeof window !== 'undefined' && window.Telegram?.WebApp?.showAlert) {
+          window.Telegram.WebApp.showAlert(copiedMessage);
+        } else if (typeof window !== 'undefined') {
+          window.alert(copiedMessage);
+        }
+        return;
+      } catch (error) {
+        // fallback below
+      }
+    }
+
+    if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+      const promptText = language === 'uz' ? 'Havolani nusxalang:' : 'Скопируйте ссылку:';
+      window.prompt(promptText, shareUrl);
+    }
+  };
+
   const nonEmptyCategoryIds = useMemo(() => {
     const memo = new Map();
 
@@ -3104,6 +3195,39 @@ function Catalog() {
   }, [location.state?.selectedProductId, products, navigate, location.pathname]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (showProductDetailsModal) return;
+    if (!selectedRestaurant || products.length === 0) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedProductId = normalizeId(params.get('product_id'));
+    if (!requestedProductId) return;
+
+    const requestedRestaurantId = normalizeId(params.get('restaurant_id'));
+    if (requestedRestaurantId && requestedRestaurantId !== normalizeId(selectedRestaurant)) {
+      setSelectedRestaurant(requestedRestaurantId);
+      return;
+    }
+
+    const requestedProduct = products.find((item) => normalizeId(item?.id) === requestedProductId);
+    if (!requestedProduct) return;
+
+    const requestedVariant = String(params.get('variant') || '').trim();
+    if (requestedVariant) {
+      selectVariantForProduct(requestedProduct, requestedVariant);
+    }
+    openProductDetailsModal(requestedProduct);
+
+    const cleanedParams = new URLSearchParams(window.location.search);
+    cleanedParams.delete('product_id');
+    cleanedParams.delete('restaurant_id');
+    cleanedParams.delete('variant');
+    const cleanedSearch = cleanedParams.toString();
+    const cleanedUrl = `${window.location.pathname}${cleanedSearch ? `?${cleanedSearch}` : ''}${window.location.hash || ''}`;
+    window.history.replaceState(window.history.state, '', cleanedUrl);
+  }, [products, selectedRestaurant, showProductDetailsModal]);
+
+  useEffect(() => {
     if (!showProductDetailsModal) return;
     const activeProduct = selectedProductDetails || selectedProductSummary;
     if (!activeProduct?.id) return;
@@ -4402,6 +4526,15 @@ function Catalog() {
                         aria-label={language === 'uz' ? "Saralanganlarga qo'shish" : 'Добавить в избранное'}
                       >
                         <HeartIcon size={18} filled={activeProductFavorite} color={activeProductFavorite ? '#e11d48' : '#334155'} />
+                      </button>
+                      <button
+                        type="button"
+                        className="product-details-icon-btn"
+                        onClick={() => handleShareProduct(activeProduct)}
+                        aria-label={language === 'uz' ? 'Ulashish' : 'Поделиться'}
+                        title={language === 'uz' ? 'Ulashish' : 'Поделиться'}
+                      >
+                        <ShareLucideIcon size={18} color="#334155" />
                       </button>
                       <button
                         type="button"
