@@ -189,7 +189,8 @@ function Catalog() {
     show: false,
     title: '',
     text: '',
-    url: ''
+    url: '',
+    viewportRect: null
   });
   const [shareActionActive, setShareActionActive] = useState('');
   const [catalogTabsLayout, setCatalogTabsLayout] = useState({
@@ -1830,9 +1831,33 @@ function Catalog() {
       show: false,
       title: '',
       text: '',
-      url: ''
+      url: '',
+      viewportRect: null
     });
     setShareActionActive('');
+  };
+  const resolveShareViewportRect = () => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+    const modalContent = document.querySelector('.product-details-modal-dialog .modal-content');
+    const modalDialog = document.querySelector('.product-details-modal-dialog');
+    const target = modalContent || modalDialog;
+    if (target && typeof target.getBoundingClientRect === 'function') {
+      const rect = target.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        return {
+          top: Math.max(0, rect.top),
+          left: Math.max(0, rect.left),
+          width: Math.max(0, rect.width),
+          height: Math.max(0, rect.height)
+        };
+      }
+    }
+    return {
+      top: 0,
+      left: 0,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
   };
   const openExternalLink = (targetUrl) => {
     if (!targetUrl || typeof window === 'undefined') return;
@@ -1991,7 +2016,8 @@ function Catalog() {
       show: true,
       title: shareTitle,
       text: shareText,
-      url: shareUrl
+      url: shareUrl,
+      viewportRect: resolveShareViewportRect()
     };
     setShareFallbackModal(sharePayload);
   };
@@ -4374,6 +4400,24 @@ function Catalog() {
 
       {shareFallbackModal.show && (
         <>
+          {(() => {
+            const viewport = shareFallbackModal.viewportRect || {
+              top: 0,
+              left: 0,
+              width: (typeof window !== 'undefined' ? window.innerWidth : 0),
+              height: (typeof window !== 'undefined' ? window.innerHeight : 0)
+            };
+            return (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: viewport.top,
+                  left: viewport.left,
+                  width: viewport.width,
+                  height: viewport.height,
+                  zIndex: 1080
+                }}
+              >
           <style>{`
             @keyframes catalogShareSheetUp {
               from { transform: translateY(20px); opacity: 0; }
@@ -4383,15 +4427,15 @@ function Catalog() {
           <div
             onClick={closeShareFallbackModal}
             style={{
-              position: 'fixed',
+              position: 'absolute',
               inset: 0,
               background: 'rgba(15, 23, 42, 0.36)',
-              zIndex: 1080
+              zIndex: 1
             }}
           />
           <div
             style={{
-              position: 'fixed',
+              position: 'absolute',
               left: 0,
               right: 0,
               bottom: 0,
@@ -4400,7 +4444,7 @@ function Catalog() {
               borderTopRightRadius: 20,
               padding: '12px 14px calc(12px + env(safe-area-inset-bottom, 0px))',
               boxShadow: '0 -8px 28px rgba(15, 23, 42, 0.24)',
-              zIndex: 1081,
+              zIndex: 2,
               animation: 'catalogShareSheetUp 180ms ease-out'
             }}
           >
@@ -4488,6 +4532,9 @@ function Catalog() {
               </button>
             </div>
           </div>
+              </div>
+            );
+          })()}
         </>
       )}
 
