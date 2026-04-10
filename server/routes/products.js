@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../database/connection');
 const jwt = require('jsonwebtoken');
+const TelegramBot = require('node-telegram-bot-api');
 const UAParser = require('ua-parser-js');
 const geoip = require('geoip-lite');
 const { authenticate } = require('../middleware/auth');
@@ -81,6 +82,38 @@ const getCurrentSeasonScope = (date = new Date()) => {
   if ([3, 4, 5].includes(month)) return 'spring';
   if ([6, 7, 8].includes(month)) return 'summer';
   return 'autumn';
+};
+const TELEGRAM_BOT_USERNAME_CACHE_TTL_MS = 10 * 60 * 1000;
+const telegramBotUsernameCache = new Map();
+const normalizeTelegramBotUsername = (value) => String(value || '').trim().replace(/^@+/, '');
+const resolveTelegramBotUsernameByToken = async (botToken) => {
+  const normalizedToken = String(botToken || '').trim();
+  if (!normalizedToken) return '';
+
+  const now = Date.now();
+  const cached = telegramBotUsernameCache.get(normalizedToken);
+  if (cached && cached.expiresAt > now) {
+    return cached.username;
+  }
+
+  let username = '';
+  try {
+    const bot = new TelegramBot(normalizedToken, { polling: false });
+    const me = await Promise.race([
+      bot.getMe(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('telegram_get_me_timeout')), 3000))
+    ]);
+    username = normalizeTelegramBotUsername(me?.username);
+  } catch (_) {
+    username = '';
+  }
+
+  telegramBotUsernameCache.set(normalizedToken, {
+    username,
+    expiresAt: now + TELEGRAM_BOT_USERNAME_CACHE_TTL_MS
+  });
+
+  return username;
 };
 
 const getClientIp = (req) => (
@@ -795,6 +828,8 @@ router.get('/restaurant/:id', async (req, res) => {
     const cashEnabled = r.cash_enabled === undefined || r.cash_enabled === null
       ? true
       : isEnabledFlag(r.cash_enabled);
+    const telegramBotUsername = normalizeTelegramBotUsername(r.telegram_bot_username)
+      || await resolveTelegramBotUsernameByToken(r.telegram_bot_token);
     res.json({
       id: r.id,
       name: r.name,
@@ -824,6 +859,7 @@ router.get('/restaurant/:id', async (req, res) => {
       reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
       reservation_service_cost: Number.isFinite(Number.parseFloat(r.reservation_service_cost)) ? Number.parseFloat(r.reservation_service_cost) : 0,
       reservation_allow_multi_table: r.reservation_allow_multi_table !== false,
+      telegram_bot_username: telegramBotUsername ? `@${telegramBotUsername}` : '',
       work_start_time: String(r.start_time || '').slice(0, 5),
       work_end_time: String(r.end_time || '').slice(0, 5),
       card_payment_enabled: cardPaymentEnabled,
@@ -1470,8 +1506,10 @@ router.get('/restaurants/list', async (req, res) => {
       ORDER BY r.name
     `);
     // Return only safe public fields
-    const restaurants = result.rows.map(r => {
+    const restaurants = await Promise.all(result.rows.map(async (r) => {
       const serviceFee = Number.parseFloat(r.service_fee ?? 0);
+      const telegramBotUsername = normalizeTelegramBotUsername(r.telegram_bot_username)
+        || await resolveTelegramBotUsernameByToken(r.telegram_bot_token);
       return ({
       id: r.id,
       name: r.name,
@@ -1494,9 +1532,9 @@ router.get('/restaurants/list', async (req, res) => {
       reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
       reservation_service_cost: Number.isFinite(Number.parseFloat(r.reservation_service_cost)) ? Number.parseFloat(r.reservation_service_cost) : 0,
       reservation_allow_multi_table: r.reservation_allow_multi_table !== false,
-      telegram_bot_username: String(r.telegram_bot_username || '').trim()
+      telegram_bot_username: telegramBotUsername ? `@${telegramBotUsername}` : ''
       });
-    });
+    }));
     res.json(restaurants);
   } catch (error) {
     console.error('Restaurants list error:', error);
