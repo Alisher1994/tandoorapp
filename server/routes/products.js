@@ -1493,7 +1493,8 @@ router.get('/restaurants/list', async (req, res) => {
       reservation_enabled: r.reservation_enabled_setting === true || r.reservation_enabled_setting === 'true',
       reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
       reservation_service_cost: Number.isFinite(Number.parseFloat(r.reservation_service_cost)) ? Number.parseFloat(r.reservation_service_cost) : 0,
-      reservation_allow_multi_table: r.reservation_allow_multi_table !== false
+      reservation_allow_multi_table: r.reservation_allow_multi_table !== false,
+      telegram_bot_username: String(r.telegram_bot_username || '').trim()
       });
     });
     res.json(restaurants);

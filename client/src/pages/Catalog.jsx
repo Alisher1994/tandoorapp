@@ -1819,31 +1819,18 @@ function Catalog() {
     navigate('/login');
   };
 
-  const buildProductShareUrl = (product, selectedVariant = '') => {
-    if (typeof window === 'undefined') return '';
+  const buildProductShareUrl = (product) => {
     const productId = normalizeId(product?.id);
     if (!productId) return '';
-
-    const url = new URL(window.location.href);
-    url.pathname = window.location.pathname || '/catalog';
-    url.hash = '';
-    url.searchParams.set('product_id', String(productId));
-
     const restaurantId = normalizeId(selectedRestaurant);
-    if (restaurantId) {
-      url.searchParams.set('restaurant_id', String(restaurantId));
-    } else {
-      url.searchParams.delete('restaurant_id');
+    const botUsernameRaw = String(currentRestaurant?.telegram_bot_username || '').trim().replace(/^@+/, '');
+    if (botUsernameRaw) {
+      const startPayload = restaurantId
+        ? `product_${restaurantId}_${productId}`
+        : `product_${productId}`;
+      return `https://t.me/${encodeURIComponent(botUsernameRaw)}?start=${encodeURIComponent(startPayload)}`;
     }
-
-    const normalizedVariant = String(selectedVariant || '').trim();
-    if (normalizedVariant) {
-      url.searchParams.set('variant', normalizedVariant);
-    } else {
-      url.searchParams.delete('variant');
-    }
-
-    return url.toString();
+    return '';
   };
 
   const handleShareProduct = async (product) => {
@@ -1851,8 +1838,18 @@ function Catalog() {
     if (!productId) return;
 
     const selectedVariant = getSelectedVariantForProduct(product);
-    const shareUrl = buildProductShareUrl(product, selectedVariant);
-    if (!shareUrl) return;
+    const shareUrl = buildProductShareUrl(product);
+    if (!shareUrl) {
+      const message = language === 'uz'
+        ? 'Bot havolasi sozlanmagan. Administratorga murojaat qiling.'
+        : 'Ссылка на бот не настроена. Обратитесь к администратору.';
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp?.showAlert) {
+        window.Telegram.WebApp.showAlert(message);
+      } else if (typeof window !== 'undefined') {
+        window.alert(message);
+      }
+      return;
+    }
 
     const shareTitle = getProductName(product) || (language === 'uz' ? 'Mahsulot' : 'Товар');
     const priceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
