@@ -185,6 +185,12 @@ function Catalog() {
   const [productHeroIndex, setProductHeroIndex] = useState(0);
   const [catalogAnimationSeason, setCatalogAnimationSeason] = useState('off');
   const [loading, setLoading] = useState(true);
+  const [shareFallbackModal, setShareFallbackModal] = useState({
+    show: false,
+    title: '',
+    text: '',
+    url: ''
+  });
   const [catalogTabsLayout, setCatalogTabsLayout] = useState({
     startSpacerWidth: 0,
     endSpacerWidth: 0
@@ -1818,6 +1824,63 @@ function Catalog() {
     await logout();
     navigate('/login');
   };
+  const closeShareFallbackModal = () => {
+    setShareFallbackModal({
+      show: false,
+      title: '',
+      text: '',
+      url: ''
+    });
+  };
+  const openExternalLink = (targetUrl) => {
+    if (!targetUrl || typeof window === 'undefined') return;
+    if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(targetUrl);
+      return;
+    }
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  };
+  const copyShareTextToClipboard = async (value) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+    return false;
+  };
+  const handleShareViaTelegram = () => {
+    if (!shareFallbackModal.url) return;
+    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareFallbackModal.url)}&text=${encodeURIComponent(shareFallbackModal.text || shareFallbackModal.title || '')}`;
+    openExternalLink(tgShareUrl);
+    closeShareFallbackModal();
+  };
+  const handleShareViaWhatsApp = () => {
+    if (!shareFallbackModal.text && !shareFallbackModal.url) return;
+    const waText = shareFallbackModal.text || shareFallbackModal.url;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(waText)}`;
+    openExternalLink(waUrl);
+    closeShareFallbackModal();
+  };
+  const handleShareCopyFallback = async () => {
+    const copied = await copyShareTextToClipboard(shareFallbackModal.text || shareFallbackModal.url || '');
+    const copiedMessage = language === 'uz' ? 'Havola nusxalandi' : 'Ссылка скопирована';
+    closeShareFallbackModal();
+    if (copied) {
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp?.showAlert) {
+        window.Telegram.WebApp.showAlert(copiedMessage);
+      } else if (typeof window !== 'undefined') {
+        window.alert(copiedMessage);
+      }
+      return;
+    }
+    if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+      const promptText = language === 'uz' ? 'Havolani nusxalang:' : 'Скопируйте ссылку:';
+      window.prompt(promptText, shareFallbackModal.text || shareFallbackModal.url || '');
+    }
+  };
 
   const buildProductShareUrl = (product) => {
     const productId = normalizeId(product?.id);
@@ -1903,26 +1966,13 @@ function Catalog() {
       }
     }
 
-    // 2) Fallback: copy link.
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(shareText);
-        const copiedMessage = language === 'uz' ? 'Havola nusxalandi' : 'Ссылка скопирована';
-        if (typeof window !== 'undefined' && window.Telegram?.WebApp?.showAlert) {
-          window.Telegram.WebApp.showAlert(copiedMessage);
-        } else if (typeof window !== 'undefined') {
-          window.alert(copiedMessage);
-        }
-        return;
-      } catch (error) {
-        // fallback below
-      }
-    }
-
-    if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
-      const promptText = language === 'uz' ? 'Havolani nusxalang:' : 'Скопируйте ссылку:';
-      window.prompt(promptText, shareText);
-    }
+    // 2) Fallback: in-app share options (important for Android Telegram WebView).
+    setShareFallbackModal({
+      show: true,
+      title: shareTitle,
+      text: shareText,
+      url: shareUrl
+    });
   };
 
   const nonEmptyCategoryIds = useMemo(() => {
@@ -4300,6 +4350,31 @@ function Catalog() {
       </Modal>
 
       <ClientAccountModal show={showAccountModal} onHide={() => setShowAccountModal(false)} />
+
+      <Modal
+        show={shareFallbackModal.show}
+        onHide={closeShareFallbackModal}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: '1rem' }}>
+            {language === 'uz' ? 'Ulashish' : 'Поделиться'}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="d-grid gap-2">
+            <Button variant="primary" onClick={handleShareViaTelegram}>
+              Telegram
+            </Button>
+            <Button variant="success" onClick={handleShareViaWhatsApp}>
+              WhatsApp
+            </Button>
+            <Button variant="outline-secondary" onClick={handleShareCopyFallback}>
+              {language === 'uz' ? 'Havolani nusxalash' : 'Копировать ссылку'}
+            </Button>
+          </div>
+        </Modal.Body>
+      </Modal>
 
       <Modal
         show={showEntryPopupModal && !!entryPopupBanner}
