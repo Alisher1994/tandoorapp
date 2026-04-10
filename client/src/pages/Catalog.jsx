@@ -189,8 +189,7 @@ function Catalog() {
     show: false,
     title: '',
     text: '',
-    url: '',
-    viewportRect: null
+    url: ''
   });
   const [shareActionActive, setShareActionActive] = useState('');
   const [catalogTabsLayout, setCatalogTabsLayout] = useState({
@@ -1831,33 +1830,9 @@ function Catalog() {
       show: false,
       title: '',
       text: '',
-      url: '',
-      viewportRect: null
+      url: ''
     });
     setShareActionActive('');
-  };
-  const resolveShareViewportRect = () => {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return null;
-    const modalContent = document.querySelector('.product-details-modal-dialog .modal-content');
-    const modalDialog = document.querySelector('.product-details-modal-dialog');
-    const target = modalContent || modalDialog;
-    if (target && typeof target.getBoundingClientRect === 'function') {
-      const rect = target.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        return {
-          top: Math.max(0, rect.top),
-          left: Math.max(0, rect.left),
-          width: Math.max(0, rect.width),
-          height: Math.max(0, rect.height)
-        };
-      }
-    }
-    return {
-      top: 0,
-      left: 0,
-      width: window.innerWidth,
-      height: window.innerHeight
-    };
   };
   const openExternalLink = (targetUrl) => {
     if (!targetUrl || typeof window === 'undefined') return;
@@ -2016,8 +1991,7 @@ function Catalog() {
       show: true,
       title: shareTitle,
       text: shareText,
-      url: shareUrl,
-      viewportRect: resolveShareViewportRect()
+      url: shareUrl
     };
     setShareFallbackModal(sharePayload);
   };
@@ -3161,6 +3135,7 @@ function Catalog() {
   };
 
   const closeProductDetailsModal = () => {
+    closeShareFallbackModal();
     setShowProductDetailsModal(false);
     setSelectedProductSummary(null);
     resetProductDetailsState();
@@ -4398,146 +4373,6 @@ function Catalog() {
 
       <ClientAccountModal show={showAccountModal} onHide={() => setShowAccountModal(false)} />
 
-      {shareFallbackModal.show && (
-        <>
-          {(() => {
-            const viewport = shareFallbackModal.viewportRect || {
-              top: 0,
-              left: 0,
-              width: (typeof window !== 'undefined' ? window.innerWidth : 0),
-              height: (typeof window !== 'undefined' ? window.innerHeight : 0)
-            };
-            return (
-              <div
-                style={{
-                  position: 'fixed',
-                  top: viewport.top,
-                  left: viewport.left,
-                  width: viewport.width,
-                  height: viewport.height,
-                  zIndex: 1080
-                }}
-              >
-          <style>{`
-            @keyframes catalogShareSheetUp {
-              from { transform: translateY(20px); opacity: 0; }
-              to { transform: translateY(0); opacity: 1; }
-            }
-          `}</style>
-          <div
-            onClick={closeShareFallbackModal}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(15, 23, 42, 0.36)',
-              zIndex: 1
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: '#ffffff',
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              padding: '12px 14px calc(12px + env(safe-area-inset-bottom, 0px))',
-              boxShadow: '0 -8px 28px rgba(15, 23, 42, 0.24)',
-              zIndex: 2,
-              animation: 'catalogShareSheetUp 180ms ease-out'
-            }}
-          >
-            <div
-              style={{
-                width: 42,
-                height: 4,
-                borderRadius: 999,
-                background: '#d1d5db',
-                margin: '0 auto 10px'
-              }}
-            />
-            <div
-              style={{
-                fontSize: '0.95rem',
-                fontWeight: 700,
-                color: '#0f172a',
-                marginBottom: 10
-              }}
-            >
-              {language === 'uz' ? 'Ulashish' : 'Поделиться'}
-            </div>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                gap: 10
-              }}
-            >
-              <button
-                type="button"
-                onClick={handleShareViaTelegram}
-                style={{
-                  border: shareActionActive === 'telegram' ? '2px solid #229ED9' : '1px solid #dbe5f2',
-                  borderRadius: 14,
-                  background: shareActionActive === 'telegram' ? '#eef8ff' : '#f8fbff',
-                  minHeight: 96,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8
-                }}
-              >
-                <img src="https://cdn.simpleicons.org/telegram/229ED9" alt="Telegram" width="26" height="26" />
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>Telegram</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleShareViaWhatsApp}
-                style={{
-                  border: shareActionActive === 'whatsapp' ? '2px solid #25D366' : '1px solid #dbe5f2',
-                  borderRadius: 14,
-                  background: shareActionActive === 'whatsapp' ? '#f2fff7' : '#f8fbff',
-                  minHeight: 96,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8
-                }}
-              >
-                <img src="https://cdn.simpleicons.org/whatsapp/25D366" alt="WhatsApp" width="26" height="26" />
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>WhatsApp</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleShareCopyFallback}
-                style={{
-                  border: shareActionActive === 'copy' ? '2px solid #475569' : '1px solid #dbe5f2',
-                  borderRadius: 14,
-                  background: shareActionActive === 'copy' ? '#f1f5f9' : '#f8fbff',
-                  minHeight: 96,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8
-                }}
-              >
-                <span style={{ fontSize: '1.35rem', lineHeight: 1 }}>⧉</span>
-                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>
-                  {language === 'uz' ? 'Nusxalash' : 'Копировать'}
-                </span>
-              </button>
-            </div>
-          </div>
-              </div>
-            );
-          })()}
-        </>
-      )}
-
       <Modal
         show={showEntryPopupModal && !!entryPopupBanner}
         onHide={closeEntryPopup}
@@ -4750,7 +4585,13 @@ function Catalog() {
               <ListSkeleton rows={4} />
             </div>
           ) : activeProduct ? (
-            <div className="product-details-shell">
+            <div className="product-details-shell" style={{ position: 'relative' }}>
+              <style>{`
+                @keyframes catalogShareSheetUp {
+                  from { transform: translateY(20px); opacity: 0; }
+                  to { transform: translateY(0); opacity: 1; }
+                }
+              `}</style>
               <div className="product-details-scroll">
                 <section className="product-details-hero">
                   {activeProductHeroImage ? (
@@ -5152,6 +4993,119 @@ function Catalog() {
                   )}
                 </div>
               </div>
+
+              {shareFallbackModal.show && (
+                <>
+                  <div
+                    onClick={closeShareFallbackModal}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(15, 23, 42, 0.36)',
+                      zIndex: 30
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: '#ffffff',
+                      borderTopLeftRadius: 20,
+                      borderTopRightRadius: 20,
+                      padding: '12px 14px calc(12px + env(safe-area-inset-bottom, 0px))',
+                      boxShadow: '0 -8px 28px rgba(15, 23, 42, 0.24)',
+                      zIndex: 31,
+                      animation: 'catalogShareSheetUp 180ms ease-out'
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 42,
+                        height: 4,
+                        borderRadius: 999,
+                        background: '#d1d5db',
+                        margin: '0 auto 10px'
+                      }}
+                    />
+                    <div
+                      style={{
+                        fontSize: '0.95rem',
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        marginBottom: 10
+                      }}
+                    >
+                      {language === 'uz' ? 'Ulashish' : 'Поделиться'}
+                    </div>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                        gap: 10
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={handleShareViaTelegram}
+                        style={{
+                          border: shareActionActive === 'telegram' ? '2px solid #229ED9' : '1px solid #dbe5f2',
+                          borderRadius: 14,
+                          background: shareActionActive === 'telegram' ? '#eef8ff' : '#f8fbff',
+                          minHeight: 96,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8
+                        }}
+                      >
+                        <img src="https://cdn.simpleicons.org/telegram/229ED9" alt="Telegram" width="26" height="26" />
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>Telegram</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleShareViaWhatsApp}
+                        style={{
+                          border: shareActionActive === 'whatsapp' ? '2px solid #25D366' : '1px solid #dbe5f2',
+                          borderRadius: 14,
+                          background: shareActionActive === 'whatsapp' ? '#f2fff7' : '#f8fbff',
+                          minHeight: 96,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8
+                        }}
+                      >
+                        <img src="https://cdn.simpleicons.org/whatsapp/25D366" alt="WhatsApp" width="26" height="26" />
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>WhatsApp</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleShareCopyFallback}
+                        style={{
+                          border: shareActionActive === 'copy' ? '2px solid #475569' : '1px solid #dbe5f2',
+                          borderRadius: 14,
+                          background: shareActionActive === 'copy' ? '#f1f5f9' : '#f8fbff',
+                          minHeight: 96,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8
+                        }}
+                      >
+                        <span style={{ fontSize: '1.35rem', lineHeight: 1 }}>⧉</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>
+                          {language === 'uz' ? 'Nusxalash' : 'Копировать'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="p-3 text-muted">{language === 'uz' ? "Mahsulot topilmadi" : 'Товар не найден'}</div>
