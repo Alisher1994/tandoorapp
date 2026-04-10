@@ -470,6 +470,8 @@ function ShowcaseDisplay() {
     const blockTitle = String(block?.settings?.title || block?.title || '').trim();
     const blockLayoutVariant = String(block?.settings?.layoutVariant || '').trim();
     const hideCategoryTitleBackground = block?.settings?.hideCategoryTitleBackground === true;
+    const categoryTitleBackgroundTransparent = block?.settings?.categoryTitleBackgroundTransparent === true;
+    const categoryTitleOutsideImage = block?.settings?.categoryTitleOutsideImage === true;
     const content = Array.isArray(block.content) ? block.content : [];
     const limit = block.block_type === 'grid_3' || block.block_type === 'grid_2'
       ? getGridLimitFromBlock(block)
@@ -497,6 +499,8 @@ function ShowcaseDisplay() {
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
               hideCategoryTitleBackground={hideCategoryTitleBackground}
+              categoryTitleBackgroundTransparent={categoryTitleBackgroundTransparent}
+              categoryTitleOutsideImage={categoryTitleOutsideImage}
               language={language}
             />
           );
@@ -511,6 +515,8 @@ function ShowcaseDisplay() {
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
             hideCategoryTitleBackground={hideCategoryTitleBackground}
+            categoryTitleBackgroundTransparent={categoryTitleBackgroundTransparent}
+            categoryTitleOutsideImage={categoryTitleOutsideImage}
             language={language}
           />
         );
@@ -528,6 +534,8 @@ function ShowcaseDisplay() {
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
               hideCategoryTitleBackground={hideCategoryTitleBackground}
+              categoryTitleBackgroundTransparent={categoryTitleBackgroundTransparent}
+              categoryTitleOutsideImage={categoryTitleOutsideImage}
               language={language}
             />
           );
@@ -542,6 +550,8 @@ function ShowcaseDisplay() {
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
             hideCategoryTitleBackground={hideCategoryTitleBackground}
+            categoryTitleBackgroundTransparent={categoryTitleBackgroundTransparent}
+            categoryTitleOutsideImage={categoryTitleOutsideImage}
             language={language}
           />
         );

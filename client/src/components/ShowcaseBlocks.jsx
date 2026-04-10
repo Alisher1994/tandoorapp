@@ -188,13 +188,15 @@ export function Grid3Block({
   categoryImageFallback = '',
   blockTitle = '',
   hideCategoryTitleBackground = false,
+  categoryTitleBackgroundTransparent = false,
+  categoryTitleOutsideImage = false,
   language = 'ru'
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
   const titleText = getDisplayBlockTitle(blockTitle);
 
   return (
-    <div className={`showcase-block grid-3-block${hideCategoryTitleBackground ? ' no-title-bg' : ''}`}>
+    <div className={`showcase-block grid-3-block${hideCategoryTitleBackground ? ' no-title-bg' : ''}${categoryTitleBackgroundTransparent ? ' title-bg-transparent' : ''}${categoryTitleOutsideImage ? ' title-outside' : ''}`}>
       {titleText && <h3 className="showcase-block-title">{titleText}</h3>}
       <div className="grid-3-container">
         {categories.map((category) => {
@@ -217,8 +219,13 @@ export function Grid3Block({
                 {getCartBadge(category.id) && (
                   <span className="cart-badge">{getCartBadge(category.id)}</span>
                 )}
-                <div className="category-card-overlay-title">{getCategoryName(category, language)}</div>
+                {!categoryTitleOutsideImage && (
+                  <div className="category-card-overlay-title">{getCategoryName(category, language)}</div>
+                )}
               </div>
+              {categoryTitleOutsideImage && (
+                <div className="category-card-outside-title">{getCategoryName(category, language)}</div>
+              )}
             </div>
           );
         })}
@@ -239,13 +246,15 @@ export function Grid2Block({
   categoryImageFallback = '',
   blockTitle = '',
   hideCategoryTitleBackground = false,
+  categoryTitleBackgroundTransparent = false,
+  categoryTitleOutsideImage = false,
   language = 'ru'
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
   const titleText = getDisplayBlockTitle(blockTitle);
 
   return (
-    <div className={`showcase-block grid-2-block${hideCategoryTitleBackground ? ' no-title-bg' : ''}`}>
+    <div className={`showcase-block grid-2-block${hideCategoryTitleBackground ? ' no-title-bg' : ''}${categoryTitleBackgroundTransparent ? ' title-bg-transparent' : ''}${categoryTitleOutsideImage ? ' title-outside' : ''}`}>
       {titleText && <h3 className="showcase-block-title">{titleText}</h3>}
       <div className="grid-2-container">
         {categories.map((category) => {
@@ -268,8 +277,13 @@ export function Grid2Block({
                 {getCartBadge(category.id) && (
                   <span className="cart-badge">{getCartBadge(category.id)}</span>
                 )}
-                <div className="category-card-overlay-title">{getCategoryName(category, language)}</div>
+                {!categoryTitleOutsideImage && (
+                  <div className="category-card-overlay-title">{getCategoryName(category, language)}</div>
+                )}
               </div>
+              {categoryTitleOutsideImage && (
+                <div className="category-card-outside-title">{getCategoryName(category, language)}</div>
+              )}
             </div>
           );
         })}
@@ -291,6 +305,8 @@ export function PatternGridBlock({
   blockTitle = '',
   layoutVariant = '',
   hideCategoryTitleBackground = false,
+  categoryTitleBackgroundTransparent = false,
+  categoryTitleOutsideImage = false,
   language = 'ru'
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
@@ -311,7 +327,7 @@ export function PatternGridBlock({
   }
 
   return (
-    <div className={`showcase-block pattern-grid-block${isZigzagLayout ? ' is-zigzag' : ''}${hideCategoryTitleBackground ? ' no-title-bg' : ''}`}>
+    <div className={`showcase-block pattern-grid-block${isZigzagLayout ? ' is-zigzag' : ''}${hideCategoryTitleBackground ? ' no-title-bg' : ''}${categoryTitleBackgroundTransparent ? ' title-bg-transparent' : ''}${categoryTitleOutsideImage ? ' title-outside' : ''}`}>
       {titleText && <h3 className="showcase-block-title">{titleText}</h3>}
       <div className="pattern-grid-rows">
         {rows.map((rowItems, rowIndex) => (
@@ -351,8 +367,13 @@ export function PatternGridBlock({
                         {getCartBadge(category.id) && (
                           <span className="cart-badge">{getCartBadge(category.id)}</span>
                         )}
-                        <div className="category-card-overlay-title">{getCategoryName(category, language)}</div>
+                        {!categoryTitleOutsideImage && (
+                          <div className="category-card-overlay-title">{getCategoryName(category, language)}</div>
+                        )}
                       </div>
+                      {categoryTitleOutsideImage && (
+                        <div className="category-card-outside-title">{getCategoryName(category, language)}</div>
+                      )}
                     </div>
                   );
                 })}

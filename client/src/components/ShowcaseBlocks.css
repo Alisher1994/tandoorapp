@@ -40,6 +40,25 @@
   padding: 0;
 }
 
+.showcase-block.title-bg-transparent .category-card-overlay-title {
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.category-card-outside-title {
+  margin-top: 0.42rem;
+  width: 100%;
+  padding: 0 0.16rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.15;
+  color: #111827;
+  text-align: left;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

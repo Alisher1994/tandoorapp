@@ -356,6 +356,8 @@ function ShowcaseBuilder({ embedded = false }) {
   const [selectedBlock, setSelectedBlock] = useState(null);
   const [dropTargetBlockId, setDropTargetBlockId] = useState(null);
   const [hideCategoryTitleBackgroundGlobal, setHideCategoryTitleBackgroundGlobal] = useState(false);
+  const [categoryTitleBackgroundTransparentGlobal, setCategoryTitleBackgroundTransparentGlobal] = useState(false);
+  const [categoryTitleOutsideImageGlobal, setCategoryTitleOutsideImageGlobal] = useState(false);
 
   const draggedCategoryRef = useRef(null);
   const gridBlocks = showcaseLayout.filter((block) => isGridBlockType(block?.block_type));
@@ -411,6 +413,12 @@ function ShowcaseBuilder({ embedded = false }) {
     setHideCategoryTitleBackgroundGlobal(
       showcaseGridBlocks.every((block) => block?.settings?.hideCategoryTitleBackground === true)
     );
+    setCategoryTitleBackgroundTransparentGlobal(
+      showcaseGridBlocks.every((block) => block?.settings?.categoryTitleBackgroundTransparent === true)
+    );
+    setCategoryTitleOutsideImageGlobal(
+      showcaseGridBlocks.every((block) => block?.settings?.categoryTitleOutsideImage === true)
+    );
   }, [showcaseLayout]);
 
   const handleToggleGlobalCategoryTitleBackground = (hidden) => {
@@ -428,10 +436,52 @@ function ShowcaseBuilder({ embedded = false }) {
     });
   };
 
+  const handleToggleGlobalCategoryTitleBackgroundTransparent = (transparent) => {
+    const normalizedTransparent = Boolean(transparent);
+    setCategoryTitleBackgroundTransparentGlobal(normalizedTransparent);
+    gridBlocks.forEach((block) => {
+      if ((block?.settings?.categoryTitleBackgroundTransparent === true) === normalizedTransparent) return;
+      updateBlock(block.id, {
+        settings: {
+          ...(block?.settings || {}),
+          categoryTitleBackgroundTransparent: normalizedTransparent
+        },
+        title: String(block?.title ?? '')
+      });
+    });
+  };
+
+  const handleToggleGlobalCategoryTitleOutsideImage = (outside) => {
+    const normalizedOutside = Boolean(outside);
+    setCategoryTitleOutsideImageGlobal(normalizedOutside);
+    gridBlocks.forEach((block) => {
+      if ((block?.settings?.categoryTitleOutsideImage === true) === normalizedOutside) return;
+      updateBlock(block.id, {
+        settings: {
+          ...(block?.settings || {}),
+          categoryTitleOutsideImage: normalizedOutside
+        },
+        title: String(block?.title ?? '')
+      });
+    });
+  };
+
   const handleAddBlock = (blockType, customSettings = null) => {
     const defaultSettings = {
-      [BLOCK_TYPES.GRID_3]: { title: '', maxCategories: 3, hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal },
-      [BLOCK_TYPES.GRID_2]: { title: '', maxCategories: 2, hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal },
+      [BLOCK_TYPES.GRID_3]: {
+        title: '',
+        maxCategories: 3,
+        hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal,
+        categoryTitleBackgroundTransparent: categoryTitleBackgroundTransparentGlobal,
+        categoryTitleOutsideImage: categoryTitleOutsideImageGlobal
+      },
+      [BLOCK_TYPES.GRID_2]: {
+        title: '',
+        maxCategories: 2,
+        hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal,
+        categoryTitleBackgroundTransparent: categoryTitleBackgroundTransparentGlobal,
+        categoryTitleOutsideImage: categoryTitleOutsideImageGlobal
+      },
       [BLOCK_TYPES.BANNER]: DEFAULT_BANNER_SETTINGS,
       [BLOCK_TYPES.SLIDER]: { title: '' }
     };
@@ -461,6 +511,8 @@ function ShowcaseBuilder({ embedded = false }) {
       };
       if (isGridBlockType(selectedTemplate.blockType)) {
         baseSettings.hideCategoryTitleBackground = hideCategoryTitleBackgroundGlobal;
+        baseSettings.categoryTitleBackgroundTransparent = categoryTitleBackgroundTransparentGlobal;
+        baseSettings.categoryTitleOutsideImage = categoryTitleOutsideImageGlobal;
       }
       addBlock(selectedTemplate.blockType, baseSettings);
       setShowBlockTypeModal(false);
@@ -693,6 +745,8 @@ function ShowcaseBuilder({ embedded = false }) {
     const blockTitle = String(block?.settings?.title || block?.title || '').trim();
     const blockLayoutVariant = String(block?.settings?.layoutVariant || '').trim();
     const hideCategoryTitleBackground = block?.settings?.hideCategoryTitleBackground === true;
+    const categoryTitleBackgroundTransparent = block?.settings?.categoryTitleBackgroundTransparent === true;
+    const categoryTitleOutsideImage = block?.settings?.categoryTitleOutsideImage === true;
     const limit = isGridBlockType(block.block_type) ? getGridCategoryLimit(block) : null;
     const sourceCategoryIds = Array.isArray(block.content)
       ? (Number.isInteger(limit) ? block.content.slice(0, limit) : block.content)
@@ -726,6 +780,8 @@ function ShowcaseBuilder({ embedded = false }) {
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
               hideCategoryTitleBackground={hideCategoryTitleBackground}
+              categoryTitleBackgroundTransparent={categoryTitleBackgroundTransparent}
+              categoryTitleOutsideImage={categoryTitleOutsideImage}
             />
           );
         }
@@ -737,6 +793,8 @@ function ShowcaseBuilder({ embedded = false }) {
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
             hideCategoryTitleBackground={hideCategoryTitleBackground}
+            categoryTitleBackgroundTransparent={categoryTitleBackgroundTransparent}
+            categoryTitleOutsideImage={categoryTitleOutsideImage}
           />
         );
       case BLOCK_TYPES.GRID_2:
@@ -751,6 +809,8 @@ function ShowcaseBuilder({ embedded = false }) {
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
               hideCategoryTitleBackground={hideCategoryTitleBackground}
+              categoryTitleBackgroundTransparent={categoryTitleBackgroundTransparent}
+              categoryTitleOutsideImage={categoryTitleOutsideImage}
             />
           );
         }
@@ -762,6 +822,8 @@ function ShowcaseBuilder({ embedded = false }) {
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
             hideCategoryTitleBackground={hideCategoryTitleBackground}
+            categoryTitleBackgroundTransparent={categoryTitleBackgroundTransparent}
+            categoryTitleOutsideImage={categoryTitleOutsideImage}
           />
         );
       case BLOCK_TYPES.BANNER:
@@ -800,6 +862,22 @@ function ShowcaseBuilder({ embedded = false }) {
             label="Скрыть фон названий категорий"
             checked={hideCategoryTitleBackgroundGlobal}
             onChange={(event) => handleToggleGlobalCategoryTitleBackground(event.target.checked)}
+          />
+          <Form.Check
+            type="switch"
+            id="category-title-bg-transparent-global-switch"
+            className="header-visibility-switch"
+            label="Полупрозрачный фон названий категорий"
+            checked={categoryTitleBackgroundTransparentGlobal}
+            onChange={(event) => handleToggleGlobalCategoryTitleBackgroundTransparent(event.target.checked)}
+          />
+          <Form.Check
+            type="switch"
+            id="category-title-outside-global-switch"
+            className="header-visibility-switch"
+            label="Название категории снаружи фото"
+            checked={categoryTitleOutsideImageGlobal}
+            onChange={(event) => handleToggleGlobalCategoryTitleOutsideImage(event.target.checked)}
           />
           {isDirty && <span className="unsaved-indicator">• Несохраненные изменения</span>}
           <Button
