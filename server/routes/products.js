@@ -697,10 +697,12 @@ router.get('/', async (req, res) => {
     
     let query = `
       SELECT p.*, c.name_ru as category_name,
-             cnt.id as container_id, cnt.name as container_name, cnt.price as container_price
+             cnt.id as container_id, cnt.name as container_name, cnt.price as container_price,
+             r.telegram_bot_username AS restaurant_bot_username
       FROM products p 
       LEFT JOIN categories c ON p.category_id = c.id 
       LEFT JOIN containers cnt ON p.container_id = cnt.id
+      LEFT JOIN restaurants r ON r.id = p.restaurant_id
       WHERE 1=1
         AND COALESCE(p.is_hidden_catalog, false) = false
         AND COALESCE(NULLIF(p.season_scope, ''), 'all') IN ('all', $1)
@@ -1092,7 +1094,8 @@ router.get('/:id/details', async (req, res) => {
         p.*,
         c.name_ru AS category_name_ru,
         c.name_uz AS category_name_uz,
-        r.name AS restaurant_name
+        r.name AS restaurant_name,
+        r.telegram_bot_username AS restaurant_bot_username
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN restaurants r ON r.id = p.restaurant_id

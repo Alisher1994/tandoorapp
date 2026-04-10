@@ -1823,7 +1823,14 @@ function Catalog() {
     const productId = normalizeId(product?.id);
     if (!productId) return '';
     const restaurantId = normalizeId(selectedRestaurant);
-    const botUsernameRaw = String(currentRestaurant?.telegram_bot_username || '').trim().replace(/^@+/, '');
+    const productRestaurantId = normalizeId(product?.restaurant_id);
+    const fallbackRestaurant = restaurants.find((item) => Number(item?.id) === Number(productRestaurantId)) || null;
+    const botUsernameRaw = String(
+      product?.restaurant_bot_username
+      || currentRestaurant?.telegram_bot_username
+      || fallbackRestaurant?.telegram_bot_username
+      || ''
+    ).trim().replace(/^@+/, '');
     if (botUsernameRaw) {
       const startPayload = restaurantId
         ? `product_${restaurantId}_${productId}`
