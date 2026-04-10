@@ -191,6 +191,7 @@ function Catalog() {
     text: '',
     url: ''
   });
+  const [shareActionActive, setShareActionActive] = useState('');
   const [catalogTabsLayout, setCatalogTabsLayout] = useState({
     startSpacerWidth: 0,
     endSpacerWidth: 0
@@ -1831,6 +1832,7 @@ function Catalog() {
       text: '',
       url: ''
     });
+    setShareActionActive('');
   };
   const openExternalLink = (targetUrl) => {
     if (!targetUrl || typeof window === 'undefined') return;
@@ -1883,49 +1885,18 @@ function Catalog() {
       }
     }
   };
-  const openTelegramSharePopup = async (payload) => {
-    if (typeof window === 'undefined') return false;
-    const webApp = window.Telegram?.WebApp;
-    if (!webApp || typeof webApp.showPopup !== 'function') return false;
-
-    const popupTitle = language === 'uz' ? 'Ulashish' : 'Поделиться';
-    const popupMessage = language === 'uz' ? 'Variantni tanlang' : 'Выберите вариант';
-
-    try {
-      await new Promise((resolve) => {
-        webApp.showPopup(
-          {
-            title: popupTitle,
-            message: popupMessage,
-            buttons: [
-              { id: 'telegram', type: 'default', text: 'Telegram' },
-              { id: 'whatsapp', type: 'default', text: 'WhatsApp' },
-              { id: 'copy', type: 'default', text: language === 'uz' ? 'Nusxalash' : 'Копировать' },
-              { type: 'close' }
-            ]
-          },
-          async (buttonId) => {
-            if (buttonId) {
-              await executeShareAction(buttonId, payload);
-            }
-            resolve();
-          }
-        );
-      });
-      return true;
-    } catch (_) {
-      return false;
-    }
-  };
-  const handleShareViaTelegram = () => {
-    executeShareAction('telegram', shareFallbackModal);
+  const handleShareViaTelegram = async () => {
+    setShareActionActive('telegram');
+    await executeShareAction('telegram', shareFallbackModal);
     closeShareFallbackModal();
   };
-  const handleShareViaWhatsApp = () => {
-    executeShareAction('whatsapp', shareFallbackModal);
+  const handleShareViaWhatsApp = async () => {
+    setShareActionActive('whatsapp');
+    await executeShareAction('whatsapp', shareFallbackModal);
     closeShareFallbackModal();
   };
   const handleShareCopyFallback = async () => {
+    setShareActionActive('copy');
     await executeShareAction('copy', shareFallbackModal);
     closeShareFallbackModal();
   };
@@ -1977,36 +1948,37 @@ function Catalog() {
       ? {
         photo: 'Rasm',
         name: 'Nomi',
-        price: 'Narxi',
-        open: 'Ochish'
+        price: 'Narxi'
       }
       : {
         photo: 'Фото',
         name: 'Название товара',
-        price: 'Цена товара',
-        open: 'Открыть'
+        price: 'Цена товара'
       };
 
     const shareLines = [
       shareImageUrl ? `${labels.photo}: ${shareImageUrl}` : '',
       `${labels.name}: ${shareTitle}`,
       `${labels.price}: ${priceText}`,
-      `${labels.open}: ${shareUrl}`
+      shareUrl
     ].filter(Boolean);
     const shareText = shareLines.join('\n');
+    const isAndroidWebView = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
+    const shouldSkipNativeShare = isAndroidWebView && isTelegramWebView;
 
     // 1) Try native OS share sheet (Telegram/WhatsApp/etc chooser on supported mobile browsers).
     if (
+      !shouldSkipNativeShare
       typeof navigator !== 'undefined'
       && typeof navigator.share === 'function'
       && (typeof window === 'undefined' || window.isSecureContext !== false)
     ) {
       try {
-        const sharePayload = { title: shareTitle, text: shareText, url: shareUrl };
+        const sharePayload = { title: shareTitle, text: shareText };
         if (typeof navigator.canShare !== 'function' || navigator.canShare(sharePayload)) {
           await navigator.share(sharePayload);
-        } else if (navigator.canShare({ url: shareUrl })) {
-          await navigator.share({ url: shareUrl });
+        } else if (navigator.canShare({ text: shareText })) {
+          await navigator.share({ text: shareText });
         }
         return;
       } catch (error) {
@@ -2014,18 +1986,13 @@ function Catalog() {
       }
     }
 
+    // 2) Custom bottom sheet fallback (works reliably in Android Telegram WebView).
     const sharePayload = {
       show: true,
       title: shareTitle,
       text: shareText,
       url: shareUrl
     };
-
-    // 2) Fallback for Android Telegram WebView: native Telegram popup with action buttons.
-    const popupShown = await openTelegramSharePopup(sharePayload);
-    if (popupShown) return;
-
-    // 3) Generic fallback modal for browsers without Telegram popup API.
     setShareFallbackModal(sharePayload);
   };
 
@@ -4405,30 +4372,124 @@ function Catalog() {
 
       <ClientAccountModal show={showAccountModal} onHide={() => setShowAccountModal(false)} />
 
-      <Modal
-        show={shareFallbackModal.show}
-        onHide={closeShareFallbackModal}
-        centered
-      >
-        <Modal.Header closeButton>
-          <Modal.Title style={{ fontSize: '1rem' }}>
-            {language === 'uz' ? 'Ulashish' : 'Поделиться'}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <div className="d-grid gap-2">
-            <Button variant="primary" onClick={handleShareViaTelegram}>
-              Telegram
-            </Button>
-            <Button variant="success" onClick={handleShareViaWhatsApp}>
-              WhatsApp
-            </Button>
-            <Button variant="outline-secondary" onClick={handleShareCopyFallback}>
-              {language === 'uz' ? 'Havolani nusxalash' : 'Копировать ссылку'}
-            </Button>
+      {shareFallbackModal.show && (
+        <>
+          <style>{`
+            @keyframes catalogShareSheetUp {
+              from { transform: translateY(20px); opacity: 0; }
+              to { transform: translateY(0); opacity: 1; }
+            }
+          `}</style>
+          <div
+            onClick={closeShareFallbackModal}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.36)',
+              zIndex: 1080
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: '#ffffff',
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              padding: '12px 14px calc(12px + env(safe-area-inset-bottom, 0px))',
+              boxShadow: '0 -8px 28px rgba(15, 23, 42, 0.24)',
+              zIndex: 1081,
+              animation: 'catalogShareSheetUp 180ms ease-out'
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 4,
+                borderRadius: 999,
+                background: '#d1d5db',
+                margin: '0 auto 10px'
+              }}
+            />
+            <div
+              style={{
+                fontSize: '0.95rem',
+                fontWeight: 700,
+                color: '#0f172a',
+                marginBottom: 10
+              }}
+            >
+              {language === 'uz' ? 'Ulashish' : 'Поделиться'}
+            </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                gap: 10
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleShareViaTelegram}
+                style={{
+                  border: shareActionActive === 'telegram' ? '2px solid #229ED9' : '1px solid #dbe5f2',
+                  borderRadius: 14,
+                  background: shareActionActive === 'telegram' ? '#eef8ff' : '#f8fbff',
+                  minHeight: 96,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+              >
+                <img src="https://cdn.simpleicons.org/telegram/229ED9" alt="Telegram" width="26" height="26" />
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>Telegram</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleShareViaWhatsApp}
+                style={{
+                  border: shareActionActive === 'whatsapp' ? '2px solid #25D366' : '1px solid #dbe5f2',
+                  borderRadius: 14,
+                  background: shareActionActive === 'whatsapp' ? '#f2fff7' : '#f8fbff',
+                  minHeight: 96,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+              >
+                <img src="https://cdn.simpleicons.org/whatsapp/25D366" alt="WhatsApp" width="26" height="26" />
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>WhatsApp</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleShareCopyFallback}
+                style={{
+                  border: shareActionActive === 'copy' ? '2px solid #475569' : '1px solid #dbe5f2',
+                  borderRadius: 14,
+                  background: shareActionActive === 'copy' ? '#f1f5f9' : '#f8fbff',
+                  minHeight: 96,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8
+                }}
+              >
+                <span style={{ fontSize: '1.35rem', lineHeight: 1 }}>⧉</span>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0f172a' }}>
+                  {language === 'uz' ? 'Nusxalash' : 'Копировать'}
+                </span>
+              </button>
+            </div>
           </div>
-        </Modal.Body>
-      </Modal>
+        </>
+      )}
 
       <Modal
         show={showEntryPopupModal && !!entryPopupBanner}
