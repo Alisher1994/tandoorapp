@@ -1855,9 +1855,31 @@ function Catalog() {
     if (!shareUrl) return;
 
     const shareTitle = getProductName(product) || (language === 'uz' ? 'Mahsulot' : 'Товар');
-    const shareText = language === 'uz'
-      ? `Mahsulotni ko‘ring: ${shareTitle}`
-      : `Посмотрите товар: ${shareTitle}`;
+    const priceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
+    const shareImageUrl = getProductCardImage(product, selectedVariant);
+    const priceText = `${formatPrice(priceMeta.currentPrice || 0)} ${t('sum')}`;
+
+    const labels = language === 'uz'
+      ? {
+        photo: 'Rasm',
+        name: 'Nomi',
+        price: 'Narxi',
+        open: 'Ochish'
+      }
+      : {
+        photo: 'Фото',
+        name: 'Название товара',
+        price: 'Цена товара',
+        open: 'Открыть'
+      };
+
+    const shareLines = [
+      shareImageUrl ? `${labels.photo}: ${shareImageUrl}` : '',
+      `${labels.name}: ${shareTitle}`,
+      `${labels.price}: ${priceText}`,
+      `${labels.open}: ${shareUrl}`
+    ].filter(Boolean);
+    const shareText = shareLines.join('\n');
 
     // 1) Try native OS share sheet (Telegram/WhatsApp/etc chooser on supported mobile browsers).
     if (
@@ -1866,10 +1888,11 @@ function Catalog() {
       && (typeof window === 'undefined' || window.isSecureContext !== false)
     ) {
       try {
-        if (typeof navigator.canShare === 'function' && navigator.canShare({ url: shareUrl })) {
+        const sharePayload = { title: shareTitle, text: shareText, url: shareUrl };
+        if (typeof navigator.canShare !== 'function' || navigator.canShare(sharePayload)) {
+          await navigator.share(sharePayload);
+        } else if (navigator.canShare({ url: shareUrl })) {
           await navigator.share({ url: shareUrl });
-        } else {
-          await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
         }
         return;
       } catch (error) {
@@ -1880,7 +1903,7 @@ function Catalog() {
     // 2) Fallback: copy link.
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       try {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(shareText);
         const copiedMessage = language === 'uz' ? 'Havola nusxalandi' : 'Ссылка скопирована';
         if (typeof window !== 'undefined' && window.Telegram?.WebApp?.showAlert) {
           window.Telegram.WebApp.showAlert(copiedMessage);
@@ -1895,7 +1918,7 @@ function Catalog() {
 
     if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
       const promptText = language === 'uz' ? 'Havolani nusxalang:' : 'Скопируйте ссылку:';
-      window.prompt(promptText, shareUrl);
+      window.prompt(promptText, shareText);
     }
   };
 
