@@ -847,54 +847,58 @@ function ShowcaseBuilder({ embedded = false }) {
       <div className="builder-header">
         <h1>Конструктор Витрины</h1>
         <div className="header-actions">
-          <Form.Check
-            type="switch"
-            id="showcase-visible-switch"
-            className="header-visibility-switch"
-            label="Отображать витрину клиенту"
-            checked={showcaseVisible}
-            onChange={(event) => setShowcaseVisible(event.target.checked)}
-          />
-          <Form.Check
-            type="switch"
-            id="category-title-bg-global-switch"
-            className="header-visibility-switch"
-            label="Скрыть фон названий категорий"
-            checked={hideCategoryTitleBackgroundGlobal}
-            onChange={(event) => handleToggleGlobalCategoryTitleBackground(event.target.checked)}
-          />
-          <Form.Check
-            type="switch"
-            id="category-title-bg-transparent-global-switch"
-            className="header-visibility-switch"
-            label="Полупрозрачный фон названий категорий"
-            checked={categoryTitleBackgroundTransparentGlobal}
-            onChange={(event) => handleToggleGlobalCategoryTitleBackgroundTransparent(event.target.checked)}
-          />
-          <Form.Check
-            type="switch"
-            id="category-title-outside-global-switch"
-            className="header-visibility-switch"
-            label="Название категории снаружи фото"
-            checked={categoryTitleOutsideImageGlobal}
-            onChange={(event) => handleToggleGlobalCategoryTitleOutsideImage(event.target.checked)}
-          />
-          {isDirty && <span className="unsaved-indicator">• Несохраненные изменения</span>}
-          <Button
-            variant="outline-primary"
-            size="sm"
-            onClick={() => setShowBlockTypeModal(true)}
-          >
-            <Plus size={16} /> Добавить блок
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleSaveShowcase}
-            disabled={saveLoading || !isDirty}
-          >
-            {saveLoading ? <Spinner size="sm" /> : 'Сохранить'}
-          </Button>
+          <div className="header-switches">
+            <Form.Check
+              type="switch"
+              id="showcase-visible-switch"
+              className="header-visibility-switch"
+              label="Отображать витрину клиенту"
+              checked={showcaseVisible}
+              onChange={(event) => setShowcaseVisible(event.target.checked)}
+            />
+            <Form.Check
+              type="switch"
+              id="category-title-bg-global-switch"
+              className="header-visibility-switch"
+              label="Скрыть фон названий категорий"
+              checked={hideCategoryTitleBackgroundGlobal}
+              onChange={(event) => handleToggleGlobalCategoryTitleBackground(event.target.checked)}
+            />
+            <Form.Check
+              type="switch"
+              id="category-title-bg-transparent-global-switch"
+              className="header-visibility-switch"
+              label="Полупрозрачный фон названий категорий"
+              checked={categoryTitleBackgroundTransparentGlobal}
+              onChange={(event) => handleToggleGlobalCategoryTitleBackgroundTransparent(event.target.checked)}
+            />
+            <Form.Check
+              type="switch"
+              id="category-title-outside-global-switch"
+              className="header-visibility-switch"
+              label="Название категории снаружи фото"
+              checked={categoryTitleOutsideImageGlobal}
+              onChange={(event) => handleToggleGlobalCategoryTitleOutsideImage(event.target.checked)}
+            />
+            {isDirty && <span className="unsaved-indicator">• Несохраненные изменения</span>}
+          </div>
+          <div className="header-primary-actions">
+            <Button
+              variant="outline-primary"
+              size="sm"
+              onClick={() => setShowBlockTypeModal(true)}
+            >
+              <Plus size={16} /> Добавить блок
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveShowcase}
+              disabled={saveLoading || !isDirty}
+            >
+              {saveLoading ? <Spinner size="sm" /> : 'Сохранить'}
+            </Button>
+          </div>
         </div>
       </div>
 
