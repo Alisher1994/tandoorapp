@@ -115,6 +115,26 @@ const resolveTelegramBotUsernameByToken = async (botToken) => {
 
   return username;
 };
+const escapeHtml = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+const toAbsolutePublicUrl = (req, rawUrl) => {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim() || 'https';
+  const host = req.get('host');
+  const normalizedPath = value.startsWith('/') ? value : `/${value}`;
+  return `${proto}://${host}${normalizedPath}`;
+};
+const formatSharePrice = (value) => {
+  const price = Number.parseFloat(value);
+  if (!Number.isFinite(price)) return '0 so\'m';
+  return `${new Intl.NumberFormat('ru-RU').format(Math.round(price))} so'm`;
+};
 
 const getClientIp = (req) => (
   req.headers['x-forwarded-for']?.split(',')[0]?.trim()
@@ -1464,6 +1484,93 @@ router.post('/:id/reviews', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Create product review error:', error);
     res.status(500).json({ error: 'Ошибка сохранения отзыва' });
+  }
+});
+
+router.get('/share/:id', async (req, res) => {
+  try {
+    const productId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).send('Invalid product id');
+    }
+
+    const productResult = await pool.query(
+      `
+      SELECT
+        p.id,
+        p.restaurant_id,
+        p.name_ru,
+        p.name_uz,
+        p.price,
+        p.image_url,
+        p.thumb_url,
+        p.product_images,
+        r.telegram_bot_token
+      FROM products p
+      LEFT JOIN restaurants r ON r.id = p.restaurant_id
+      WHERE p.id = $1
+      LIMIT 1
+      `,
+      [productId]
+    );
+    const row = productResult.rows[0];
+    if (!row) {
+      return res.status(404).send('Product not found');
+    }
+
+    const requestedRestaurantId = Number.parseInt(req.query.restaurant_id, 10);
+    const restaurantId = Number.isInteger(requestedRestaurantId) && requestedRestaurantId > 0
+      ? requestedRestaurantId
+      : Number.parseInt(row.restaurant_id, 10);
+    const botUsername = await resolveTelegramBotUsernameByToken(row.telegram_bot_token);
+    const startPayload = Number.isInteger(restaurantId) && restaurantId > 0
+      ? `product_${restaurantId}_${productId}`
+      : `product_${productId}`;
+    const openUrl = botUsername
+      ? `https://t.me/${encodeURIComponent(botUsername)}?start=${encodeURIComponent(startPayload)}`
+      : '';
+
+    const language = String(req.query.lang || 'uz').toLowerCase() === 'ru' ? 'ru' : 'uz';
+    const productName = String(language === 'ru' ? (row.name_ru || row.name_uz || 'Товар') : (row.name_uz || row.name_ru || 'Mahsulot'));
+    const rawImage = row.thumb_url || row.image_url
+      || (Array.isArray(row.product_images) && row.product_images.length > 0 ? row.product_images[0] : '');
+    const imageUrl = toAbsolutePublicUrl(req, rawImage);
+    const priceText = formatSharePrice(row.price);
+    const description = language === 'ru'
+      ? `Цена: ${priceText}. Нажмите «Открыть».`
+      : `Narxi: ${priceText}. «Ochish» ni bosing.`;
+    const canonicalUrl = `${toAbsolutePublicUrl(req, req.originalUrl)}`;
+
+    const html = `<!doctype html>
+<html lang="${language}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>${escapeHtml(productName)}</title>
+  <meta name="description" content="${escapeHtml(description)}" />
+  <meta property="og:type" content="product" />
+  <meta property="og:title" content="${escapeHtml(productName)}" />
+  <meta property="og:description" content="${escapeHtml(description)}" />
+  <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
+  ${imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : ''}
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${escapeHtml(productName)}" />
+  <meta name="twitter:description" content="${escapeHtml(description)}" />
+  ${imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : ''}
+</head>
+<body style="font-family:Arial,sans-serif;padding:24px;line-height:1.5">
+  <h2 style="margin:0 0 10px">${escapeHtml(productName)}</h2>
+  <p style="margin:0 0 16px">${escapeHtml(priceText)}</p>
+  ${openUrl ? `<a href="${escapeHtml(openUrl)}" style="display:inline-block;padding:10px 14px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px">${language === 'ru' ? 'Открыть' : 'Ochish'}</a>` : `<p>${language === 'ru' ? 'Ссылка временно недоступна' : 'Havola vaqtincha mavjud emas'}</p>`}
+  ${openUrl ? `<script>setTimeout(function(){window.location.href=${JSON.stringify(openUrl)};},700);</script>` : ''}
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (error) {
+    console.error('Product share page error:', error);
+    res.status(500).send('Share page error');
   }
 });
 

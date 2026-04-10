@@ -1823,21 +1823,20 @@ function Catalog() {
     const productId = normalizeId(product?.id);
     if (!productId) return '';
     const restaurantId = normalizeId(selectedRestaurant);
-    const productRestaurantId = normalizeId(product?.restaurant_id);
-    const fallbackRestaurant = restaurants.find((item) => Number(item?.id) === Number(productRestaurantId)) || null;
-    const botUsernameRaw = String(
-      product?.restaurant_bot_username
-      || currentRestaurant?.telegram_bot_username
-      || fallbackRestaurant?.telegram_bot_username
-      || ''
-    ).trim().replace(/^@+/, '');
-    if (botUsernameRaw) {
-      const startPayload = restaurantId
-        ? `product_${restaurantId}_${productId}`
-        : `product_${productId}`;
-      return `https://t.me/${encodeURIComponent(botUsernameRaw)}?start=${encodeURIComponent(startPayload)}`;
+    const langParam = language === 'ru' ? 'ru' : 'uz';
+    const apiBase = (() => {
+      const normalizedApi = String(API_URL || '/api').replace(/\/+$/, '');
+      if (/^https?:\/\//i.test(normalizedApi)) return normalizedApi;
+      if (typeof window === 'undefined') return normalizedApi;
+      const normalizedPath = normalizedApi.startsWith('/') ? normalizedApi : `/${normalizedApi}`;
+      return `${window.location.origin}${normalizedPath}`;
+    })();
+    const shareParams = new URLSearchParams();
+    if (restaurantId) {
+      shareParams.set('restaurant_id', String(restaurantId));
     }
-    return '';
+    shareParams.set('lang', langParam);
+    return `${apiBase}/products/share/${productId}?${shareParams.toString()}`;
   };
 
   const handleShareProduct = async (product) => {
