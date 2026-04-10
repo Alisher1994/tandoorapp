@@ -10,9 +10,10 @@ const toAbsoluteImageUrl = (value) => {
   return `${API_BASE_URL}${normalized.startsWith('/') ? normalized : `/${normalized}`}`;
 };
 
-const getCategoryName = (category) => (
-  category?.name_ru
-  || category?.name_uz
+const getCategoryName = (category, language = 'ru') => (
+  (language === 'uz'
+    ? (category?.name_uz || category?.name_ru)
+    : (category?.name_ru || category?.name_uz))
   || category?.name
   || ''
 );
@@ -24,9 +25,10 @@ const getCategoryImage = (category) => (
   || ''
 );
 
-const getProductName = (product) => (
-  product?.name_ru
-  || product?.name_uz
+const getProductName = (product, language = 'ru') => (
+  (language === 'uz'
+    ? (product?.name_uz || product?.name_ru)
+    : (product?.name_ru || product?.name_uz))
   || product?.name
   || ''
 );
@@ -152,7 +154,7 @@ const createCategoryCartBadgeResolver = (products = [], cartItems = []) => (cate
   return total > 0 ? total : null;
 };
 
-const renderCategoryImage = (category, fallbackLogo, imageClassName) => {
+const renderCategoryImage = (category, fallbackLogo, imageClassName, language = 'ru') => {
   const primarySrc = getCategoryImage(category);
   const fallbackSrc = fallbackLogo || '/placeholder.png';
   const initialSrc = primarySrc || fallbackSrc;
@@ -161,7 +163,7 @@ const renderCategoryImage = (category, fallbackLogo, imageClassName) => {
   return (
     <img
       src={initialSrc}
-      alt={getCategoryName(category)}
+      alt={getCategoryName(category, language)}
       className={`${imageClassName}${initialFallback ? ' category-image-logo-fallback' : ''}`}
       onError={(event) => {
         const img = event.currentTarget;
@@ -185,7 +187,8 @@ export function Grid3Block({
   cartItems = [],
   categoryImageFallback = '',
   blockTitle = '',
-  hideCategoryTitleBackground = false
+  hideCategoryTitleBackground = false,
+  language = 'ru'
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
   const titleText = getDisplayBlockTitle(blockTitle);
@@ -210,11 +213,11 @@ export function Grid3Block({
               }}
             >
               <div className={`grid-3-image-wrapper${!hasCategoryImage ? ' category-logo-fallback-wrapper' : ''}`}>
-                {renderCategoryImage(category, categoryImageFallback, 'grid-3-image')}
+                {renderCategoryImage(category, categoryImageFallback, 'grid-3-image', language)}
                 {getCartBadge(category.id) && (
                   <span className="cart-badge">{getCartBadge(category.id)}</span>
                 )}
-                <div className="category-card-overlay-title">{getCategoryName(category)}</div>
+                <div className="category-card-overlay-title">{getCategoryName(category, language)}</div>
               </div>
             </div>
           );
@@ -235,7 +238,8 @@ export function Grid2Block({
   cartItems = [],
   categoryImageFallback = '',
   blockTitle = '',
-  hideCategoryTitleBackground = false
+  hideCategoryTitleBackground = false,
+  language = 'ru'
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
   const titleText = getDisplayBlockTitle(blockTitle);
@@ -260,11 +264,11 @@ export function Grid2Block({
               }}
             >
               <div className={`grid-2-image-wrapper${!hasCategoryImage ? ' category-logo-fallback-wrapper' : ''}`}>
-                {renderCategoryImage(category, categoryImageFallback, 'grid-2-image')}
+                {renderCategoryImage(category, categoryImageFallback, 'grid-2-image', language)}
                 {getCartBadge(category.id) && (
                   <span className="cart-badge">{getCartBadge(category.id)}</span>
                 )}
-                <div className="category-card-overlay-title">{getCategoryName(category)}</div>
+                <div className="category-card-overlay-title">{getCategoryName(category, language)}</div>
               </div>
             </div>
           );
@@ -286,7 +290,8 @@ export function PatternGridBlock({
   categoryImageFallback = '',
   blockTitle = '',
   layoutVariant = '',
-  hideCategoryTitleBackground = false
+  hideCategoryTitleBackground = false,
+  language = 'ru'
 }) {
   const getCartBadge = createCategoryCartBadgeResolver(products, cartItems);
   const normalizedPattern = normalizeRowPattern(rowPattern, categories.length || 3);
@@ -342,11 +347,11 @@ export function PatternGridBlock({
                       }}
                     >
                       <div className={`pattern-grid-image-wrapper${!hasCategoryImage ? ' category-logo-fallback-wrapper' : ''}`}>
-                        {renderCategoryImage(category, categoryImageFallback, 'pattern-grid-image')}
+                        {renderCategoryImage(category, categoryImageFallback, 'pattern-grid-image', language)}
                         {getCartBadge(category.id) && (
                           <span className="cart-badge">{getCartBadge(category.id)}</span>
                         )}
-                        <div className="category-card-overlay-title">{getCategoryName(category)}</div>
+                        <div className="category-card-overlay-title">{getCategoryName(category, language)}</div>
                       </div>
                     </div>
                   );
@@ -412,7 +417,7 @@ export function BannerBlock({ block, onBannerClick }) {
  * ProductSliderBlock - Horizontal scrollable product slider
  * Products from a specific category
  */
-export function ProductSliderBlock({ categoryId, categories = [], products = [], onProductClick, cartItems = [], onCategoryClick }) {
+export function ProductSliderBlock({ categoryId, categories = [], products = [], onProductClick, cartItems = [], onCategoryClick, language = 'ru' }) {
   const normalizedCategoryId = normalizeId(categoryId);
   const categoryProducts = products.filter(
     (product) => normalizeId(product?.category_id) === normalizedCategoryId
@@ -428,19 +433,21 @@ export function ProductSliderBlock({ categoryId, categories = [], products = [],
     || product?.category?.name_uz
     || product?.category?.name
   ));
-  const categoryName = getCategoryName(categoryFromList)
-    || categoryNameFromProducts?.category_name_ru
-    || categoryNameFromProducts?.category_name_uz
+  const categoryName = getCategoryName(categoryFromList, language)
+    || (language === 'uz'
+      ? (categoryNameFromProducts?.category_name_uz || categoryNameFromProducts?.category_name_ru)
+      : (categoryNameFromProducts?.category_name_ru || categoryNameFromProducts?.category_name_uz))
     || categoryNameFromProducts?.category_name
-    || categoryNameFromProducts?.category?.name_ru
-    || categoryNameFromProducts?.category?.name_uz
+    || (language === 'uz'
+      ? (categoryNameFromProducts?.category?.name_uz || categoryNameFromProducts?.category?.name_ru)
+      : (categoryNameFromProducts?.category?.name_ru || categoryNameFromProducts?.category?.name_uz))
     || categoryNameFromProducts?.category?.name
     || '';
 
   if (categoryProducts.length === 0) {
     return (
       <div className="showcase-block slider-block">
-        <div className="slider-empty">Нет товаров в этой категории</div>
+        <div className="slider-empty">{language === 'uz' ? 'Bu kategoriyada tovar yo‘q' : 'Нет товаров в этой категории'}</div>
       </div>
     );
   }
@@ -460,7 +467,7 @@ export function ProductSliderBlock({ categoryId, categories = [], products = [],
           }}
         >
           <h3 className="slider-title">{categoryName}</h3>
-          <span className="slider-view-all">Все →</span>
+          <span className="slider-view-all">{language === 'uz' ? 'Barchasi →' : 'Все →'}</span>
         </div>
       )}
       <div className="slider-container">
@@ -479,7 +486,7 @@ export function ProductSliderBlock({ categoryId, categories = [], products = [],
                 <div className="slider-image-wrapper">
                   <img
                     src={getProductImage(product)}
-                    alt={getProductName(product)}
+                    alt={getProductName(product, language)}
                     className="slider-image"
                   />
                   {quantity > 0 && (
@@ -487,7 +494,7 @@ export function ProductSliderBlock({ categoryId, categories = [], products = [],
                   )}
                 </div>
                 <div className="slider-item-content">
-                  <h4 className="slider-item-name">{getProductName(product)}</h4>
+                  <h4 className="slider-item-name">{getProductName(product, language)}</h4>
                   {priceMeta.currentPrice > 0 && (
                     <div className="slider-item-price">
                       {priceMeta.isDiscount && Number.isFinite(priceMeta.originalPrice) && (

@@ -4407,6 +4407,11 @@ function SuperAdminDashboard() {
   );
 
   const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+  const getLocalizedCategoryName = (category) => (
+    language === 'uz'
+      ? (category?.name_uz || category?.name_ru || `#${category?.id || ''}`)
+      : (category?.name_ru || category?.name_uz || `#${category?.id || ''}`)
+  );
   const getCategoryKey = (parentId, name) => `${parentId ?? 'root'}::${normalizeCategoryName(name).toLowerCase()}`;
   const getSiblingNameConflict = ({ parentId, nameRu, nameUz, excludeId = null }) => {
     const targetRu = normalizeCategoryName(nameRu).toLowerCase();
@@ -14679,7 +14684,10 @@ function SuperAdminDashboard() {
                         const getSortVal = (c) => (c.sort_order === null || c.sort_order === undefined) ? 9999 : c.sort_order;
                         const orderDiff = getSortVal(a) - getSortVal(b);
                         if (orderDiff !== 0) return orderDiff;
-                        return (a.name_ru || '').localeCompare(b.name_ru || '', 'ru');
+                        return getLocalizedCategoryName(a).localeCompare(
+                          getLocalizedCategoryName(b),
+                          language === 'uz' ? 'uz' : 'ru'
+                        );
                       }) : [];
 
                       return (
@@ -14740,7 +14748,7 @@ function SuperAdminDashboard() {
                                         </div>
                                       )}
                                       <span className="text-muted me-2 small">[{cat.sort_order !== null && cat.sort_order !== undefined ? cat.sort_order : '-'}]</span>
-                                      <span className="text-truncate small fw-medium">{cat?.name_ru}</span>
+                                      <span className="text-truncate small fw-medium">{getLocalizedCategoryName(cat)}</span>
                                     </div>
                                     <div className="category-actions flex-shrink-0 ms-2">
                                       <Button

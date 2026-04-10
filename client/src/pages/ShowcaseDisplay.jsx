@@ -38,16 +38,18 @@ const extractProductsFromResponse = (payload) => {
   return [];
 };
 
-const getCategoryName = (category) => (
-  category?.name_ru
-  || category?.name_uz
+const getCategoryName = (category, language = 'ru') => (
+  (language === 'uz'
+    ? (category?.name_uz || category?.name_ru)
+    : (category?.name_ru || category?.name_uz))
   || category?.name
   || ''
 );
 
-const getProductName = (product) => (
-  product?.name_ru
-  || product?.name_uz
+const getProductName = (product, language = 'ru') => (
+  (language === 'uz'
+    ? (product?.name_uz || product?.name_ru)
+    : (product?.name_ru || product?.name_uz))
   || product?.name
   || ''
 );
@@ -450,7 +452,7 @@ function ShowcaseDisplay() {
 
   const normalizedSearch = String(searchQuery || '').trim().toLowerCase();
   const filteredProducts = normalizedSearch
-    ? products.filter((product) => getProductName(product).toLowerCase().includes(normalizedSearch))
+    ? products.filter((product) => getProductName(product, language).toLowerCase().includes(normalizedSearch))
     : products;
   const searchableCategoryIds = new Set(
     filteredProducts
@@ -459,7 +461,7 @@ function ShowcaseDisplay() {
   );
   const filteredCategories = normalizedSearch
     ? categories.filter((category) => {
-      const categoryName = getCategoryName(category).toLowerCase();
+      const categoryName = getCategoryName(category, language).toLowerCase();
       return categoryName.includes(normalizedSearch) || searchableCategoryIds.has(normalizeId(category?.id));
     })
     : categories;
@@ -495,6 +497,7 @@ function ShowcaseDisplay() {
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
               hideCategoryTitleBackground={hideCategoryTitleBackground}
+              language={language}
             />
           );
         }
@@ -508,6 +511,7 @@ function ShowcaseDisplay() {
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
             hideCategoryTitleBackground={hideCategoryTitleBackground}
+            language={language}
           />
         );
       case 'grid_2':
@@ -524,6 +528,7 @@ function ShowcaseDisplay() {
               blockTitle={blockTitle}
               layoutVariant={blockLayoutVariant}
               hideCategoryTitleBackground={hideCategoryTitleBackground}
+              language={language}
             />
           );
         }
@@ -537,6 +542,7 @@ function ShowcaseDisplay() {
             categoryImageFallback={user?.active_restaurant_logo || ''}
             blockTitle={blockTitle}
             hideCategoryTitleBackground={hideCategoryTitleBackground}
+            language={language}
           />
         );
       case 'banner':
@@ -563,6 +569,7 @@ function ShowcaseDisplay() {
             cartItems={cart}
             onProductClick={handleProductClick}
             onCategoryClick={handleCategoryClick}
+            language={language}
           />
         );
       default:
