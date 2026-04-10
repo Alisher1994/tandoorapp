@@ -1851,35 +1851,83 @@ function Catalog() {
     }
     return false;
   };
+  const executeShareAction = async (action, payload) => {
+    const safePayload = payload || {};
+    if (action === 'telegram') {
+      if (!safePayload.url) return;
+      const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(safePayload.url)}&text=${encodeURIComponent(safePayload.text || safePayload.title || '')}`;
+      openExternalLink(tgShareUrl);
+      return;
+    }
+    if (action === 'whatsapp') {
+      if (!safePayload.text && !safePayload.url) return;
+      const waText = safePayload.text || safePayload.url;
+      const waUrl = `https://wa.me/?text=${encodeURIComponent(waText)}`;
+      openExternalLink(waUrl);
+      return;
+    }
+    if (action === 'copy') {
+      const copied = await copyShareTextToClipboard(safePayload.text || safePayload.url || '');
+      const copiedMessage = language === 'uz' ? 'Havola nusxalandi' : 'Ссылка скопирована';
+      if (copied) {
+        if (typeof window !== 'undefined' && window.Telegram?.WebApp?.showAlert) {
+          window.Telegram.WebApp.showAlert(copiedMessage);
+        } else if (typeof window !== 'undefined') {
+          window.alert(copiedMessage);
+        }
+        return;
+      }
+      if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+        const promptText = language === 'uz' ? 'Havolani nusxalang:' : 'Скопируйте ссылку:';
+        window.prompt(promptText, safePayload.text || safePayload.url || '');
+      }
+    }
+  };
+  const openTelegramSharePopup = async (payload) => {
+    if (typeof window === 'undefined') return false;
+    const webApp = window.Telegram?.WebApp;
+    if (!webApp || typeof webApp.showPopup !== 'function') return false;
+
+    const popupTitle = language === 'uz' ? 'Ulashish' : 'Поделиться';
+    const popupMessage = language === 'uz' ? 'Variantni tanlang' : 'Выберите вариант';
+
+    try {
+      await new Promise((resolve) => {
+        webApp.showPopup(
+          {
+            title: popupTitle,
+            message: popupMessage,
+            buttons: [
+              { id: 'telegram', type: 'default', text: 'Telegram' },
+              { id: 'whatsapp', type: 'default', text: 'WhatsApp' },
+              { id: 'copy', type: 'default', text: language === 'uz' ? 'Nusxalash' : 'Копировать' },
+              { type: 'close' }
+            ]
+          },
+          async (buttonId) => {
+            if (buttonId) {
+              await executeShareAction(buttonId, payload);
+            }
+            resolve();
+          }
+        );
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
   const handleShareViaTelegram = () => {
-    if (!shareFallbackModal.url) return;
-    const tgShareUrl = `https://t.me/share/url?url=${encodeURIComponent(shareFallbackModal.url)}&text=${encodeURIComponent(shareFallbackModal.text || shareFallbackModal.title || '')}`;
-    openExternalLink(tgShareUrl);
+    executeShareAction('telegram', shareFallbackModal);
     closeShareFallbackModal();
   };
   const handleShareViaWhatsApp = () => {
-    if (!shareFallbackModal.text && !shareFallbackModal.url) return;
-    const waText = shareFallbackModal.text || shareFallbackModal.url;
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(waText)}`;
-    openExternalLink(waUrl);
+    executeShareAction('whatsapp', shareFallbackModal);
     closeShareFallbackModal();
   };
   const handleShareCopyFallback = async () => {
-    const copied = await copyShareTextToClipboard(shareFallbackModal.text || shareFallbackModal.url || '');
-    const copiedMessage = language === 'uz' ? 'Havola nusxalandi' : 'Ссылка скопирована';
+    await executeShareAction('copy', shareFallbackModal);
     closeShareFallbackModal();
-    if (copied) {
-      if (typeof window !== 'undefined' && window.Telegram?.WebApp?.showAlert) {
-        window.Telegram.WebApp.showAlert(copiedMessage);
-      } else if (typeof window !== 'undefined') {
-        window.alert(copiedMessage);
-      }
-      return;
-    }
-    if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
-      const promptText = language === 'uz' ? 'Havolani nusxalang:' : 'Скопируйте ссылку:';
-      window.prompt(promptText, shareFallbackModal.text || shareFallbackModal.url || '');
-    }
   };
 
   const buildProductShareUrl = (product) => {
@@ -1966,13 +2014,19 @@ function Catalog() {
       }
     }
 
-    // 2) Fallback: in-app share options (important for Android Telegram WebView).
-    setShareFallbackModal({
+    const sharePayload = {
       show: true,
       title: shareTitle,
       text: shareText,
       url: shareUrl
-    });
+    };
+
+    // 2) Fallback for Android Telegram WebView: native Telegram popup with action buttons.
+    const popupShown = await openTelegramSharePopup(sharePayload);
+    if (popupShown) return;
+
+    // 3) Generic fallback modal for browsers without Telegram popup API.
+    setShareFallbackModal(sharePayload);
   };
 
   const nonEmptyCategoryIds = useMemo(() => {
