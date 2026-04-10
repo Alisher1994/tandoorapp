@@ -1859,15 +1859,25 @@ function Catalog() {
       ? `Mahsulotni ko‘ring: ${shareTitle}`
       : `Посмотрите товар: ${shareTitle}`;
 
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    // 1) Try native OS share sheet (Telegram/WhatsApp/etc chooser on supported mobile browsers).
+    if (
+      typeof navigator !== 'undefined'
+      && typeof navigator.share === 'function'
+      && (typeof window === 'undefined' || window.isSecureContext !== false)
+    ) {
       try {
-        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+        if (typeof navigator.canShare === 'function' && navigator.canShare({ url: shareUrl })) {
+          await navigator.share({ url: shareUrl });
+        } else {
+          await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+        }
         return;
       } catch (error) {
         if (error?.name === 'AbortError') return;
       }
     }
 
+    // 2) Fallback: copy link.
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       try {
         await navigator.clipboard.writeText(shareUrl);
