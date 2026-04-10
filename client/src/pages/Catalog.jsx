@@ -1969,7 +1969,7 @@ function Catalog() {
     // 1) Try native OS share sheet (Telegram/WhatsApp/etc chooser on supported mobile browsers).
     if (
       !shouldSkipNativeShare
-      typeof navigator !== 'undefined'
+      && typeof navigator !== 'undefined'
       && typeof navigator.share === 'function'
       && (typeof window === 'undefined' || window.isSecureContext !== false)
     ) {
