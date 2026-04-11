@@ -1918,6 +1918,7 @@ function Catalog() {
       shareParams.set('restaurant_id', String(restaurantId));
     }
     shareParams.set('lang', langParam);
+    shareParams.set('v', '2');
     return `${apiBase}/products/share/${productId}?${shareParams.toString()}`;
   };
 

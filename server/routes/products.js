@@ -181,6 +181,47 @@ const resolveShareImageUrl = (req, productRow = {}) => {
     }
   }
 
+  let sizeOptions = [];
+  const rawSizeOptions = productRow?.size_options;
+  if (Array.isArray(rawSizeOptions)) {
+    sizeOptions = rawSizeOptions;
+  } else if (typeof rawSizeOptions === 'string' && rawSizeOptions.trim()) {
+    try {
+      const parsed = JSON.parse(rawSizeOptions);
+      if (Array.isArray(parsed)) sizeOptions = parsed;
+    } catch (_) {
+      sizeOptions = [];
+    }
+  }
+
+  const inStockVariants = sizeOptions.filter((variant) => !(variant?.in_stock === false || variant?.in_stock === 'false' || variant?.in_stock === 0 || variant?.in_stock === '0'));
+  const scanVariants = inStockVariants.length > 0 ? inStockVariants : sizeOptions;
+  for (const variant of scanVariants) {
+    if (!variant || typeof variant !== 'object') continue;
+    const variantDirect = [
+      variant.thumb_url,
+      variant.image_url
+    ].map(normalizeShareImageCandidate).filter(Boolean);
+    if (variantDirect.length > 0) {
+      directCandidates.push(variantDirect[0]);
+    }
+    const variantImagesRaw = variant.product_images;
+    const variantImages = Array.isArray(variantImagesRaw) ? variantImagesRaw : [];
+    for (const imageItem of variantImages) {
+      if (typeof imageItem === 'string') {
+        const candidate = normalizeShareImageCandidate(imageItem);
+        if (candidate) directCandidates.push(candidate);
+        continue;
+      }
+      if (imageItem && typeof imageItem === 'object') {
+        const candidate = normalizeShareImageCandidate(
+          imageItem.thumb_url || imageItem.thumbUrl || imageItem.url || imageItem.image_url || imageItem.imageUrl
+        );
+        if (candidate) directCandidates.push(candidate);
+      }
+    }
+  }
+
   const firstValid = directCandidates.find(Boolean) || '';
   return toAbsolutePublicUrl(req, firstValid);
 };
@@ -1554,6 +1595,7 @@ router.get('/share/:id', async (req, res) => {
         p.image_url,
         p.thumb_url,
         p.product_images,
+        p.size_options,
         r.telegram_bot_token
       FROM products p
       LEFT JOIN restaurants r ON r.id = p.restaurant_id
