@@ -1561,8 +1561,10 @@ router.get('/share/:id', async (req, res) => {
 <body style="font-family:Arial,sans-serif;padding:24px;line-height:1.5">
   <h2 style="margin:0 0 10px">${escapeHtml(productName)}</h2>
   <p style="margin:0 0 16px">${escapeHtml(priceText)}</p>
-  ${openUrl ? `<a href="${escapeHtml(openUrl)}" style="display:inline-block;padding:10px 14px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px">${language === 'ru' ? 'Открыть' : 'Ochish'}</a>` : `<p>${language === 'ru' ? 'Ссылка временно недоступна' : 'Havola vaqtincha mavjud emas'}</p>`}
-  ${openUrl ? `<script>setTimeout(function(){window.location.href=${JSON.stringify(openUrl)};},700);</script>` : ''}
+  ${openUrl
+    ? `<a href="${escapeHtml(openUrl)}" style="display:inline-block;padding:10px 14px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px">${language === 'ru' ? 'Открыть в Telegram' : 'Telegramda ochish'}</a>
+       <p style="margin-top:12px;color:#64748b;font-size:14px;">${language === 'ru' ? 'Если кнопка не сработала, откройте ссылку через Telegram вручную.' : 'Agar tugma ishlamasa, havolani Telegram orqali qo\'lda oching.'}</p>`
+    : `<p>${language === 'ru' ? 'Ссылка временно недоступна' : 'Havola vaqtincha mavjud emas'}</p>`}
 </body>
 </html>`;
 
