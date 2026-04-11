@@ -1946,18 +1946,15 @@ function Catalog() {
 
     const labels = language === 'uz'
       ? {
-        photo: 'Rasm',
         name: 'Nomi',
         price: 'Narxi'
       }
       : {
-        photo: 'Фото',
         name: 'Название товара',
         price: 'Цена товара'
       };
 
     const shareLines = [
-      shareImageUrl ? `${labels.photo}: ${shareImageUrl}` : '',
       `${labels.name}: ${shareTitle}`,
       `${labels.price}: ${priceText}`,
       shareUrl

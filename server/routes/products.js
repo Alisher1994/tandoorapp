@@ -1540,6 +1540,28 @@ router.get('/share/:id', async (req, res) => {
       ? `Цена: ${priceText}. Нажмите «Открыть».`
       : `Narxi: ${priceText}. «Ochish» ni bosing.`;
     const canonicalUrl = `${toAbsolutePublicUrl(req, req.originalUrl)}`;
+    const apiBaseUrl = toAbsolutePublicUrl(req, '/api');
+    const webCatalogUrl = toAbsolutePublicUrl(
+      req,
+      `/catalog?restaurant_id=${encodeURIComponent(String(restaurantId || ''))}&product_id=${encodeURIComponent(String(productId))}&lang=${encodeURIComponent(language)}`
+    );
+    const labels = language === 'ru'
+      ? {
+        title: 'Товар',
+        view: 'Просмотр',
+        order: 'Заказать',
+        openTelegram: 'Открыть в Telegram',
+        loading: 'Проверяем ваш аккаунт...',
+        unavailable: 'Ссылка временно недоступна'
+      }
+      : {
+        title: 'Mahsulot',
+        view: "Ko'rish",
+        order: 'Buyurtma berish',
+        openTelegram: 'Telegramda ochish',
+        loading: 'Akkauntingiz tekshirilmoqda...',
+        unavailable: 'Havola vaqtincha mavjud emas'
+      };
 
     const html = `<!doctype html>
 <html lang="${language}">
@@ -1553,18 +1575,101 @@ router.get('/share/:id', async (req, res) => {
   <meta property="og:description" content="${escapeHtml(description)}" />
   <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
   ${imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : ''}
+  ${imageUrl ? `<meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}" />` : ''}
+  ${imageUrl ? `<meta property="og:image:type" content="image/webp" />` : ''}
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeHtml(productName)}" />
   <meta name="twitter:description" content="${escapeHtml(description)}" />
   ${imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : ''}
 </head>
-<body style="font-family:Arial,sans-serif;padding:24px;line-height:1.5">
-  <h2 style="margin:0 0 10px">${escapeHtml(productName)}</h2>
-  <p style="margin:0 0 16px">${escapeHtml(priceText)}</p>
-  ${openUrl
-    ? `<a href="${escapeHtml(openUrl)}" style="display:inline-block;padding:10px 14px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px">${language === 'ru' ? 'Открыть в Telegram' : 'Telegramda ochish'}</a>
-       <p style="margin-top:12px;color:#64748b;font-size:14px;">${language === 'ru' ? 'Если кнопка не сработала, откройте ссылку через Telegram вручную.' : 'Agar tugma ishlamasa, havolani Telegram orqali qo\'lda oching.'}</p>`
-    : `<p>${language === 'ru' ? 'Ссылка временно недоступна' : 'Havola vaqtincha mavjud emas'}</p>`}
+<body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
+  <div style="max-width:520px;margin:0 auto;padding:18px 16px 28px;">
+    <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 24px rgba(15,23,42,.1);">
+      ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(productName)}" style="display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#eef2ff;" />` : ''}
+      <div style="padding:14px 14px 16px;">
+        <div style="font-size:12px;color:#64748b;margin-bottom:4px;">${escapeHtml(labels.title)}</div>
+        <h2 style="margin:0 0 8px;font-size:30px;line-height:1.2;">${escapeHtml(productName)}</h2>
+        <div style="font-size:22px;font-weight:700;color:#0f766e;margin-bottom:12px;">${escapeHtml(priceText)}</div>
+        <div id="share-loading" style="font-size:13px;color:#64748b;margin-bottom:10px;">${escapeHtml(labels.loading)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <a id="btn-view" href="${escapeHtml(webCatalogUrl)}" style="text-align:center;padding:11px 10px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;text-decoration:none;font-weight:600;">${escapeHtml(labels.view)}</a>
+          ${openUrl
+            ? `<a id="btn-order" href="${escapeHtml(openUrl)}" style="text-align:center;padding:11px 10px;border-radius:10px;border:1px solid #4f46e5;background:#4f46e5;color:#fff;text-decoration:none;font-weight:600;">${escapeHtml(labels.order)}</a>`
+            : `<span id="btn-order" style="text-align:center;padding:11px 10px;border-radius:10px;border:1px solid #cbd5e1;background:#f1f5f9;color:#64748b;font-weight:600;">${escapeHtml(labels.unavailable)}</span>`}
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var apiBase = ${JSON.stringify(apiBaseUrl)};
+      var webCatalogUrl = ${JSON.stringify(webCatalogUrl)};
+      var openUrl = ${JSON.stringify(openUrl)};
+      var loadingEl = document.getElementById('share-loading');
+      var viewBtn = document.getElementById('btn-view');
+      var orderBtn = document.getElementById('btn-order');
+      var clearLoading = function () { if (loadingEl) loadingEl.style.display = 'none'; };
+      var openExternal = function (url) {
+        if (!url) return;
+        try {
+          if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openLink === 'function') {
+            window.Telegram.WebApp.openLink(url);
+            return;
+          }
+        } catch (_) {}
+        window.location.href = url;
+      };
+
+      if (viewBtn) {
+        viewBtn.addEventListener('click', function (event) {
+          event.preventDefault();
+          openExternal(webCatalogUrl);
+        });
+      }
+
+      if (orderBtn && openUrl) {
+        orderBtn.addEventListener('click', function (event) {
+          event.preventDefault();
+          openExternal(openUrl);
+          try {
+            if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.close === 'function') {
+              setTimeout(function () { window.Telegram.WebApp.close(); }, 120);
+            }
+          } catch (_) {}
+        });
+      }
+
+      var token = '';
+      try {
+        token = String(window.localStorage ? (window.localStorage.getItem('token') || '') : '').trim();
+      } catch (_) {
+        token = '';
+      }
+      if (!token) {
+        clearLoading();
+        return;
+      }
+
+      fetch(apiBase + '/auth/me', {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      }).then(function (response) {
+        if (!response.ok) throw new Error('unauthorized');
+        return response.json();
+      }).then(function (payload) {
+        var user = payload && payload.user ? payload.user : null;
+        if (!user || user.role !== 'customer') return;
+        // Customer already authorized in this browser -> open current WebApp/catalog with exact product.
+        openExternal(webCatalogUrl);
+      }).catch(function () {
+        // stay on public landing
+      }).finally(function () {
+        clearLoading();
+      });
+    })();
+  </script>
 </body>
 </html>`;
 
