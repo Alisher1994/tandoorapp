@@ -135,6 +135,115 @@ const formatSharePrice = (value) => {
   if (!Number.isFinite(price)) return '0 so\'m';
   return `${new Intl.NumberFormat('ru-RU').format(Math.round(price))} so'm`;
 };
+const escapeXml = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&apos;');
+const clampText = (value, maxLength = 64) => {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  return normalized.length > maxLength ? `${normalized.slice(0, Math.max(8, maxLength - 1)).trim()}…` : normalized;
+};
+const fetchImageBuffer = async (url, timeoutMs = 3500) => {
+  const target = String(url || '').trim();
+  if (!/^https?:\/\//i.test(target)) return null;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const response = await fetch(target, {
+      method: 'GET',
+      signal: controller?.signal
+    });
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    return buffer.length > 0 ? buffer : null;
+  } catch (_) {
+    return null;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
+const renderShareCardImage = async ({
+  title,
+  price,
+  subtitle = '',
+  imageUrl = ''
+}) => {
+  const sharp = require('sharp');
+  const WIDTH = 1200;
+  const HEIGHT = 630;
+  const cardX = 44;
+  const cardY = 44;
+  const cardW = 548;
+  const cardH = 542;
+  const innerPadding = 8;
+  const imageW = cardW - innerPadding * 2;
+  const imageH = cardH - innerPadding * 2;
+
+  const backgroundSvg = Buffer.from(`
+    <svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f1f5f9" />
+          <stop offset="55%" stop-color="#e2e8f0" />
+          <stop offset="100%" stop-color="#cbd5e1" />
+        </linearGradient>
+      </defs>
+      <rect width="${WIDTH}" height="${HEIGHT}" fill="url(#bg)" />
+      <rect x="${cardX}" y="${cardY}" width="${cardW}" height="${cardH}" rx="34" ry="34" fill="#ffffff" opacity="0.92" />
+      <rect x="630" y="78" width="520" height="474" rx="30" ry="30" fill="#ffffff" opacity="0.86" />
+    </svg>
+  `);
+
+  const composites = [{ input: backgroundSvg, top: 0, left: 0 }];
+  const productBuffer = await fetchImageBuffer(imageUrl);
+  if (productBuffer) {
+    try {
+      const roundedMask = Buffer.from(
+        `<svg width="${imageW}" height="${imageH}" xmlns="http://www.w3.org/2000/svg"><rect width="${imageW}" height="${imageH}" rx="26" ry="26" fill="#fff"/></svg>`
+      );
+      const productImage = await sharp(productBuffer)
+        .resize(imageW, imageH, { fit: 'cover', position: 'center' })
+        .composite([{ input: roundedMask, blend: 'dest-in' }])
+        .png()
+        .toBuffer();
+      composites.push({
+        input: productImage,
+        left: cardX + innerPadding,
+        top: cardY + innerPadding
+      });
+    } catch (_) {
+      // keep text-only fallback
+    }
+  }
+
+  const safeTitle = escapeXml(clampText(title, 64));
+  const safePrice = escapeXml(clampText(price, 32));
+  const safeSubtitle = escapeXml(clampText(subtitle, 36));
+  const textSvg = Buffer.from(`
+    <svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <text x="664" y="198" fill="#0f172a" font-size="64" font-weight="800" font-family="Arial, sans-serif">${safeTitle}</text>
+      <text x="664" y="286" fill="#0f766e" font-size="58" font-weight="800" font-family="Arial, sans-serif">${safePrice}</text>
+      <text x="664" y="350" fill="#475569" font-size="30" font-weight="600" font-family="Arial, sans-serif">${safeSubtitle}</text>
+      <rect x="664" y="390" width="292" height="76" rx="16" ry="16" fill="#4f46e5"/>
+      <text x="810" y="439" fill="#ffffff" text-anchor="middle" font-size="36" font-weight="700" font-family="Arial, sans-serif">Open</text>
+    </svg>
+  `);
+  composites.push({ input: textSvg, top: 0, left: 0 });
+
+  return sharp({
+    create: {
+      width: WIDTH,
+      height: HEIGHT,
+      channels: 4,
+      background: '#f1f5f9'
+    }
+  }).composite(composites).png({ quality: 90 }).toBuffer();
+};
 
 const getClientIp = (req) => (
   req.headers['x-forwarded-for']?.split(',')[0]?.trim()
@@ -1562,6 +1671,10 @@ router.get('/share/:id', async (req, res) => {
         loading: 'Akkauntingiz tekshirilmoqda...',
         unavailable: 'Havola vaqtincha mavjud emas'
       };
+    const brandedImageUrl = toAbsolutePublicUrl(
+      req,
+      `/api/products/share/${productId}/image?restaurant_id=${encodeURIComponent(String(restaurantId || ''))}&lang=${encodeURIComponent(language)}`
+    );
 
     const html = `<!doctype html>
 <html lang="${language}">
@@ -1574,13 +1687,15 @@ router.get('/share/:id', async (req, res) => {
   <meta property="og:title" content="${escapeHtml(productName)}" />
   <meta property="og:description" content="${escapeHtml(description)}" />
   <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
-  ${imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : ''}
-  ${imageUrl ? `<meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}" />` : ''}
-  ${imageUrl ? `<meta property="og:image:type" content="image/webp" />` : ''}
+  <meta property="og:image" content="${escapeHtml(brandedImageUrl)}" />
+  <meta property="og:image:secure_url" content="${escapeHtml(brandedImageUrl)}" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeHtml(productName)}" />
   <meta name="twitter:description" content="${escapeHtml(description)}" />
-  ${imageUrl ? `<meta name="twitter:image" content="${escapeHtml(imageUrl)}" />` : ''}
+  <meta name="twitter:image" content="${escapeHtml(brandedImageUrl)}" />
 </head>
 <body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
   <div style="max-width:520px;margin:0 auto;padding:18px 16px 28px;">
@@ -1678,6 +1793,59 @@ router.get('/share/:id', async (req, res) => {
   } catch (error) {
     console.error('Product share page error:', error);
     res.status(500).send('Share page error');
+  }
+});
+
+router.get('/share/:id/image', async (req, res) => {
+  try {
+    const productId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).send('Invalid product id');
+    }
+    const language = String(req.query.lang || 'uz').toLowerCase() === 'ru' ? 'ru' : 'uz';
+    const productResult = await pool.query(
+      `
+      SELECT
+        p.id,
+        p.name_ru,
+        p.name_uz,
+        p.price,
+        p.image_url,
+        p.thumb_url,
+        p.product_images,
+        r.name AS restaurant_name
+      FROM products p
+      LEFT JOIN restaurants r ON r.id = p.restaurant_id
+      WHERE p.id = $1
+      LIMIT 1
+      `,
+      [productId]
+    );
+    const row = productResult.rows[0];
+    if (!row) {
+      return res.status(404).send('Product not found');
+    }
+
+    const productName = language === 'ru'
+      ? (row.name_ru || row.name_uz || 'Товар')
+      : (row.name_uz || row.name_ru || 'Mahsulot');
+    const priceText = formatSharePrice(row.price);
+    const rawImage = row.thumb_url || row.image_url
+      || (Array.isArray(row.product_images) && row.product_images.length > 0 ? row.product_images[0] : '');
+    const imageUrl = toAbsolutePublicUrl(req, rawImage);
+    const imageBuffer = await renderShareCardImage({
+      title: productName,
+      price: priceText,
+      subtitle: row.restaurant_name || 'Talablar',
+      imageUrl
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300');
+    return res.send(imageBuffer);
+  } catch (error) {
+    console.error('Product share image error:', error);
+    return res.status(500).send('Share image error');
   }
 });
 
