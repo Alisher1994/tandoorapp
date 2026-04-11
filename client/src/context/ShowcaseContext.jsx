@@ -36,6 +36,11 @@ const DEFAULT_GRID_LIMITS = Object.freeze({
   [BLOCK_TYPES.GRID_3]: 3,
   [BLOCK_TYPES.GRID_2]: 2
 });
+const DEFAULT_CATEGORY_STYLE_SETTINGS = Object.freeze({
+  hideCategoryTitleBackground: false,
+  categoryTitleBackgroundTransparent: false,
+  categoryTitleOutsideImage: false
+});
 
 const normalizeCategoryId = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -63,6 +68,50 @@ const normalizeBooleanLike = (value) => {
     if (['false', '0', 'no', 'off'].includes(normalized)) return false;
   }
   return false;
+};
+
+const normalizeCategoryStyleSettings = (rawSettings, fallback = DEFAULT_CATEGORY_STYLE_SETTINGS) => {
+  const source = rawSettings && typeof rawSettings === 'object' && !Array.isArray(rawSettings)
+    ? rawSettings
+    : {};
+  return {
+    hideCategoryTitleBackground: normalizeBooleanLike(
+      source.hideCategoryTitleBackground ?? source.hide_category_title_background
+    ) || (fallback?.hideCategoryTitleBackground === true && source.hideCategoryTitleBackground == null && source.hide_category_title_background == null),
+    categoryTitleBackgroundTransparent: normalizeBooleanLike(
+      source.categoryTitleBackgroundTransparent ?? source.category_title_background_transparent
+    ) || (fallback?.categoryTitleBackgroundTransparent === true && source.categoryTitleBackgroundTransparent == null && source.category_title_background_transparent == null),
+    categoryTitleOutsideImage: normalizeBooleanLike(
+      source.categoryTitleOutsideImage ?? source.category_title_outside_image
+    ) || (fallback?.categoryTitleOutsideImage === true && source.categoryTitleOutsideImage == null && source.category_title_outside_image == null)
+  };
+};
+
+const inferCategoryStyleSettingsFromLayout = (layout = []) => {
+  const gridBlocks = Array.isArray(layout)
+    ? layout.filter((block) => block?.block_type === BLOCK_TYPES.GRID_3 || block?.block_type === BLOCK_TYPES.GRID_2)
+    : [];
+  if (gridBlocks.length === 0) return { ...DEFAULT_CATEGORY_STYLE_SETTINGS };
+  return {
+    hideCategoryTitleBackground: gridBlocks.every((block) => block?.settings?.hideCategoryTitleBackground === true),
+    categoryTitleBackgroundTransparent: gridBlocks.every((block) => block?.settings?.categoryTitleBackgroundTransparent === true),
+    categoryTitleOutsideImage: gridBlocks.every((block) => block?.settings?.categoryTitleOutsideImage === true)
+  };
+};
+
+const normalizeVisibilityPair = (showcaseVisibility, menuVisibility) => {
+  const normalizedShowcaseVisibility = Boolean(showcaseVisibility);
+  const normalizedMenuVisibility = Boolean(menuVisibility);
+  if (normalizedShowcaseVisibility || normalizedMenuVisibility) {
+    return {
+      showcaseVisible: normalizedShowcaseVisibility,
+      menuVisible: normalizedMenuVisibility
+    };
+  }
+  return {
+    showcaseVisible: normalizedShowcaseVisibility,
+    menuVisible: true
+  };
 };
 
 const isUnlimitedGridSettings = (settings = {}) => {
@@ -207,6 +256,8 @@ export function ShowcaseProvider({ children }) {
   const [showcaseLoading, setShowcaseLoading] = useState(false);
   const [showcaseError, setShowcaseError] = useState('');
   const [showcaseVisible, setShowcaseVisible] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(true);
+  const [categoryStyleSettings, setCategoryStyleSettings] = useState({ ...DEFAULT_CATEGORY_STYLE_SETTINGS });
   const [isDirty, setIsDirty] = useState(false);
 
   const buildShowcaseBlock = useCallback((blockType, settingsInput = {}, order = 0) => {
@@ -273,33 +324,66 @@ export function ShowcaseProvider({ children }) {
       const response = await axios.get(
         `${API_URL}/products/restaurant/${restaurantId}/showcase`
       );
-      setShowcaseLayout(normalizeShowcaseLayout(response.data?.blocks || []));
-      setShowcaseVisible(response.data?.isVisible !== false);
+      const normalizedLayout = normalizeShowcaseLayout(response.data?.blocks || []);
+      const normalizedPair = normalizeVisibilityPair(
+        response.data?.isVisible !== false,
+        response.data?.isMenuVisible !== false
+      );
+      const inferredCategoryStyleSettings = inferCategoryStyleSettingsFromLayout(normalizedLayout);
+      const normalizedCategoryStyleSettings = normalizeCategoryStyleSettings(
+        response.data?.categoryStyleSettings,
+        inferredCategoryStyleSettings
+      );
+      setShowcaseLayout(normalizedLayout);
+      setShowcaseVisible(normalizedPair.showcaseVisible);
+      setMenuVisible(normalizedPair.menuVisible);
+      setCategoryStyleSettings(normalizedCategoryStyleSettings);
       setIsDirty(false);
     } catch (error) {
       console.error('Failed to load showcase:', error);
       setShowcaseError(error.message || 'Failed to load showcase layout');
       setShowcaseLayout([]);
       setShowcaseVisible(true);
+      setMenuVisible(true);
+      setCategoryStyleSettings({ ...DEFAULT_CATEGORY_STYLE_SETTINGS });
     } finally {
       setShowcaseLoading(false);
     }
   }, []);
 
   // Save showcase layout to server
-  const saveShowcase = useCallback(async (restaurantId, blocks, visibility = showcaseVisible) => {
+  const saveShowcase = useCallback(async (
+    restaurantId,
+    blocks,
+    visibility = showcaseVisible,
+    menuVisibility = menuVisible,
+    nextCategoryStyleSettings = categoryStyleSettings
+  ) => {
     if (!restaurantId) return;
     
     setShowcaseError('');
     
     try {
       const normalizedBlocks = normalizeShowcaseLayout(blocks || []);
+      const normalizedPair = normalizeVisibilityPair(visibility, menuVisibility);
+      const inferredCategoryStyleSettings = inferCategoryStyleSettingsFromLayout(normalizedBlocks);
+      const normalizedCategoryStyleSettings = normalizeCategoryStyleSettings(
+        nextCategoryStyleSettings,
+        inferredCategoryStyleSettings
+      );
       await axios.post(
         `${API_URL}/products/restaurant/${restaurantId}/showcase`,
-        { blocks: normalizedBlocks, isVisible: Boolean(visibility) }
+        {
+          blocks: normalizedBlocks,
+          isVisible: normalizedPair.showcaseVisible,
+          isMenuVisible: normalizedPair.menuVisible,
+          categoryStyleSettings: normalizedCategoryStyleSettings
+        }
       );
       setShowcaseLayout(normalizedBlocks);
-      setShowcaseVisible(Boolean(visibility));
+      setShowcaseVisible(normalizedPair.showcaseVisible);
+      setMenuVisible(normalizedPair.menuVisible);
+      setCategoryStyleSettings(normalizedCategoryStyleSettings);
       setIsDirty(false);
       return true;
     } catch (error) {
@@ -307,7 +391,7 @@ export function ShowcaseProvider({ children }) {
       setShowcaseError(error.message || 'Failed to save showcase layout');
       return false;
     }
-  }, [showcaseVisible]);
+  }, [showcaseVisible, menuVisible, categoryStyleSettings]);
 
   // Add several blocks at once (used by templates)
   const addBlocks = useCallback((blockSpecs = []) => {
@@ -447,12 +531,51 @@ export function ShowcaseProvider({ children }) {
 
   const setShowcaseVisibility = useCallback((nextVisibility) => {
     const normalizedVisibility = Boolean(nextVisibility);
+    let didChange = false;
+
     setShowcaseVisible((prevVisibility) => {
       if (prevVisibility === normalizedVisibility) return prevVisibility;
-      setIsDirty(true);
+      didChange = true;
       return normalizedVisibility;
     });
-  }, []);
+
+    if (!normalizedVisibility && !menuVisible) {
+      setMenuVisible(true);
+      didChange = true;
+    }
+
+    if (didChange) setIsDirty(true);
+  }, [menuVisible]);
+
+  const setMenuVisibility = useCallback((nextVisibility) => {
+    const normalizedVisibility = Boolean(nextVisibility);
+    let didChange = false;
+
+    setMenuVisible((prevVisibility) => {
+      if (prevVisibility === normalizedVisibility) return prevVisibility;
+      didChange = true;
+      return normalizedVisibility;
+    });
+
+    if (!normalizedVisibility && !showcaseVisible) {
+      setShowcaseVisible(true);
+      didChange = true;
+    }
+
+    if (didChange) setIsDirty(true);
+  }, [showcaseVisible]);
+
+  const updateCategoryStyleSettings = useCallback((nextSettings) => {
+    const normalized = normalizeCategoryStyleSettings(nextSettings, categoryStyleSettings);
+    const hasDiff = (
+      categoryStyleSettings.hideCategoryTitleBackground !== normalized.hideCategoryTitleBackground
+      || categoryStyleSettings.categoryTitleBackgroundTransparent !== normalized.categoryTitleBackgroundTransparent
+      || categoryStyleSettings.categoryTitleOutsideImage !== normalized.categoryTitleOutsideImage
+    );
+    if (!hasDiff) return;
+    setCategoryStyleSettings(normalized);
+    setIsDirty(true);
+  }, [categoryStyleSettings]);
 
   const value = {
     // State
@@ -460,6 +583,8 @@ export function ShowcaseProvider({ children }) {
     showcaseLoading,
     showcaseError,
     showcaseVisible,
+    menuVisible,
+    categoryStyleSettings,
     isDirty,
     
     // Methods
@@ -474,6 +599,8 @@ export function ShowcaseProvider({ children }) {
     removeCategoryFromBlock,
     setSliderCategory,
     setShowcaseVisible: setShowcaseVisibility,
+    setMenuVisible: setMenuVisibility,
+    setCategoryStyleSettings: updateCategoryStyleSettings,
     resetShowcase
   };
 

@@ -23,7 +23,7 @@ function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { showcaseVisible, loadShowcase } = useShowcase();
+  const { showcaseVisible, menuVisible, loadShowcase } = useShowcase();
   const { cart } = useCart();
   const { favoriteCount } = useFavorites();
   const { t } = useLanguage();
@@ -92,7 +92,7 @@ function BottomNav() {
   
   const navItems = [
     ...(showcaseVisible ? [{ path: '/', icon: '🛍️', label: t('showcase') || 'Витрина' }] : []),
-    { path: '/catalog', icon: '📋', label: t('menu') || 'Меню' },
+    ...(menuVisible ? [{ path: '/catalog', icon: '📋', label: t('menu') || 'Меню' }] : []),
     { path: '/favorites', icon: '❤️', label: t('favorites') || 'Избранные', badge: favoriteCount },
     { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
     ...(isReservationMenuVisible ? [{ path: '/reservations', icon: '🪑', label: t('reservations') || 'Бронь' }] : []),
@@ -120,6 +120,13 @@ function BottomNav() {
       navigate('/catalog', { replace: true });
     }
   }, [showcaseVisible, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (menuVisible) return;
+    if (location.pathname === '/catalog') {
+      navigate('/', { replace: true });
+    }
+  }, [menuVisible, location.pathname, navigate]);
 
   useEffect(() => {
     if (menuHeightLockEnabled) {

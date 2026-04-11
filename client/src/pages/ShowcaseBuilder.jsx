@@ -330,6 +330,8 @@ function ShowcaseBuilder({ embedded = false }) {
     showcaseLoading,
     showcaseError,
     showcaseVisible,
+    menuVisible,
+    categoryStyleSettings,
     isDirty,
     loadShowcase,
     saveShowcase,
@@ -340,7 +342,9 @@ function ShowcaseBuilder({ embedded = false }) {
     addCategoryToBlock,
     removeCategoryFromBlock,
     setSliderCategory,
-    setShowcaseVisible
+    setShowcaseVisible,
+    setMenuVisible,
+    setCategoryStyleSettings
   } = useShowcase();
 
   const [categories, setCategories] = useState([]);
@@ -408,22 +412,18 @@ function ShowcaseBuilder({ embedded = false }) {
   }, [user?.active_restaurant_id, loadShowcase]);
 
   useEffect(() => {
-    const showcaseGridBlocks = showcaseLayout.filter((block) => isGridBlockType(block?.block_type));
-    if (showcaseGridBlocks.length === 0) return;
-    setHideCategoryTitleBackgroundGlobal(
-      showcaseGridBlocks.every((block) => block?.settings?.hideCategoryTitleBackground === true)
-    );
-    setCategoryTitleBackgroundTransparentGlobal(
-      showcaseGridBlocks.every((block) => block?.settings?.categoryTitleBackgroundTransparent === true)
-    );
-    setCategoryTitleOutsideImageGlobal(
-      showcaseGridBlocks.every((block) => block?.settings?.categoryTitleOutsideImage === true)
-    );
-  }, [showcaseLayout]);
+    setHideCategoryTitleBackgroundGlobal(categoryStyleSettings?.hideCategoryTitleBackground === true);
+    setCategoryTitleBackgroundTransparentGlobal(categoryStyleSettings?.categoryTitleBackgroundTransparent === true);
+    setCategoryTitleOutsideImageGlobal(categoryStyleSettings?.categoryTitleOutsideImage === true);
+  }, [categoryStyleSettings]);
 
   const handleToggleGlobalCategoryTitleBackground = (hidden) => {
     const normalizedHidden = Boolean(hidden);
     setHideCategoryTitleBackgroundGlobal(normalizedHidden);
+    setCategoryStyleSettings({
+      ...categoryStyleSettings,
+      hideCategoryTitleBackground: normalizedHidden
+    });
     gridBlocks.forEach((block) => {
       if ((block?.settings?.hideCategoryTitleBackground === true) === normalizedHidden) return;
       updateBlock(block.id, {
@@ -439,6 +439,10 @@ function ShowcaseBuilder({ embedded = false }) {
   const handleToggleGlobalCategoryTitleBackgroundTransparent = (transparent) => {
     const normalizedTransparent = Boolean(transparent);
     setCategoryTitleBackgroundTransparentGlobal(normalizedTransparent);
+    setCategoryStyleSettings({
+      ...categoryStyleSettings,
+      categoryTitleBackgroundTransparent: normalizedTransparent
+    });
     gridBlocks.forEach((block) => {
       if ((block?.settings?.categoryTitleBackgroundTransparent === true) === normalizedTransparent) return;
       updateBlock(block.id, {
@@ -454,6 +458,10 @@ function ShowcaseBuilder({ embedded = false }) {
   const handleToggleGlobalCategoryTitleOutsideImage = (outside) => {
     const normalizedOutside = Boolean(outside);
     setCategoryTitleOutsideImageGlobal(normalizedOutside);
+    setCategoryStyleSettings({
+      ...categoryStyleSettings,
+      categoryTitleOutsideImage: normalizedOutside
+    });
     gridBlocks.forEach((block) => {
       if ((block?.settings?.categoryTitleOutsideImage === true) === normalizedOutside) return;
       updateBlock(block.id, {
@@ -527,7 +535,17 @@ function ShowcaseBuilder({ embedded = false }) {
     setSaveSuccess(false);
     setErrorMessage('');
 
-    const success = await saveShowcase(restaurantId, showcaseLayout, showcaseVisible);
+    const success = await saveShowcase(
+      restaurantId,
+      showcaseLayout,
+      showcaseVisible,
+      menuVisible,
+      {
+        hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal,
+        categoryTitleBackgroundTransparent: categoryTitleBackgroundTransparentGlobal,
+        categoryTitleOutsideImage: categoryTitleOutsideImageGlobal
+      }
+    );
     if (success) {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -855,6 +873,14 @@ function ShowcaseBuilder({ embedded = false }) {
               label="Отображать витрину клиенту"
               checked={showcaseVisible}
               onChange={(event) => setShowcaseVisible(event.target.checked)}
+            />
+            <Form.Check
+              type="switch"
+              id="menu-visible-switch"
+              className="header-visibility-switch"
+              label="Отображать основное меню"
+              checked={menuVisible}
+              onChange={(event) => setMenuVisible(event.target.checked)}
             />
             <Form.Check
               type="switch"

@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCart, formatPrice, formatQuantity, resolveQuantityStep } from '../context/CartContext';
 import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useShowcase } from '../context/ShowcaseContext';
 import BottomNav from '../components/BottomNav';
 import ClientAccountModal from '../components/ClientAccountModal';
 import HeartIcon from '../components/HeartIcon';
@@ -200,6 +201,7 @@ function Catalog() {
   const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
   const { language, t, setCountryCurrency, setLanguage } = useLanguage();
+  const { menuVisible, categoryStyleSettings, loadShowcase } = useShowcase();
   const navigate = useNavigate();
   const location = useLocation();
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
@@ -249,6 +251,19 @@ function Catalog() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    const restaurantId = Number.parseInt(user?.active_restaurant_id, 10);
+    if (!restaurantId) return;
+    loadShowcase(restaurantId);
+  }, [user?.active_restaurant_id, loadShowcase]);
+
+  useEffect(() => {
+    if (menuVisible) return;
+    if (location.pathname === '/catalog') {
+      navigate('/', { replace: true });
+    }
+  }, [menuVisible, location.pathname, navigate]);
 
   useEffect(() => {
     // Keep catalog bound to token-selected restaurant in Telegram WebApp.
@@ -1340,6 +1355,9 @@ function Catalog() {
     [currentRestaurant]
   );
   const isSingleListMode = menuViewMode === 'single_list';
+  const hideCategoryTitleBackgroundForMenu = categoryStyleSettings?.hideCategoryTitleBackground === true;
+  const categoryTitleBackgroundTransparentForMenu = categoryStyleSettings?.categoryTitleBackgroundTransparent === true;
+  const categoryTitleOutsideImageForMenu = categoryStyleSettings?.categoryTitleOutsideImage === true;
   const getCategorySortVal = (category) => (
     category?.sort_order === null || category?.sort_order === undefined ? 9999 : Number(category.sort_order)
   );
@@ -4154,6 +4172,11 @@ function Catalog() {
                       <Row className="g-3">
                         {level2Categories.map((level2Category) => {
                           const categoryImage = resolveImageUrl(level2Category.image_url);
+                          const categoryName = getCategoryName(level2Category);
+                          const titleBackground = hideCategoryTitleBackgroundForMenu
+                            ? 'transparent'
+                            : (categoryTitleBackgroundTransparentForMenu ? 'rgba(255, 255, 255, 0.42)' : 'rgba(255, 255, 255, 0.74)');
+                          const imageZoneHeight = categoryTitleOutsideImageForMenu ? '104px' : '110px';
                           return (
                             <Col key={level2Category.id} xs={6} lg={3}>
                               <button
@@ -4165,48 +4188,75 @@ function Catalog() {
                                   overflow: 'hidden',
                                   background: '#ffffff',
                                   position: 'relative',
-                                  minHeight: '110px'
+                                  minHeight: categoryTitleOutsideImageForMenu ? '140px' : '110px'
                                 }}
                               >
                                 <div
                                   style={{
-                                    position: 'absolute',
-                                    inset: 0,
+                                    position: 'relative',
+                                    height: imageZoneHeight,
                                     backgroundImage: categoryImage ? `url(${categoryImage})` : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
                                     backgroundSize: 'cover',
                                     backgroundPosition: 'center',
                                     backgroundRepeat: 'no-repeat',
                                     backgroundColor: '#ffffff'
                                   }}
-                                />
-                                <div
-                                  style={{
-                                    position: 'absolute',
-                                    top: 4,
-                                    left: 0,
-                                    right: 0,
-                                    zIndex: 1,
-                                    padding: '6px 10px 0'
-                                  }}
                                 >
-                                  <span
+                                  {!categoryTitleOutsideImageForMenu && (
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        top: 4,
+                                        left: 0,
+                                        right: 0,
+                                        zIndex: 1,
+                                        padding: '6px 10px 0'
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          display: 'inline-block',
+                                          maxWidth: '100%',
+                                          padding: hideCategoryTitleBackgroundForMenu ? '0' : '4px 8px',
+                                          borderRadius: hideCategoryTitleBackgroundForMenu ? 0 : 8,
+                                          background: titleBackground,
+                                          backdropFilter: hideCategoryTitleBackgroundForMenu ? 'none' : 'blur(2px)',
+                                          WebkitBackdropFilter: hideCategoryTitleBackgroundForMenu ? 'none' : 'blur(2px)',
+                                          color: '#111827',
+                                          fontWeight: 700,
+                                          fontSize: '0.78rem',
+                                          lineHeight: 1.2
+                                        }}
+                                      >
+                                        {categoryName}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                {categoryTitleOutsideImageForMenu && (
+                                  <div
                                     style={{
-                                      display: 'inline-block',
-                                      maxWidth: '100%',
-                                      padding: '4px 8px',
-                                      borderRadius: 8,
-                                      background: 'rgba(255, 255, 255, 0.74)',
-                                      backdropFilter: 'blur(2px)',
-                                      WebkitBackdropFilter: 'blur(2px)',
-                                      color: '#111827',
-                                      fontWeight: 700,
-                                      fontSize: '0.78rem',
-                                      lineHeight: 1.2
+                                      padding: '8px 10px 10px',
+                                      background: '#ffffff'
                                     }}
                                   >
-                                    {getCategoryName(level2Category)}
-                                  </span>
-                                </div>
+                                    <span
+                                      style={{
+                                        display: 'inline-block',
+                                        maxWidth: '100%',
+                                        color: '#111827',
+                                        fontWeight: 700,
+                                        fontSize: '0.78rem',
+                                        lineHeight: 1.2,
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                    >
+                                      {categoryName}
+                                    </span>
+                                  </div>
+                                )}
                               </button>
                             </Col>
                           );

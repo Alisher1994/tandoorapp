@@ -1879,6 +1879,77 @@ function normalizeShowcaseVisibilityFromDb(rawLayout) {
   return true;
 }
 
+function normalizeShowcaseMenuVisibilityFromDb(rawLayout) {
+  if (!rawLayout) return true;
+  if (typeof rawLayout === 'object' && rawLayout !== null && !Array.isArray(rawLayout)) {
+    const candidate = rawLayout.isMenuVisible ?? rawLayout.is_menu_visible;
+    if (typeof candidate === 'boolean') return candidate;
+    if (typeof candidate === 'number') return candidate !== 0;
+    if (typeof candidate === 'string') {
+      const normalized = candidate.trim().toLowerCase();
+      if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+      if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+    }
+  }
+  return true;
+}
+
+function inferCategoryStyleSettingsFromBlocks(blocks = []) {
+  if (!Array.isArray(blocks) || blocks.length === 0) {
+    return {
+      hideCategoryTitleBackground: false,
+      categoryTitleBackgroundTransparent: false,
+      categoryTitleOutsideImage: false
+    };
+  }
+
+  const gridBlocks = blocks.filter((block) => {
+    const blockType = String(block?.block_type || '').trim().toLowerCase();
+    return blockType === 'grid_3' || blockType === 'grid_2';
+  });
+
+  if (gridBlocks.length === 0) {
+    return {
+      hideCategoryTitleBackground: false,
+      categoryTitleBackgroundTransparent: false,
+      categoryTitleOutsideImage: false
+    };
+  }
+
+  return {
+    hideCategoryTitleBackground: gridBlocks.every((block) => block?.settings?.hideCategoryTitleBackground === true),
+    categoryTitleBackgroundTransparent: gridBlocks.every((block) => block?.settings?.categoryTitleBackgroundTransparent === true),
+    categoryTitleOutsideImage: gridBlocks.every((block) => block?.settings?.categoryTitleOutsideImage === true)
+  };
+}
+
+function normalizeShowcaseCategoryStyleFromDb(rawLayout, fallbackBlocks = []) {
+  const inferred = inferCategoryStyleSettingsFromBlocks(fallbackBlocks);
+  if (typeof rawLayout !== 'object' || rawLayout === null || Array.isArray(rawLayout)) {
+    return inferred;
+  }
+
+  const rawSettings = rawLayout.categoryStyleSettings ?? rawLayout.category_style_settings;
+  if (typeof rawSettings !== 'object' || rawSettings === null || Array.isArray(rawSettings)) {
+    return inferred;
+  }
+
+  return {
+    hideCategoryTitleBackground: normalizeBooleanFlag(
+      rawSettings.hideCategoryTitleBackground ?? rawSettings.hide_category_title_background,
+      inferred.hideCategoryTitleBackground
+    ),
+    categoryTitleBackgroundTransparent: normalizeBooleanFlag(
+      rawSettings.categoryTitleBackgroundTransparent ?? rawSettings.category_title_background_transparent,
+      inferred.categoryTitleBackgroundTransparent
+    ),
+    categoryTitleOutsideImage: normalizeBooleanFlag(
+      rawSettings.categoryTitleOutsideImage ?? rawSettings.category_title_outside_image,
+      inferred.categoryTitleOutsideImage
+    )
+  };
+}
+
 let showcaseLayoutsSchemaReady = false;
 let showcaseLayoutsSchemaPromise = null;
 
@@ -1964,7 +2035,9 @@ router.get('/restaurant/:restaurantId/showcase', authenticate, async (req, res) 
     const rawLayout = showcaseResult.rows[0]?.layout;
     const layout = normalizeShowcaseLayoutFromDb(rawLayout);
     const isVisible = normalizeShowcaseVisibilityFromDb(rawLayout);
-    res.json({ blocks: layout, isVisible });
+    const isMenuVisible = normalizeShowcaseMenuVisibilityFromDb(rawLayout);
+    const categoryStyleSettings = normalizeShowcaseCategoryStyleFromDb(rawLayout, layout);
+    res.json({ blocks: layout, isVisible, isMenuVisible, categoryStyleSettings });
   } catch (error) {
     console.error('Showcase GET error:', error);
     res.status(500).json({ error: 'Ошибка загрузки витрины' });
@@ -1979,7 +2052,12 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
       return res.status(400).json({ error: 'Invalid restaurant ID' });
     }
 
-    const { blocks = [], isVisible = true } = req.body;
+    const {
+      blocks = [],
+      isVisible = true,
+      isMenuVisible = true,
+      categoryStyleSettings = {}
+    } = req.body;
     if (!Array.isArray(blocks)) {
       return res.status(400).json({ error: 'Blocks must be an array' });
     }
@@ -1999,19 +2077,30 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
     }
 
     const normalizedBlocks = blocks;
-    let normalizedVisibility = true;
-    if (typeof isVisible === 'boolean') {
-      normalizedVisibility = isVisible;
-    } else if (typeof isVisible === 'number') {
-      normalizedVisibility = isVisible !== 0;
-    } else if (typeof isVisible === 'string') {
-      const normalized = isVisible.trim().toLowerCase();
-      if (['false', '0', 'no', 'off'].includes(normalized)) normalizedVisibility = false;
-      if (['true', '1', 'yes', 'on'].includes(normalized)) normalizedVisibility = true;
+    let normalizedVisibility = normalizeBooleanFlag(isVisible, true);
+    let normalizedMenuVisibility = normalizeBooleanFlag(isMenuVisible, true);
+    if (!normalizedVisibility && !normalizedMenuVisibility) {
+      normalizedMenuVisibility = true;
     }
+    const normalizedCategoryStyleSettings = {
+      hideCategoryTitleBackground: normalizeBooleanFlag(
+        categoryStyleSettings?.hideCategoryTitleBackground ?? categoryStyleSettings?.hide_category_title_background,
+        false
+      ),
+      categoryTitleBackgroundTransparent: normalizeBooleanFlag(
+        categoryStyleSettings?.categoryTitleBackgroundTransparent ?? categoryStyleSettings?.category_title_background_transparent,
+        false
+      ),
+      categoryTitleOutsideImage: normalizeBooleanFlag(
+        categoryStyleSettings?.categoryTitleOutsideImage ?? categoryStyleSettings?.category_title_outside_image,
+        false
+      )
+    };
     const layoutPayload = {
       blocks: normalizedBlocks,
-      isVisible: normalizedVisibility
+      isVisible: normalizedVisibility,
+      isMenuVisible: normalizedMenuVisibility,
+      categoryStyleSettings: normalizedCategoryStyleSettings
     };
 
     await pool.query(
@@ -2026,7 +2115,13 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
       [restaurantId, JSON.stringify(layoutPayload)]
     );
 
-    res.json({ success: true, blocks: normalizedBlocks, isVisible: normalizedVisibility });
+    res.json({
+      success: true,
+      blocks: normalizedBlocks,
+      isVisible: normalizedVisibility,
+      isMenuVisible: normalizedMenuVisibility,
+      categoryStyleSettings: normalizedCategoryStyleSettings
+    });
   } catch (error) {
     console.error('Showcase POST error:', error);
     res.status(500).json({ error: 'Ошибка сохранения витрины' });
