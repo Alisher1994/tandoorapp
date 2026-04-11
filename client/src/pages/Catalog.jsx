@@ -1925,7 +1925,6 @@ function Catalog() {
     const productId = normalizeId(product?.id);
     if (!productId) return;
 
-    const selectedVariant = getSelectedVariantForProduct(product);
     const shareUrl = buildProductShareUrl(product);
     if (!shareUrl) {
       const message = language === 'uz'
@@ -1940,26 +1939,7 @@ function Catalog() {
     }
 
     const shareTitle = getProductName(product) || (language === 'uz' ? 'Mahsulot' : 'Товар');
-    const priceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
-    const shareImageUrl = getProductCardImage(product, selectedVariant);
-    const priceText = `${formatPrice(priceMeta.currentPrice || 0)} ${t('sum')}`;
-
-    const labels = language === 'uz'
-      ? {
-        name: 'Nomi',
-        price: 'Narxi'
-      }
-      : {
-        name: 'Название товара',
-        price: 'Цена товара'
-      };
-
-    const shareLines = [
-      `${labels.name}: ${shareTitle}`,
-      `${labels.price}: ${priceText}`,
-      shareUrl
-    ].filter(Boolean);
-    const shareText = shareLines.join('\n');
+    const shareText = shareUrl;
     const isAndroidWebView = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
     const shouldSkipNativeShare = isAndroidWebView && isTelegramWebView;
 
