@@ -4176,7 +4176,7 @@ function Catalog() {
                           const titleBackground = hideCategoryTitleBackgroundForMenu
                             ? 'transparent'
                             : (categoryTitleBackgroundTransparentForMenu ? 'rgba(255, 255, 255, 0.42)' : 'rgba(255, 255, 255, 0.74)');
-                          const imageZoneHeight = categoryTitleOutsideImageForMenu ? '104px' : '110px';
+                          const imageZoneHeight = '110px';
                           return (
                             <Col key={level2Category.id} xs={6} lg={3}>
                               <button
@@ -4185,16 +4185,18 @@ function Catalog() {
                                 className="w-100 border-0 p-0 text-start"
                                 style={{
                                   borderRadius: '14px',
-                                  overflow: 'hidden',
-                                  background: '#ffffff',
+                                  overflow: categoryTitleOutsideImageForMenu ? 'visible' : 'hidden',
+                                  background: categoryTitleOutsideImageForMenu ? 'transparent' : '#ffffff',
                                   position: 'relative',
-                                  minHeight: categoryTitleOutsideImageForMenu ? '140px' : '110px'
+                                  minHeight: '110px'
                                 }}
                               >
                                 <div
                                   style={{
                                     position: 'relative',
                                     height: imageZoneHeight,
+                                    borderRadius: '14px',
+                                    overflow: 'hidden',
                                     backgroundImage: categoryImage ? `url(${categoryImage})` : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
                                     backgroundSize: 'cover',
                                     backgroundPosition: 'center',
@@ -4236,21 +4238,22 @@ function Catalog() {
                                 {categoryTitleOutsideImageForMenu && (
                                   <div
                                     style={{
-                                      padding: '8px 10px 10px',
-                                      background: '#ffffff'
+                                      marginTop: '0.42rem',
+                                      padding: '0 0.16rem'
                                     }}
                                   >
                                     <span
                                       style={{
-                                        display: 'inline-block',
+                                        display: '-webkit-box',
                                         maxWidth: '100%',
                                         color: '#111827',
-                                        fontWeight: 700,
-                                        fontSize: '0.78rem',
-                                        lineHeight: 1.2,
+                                        fontWeight: 500,
+                                        fontSize: '0.76rem',
+                                        lineHeight: 1.15,
                                         overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
+                                        textOverflow: 'clip',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical'
                                       }}
                                     >
                                       {categoryName}
