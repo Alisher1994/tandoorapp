@@ -3806,7 +3806,12 @@ function AdminDashboard() {
           includeContainers: true,
           includeFeedbackStats: false
         });
+        return;
       }
+
+      // Tabs like settings/showcase/feedback/clients/help/printers do not require
+      // the initial blocking loader; otherwise skeleton can stay forever.
+      setLoading(false);
     };
 
     runFetchByTab();
