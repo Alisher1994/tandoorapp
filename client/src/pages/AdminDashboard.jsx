@@ -13059,22 +13059,30 @@ function AdminDashboard() {
                                       className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'grid_categories' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'grid_categories' })}
                                     >
-                                      <span className="admin-menu-mode-preview-visual is-grid-real">
-                                        <span className="admin-menu-mode-grid-photo-wrap">
-                                          <img
-                                            src={MENU_MODE_PREVIEW_MEDIA.categoryPhoto}
-                                            alt="Категория Книжки"
-                                            className="admin-menu-mode-grid-photo"
-                                            loading="lazy"
-                                          />
-                                        </span>
-                                        <span className="admin-menu-mode-grid-list">
-                                          <span>Книжки</span>
-                                          <span>Игрушки</span>
-                                          <span>Уход</span>
+                                      <span className="admin-menu-mode-preview-visual admin-preview-shell">
+                                        <span className="admin-preview-header-line" />
+                                        <span className="admin-preview-catalog-grid">
+                                          <span className="admin-preview-category-card">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.categoryPhoto}
+                                              alt="Категория 1"
+                                              className="admin-preview-category-image"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-category-name">Книжки</span>
+                                          </span>
+                                          <span className="admin-preview-category-card">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt}
+                                              alt="Категория 2"
+                                              className="admin-preview-category-image"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-category-name">Игрушки</span>
+                                          </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">Папки</span>
+                                      <span className="admin-menu-mode-preview-title">Каталог</span>
                                       <span className="admin-menu-mode-preview-desc">Категории плиткой, затем товары</span>
                                     </button>
                                     <button
@@ -13082,22 +13090,38 @@ function AdminDashboard() {
                                       className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'single_list' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'single_list' })}
                                     >
-                                      <span className="admin-menu-mode-preview-visual is-list-real">
-                                        <span className="admin-menu-mode-list-photo-wrap">
-                                          <img
-                                            src={MENU_MODE_PREVIEW_MEDIA.productPhoto}
-                                            alt="Пример карточки товара"
-                                            className="admin-menu-mode-list-photo"
-                                            loading="lazy"
-                                          />
+                                      <span className="admin-menu-mode-preview-visual admin-preview-shell">
+                                        <span className="admin-preview-header-line" />
+                                        <span className="admin-preview-product-list">
+                                          <span className="admin-preview-product-row">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.productPhoto}
+                                              alt="Товар 1"
+                                              className="admin-preview-product-thumb"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-product-copy">
+                                              <span className="admin-preview-product-name">Развивающая книга</span>
+                                              <span className="admin-preview-product-price">45 000 сум</span>
+                                            </span>
+                                            <span className="admin-preview-product-add">+</span>
+                                          </span>
+                                          <span className="admin-preview-product-row">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt}
+                                              alt="Товар 2"
+                                              className="admin-preview-product-thumb"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-product-copy">
+                                              <span className="admin-preview-product-name">Игрушка-конструктор</span>
+                                              <span className="admin-preview-product-price">29 000 сум</span>
+                                            </span>
+                                            <span className="admin-preview-product-add">+</span>
+                                          </span>
                                         </span>
-                                        <span className="admin-menu-mode-list-copy">
-                                          <span className="admin-menu-mode-list-name">Развивающая книга</span>
-                                          <span className="admin-menu-mode-list-price">45 000 сум</span>
-                                        </span>
-                                        <span className="admin-menu-mode-list-add-btn">+</span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">Прямой список</span>
+                                      <span className="admin-menu-mode-preview-title">Карточный режим</span>
                                       <span className="admin-menu-mode-preview-desc">Все товары по категориям на одном экране</span>
                                     </button>
                                   </div>
@@ -13116,22 +13140,32 @@ function AdminDashboard() {
                                       className={`admin-menu-mode-preview-card ${normalizeCatalogCardMode(restaurantSettings.catalog_card_mode, 'wide') === 'wide' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, catalog_card_mode: 'wide' })}
                                     >
-                                      <span className="admin-menu-mode-preview-visual" style={{ display: 'grid', placeItems: 'center' }}>
-                                        <span
-                                          style={{
-                                            width: '88%',
-                                            borderRadius: 10,
-                                            border: '1px solid rgba(99,102,241,0.24)',
-                                            background: 'linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)',
-                                            display: 'grid',
-                                            gridTemplateColumns: '46% 1fr',
-                                            minHeight: 68
-                                          }}
-                                        >
-                                          <span style={{ background: 'linear-gradient(135deg, #dbeafe, #c7d2fe)', borderRight: '1px solid rgba(99,102,241,0.16)' }} />
-                                          <span style={{ display: 'grid', alignContent: 'center', gap: 5, padding: '7px 8px' }}>
-                                            <span style={{ height: 8, width: '90%', borderRadius: 999, background: 'rgba(30,41,59,0.24)' }} />
-                                            <span style={{ height: 7, width: '62%', borderRadius: 999, background: 'rgba(30,41,59,0.18)' }} />
+                                      <span className="admin-menu-mode-preview-visual admin-preview-shell">
+                                        <span className="admin-preview-header-line" />
+                                        <span className="admin-preview-card-grid admin-preview-card-grid-wide">
+                                          <span className="admin-preview-product-card admin-preview-product-card-wide">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.categoryPhoto}
+                                              alt="Wide 1"
+                                              className="admin-preview-product-card-image"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-product-card-body">
+                                              <span className="admin-preview-product-card-name">Fiat buket N. Z-9</span>
+                                              <span className="admin-preview-product-card-price">16 000 сум</span>
+                                            </span>
+                                          </span>
+                                          <span className="admin-preview-product-card admin-preview-product-card-wide">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt}
+                                              alt="Wide 2"
+                                              className="admin-preview-product-card-image"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-product-card-body">
+                                              <span className="admin-preview-product-card-name">Mayda buket</span>
+                                              <span className="admin-preview-product-card-price">18 000 сум</span>
+                                            </span>
                                           </span>
                                         </span>
                                       </span>
@@ -13143,21 +13177,32 @@ function AdminDashboard() {
                                       className={`admin-menu-mode-preview-card ${normalizeCatalogCardMode(restaurantSettings.catalog_card_mode, 'wide') === 'portrait' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, catalog_card_mode: 'portrait' })}
                                     >
-                                      <span className="admin-menu-mode-preview-visual" style={{ display: 'grid', placeItems: 'center' }}>
-                                        <span
-                                          style={{
-                                            width: 72,
-                                            borderRadius: 10,
-                                            border: '1px solid rgba(99,102,241,0.24)',
-                                            background: 'linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)',
-                                            overflow: 'hidden',
-                                            minHeight: 88
-                                          }}
-                                        >
-                                          <span style={{ display: 'block', height: 52, background: 'linear-gradient(135deg, #dbeafe, #c7d2fe)' }} />
-                                          <span style={{ display: 'grid', gap: 5, padding: '7px 8px' }}>
-                                            <span style={{ height: 7, width: '88%', borderRadius: 999, background: 'rgba(30,41,59,0.24)' }} />
-                                            <span style={{ height: 7, width: '66%', borderRadius: 999, background: 'rgba(30,41,59,0.18)' }} />
+                                      <span className="admin-menu-mode-preview-visual admin-preview-shell">
+                                        <span className="admin-preview-header-line" />
+                                        <span className="admin-preview-card-grid admin-preview-card-grid-portrait">
+                                          <span className="admin-preview-product-card admin-preview-product-card-portrait">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.categoryPhoto}
+                                              alt="Portrait 1"
+                                              className="admin-preview-product-card-image"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-product-card-body">
+                                              <span className="admin-preview-product-card-name">Fiat buket N. Z-9</span>
+                                              <span className="admin-preview-product-card-price">16 000 сум</span>
+                                            </span>
+                                          </span>
+                                          <span className="admin-preview-product-card admin-preview-product-card-portrait">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.productPhoto}
+                                              alt="Portrait 2"
+                                              className="admin-preview-product-card-image"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-product-card-body">
+                                              <span className="admin-preview-product-card-name">N. P-17/P-18</span>
+                                              <span className="admin-preview-product-card-price">16 000 сум</span>
+                                            </span>
                                           </span>
                                         </span>
                                       </span>
