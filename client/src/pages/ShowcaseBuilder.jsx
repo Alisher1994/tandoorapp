@@ -549,14 +549,6 @@ function ShowcaseBuilder({ embedded = false }) {
     handleMenuIconFileUpload(iconKey, selectedFile);
   };
 
-  const handleMenuIconUseDefault = (iconKey) => {
-    if (!iconKey) return;
-    setMenuIconSettings({
-      ...resolvedMenuIconSettings,
-      [iconKey]: DEFAULT_MENU_ICON_SETTINGS[iconKey] || ''
-    });
-  };
-
   const handleMenuIconResetDefaults = () => {
     setMenuIconSettings({ ...DEFAULT_MENU_ICON_SETTINGS });
   };
@@ -1199,7 +1191,7 @@ function ShowcaseBuilder({ embedded = false }) {
               <div className="menu-icons-settings">
                 <h3>Настройки иконок</h3>
                 <p className="menu-icons-settings-hint">
-                  Можно использовать эмодзи или загрузить иконку в PNG/SVG. Эмодзи иконка обрежется до 4 символов.
+                  Можно указать эмодзи в поле или выбрать файл PNG/SVG кнопкой справа.
                 </p>
                 <div className="menu-icons-preview-card">
                   <div className="menu-icons-preview-title">Предпросмотр</div>
@@ -1225,16 +1217,15 @@ function ShowcaseBuilder({ embedded = false }) {
                   </div>
                 </div>
                 <div className="menu-icons-inputs">
+                  <div className="menu-icon-table-head">
+                    <span>Название меню</span>
+                    <span>Иконка</span>
+                  </div>
                   {ICON_SETTINGS_ITEMS.map((item) => (
-                    <div key={`icon_input_${item.key}`} className="menu-icon-input-row">
-                      <div className="menu-icon-input-header">
-                        <label htmlFor={`menu-icon-input-${item.key}`} className="menu-icon-input-label">
-                          {item.label}
-                        </label>
-                        {isImageIconValue(resolvedMenuIconSettings[item.key]) && (
-                          <span className="menu-icon-mode-badge">PNG/SVG</span>
-                        )}
-                      </div>
+                    <div key={`icon_input_${item.key}`} className="menu-icon-table-row">
+                      <label htmlFor={`menu-icon-input-${item.key}`} className="menu-icon-input-label">
+                        {item.label}
+                      </label>
                       <div className="menu-icon-input-controls">
                         <span className="menu-icon-current" aria-hidden="true">
                           {isImageIconValue(resolvedMenuIconSettings[item.key]) ? (
@@ -1270,20 +1261,17 @@ function ShowcaseBuilder({ embedded = false }) {
                             type="button"
                             size="sm"
                             variant="outline-primary"
-                            className="menu-icon-upload-btn"
+                            className="menu-icon-upload-btn menu-icon-upload-btn-icon-only"
                             disabled={iconUploadLoadingByKey[item.key] === true}
                             onClick={() => iconFileInputRefs.current[item.key]?.click()}
+                            aria-label={iconUploadLoadingByKey[item.key] ? 'Загрузка...' : `Выбрать иконку для: ${item.label}`}
+                            title={iconUploadLoadingByKey[item.key] ? 'Загрузка...' : 'Выбрать PNG/SVG'}
                           >
-                            {iconUploadLoadingByKey[item.key] ? 'Загрузка...' : 'PNG/SVG'}
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline-secondary"
-                            className="menu-icon-upload-btn"
-                            onClick={() => handleMenuIconUseDefault(item.key)}
-                          >
-                            По умолчанию
+                            {iconUploadLoadingByKey[item.key] ? (
+                              <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
+                            ) : (
+                              <i className="bi bi-image" aria-hidden="true" />
+                            )}
                           </Button>
                         </div>
                       </div>
