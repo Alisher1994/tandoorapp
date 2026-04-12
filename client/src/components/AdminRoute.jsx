@@ -1,12 +1,12 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { PageSkeleton } from './SkeletonUI';
+import { AdminDashboardSkeleton } from './SkeletonUI';
 
 function AdminRoute({ children }) {
   const { user, loading, isOperator } = useAuth();
 
   if (loading) {
-    return <PageSkeleton fullscreen label="Проверка прав администратора" cards={7} />;
+    return <AdminDashboardSkeleton label="Проверка прав администратора" />;
   }
 
   if (!user) {

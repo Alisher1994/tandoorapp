@@ -35,7 +35,7 @@ import * as XLSX from 'xlsx';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import DeliveryZonePicker from '../components/DeliveryZonePicker';
 import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
-import { ListSkeleton, PageSkeleton, TableSkeleton } from '../components/SkeletonUI';
+import { AdminDashboardSkeleton, ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 import HeaderGlowBackground from '../components/HeaderGlowBackground';
 import ShowcaseBuilder from './ShowcaseBuilder';
@@ -8442,7 +8442,7 @@ function AdminDashboard() {
   ];
 
   if (loading) {
-    return <PageSkeleton fullscreen label="Загрузка панели оператора" cards={9} />;
+    return <AdminDashboardSkeleton label="Загрузка панели оператора" />;
   }
 
   const handleSwitchRestaurant = async (restaurantId) => {
