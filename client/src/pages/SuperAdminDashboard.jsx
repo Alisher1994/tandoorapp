@@ -10542,18 +10542,6 @@ function SuperAdminDashboard() {
       // ignore localStorage failures
     }
   }, [isSidebarCollapsed]);
-  useEffect(() => {
-    if (!activeTab || !superAdminSidebarTabsMeta[activeTab]) {
-      if (activeTab !== 'restaurants') setActiveTab('restaurants');
-      return;
-    }
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(SUPERADMIN_ACTIVE_TAB_STORAGE_KEY, activeTab);
-    } catch (_) {
-      // ignore localStorage failures
-    }
-  }, [activeTab, superAdminSidebarTabsMeta]);
   const handleSidebarTabSelect = (key) => {
     if (!key) return;
     const isDesktopSidebar = typeof window !== 'undefined' && window.innerWidth >= 992;
@@ -10880,6 +10868,18 @@ function SuperAdminDashboard() {
     ? 'settings'
     : (activeTab === 'billing_transactions' ? 'founders' : activeTab);
   const isSettingsSectionActive = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab);
+  useEffect(() => {
+    if (!activeTab || !superAdminSidebarTabsMeta[activeTab]) {
+      if (activeTab !== 'restaurants') setActiveTab('restaurants');
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(SUPERADMIN_ACTIVE_TAB_STORAGE_KEY, activeTab);
+    } catch (_) {
+      // ignore localStorage failures
+    }
+  }, [activeTab, superAdminSidebarTabsMeta]);
   const renderSuperAdminSidebarTabTitle = (key) => {
     const meta = superAdminSidebarTabsMeta[key] || { label: key, icon: FileText };
     const Icon = meta.icon;
