@@ -58,10 +58,13 @@ import YandexLocationPicker from '../components/YandexLocationPicker';
 import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
 import {
   ListSkeleton,
+  SuperAdminAdsSkeleton,
   SuperAdminClientsSkeleton,
   SuperAdminLogsSkeleton,
   SuperAdminOperatorsSkeleton,
   SuperAdminRestaurantsSkeleton,
+  SuperAdminSecurityEventsSkeleton,
+  SuperAdminSecurityStatsSkeleton,
   TableSkeleton
 } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
@@ -14882,7 +14885,7 @@ function SuperAdminDashboard() {
                 </Alert>
 
                 {adBannersLoading ? (
-                  <TableSkeleton rows={7} columns={8} label="Загрузка рекламных баннеров" />
+                  <SuperAdminAdsSkeleton label="Загрузка рекламных баннеров" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -17001,7 +17004,7 @@ function SuperAdminDashboard() {
                 )}
 
                 {securityStatsLoading ? (
-                  <TableSkeleton rows={1} columns={4} label={language === 'uz' ? 'Xavfsizlik statistikasi yuklanmoqda' : 'Загрузка статистики безопасности'} />
+                  <SuperAdminSecurityStatsSkeleton label={language === 'uz' ? 'Xavfsizlik statistikasi yuklanmoqda' : 'Загрузка статистики безопасности'} />
                 ) : (
                   <Row className="g-3 mb-3">
                     <Col md={3} sm={6}>
@@ -17047,7 +17050,7 @@ function SuperAdminDashboard() {
                 )}
 
                 {securityEventsLoading ? (
-                  <TableSkeleton rows={8} columns={9} label={language === 'uz' ? 'Xavfsizlik hodisalari yuklanmoqda' : 'Загрузка событий безопасности'} />
+                  <SuperAdminSecurityEventsSkeleton label={language === 'uz' ? 'Xavfsizlik hodisalari yuklanmoqda' : 'Загрузка событий безопасности'} />
                 ) : (
                   <>
                     <div className="admin-table-container">

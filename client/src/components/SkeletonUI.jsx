@@ -220,6 +220,73 @@ export function SuperAdminLogsSkeleton({ label = 'Загрузка журнал�
   );
 }
 
+export function SuperAdminAdsSkeleton({ label = 'Загрузка рекламных баннеров' }) {
+  return (
+    <SuperAdminTabSkeletonFrame
+      label={label}
+      filterWidthSet={['220px', '260px', '140px']}
+    >
+      <div className="skeleton-table">
+        <div className="skeleton-table-row skeleton-table-head" style={{ gridTemplateColumns: '90px 1.4fr 1.1fr 1.2fr 0.9fr 0.9fr 1fr 120px' }}>
+          {repeat(8).map((cell) => (
+            <SkeletonBlock key={`sa-ads-head-${cell}`} className="skeleton-line skeleton-line-small" style={{ width: '66%' }} />
+          ))}
+        </div>
+        {repeat(7).map((row) => (
+          <div key={`sa-ads-row-${row}`} className="skeleton-table-row" style={{ gridTemplateColumns: '90px 1.4fr 1.1fr 1.2fr 0.9fr 0.9fr 1fr 120px' }}>
+            {repeat(8).map((cell) => (
+              <SkeletonBlock key={`sa-ads-cell-${row}-${cell}`} className="skeleton-line" style={{ width: `${52 + ((row + cell) % 3) * 14}%` }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </SuperAdminTabSkeletonFrame>
+  );
+}
+
+export function SuperAdminSecurityStatsSkeleton({ label = 'Загрузка статистики безопасности' }) {
+  return (
+    <SuperAdminTabSkeletonFrame
+      label={label}
+      filterWidthSet={['180px', '180px', '160px', '160px', '150px']}
+    >
+      <div className="skeleton-superadmin-stat-grid" style={{ marginBottom: 0 }}>
+        {repeat(4).map((index) => (
+          <div key={`sa-security-stat-${index}`} className="skeleton-card">
+            <SkeletonBlock className="skeleton-line skeleton-line-small" style={{ width: `${46 + (index % 3) * 10}%` }} />
+            <SkeletonBlock className="skeleton-line skeleton-line-title" style={{ width: `${40 + (index % 2) * 18}%` }} />
+            <SkeletonBlock className="skeleton-line" style={{ width: '58%' }} />
+          </div>
+        ))}
+      </div>
+    </SuperAdminTabSkeletonFrame>
+  );
+}
+
+export function SuperAdminSecurityEventsSkeleton({ label = 'Загрузка событий безопасности' }) {
+  return (
+    <SuperAdminTabSkeletonFrame
+      label={label}
+      filterWidthSet={['180px', '180px', '180px', '170px', '150px', '150px']}
+    >
+      <div className="skeleton-table">
+        <div className="skeleton-table-row skeleton-table-head" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr 0.7fr 0.8fr 1.2fr 1.2fr 120px' }}>
+          {repeat(9).map((cell) => (
+            <SkeletonBlock key={`sa-security-head-${cell}`} className="skeleton-line skeleton-line-small" style={{ width: '66%' }} />
+          ))}
+        </div>
+        {repeat(8).map((row) => (
+          <div key={`sa-security-row-${row}`} className="skeleton-table-row" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr 0.7fr 0.8fr 1.2fr 1.2fr 120px' }}>
+            {repeat(9).map((cell) => (
+              <SkeletonBlock key={`sa-security-cell-${row}-${cell}`} className="skeleton-line" style={{ width: `${50 + ((row + cell) % 4) * 12}%` }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </SuperAdminTabSkeletonFrame>
+  );
+}
+
 export function AdminDashboardSkeleton({ label = 'Загрузка панели управления' }) {
   return (
     <div className="skeleton-admin-shell" role="status" aria-live="polite" aria-busy="true">
