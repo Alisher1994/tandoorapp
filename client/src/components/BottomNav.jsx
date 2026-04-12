@@ -6,9 +6,10 @@ import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useShowcase } from '../context/ShowcaseContext';
-import { DEFAULT_MENU_ICON_SETTINGS, normalizeMenuIconSettings } from '../constants/menuIcons';
+import { DEFAULT_MENU_ICON_SETTINGS, isImageIconValue, normalizeMenuIconSettings } from '../constants/menuIcons';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const CLIENT_APP_BASE_URL = API_URL.replace('/api', '');
 const normalizeMenuGlassOpacity = (value, fallback = 34) => {
   const parsed = Number.parseFloat(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -92,6 +93,12 @@ function BottomNav() {
   }, [user?.active_restaurant_id, loadShowcase]);
   
   const resolvedMenuIconSettings = normalizeMenuIconSettings(menuIconSettings, DEFAULT_MENU_ICON_SETTINGS);
+  const resolveMenuIconUrl = (value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return '';
+    if (normalized.startsWith('http') || normalized.startsWith('data:image/')) return normalized;
+    return `${CLIENT_APP_BASE_URL}${normalized}`;
+  };
 
   const navItems = [
     ...(showcaseVisible ? [{ path: '/', icon: resolvedMenuIconSettings.showcase, label: t('showcase') || 'Витрина' }] : []),
@@ -212,7 +219,17 @@ function BottomNav() {
           ].filter(Boolean).join(' ')}
         >
           <span className="client-bottom-nav-icon">
-            {item.icon}
+            {isImageIconValue(item.icon) ? (
+              <img
+                src={resolveMenuIconUrl(item.icon)}
+                alt=""
+                className="client-bottom-nav-icon-image"
+                loading="lazy"
+                draggable={false}
+              />
+            ) : (
+              item.icon
+            )}
           </span>
           <span className="client-bottom-nav-label">
             {item.label}

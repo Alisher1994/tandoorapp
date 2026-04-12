@@ -14,7 +14,7 @@ import {
   BannerBlock,
   ProductSliderBlock
 } from '../components/ShowcaseBlocks';
-import { DEFAULT_MENU_ICON_SETTINGS, normalizeMenuIconSettings } from '../constants/menuIcons';
+import { DEFAULT_MENU_ICON_SETTINGS, isImageIconValue, normalizeMenuIconSettings } from '../constants/menuIcons';
 import './ShowcaseBuilder.css';
 import {
   ChevronDown,
@@ -173,6 +173,13 @@ const resolveLogoUrl = (logoUrl) => (
       ? logoUrl
       : `${API_URL.replace('/api', '')}${logoUrl}`)
 );
+
+const resolveMenuIconUrl = (iconValue) => {
+  const rawValue = String(iconValue || '').trim();
+  if (!rawValue || !isImageIconValue(rawValue)) return '';
+  if (rawValue.startsWith('http') || rawValue.startsWith('data:image/')) return rawValue;
+  return `${API_URL.replace('/api', '')}${rawValue}`;
+};
 
 const isProductEnabledForShowcase = (product) => (
   product?.is_active !== false
@@ -355,8 +362,10 @@ function ShowcaseBuilder({ embedded = false }) {
   const [categoryTitleBackgroundTransparentGlobal, setCategoryTitleBackgroundTransparentGlobal] = useState(false);
   const [categoryTitleOutsideImageGlobal, setCategoryTitleOutsideImageGlobal] = useState(false);
   const [leftPanelTab, setLeftPanelTab] = useState('categories');
+  const [iconUploadLoadingByKey, setIconUploadLoadingByKey] = useState({});
 
   const draggedCategoryRef = useRef(null);
+  const iconFileInputRefs = useRef({});
   const gridBlocks = showcaseLayout.filter((block) => isGridBlockType(block?.block_type));
   const resolvedMenuIconSettings = useMemo(
     () => normalizeMenuIconSettings(menuIconSettings, DEFAULT_MENU_ICON_SETTINGS),
@@ -503,6 +512,48 @@ function ShowcaseBuilder({ embedded = false }) {
     setMenuIconSettings({
       ...resolvedMenuIconSettings,
       [iconKey]: nextValue
+    });
+  };
+
+  const handleMenuIconFileUpload = async (iconKey, file) => {
+    const restaurantId = Number.parseInt(user?.active_restaurant_id, 10);
+    if (!iconKey || !restaurantId || !file) return;
+
+    setIconUploadLoadingByKey((prev) => ({ ...prev, [iconKey]: true }));
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await axios.post(`${API_URL}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const imageUrl = String(response?.data?.imageUrl || response?.data?.url || '').trim();
+      if (!imageUrl) throw new Error('Upload returned empty URL');
+      setMenuIconSettings({
+        ...resolvedMenuIconSettings,
+        [iconKey]: imageUrl
+      });
+    } catch (error) {
+      console.error('Menu icon upload failed:', error);
+      setErrorMessage('Ошибка загрузки иконки. Поддерживаются PNG/SVG/JPG/WebP.');
+    } finally {
+      setIconUploadLoadingByKey((prev) => ({ ...prev, [iconKey]: false }));
+      if (iconFileInputRefs.current[iconKey]) {
+        iconFileInputRefs.current[iconKey].value = '';
+      }
+    }
+  };
+
+  const handleMenuIconFileInputChange = (iconKey, event) => {
+    const selectedFile = event.target?.files?.[0];
+    if (!selectedFile) return;
+    handleMenuIconFileUpload(iconKey, selectedFile);
+  };
+
+  const handleMenuIconUseDefault = (iconKey) => {
+    if (!iconKey) return;
+    setMenuIconSettings({
+      ...resolvedMenuIconSettings,
+      [iconKey]: DEFAULT_MENU_ICON_SETTINGS[iconKey] || ''
     });
   };
 
@@ -1044,7 +1095,19 @@ function ShowcaseBuilder({ embedded = false }) {
                         tabIndex={-1}
                         aria-hidden="true"
                       >
-                        <span className="store-preview-nav-icon">{item.icon}</span>
+                        <span className="store-preview-nav-icon">
+                          {isImageIconValue(item.icon) ? (
+                            <img
+                              src={resolveMenuIconUrl(item.icon)}
+                              alt=""
+                              className="store-preview-nav-icon-image"
+                              loading="lazy"
+                              draggable={false}
+                            />
+                          ) : (
+                            item.icon
+                          )}
+                        </span>
                         <span className="store-preview-nav-label">{item.label}</span>
                       </button>
                     ))}
@@ -1136,7 +1199,7 @@ function ShowcaseBuilder({ embedded = false }) {
               <div className="menu-icons-settings">
                 <h3>Настройки иконок</h3>
                 <p className="menu-icons-settings-hint">
-                  Укажите эмодзи для пунктов нижнего меню. Пустое значение вернет иконку по умолчанию.
+                  Можно использовать эмодзи или загрузить иконку в PNG/SVG. Эмодзи иконка обрежется до 4 символов.
                 </p>
                 <div className="menu-icons-preview-card">
                   <div className="menu-icons-preview-title">Предпросмотр</div>
@@ -1144,7 +1207,17 @@ function ShowcaseBuilder({ embedded = false }) {
                     {ICON_SETTINGS_ITEMS.map((item) => (
                       <div key={`preview_icon_${item.key}`} className="menu-icons-preview-item">
                         <span className="menu-icons-preview-emoji">
-                          {resolvedMenuIconSettings[item.key] || item.placeholder}
+                          {isImageIconValue(resolvedMenuIconSettings[item.key]) ? (
+                            <img
+                              src={resolveMenuIconUrl(resolvedMenuIconSettings[item.key])}
+                              alt=""
+                              className="menu-icons-preview-image"
+                              loading="lazy"
+                              draggable={false}
+                            />
+                          ) : (
+                            (resolvedMenuIconSettings[item.key] || item.placeholder)
+                          )}
                         </span>
                         <span className="menu-icons-preview-label">{item.label}</span>
                       </div>
@@ -1154,18 +1227,53 @@ function ShowcaseBuilder({ embedded = false }) {
                 <div className="menu-icons-inputs">
                   {ICON_SETTINGS_ITEMS.map((item) => (
                     <div key={`icon_input_${item.key}`} className="menu-icon-input-row">
-                      <label htmlFor={`menu-icon-input-${item.key}`} className="menu-icon-input-label">
-                        {item.label}
-                      </label>
-                      <Form.Control
-                        id={`menu-icon-input-${item.key}`}
-                        type="text"
-                        value={resolvedMenuIconSettings[item.key] || ''}
-                        onChange={(event) => handleMenuIconInputChange(item.key, event.target.value)}
-                        maxLength={8}
-                        placeholder={item.placeholder}
-                        className="menu-icon-input"
-                      />
+                      <div className="menu-icon-input-header">
+                        <label htmlFor={`menu-icon-input-${item.key}`} className="menu-icon-input-label">
+                          {item.label}
+                        </label>
+                        {isImageIconValue(resolvedMenuIconSettings[item.key]) && (
+                          <span className="menu-icon-mode-badge">PNG/SVG</span>
+                        )}
+                      </div>
+                      <div className="menu-icon-input-controls">
+                        <Form.Control
+                          id={`menu-icon-input-${item.key}`}
+                          type="text"
+                          value={isImageIconValue(resolvedMenuIconSettings[item.key]) ? '' : (resolvedMenuIconSettings[item.key] || '')}
+                          onChange={(event) => handleMenuIconInputChange(item.key, event.target.value)}
+                          maxLength={8}
+                          placeholder={item.placeholder}
+                          className="menu-icon-input"
+                        />
+                        <input
+                          ref={(element) => { iconFileInputRefs.current[item.key] = element; }}
+                          type="file"
+                          accept=".png,.svg,image/png,image/svg+xml,image/webp,image/jpeg"
+                          className="menu-icon-file-input-hidden"
+                          onChange={(event) => handleMenuIconFileInputChange(item.key, event)}
+                        />
+                        <div className="menu-icon-inline-actions">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline-primary"
+                            className="menu-icon-upload-btn"
+                            disabled={iconUploadLoadingByKey[item.key] === true}
+                            onClick={() => iconFileInputRefs.current[item.key]?.click()}
+                          >
+                            {iconUploadLoadingByKey[item.key] ? 'Загрузка...' : 'PNG/SVG'}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline-secondary"
+                            className="menu-icon-upload-btn"
+                            onClick={() => handleMenuIconUseDefault(item.key)}
+                          >
+                            По умолчанию
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>

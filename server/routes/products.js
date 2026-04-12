@@ -1963,6 +1963,8 @@ const MENU_ICON_KEYS = Object.keys(DEFAULT_MENU_ICON_SETTINGS);
 function normalizeMenuIconValue(value, fallback = '') {
   const text = String(value ?? '').trim();
   if (!text) return fallback;
+  const isImageLike = /^https?:\/\//i.test(text) || text.startsWith('/uploads/') || text.startsWith('data:image/');
+  if (isImageLike) return text.slice(0, 2048);
   return Array.from(text).slice(0, 4).join('');
 }
 

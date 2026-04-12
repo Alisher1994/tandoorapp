@@ -3366,6 +3366,18 @@ h6 {
   line-height: 1;
   margin-bottom: 2px;
   filter: grayscale(0.1);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.client-bottom-nav-icon-image {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
 }
 
 .client-bottom-nav-item.is-active .client-bottom-nav-icon {
@@ -3375,6 +3387,11 @@ h6 {
 .client-bottom-nav-item.is-compact .client-bottom-nav-icon {
   font-size: 18px;
   margin-bottom: 0;
+}
+
+.client-bottom-nav-item.is-compact .client-bottom-nav-icon-image {
+  width: 18px;
+  height: 18px;
 }
 
 .client-bottom-nav-label {
