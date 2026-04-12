@@ -14,6 +14,7 @@ import {
   BannerBlock,
   ProductSliderBlock
 } from '../components/ShowcaseBlocks';
+import { DEFAULT_MENU_ICON_SETTINGS, normalizeMenuIconSettings } from '../constants/menuIcons';
 import './ShowcaseBuilder.css';
 import {
   ChevronDown,
@@ -106,23 +107,12 @@ const SHOWCASE_TEMPLATES = [
   }
 ];
 
-const PREVIEW_NAV_ITEMS = [
-  {
-    key: 'showcase',
-    label: 'Витрина',
-    icon: '🛍️',
-    isActive: true
-  },
-  {
-    key: 'catalog',
-    label: 'Каталог',
-    icon: '📋'
-  },
-  {
-    key: 'cart',
-    label: 'Корзина',
-    icon: '🛒'
-  }
+const ICON_SETTINGS_ITEMS = [
+  { key: 'showcase', label: 'Витрина', placeholder: '🛍️' },
+  { key: 'catalog', label: 'Меню', placeholder: '📋' },
+  { key: 'favorites', label: 'Избранные', placeholder: '❤️' },
+  { key: 'cart', label: 'Корзина', placeholder: '🛒' },
+  { key: 'reservations', label: 'Бронь', placeholder: '🪑' }
 ];
 
 const getCategoryDisplayName = (category) => (
@@ -332,6 +322,7 @@ function ShowcaseBuilder({ embedded = false }) {
     showcaseVisible,
     menuVisible,
     categoryStyleSettings,
+    menuIconSettings,
     isDirty,
     loadShowcase,
     saveShowcase,
@@ -344,7 +335,8 @@ function ShowcaseBuilder({ embedded = false }) {
     setSliderCategory,
     setShowcaseVisible,
     setMenuVisible,
-    setCategoryStyleSettings
+    setCategoryStyleSettings,
+    setMenuIconSettings
   } = useShowcase();
 
   const [categories, setCategories] = useState([]);
@@ -362,9 +354,40 @@ function ShowcaseBuilder({ embedded = false }) {
   const [hideCategoryTitleBackgroundGlobal, setHideCategoryTitleBackgroundGlobal] = useState(false);
   const [categoryTitleBackgroundTransparentGlobal, setCategoryTitleBackgroundTransparentGlobal] = useState(false);
   const [categoryTitleOutsideImageGlobal, setCategoryTitleOutsideImageGlobal] = useState(false);
+  const [leftPanelTab, setLeftPanelTab] = useState('categories');
 
   const draggedCategoryRef = useRef(null);
   const gridBlocks = showcaseLayout.filter((block) => isGridBlockType(block?.block_type));
+  const resolvedMenuIconSettings = useMemo(
+    () => normalizeMenuIconSettings(menuIconSettings, DEFAULT_MENU_ICON_SETTINGS),
+    [menuIconSettings]
+  );
+  const previewNavItems = useMemo(() => ([
+    ...(showcaseVisible ? [{
+      key: 'showcase',
+      label: 'Витрина',
+      icon: resolvedMenuIconSettings.showcase,
+      isActive: true
+    }] : []),
+    ...(menuVisible ? [{
+      key: 'catalog',
+      label: 'Меню',
+      icon: resolvedMenuIconSettings.catalog,
+      isActive: !showcaseVisible
+    }] : []),
+    {
+      key: 'favorites',
+      label: 'Избранные',
+      icon: resolvedMenuIconSettings.favorites,
+      isActive: false
+    },
+    {
+      key: 'cart',
+      label: 'Корзина',
+      icon: resolvedMenuIconSettings.cart,
+      isActive: false
+    }
+  ]), [showcaseVisible, menuVisible, resolvedMenuIconSettings]);
 
   // Load categories and products
   useEffect(() => {
@@ -474,6 +497,19 @@ function ShowcaseBuilder({ embedded = false }) {
     });
   };
 
+  const handleMenuIconInputChange = (iconKey, value) => {
+    if (!iconKey) return;
+    const nextValue = Array.from(String(value || '')).slice(0, 4).join('');
+    setMenuIconSettings({
+      ...resolvedMenuIconSettings,
+      [iconKey]: nextValue
+    });
+  };
+
+  const handleMenuIconResetDefaults = () => {
+    setMenuIconSettings({ ...DEFAULT_MENU_ICON_SETTINGS });
+  };
+
   const handleAddBlock = (blockType, customSettings = null) => {
     const defaultSettings = {
       [BLOCK_TYPES.GRID_3]: {
@@ -544,13 +580,14 @@ function ShowcaseBuilder({ embedded = false }) {
         hideCategoryTitleBackground: hideCategoryTitleBackgroundGlobal,
         categoryTitleBackgroundTransparent: categoryTitleBackgroundTransparentGlobal,
         categoryTitleOutsideImage: categoryTitleOutsideImageGlobal
-      }
+      },
+      resolvedMenuIconSettings
     );
     if (success) {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } else {
-      setErrorMessage('Ошибка при сохранении витрины');
+      setErrorMessage('Ошибка при сохранении конструктора меню');
     }
     setSaveLoading(false);
   };
@@ -863,7 +900,7 @@ function ShowcaseBuilder({ embedded = false }) {
   return (
     <div className={`showcase-builder-container${embedded ? ' showcase-builder-embedded' : ''}`}>
       <div className="builder-header">
-        <h1>Конструктор Витрины</h1>
+        <h1>Конструктор меню</h1>
         <div className="header-actions">
           <div className="header-switches">
             <Form.Check
@@ -930,7 +967,7 @@ function ShowcaseBuilder({ embedded = false }) {
 
       {saveSuccess && (
         <Alert variant="success" onClose={() => setSaveSuccess(false)} dismissible>
-          Витрина успешно сохранена!
+          Настройки конструктора сохранены!
         </Alert>
       )}
 
@@ -999,7 +1036,7 @@ function ShowcaseBuilder({ embedded = false }) {
                 </div>
                 <div className="store-preview-nav">
                   <div className="store-preview-nav-shell">
-                    {PREVIEW_NAV_ITEMS.map((item) => (
+                    {previewNavItems.map((item) => (
                       <button
                         key={item.key}
                         type="button"
@@ -1021,56 +1058,127 @@ function ShowcaseBuilder({ embedded = false }) {
         {/* Left Panel - Categories */}
         <div className="builder-left-panel">
           <div className="panel-section">
-            <h3>Категории</h3>
-            <Form.Control
-              type="text"
-              placeholder="Поиск категории..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="category-search"
-            />
+            <div className="left-panel-tabs">
+              <button
+                type="button"
+                className={`left-panel-tab-btn${leftPanelTab === 'categories' ? ' is-active' : ''}`}
+                onClick={() => setLeftPanelTab('categories')}
+              >
+                Категории
+              </button>
+              <button
+                type="button"
+                className={`left-panel-tab-btn${leftPanelTab === 'icons' ? ' is-active' : ''}`}
+                onClick={() => setLeftPanelTab('icons')}
+              >
+                Настройки иконок
+              </button>
+            </div>
 
-            {categoriesLoading ? (
-              <div className="loading-state">
-                <Spinner animation="border" size="sm" /> Загрузка...
-              </div>
-            ) : (
-              <div className="categories-list">
-                {filteredCategories.length === 0 ? (
-                  <div className="empty-categories">
-                    {availableCategories.length === 0
-                      ? 'Нет категорий с товарами'
-                      : 'Нет результатов поиска'}
+            {leftPanelTab === 'categories' && (
+              <>
+                <h3>Категории</h3>
+                <Form.Control
+                  type="text"
+                  placeholder="Поиск категории..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="category-search"
+                />
+
+                {categoriesLoading ? (
+                  <div className="loading-state">
+                    <Spinner animation="border" size="sm" /> Загрузка...
                   </div>
                 ) : (
-                  filteredCategories.map(category => (
-                    <div
-                      key={category.id}
-                      className="category-item"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, category.id)}
-                      onDragEnd={handleDragEnd}
-                    >
-                      {getCategoryImage(category) ? (
-                        <img
-                          src={getCategoryImage(category)}
-                          alt={getCategoryDisplayName(category)}
-                          className="category-thumbnail"
-                        />
-                      ) : (
-                        <div className="category-thumbnail category-thumbnail-placeholder">
-                          нет фото
-                        </div>
-                      )}
-                      <div className="category-info">
-                        <div className="category-name">{getCategoryDisplayName(category)}</div>
-                        <div className="category-count">
-                          {getCategoryProductCount(category.id)} товаров
-                        </div>
+                  <div className="categories-list">
+                    {filteredCategories.length === 0 ? (
+                      <div className="empty-categories">
+                        {availableCategories.length === 0
+                          ? 'Нет категорий с товарами'
+                          : 'Нет результатов поиска'}
                       </div>
-                    </div>
-                  ))
+                    ) : (
+                      filteredCategories.map(category => (
+                        <div
+                          key={category.id}
+                          className="category-item"
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, category.id)}
+                          onDragEnd={handleDragEnd}
+                        >
+                          {getCategoryImage(category) ? (
+                            <img
+                              src={getCategoryImage(category)}
+                              alt={getCategoryDisplayName(category)}
+                              className="category-thumbnail"
+                            />
+                          ) : (
+                            <div className="category-thumbnail category-thumbnail-placeholder">
+                              нет фото
+                            </div>
+                          )}
+                          <div className="category-info">
+                            <div className="category-name">{getCategoryDisplayName(category)}</div>
+                            <div className="category-count">
+                              {getCategoryProductCount(category.id)} товаров
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 )}
+              </>
+            )}
+
+            {leftPanelTab === 'icons' && (
+              <div className="menu-icons-settings">
+                <h3>Настройки иконок</h3>
+                <p className="menu-icons-settings-hint">
+                  Укажите эмодзи для пунктов нижнего меню. Пустое значение вернет иконку по умолчанию.
+                </p>
+                <div className="menu-icons-preview-card">
+                  <div className="menu-icons-preview-title">Предпросмотр</div>
+                  <div className="menu-icons-preview-nav">
+                    {ICON_SETTINGS_ITEMS.map((item) => (
+                      <div key={`preview_icon_${item.key}`} className="menu-icons-preview-item">
+                        <span className="menu-icons-preview-emoji">
+                          {resolvedMenuIconSettings[item.key] || item.placeholder}
+                        </span>
+                        <span className="menu-icons-preview-label">{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="menu-icons-inputs">
+                  {ICON_SETTINGS_ITEMS.map((item) => (
+                    <div key={`icon_input_${item.key}`} className="menu-icon-input-row">
+                      <label htmlFor={`menu-icon-input-${item.key}`} className="menu-icon-input-label">
+                        {item.label}
+                      </label>
+                      <Form.Control
+                        id={`menu-icon-input-${item.key}`}
+                        type="text"
+                        value={resolvedMenuIconSettings[item.key] || ''}
+                        onChange={(event) => handleMenuIconInputChange(item.key, event.target.value)}
+                        maxLength={8}
+                        placeholder={item.placeholder}
+                        className="menu-icon-input"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="menu-icons-actions">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline-secondary"
+                    onClick={handleMenuIconResetDefaults}
+                  >
+                    Сбросить по умолчанию
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -1083,18 +1191,18 @@ function ShowcaseBuilder({ embedded = false }) {
             <div className="canvas-workspace-card">
               <div className="canvas-header">
                 <div className="canvas-header-meta">
-                  <h3>Структура витрины</h3>
+                  <h3>Структура меню</h3>
                 </div>
               </div>
 
               {showcaseLoading ? (
                 <div className="loading-state">
-                  <Spinner animation="border" /> Загрузка витрины...
+                  <Spinner animation="border" /> Загрузка конструктора...
                 </div>
               ) : showcaseLayout.length === 0 ? (
                 <div className="canvas-empty">
                   <div className="empty-canvas-message">
-                    <p>Пока нет блоков. Добавьте первый блок, чтобы собрать витрину.</p>
+                    <p>Пока нет блоков. Добавьте первый блок, чтобы собрать меню.</p>
                     <Button
                       variant="primary"
                       size="sm"
@@ -1195,7 +1303,7 @@ function ShowcaseBuilder({ embedded = false }) {
         dialogClassName="showcase-builder-modal"
       >
       <Modal.Header closeButton>
-          <Modal.Title>Добавление в витрину</Modal.Title>
+          <Modal.Title>Добавление блока меню</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <div className="modal-section-title">Готовые шаблоны</div>

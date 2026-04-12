@@ -324,6 +324,124 @@
   color: var(--text-color, #111827);
 }
 
+.left-panel-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-bottom: 0.8rem;
+}
+
+.left-panel-tab-btn {
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color, #d1d5db);
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.left-panel-tab-btn.is-active {
+  border-color: rgba(79, 70, 229, 0.42);
+  background: #eef2ff;
+  color: var(--primary-color, #4f46e5);
+}
+
+.menu-icons-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.menu-icons-settings-hint {
+  margin: -0.45rem 0 0.15rem;
+  font-size: 0.77rem;
+  line-height: 1.35;
+  color: #64748b;
+}
+
+.menu-icons-preview-card {
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 0.62rem;
+}
+
+.menu-icons-preview-title {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.45rem;
+}
+
+.menu-icons-preview-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.menu-icons-preview-item {
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 9px;
+  background: #ffffff;
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.24rem;
+}
+
+.menu-icons-preview-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.menu-icons-preview-label {
+  font-size: 0.62rem;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.15;
+}
+
+.menu-icons-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.48rem;
+}
+
+.menu-icon-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 74px;
+  align-items: center;
+  gap: 0.48rem;
+}
+
+.menu-icon-input-label {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #334155;
+  font-weight: 500;
+}
+
+.menu-icon-input {
+  text-align: center;
+  border-radius: 9px;
+  min-height: 34px;
+  padding: 0.32rem 0.42rem;
+  font-size: 1rem;
+}
+
+.menu-icons-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .category-search {
   margin-bottom: 0.85rem;
   border-radius: 10px;

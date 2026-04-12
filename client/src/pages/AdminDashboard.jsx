@@ -2670,7 +2670,7 @@ function AdminDashboard() {
     }
 
     tabs.products = { label: t('products'), icon: Boxes };
-    tabs.showcase = { label: language === 'uz' ? "Vitrina" : 'Витрина', icon: LayoutGrid };
+    tabs.showcase = { label: language === 'uz' ? "Menyu konstruktori" : 'Конструктор меню', icon: LayoutGrid };
     tabs.containers = { label: t('containers'), icon: Package };
     tabs.feedback = { label: language === 'uz' ? 'Fikr-mulohaza' : 'Отзывы', icon: MessageCircle };
     tabs.clients = { label: t('clients'), icon: Users };

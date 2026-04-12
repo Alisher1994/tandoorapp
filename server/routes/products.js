@@ -1950,6 +1950,38 @@ function normalizeShowcaseCategoryStyleFromDb(rawLayout, fallbackBlocks = []) {
   };
 }
 
+const DEFAULT_MENU_ICON_SETTINGS = Object.freeze({
+  showcase: '🛍️',
+  catalog: '📋',
+  favorites: '❤️',
+  cart: '🛒',
+  reservations: '🪑'
+});
+
+const MENU_ICON_KEYS = Object.keys(DEFAULT_MENU_ICON_SETTINGS);
+
+function normalizeMenuIconValue(value, fallback = '') {
+  const text = String(value ?? '').trim();
+  if (!text) return fallback;
+  return Array.from(text).slice(0, 4).join('');
+}
+
+function normalizeShowcaseMenuIconSettingsFromDb(rawLayout) {
+  if (typeof rawLayout !== 'object' || rawLayout === null || Array.isArray(rawLayout)) {
+    return { ...DEFAULT_MENU_ICON_SETTINGS };
+  }
+
+  const rawSettings = rawLayout.menuIconSettings ?? rawLayout.menu_icon_settings;
+  const source = (rawSettings && typeof rawSettings === 'object' && !Array.isArray(rawSettings))
+    ? rawSettings
+    : {};
+
+  return MENU_ICON_KEYS.reduce((acc, key) => {
+    acc[key] = normalizeMenuIconValue(source[key], DEFAULT_MENU_ICON_SETTINGS[key]);
+    return acc;
+  }, {});
+}
+
 let showcaseLayoutsSchemaReady = false;
 let showcaseLayoutsSchemaPromise = null;
 
@@ -2037,7 +2069,8 @@ router.get('/restaurant/:restaurantId/showcase', authenticate, async (req, res) 
     const isVisible = normalizeShowcaseVisibilityFromDb(rawLayout);
     const isMenuVisible = normalizeShowcaseMenuVisibilityFromDb(rawLayout);
     const categoryStyleSettings = normalizeShowcaseCategoryStyleFromDb(rawLayout, layout);
-    res.json({ blocks: layout, isVisible, isMenuVisible, categoryStyleSettings });
+    const menuIconSettings = normalizeShowcaseMenuIconSettingsFromDb(rawLayout);
+    res.json({ blocks: layout, isVisible, isMenuVisible, categoryStyleSettings, menuIconSettings });
   } catch (error) {
     console.error('Showcase GET error:', error);
     res.status(500).json({ error: 'Ошибка загрузки витрины' });
@@ -2056,7 +2089,8 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
       blocks = [],
       isVisible = true,
       isMenuVisible = true,
-      categoryStyleSettings = {}
+      categoryStyleSettings = {},
+      menuIconSettings = {}
     } = req.body;
     if (!Array.isArray(blocks)) {
       return res.status(400).json({ error: 'Blocks must be an array' });
@@ -2096,11 +2130,16 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
         false
       )
     };
+    const normalizedMenuIconSettings = MENU_ICON_KEYS.reduce((acc, key) => {
+      acc[key] = normalizeMenuIconValue(menuIconSettings?.[key], DEFAULT_MENU_ICON_SETTINGS[key]);
+      return acc;
+    }, {});
     const layoutPayload = {
       blocks: normalizedBlocks,
       isVisible: normalizedVisibility,
       isMenuVisible: normalizedMenuVisibility,
-      categoryStyleSettings: normalizedCategoryStyleSettings
+      categoryStyleSettings: normalizedCategoryStyleSettings,
+      menuIconSettings: normalizedMenuIconSettings
     };
 
     await pool.query(
@@ -2120,7 +2159,8 @@ router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res)
       blocks: normalizedBlocks,
       isVisible: normalizedVisibility,
       isMenuVisible: normalizedMenuVisibility,
-      categoryStyleSettings: normalizedCategoryStyleSettings
+      categoryStyleSettings: normalizedCategoryStyleSettings,
+      menuIconSettings: normalizedMenuIconSettings
     });
   } catch (error) {
     console.error('Showcase POST error:', error);

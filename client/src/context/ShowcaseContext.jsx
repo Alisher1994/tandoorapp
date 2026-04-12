@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import axios from 'axios';
+import { DEFAULT_MENU_ICON_SETTINGS, normalizeMenuIconSettings } from '../constants/menuIcons';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -258,6 +259,7 @@ export function ShowcaseProvider({ children }) {
   const [showcaseVisible, setShowcaseVisible] = useState(true);
   const [menuVisible, setMenuVisible] = useState(true);
   const [categoryStyleSettings, setCategoryStyleSettings] = useState({ ...DEFAULT_CATEGORY_STYLE_SETTINGS });
+  const [menuIconSettings, setMenuIconSettings] = useState({ ...DEFAULT_MENU_ICON_SETTINGS });
   const [isDirty, setIsDirty] = useState(false);
 
   const buildShowcaseBlock = useCallback((blockType, settingsInput = {}, order = 0) => {
@@ -334,10 +336,15 @@ export function ShowcaseProvider({ children }) {
         response.data?.categoryStyleSettings,
         inferredCategoryStyleSettings
       );
+      const normalizedMenuIconSettings = normalizeMenuIconSettings(
+        response.data?.menuIconSettings,
+        DEFAULT_MENU_ICON_SETTINGS
+      );
       setShowcaseLayout(normalizedLayout);
       setShowcaseVisible(normalizedPair.showcaseVisible);
       setMenuVisible(normalizedPair.menuVisible);
       setCategoryStyleSettings(normalizedCategoryStyleSettings);
+      setMenuIconSettings(normalizedMenuIconSettings);
       setIsDirty(false);
     } catch (error) {
       console.error('Failed to load showcase:', error);
@@ -346,6 +353,7 @@ export function ShowcaseProvider({ children }) {
       setShowcaseVisible(true);
       setMenuVisible(true);
       setCategoryStyleSettings({ ...DEFAULT_CATEGORY_STYLE_SETTINGS });
+      setMenuIconSettings({ ...DEFAULT_MENU_ICON_SETTINGS });
     } finally {
       setShowcaseLoading(false);
     }
@@ -357,7 +365,8 @@ export function ShowcaseProvider({ children }) {
     blocks,
     visibility = showcaseVisible,
     menuVisibility = menuVisible,
-    nextCategoryStyleSettings = categoryStyleSettings
+    nextCategoryStyleSettings = categoryStyleSettings,
+    nextMenuIconSettings = menuIconSettings
   ) => {
     if (!restaurantId) return;
     
@@ -371,19 +380,25 @@ export function ShowcaseProvider({ children }) {
         nextCategoryStyleSettings,
         inferredCategoryStyleSettings
       );
+      const normalizedMenuIconSettings = normalizeMenuIconSettings(
+        nextMenuIconSettings,
+        DEFAULT_MENU_ICON_SETTINGS
+      );
       await axios.post(
         `${API_URL}/products/restaurant/${restaurantId}/showcase`,
         {
           blocks: normalizedBlocks,
           isVisible: normalizedPair.showcaseVisible,
           isMenuVisible: normalizedPair.menuVisible,
-          categoryStyleSettings: normalizedCategoryStyleSettings
+          categoryStyleSettings: normalizedCategoryStyleSettings,
+          menuIconSettings: normalizedMenuIconSettings
         }
       );
       setShowcaseLayout(normalizedBlocks);
       setShowcaseVisible(normalizedPair.showcaseVisible);
       setMenuVisible(normalizedPair.menuVisible);
       setCategoryStyleSettings(normalizedCategoryStyleSettings);
+      setMenuIconSettings(normalizedMenuIconSettings);
       setIsDirty(false);
       return true;
     } catch (error) {
@@ -391,7 +406,7 @@ export function ShowcaseProvider({ children }) {
       setShowcaseError(error.message || 'Failed to save showcase layout');
       return false;
     }
-  }, [showcaseVisible, menuVisible, categoryStyleSettings]);
+  }, [showcaseVisible, menuVisible, categoryStyleSettings, menuIconSettings]);
 
   // Add several blocks at once (used by templates)
   const addBlocks = useCallback((blockSpecs = []) => {
@@ -577,6 +592,14 @@ export function ShowcaseProvider({ children }) {
     setIsDirty(true);
   }, [categoryStyleSettings]);
 
+  const updateMenuIconSettings = useCallback((nextSettings) => {
+    const normalized = normalizeMenuIconSettings(nextSettings, menuIconSettings);
+    const hasDiff = Object.keys(DEFAULT_MENU_ICON_SETTINGS).some((key) => normalized[key] !== menuIconSettings[key]);
+    if (!hasDiff) return;
+    setMenuIconSettings(normalized);
+    setIsDirty(true);
+  }, [menuIconSettings]);
+
   const value = {
     // State
     showcaseLayout,
@@ -585,6 +608,7 @@ export function ShowcaseProvider({ children }) {
     showcaseVisible,
     menuVisible,
     categoryStyleSettings,
+    menuIconSettings,
     isDirty,
     
     // Methods
@@ -601,6 +625,7 @@ export function ShowcaseProvider({ children }) {
     setShowcaseVisible: setShowcaseVisibility,
     setMenuVisible: setMenuVisibility,
     setCategoryStyleSettings: updateCategoryStyleSettings,
+    setMenuIconSettings: updateMenuIconSettings,
     resetShowcase
   };
 

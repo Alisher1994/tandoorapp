@@ -6,6 +6,7 @@ import { useFavorites } from '../context/FavoritesContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useShowcase } from '../context/ShowcaseContext';
+import { DEFAULT_MENU_ICON_SETTINGS, normalizeMenuIconSettings } from '../constants/menuIcons';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const normalizeMenuGlassOpacity = (value, fallback = 34) => {
@@ -23,7 +24,7 @@ function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { showcaseVisible, menuVisible, loadShowcase } = useShowcase();
+  const { showcaseVisible, menuVisible, menuIconSettings, loadShowcase } = useShowcase();
   const { cart } = useCart();
   const { favoriteCount } = useFavorites();
   const { t } = useLanguage();
@@ -90,12 +91,14 @@ function BottomNav() {
     loadShowcase(restaurantId);
   }, [user?.active_restaurant_id, loadShowcase]);
   
+  const resolvedMenuIconSettings = normalizeMenuIconSettings(menuIconSettings, DEFAULT_MENU_ICON_SETTINGS);
+
   const navItems = [
-    ...(showcaseVisible ? [{ path: '/', icon: '🛍️', label: t('showcase') || 'Витрина' }] : []),
-    ...(menuVisible ? [{ path: '/catalog', icon: '📋', label: t('menu') || 'Меню' }] : []),
-    { path: '/favorites', icon: '❤️', label: t('favorites') || 'Избранные', badge: favoriteCount },
-    { path: '/cart', icon: '🛒', label: t('cart'), badge: cartCount },
-    ...(isReservationMenuVisible ? [{ path: '/reservations', icon: '🪑', label: t('reservations') || 'Бронь' }] : []),
+    ...(showcaseVisible ? [{ path: '/', icon: resolvedMenuIconSettings.showcase, label: t('showcase') || 'Витрина' }] : []),
+    ...(menuVisible ? [{ path: '/catalog', icon: resolvedMenuIconSettings.catalog, label: t('menu') || 'Меню' }] : []),
+    { path: '/favorites', icon: resolvedMenuIconSettings.favorites, label: t('favorites') || 'Избранные', badge: favoriteCount },
+    { path: '/cart', icon: resolvedMenuIconSettings.cart, label: t('cart'), badge: cartCount },
+    ...(isReservationMenuVisible ? [{ path: '/reservations', icon: resolvedMenuIconSettings.reservations, label: t('reservations') || 'Бронь' }] : []),
   ];
 
   useEffect(() => {
