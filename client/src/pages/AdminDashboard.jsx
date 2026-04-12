@@ -2632,7 +2632,7 @@ function AdminDashboard() {
   const operatorHotkeyTabOrder = useMemo(() => {
     const tabs = ['dashboard', 'orders'];
     if (isReservationModuleEnabled) tabs.push('reservations');
-    tabs.push('products', 'showcase', 'containers', 'feedback', 'clients', 'settings', 'help');
+    tabs.push('products', 'showcase', 'containers', 'feedback', 'clients', 'help', 'printers', 'settings');
     return tabs;
   }, [isReservationModuleEnabled]);
   const orderStatusPillItems = [
@@ -2681,9 +2681,9 @@ function AdminDashboard() {
     tabs.containers = { label: t('containers'), icon: Package };
     tabs.feedback = { label: language === 'uz' ? 'Fikr-mulohaza' : 'Отзывы', icon: MessageCircle };
     tabs.clients = { label: t('clients'), icon: Users };
-    tabs.settings = { label: t('settings'), icon: Settings };
     tabs.help = { label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции', icon: BookOpen };
     tabs.printers = { label: language === 'uz' ? "Printerlar" : 'Принтеры', icon: LayoutGrid };
+    tabs.settings = { label: t('settings'), icon: Settings };
 
     return tabs;
   }, [isReservationModuleEnabled, language, t]);
