@@ -1,12 +1,12 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { PageSkeleton } from './SkeletonUI';
+import { SuperAdminDashboardSkeleton } from './SkeletonUI';
 
 function SuperAdminRoute({ children }) {
   const { user, loading, isSuperAdmin } = useAuth();
 
   if (loading) {
-    return <PageSkeleton fullscreen label="Проверка прав супер-админа" cards={8} />;
+    return <SuperAdminDashboardSkeleton label="Проверка прав супер-админа" />;
   }
 
   if (!user) {

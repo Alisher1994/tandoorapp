@@ -129,6 +129,44 @@ export function AdminDashboardSkeleton({ label = 'Загрузка панели 
   );
 }
 
+export function SuperAdminDashboardSkeleton({ label = 'Загрузка панели супер-админа' }) {
+  return (
+    <div className="skeleton-superadmin-shell" role="status" aria-live="polite" aria-busy="true">
+      <span className="visually-hidden">{label}</span>
+      <aside className="skeleton-superadmin-sidebar">
+        <SkeletonBlock className="skeleton-line skeleton-line-title" style={{ width: '68%' }} />
+        <div className="skeleton-superadmin-nav">
+          {repeat(9).map((index) => (
+            <SkeletonBlock key={`skeleton-superadmin-nav-${index}`} className="skeleton-line" style={{ width: `${80 - (index % 4) * 8}%` }} />
+          ))}
+        </div>
+      </aside>
+      <div className="skeleton-superadmin-main">
+        <div className="skeleton-superadmin-topbar">
+          <SkeletonBlock className="skeleton-line skeleton-line-title" style={{ width: '28%' }} />
+          <div className="skeleton-superadmin-topbar-actions">
+            <SkeletonBlock className="skeleton-line" style={{ width: 86 }} />
+            <SkeletonBlock className="skeleton-line" style={{ width: 86 }} />
+            <SkeletonBlock className="skeleton-line" style={{ width: 120 }} />
+          </div>
+        </div>
+        <div className="skeleton-superadmin-stat-grid">
+          {repeat(6).map((index) => (
+            <div key={`skeleton-superadmin-stat-${index}`} className="skeleton-card">
+              <SkeletonBlock className="skeleton-line skeleton-line-title" style={{ width: `${46 + (index % 3) * 11}%` }} />
+              <SkeletonBlock className="skeleton-line" style={{ width: `${34 + (index % 2) * 20}%` }} />
+              <SkeletonBlock className="skeleton-line skeleton-line-small" style={{ width: '30%' }} />
+            </div>
+          ))}
+        </div>
+        <div className="skeleton-superadmin-table-wrap">
+          <TableSkeletonLayout label={label} rows={7} columns={8} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PageSkeleton({
   fullscreen = false,
   label = 'Загрузка',

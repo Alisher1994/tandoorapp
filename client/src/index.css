@@ -1366,6 +1366,62 @@ h6 {
   margin: 0;
 }
 
+.skeleton-superadmin-shell {
+  min-height: 100vh;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(230px, 278px) minmax(0, 1fr);
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+.skeleton-superadmin-sidebar {
+  border-right: 1px solid rgba(148, 163, 184, 0.26);
+  background: rgba(255, 255, 255, 0.86);
+  padding: 20px 15px;
+}
+
+.skeleton-superadmin-nav {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeleton-superadmin-main {
+  padding: 16px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.skeleton-superadmin-topbar {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.skeleton-superadmin-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skeleton-superadmin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.skeleton-superadmin-table-wrap .skeleton-shell {
+  width: 100%;
+  margin: 0;
+}
+
 @keyframes skeleton-wave {
   100% {
     transform: translateX(100%);
@@ -1406,6 +1462,23 @@ h6 {
   }
 
   .skeleton-admin-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .skeleton-superadmin-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .skeleton-superadmin-sidebar {
+    display: none;
+  }
+
+  .skeleton-superadmin-main {
+    padding: 12px;
+  }
+
+  .skeleton-superadmin-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
