@@ -8671,71 +8671,62 @@ body::-webkit-scrollbar,
     font-size: 0.9rem;
 }
 
-.admin-store-logo-slot-actions {
+.admin-store-logo-overlay-actions {
     position: absolute;
-    left: 1.1rem;
-    right: 1.1rem;
-    bottom: 1.1rem;
+    top: 1.05rem;
+    right: 1.05rem;
     display: flex;
-    gap: 0.55rem;
+    align-items: center;
+    gap: 0.42rem;
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(-4px);
     pointer-events: none;
     transition: opacity 0.18s ease, transform 0.18s ease;
-    z-index: 3;
+    z-index: 4;
 }
 
-.admin-store-logo-slot-actions .btn {
-    min-width: 0;
-    border: 1px solid rgba(148, 163, 184, 0.58);
-    background: rgba(255, 255, 255, 0.96) !important;
-    color: #1f2937 !important;
-    box-shadow: none !important;
-}
-
-.admin-store-logo-slot-actions .btn:hover:not(:disabled) {
-    border-color: rgba(99, 102, 241, 0.46);
-    background: #ffffff !important;
-    color: #111827 !important;
-}
-
-.admin-store-logo-slot:hover .admin-store-logo-slot-actions,
-.admin-store-logo-slot:focus-within .admin-store-logo-slot-actions {
+.admin-store-logo-slot:hover .admin-store-logo-overlay-actions,
+.admin-store-logo-slot:focus-within .admin-store-logo-overlay-actions {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto;
 }
 
-.admin-store-logo-remove-x {
-    position: absolute;
-    top: 1.05rem;
-    right: 1.05rem;
-    width: 30px;
-    height: 30px;
+.admin-store-logo-icon-btn {
+    width: 32px;
+    height: 32px;
     border-radius: 999px;
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    background: rgba(255, 255, 255, 0.95);
-    color: #dc2626;
-    font-size: 1.05rem;
-    line-height: 1;
+    border: 1px solid rgba(148, 163, 184, 0.46);
+    background: rgba(255, 255, 255, 0.96);
+    color: #334155;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    opacity: 0;
-    pointer-events: none;
-    transition: all 0.18s ease;
-    z-index: 4;
+    padding: 0;
+    line-height: 1;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+    transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
 }
 
-.admin-store-logo-slot:hover .admin-store-logo-remove-x,
-.admin-store-logo-slot:focus-within .admin-store-logo-remove-x {
-    opacity: 1;
-    pointer-events: auto;
+.admin-store-logo-icon-btn i {
+    font-size: 0.9rem;
 }
 
-.admin-store-logo-remove-x:hover {
+.admin-store-logo-icon-btn:hover:not(:disabled) {
+    border-color: rgba(99, 102, 241, 0.52);
+    color: #4f46e5;
+    background: #ffffff;
+}
+
+.admin-store-logo-icon-btn.is-danger:hover:not(:disabled) {
     border-color: rgba(220, 38, 38, 0.5);
+    color: #dc2626;
     background: #fff5f5;
+}
+
+.admin-store-logo-icon-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
 }
 
 .admin-store-logo-mode-block {
@@ -11085,22 +11076,15 @@ body::-webkit-scrollbar,
         min-height: 112px;
     }
 
-    .admin-store-logo-slot-actions {
-        position: static;
-        margin-top: 0.6rem;
-        flex-direction: column;
+    .admin-store-logo-overlay-actions {
         opacity: 1;
         transform: none;
         pointer-events: auto;
     }
 
-    .admin-store-logo-slot-actions .btn {
-        width: 100%;
-    }
-
-    .admin-store-logo-remove-x {
-        opacity: 1;
-        pointer-events: auto;
+    .admin-store-logo-icon-btn {
+        width: 34px;
+        height: 34px;
     }
 
     .admin-general-qr-preview {

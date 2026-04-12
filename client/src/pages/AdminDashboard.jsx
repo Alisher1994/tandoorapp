@@ -12738,37 +12738,27 @@ function AdminDashboard() {
                                                 </div>
                                               )}
                                             </button>
-                                            {restaurantSettings.logo_url ? (
+                                            <div className="admin-store-logo-overlay-actions">
                                               <button
                                                 type="button"
-                                                className="admin-store-logo-remove-x"
-                                                onClick={() => setRestaurantSettings({ ...restaurantSettings, logo_url: '' })}
-                                                aria-label="Удалить логотип"
-                                              >
-                                                ×
-                                              </button>
-                                            ) : null}
-                                            <div className="admin-store-logo-slot-actions">
-                                              <Button
-                                                type="button"
-                                                variant="light"
-                                                size="sm"
-                                                className="flex-fill"
+                                                className="admin-store-logo-icon-btn"
                                                 onClick={() => restaurantLogoInputRef.current?.click()}
                                                 disabled={uploadingRestaurantLogo}
+                                                aria-label="Выбрать логотип"
+                                                title={uploadingRestaurantLogo ? 'Загрузка...' : 'Выбрать'}
                                               >
-                                                {uploadingRestaurantLogo ? '⏳ Загрузка...' : 'Выбрать'}
-                                              </Button>
-                                              <Button
+                                                <i className={`bi ${uploadingRestaurantLogo ? 'bi-hourglass-split' : 'bi-upload'}`} aria-hidden="true" />
+                                              </button>
+                                              <button
                                                 type="button"
-                                                variant="light"
-                                                size="sm"
-                                                className="flex-fill"
+                                                className="admin-store-logo-icon-btn is-danger"
                                                 onClick={() => setRestaurantSettings({ ...restaurantSettings, logo_url: '' })}
                                                 disabled={!restaurantSettings.logo_url}
+                                                aria-label="Удалить логотип"
+                                                title="Удалить"
                                               >
-                                                Удалить
-                                              </Button>
+                                                <i className="bi bi-trash" aria-hidden="true" />
+                                              </button>
                                             </div>
                                             <div className="admin-store-logo-mode-block">
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения логотипа</Form.Label>
