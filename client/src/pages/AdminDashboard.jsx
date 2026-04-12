@@ -46,6 +46,11 @@ import {
   saveMapProvider
 } from '../utils/mapTileProviders';
 import {
+  DEFAULT_MENU_ICON_SETTINGS,
+  isImageIconValue,
+  normalizeMenuIconSettings
+} from '../constants/menuIcons';
+import {
   BookOpen,
   Boxes,
   CalendarDays,
@@ -2202,6 +2207,9 @@ function AdminDashboard() {
   const [activeKanbanFilterColumn, setActiveKanbanFilterColumn] = useState('');
   const [kanbanFilterDraft, setKanbanFilterDraft] = useState(() => ({ ...KANBAN_COLUMN_FILTER_DEFAULT }));
   const [expandedKanbanCardIds, setExpandedKanbanCardIds] = useState({});
+  const [appearancePreviewActiveTab, setAppearancePreviewActiveTab] = useState('showcase');
+  const [appearancePreviewOpenedProductId, setAppearancePreviewOpenedProductId] = useState(null);
+  const [appearancePreviewSelectedCategoryId, setAppearancePreviewSelectedCategoryId] = useState(null);
 
   // Customers (operator-scoped)
   const [customers, setCustomers] = useState({ customers: [], total: 0, page: 1, limit: 20 });
@@ -2552,6 +2560,90 @@ function AdminDashboard() {
     if (byCategory.length > 0) return byCategory.slice(0, 6);
     return appearancePreviewProducts.slice(0, 6);
   }, [appearancePreviewProducts, appearancePreviewPrimaryCategory]);
+  const appearancePreviewMenuIconSettings = useMemo(() => {
+    const raw = restaurantSettings?.menu_icon_settings;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      return normalizeMenuIconSettings(raw, DEFAULT_MENU_ICON_SETTINGS);
+    }
+    if (typeof raw === 'string') {
+      const normalized = raw.trim();
+      if (!normalized) return { ...DEFAULT_MENU_ICON_SETTINGS };
+      try {
+        return normalizeMenuIconSettings(JSON.parse(normalized), DEFAULT_MENU_ICON_SETTINGS);
+      } catch (_) {
+        return { ...DEFAULT_MENU_ICON_SETTINGS };
+      }
+    }
+    return { ...DEFAULT_MENU_ICON_SETTINGS };
+  }, [restaurantSettings?.menu_icon_settings]);
+  const appearancePreviewNavItems = useMemo(() => {
+    const showcaseVisible = restaurantSettings?.is_visible !== false;
+    const menuVisible = restaurantSettings?.is_menu_visible !== false;
+    const items = [];
+    if (showcaseVisible) {
+      items.push({
+        key: 'showcase',
+        label: language === 'uz' ? 'Vitrina' : 'Витрина',
+        icon: appearancePreviewMenuIconSettings.showcase
+      });
+    }
+    if (menuVisible) {
+      items.push({
+        key: 'catalog',
+        label: language === 'uz' ? 'Menyu' : 'Меню',
+        icon: appearancePreviewMenuIconSettings.catalog
+      });
+    }
+    items.push(
+      {
+        key: 'favorites',
+        label: language === 'uz' ? 'Saralanganlar' : 'Избранные',
+        icon: appearancePreviewMenuIconSettings.favorites
+      },
+      {
+        key: 'cart',
+        label: language === 'uz' ? 'Savat' : 'Корзина',
+        icon: appearancePreviewMenuIconSettings.cart
+      }
+    );
+    if (isReservationModuleEnabled) {
+      items.push({
+        key: 'reservations',
+        label: language === 'uz' ? 'Bron' : 'Бронь',
+        icon: appearancePreviewMenuIconSettings.reservations
+      });
+    }
+    return items;
+  }, [language, isReservationModuleEnabled, restaurantSettings?.is_menu_visible, restaurantSettings?.is_visible, appearancePreviewMenuIconSettings]);
+  const appearancePreviewVisibleProducts = useMemo(() => {
+    const selectedCategoryId = Number.parseInt(appearancePreviewSelectedCategoryId, 10);
+    if (Number.isInteger(selectedCategoryId)) {
+      const byCategory = appearancePreviewProducts.filter((item) => (
+        Number.parseInt(item?.categoryId, 10) === selectedCategoryId
+      ));
+      if (byCategory.length > 0) return byCategory.slice(0, 10);
+    }
+    if (appearancePreviewMenuMode === 'grid_categories') {
+      return appearancePreviewCatalogProducts.slice(0, 10);
+    }
+    return appearancePreviewProducts.slice(0, 10);
+  }, [
+    appearancePreviewProducts,
+    appearancePreviewMenuMode,
+    appearancePreviewCatalogProducts,
+    appearancePreviewSelectedCategoryId
+  ]);
+  const appearancePreviewFavoriteProducts = useMemo(() => (
+    appearancePreviewProducts
+      .filter((_, index) => index % 2 === 0)
+      .slice(0, 6)
+  ), [appearancePreviewProducts]);
+  const appearancePreviewCartProducts = useMemo(() => (
+    appearancePreviewProducts.slice(0, 3)
+  ), [appearancePreviewProducts]);
+  const appearancePreviewOpenedProduct = useMemo(() => (
+    appearancePreviewProducts.find((item) => Number(item.id) === Number(appearancePreviewOpenedProductId)) || null
+  ), [appearancePreviewProducts, appearancePreviewOpenedProductId]);
   const appearancePreviewRootStyle = useMemo(() => ({
     '--appearance-preview-bg-start': appearancePreviewTheme.bgStart,
     '--appearance-preview-bg-end': appearancePreviewTheme.bgEnd,
@@ -2559,6 +2651,28 @@ function AdminDashboard() {
     '--appearance-preview-accent-soft': appearancePreviewTheme.accentSoft,
     fontFamily: appearancePreviewFontFamily
   }), [appearancePreviewTheme, appearancePreviewFontFamily]);
+  useEffect(() => {
+    if (!appearancePreviewNavItems.length) return;
+    if (!appearancePreviewNavItems.some((item) => item.key === appearancePreviewActiveTab)) {
+      setAppearancePreviewActiveTab(appearancePreviewNavItems[0].key);
+    }
+  }, [appearancePreviewNavItems, appearancePreviewActiveTab]);
+  useEffect(() => {
+    if (!appearancePreviewCategories.length) {
+      setAppearancePreviewSelectedCategoryId(null);
+      return;
+    }
+    const current = Number.parseInt(appearancePreviewSelectedCategoryId, 10);
+    const exists = appearancePreviewCategories.some((item) => Number(item.id) === current);
+    if (!exists) {
+      setAppearancePreviewSelectedCategoryId(appearancePreviewCategories[0].id);
+    }
+  }, [appearancePreviewCategories, appearancePreviewSelectedCategoryId]);
+  useEffect(() => {
+    if (!appearancePreviewOpenedProduct) return;
+    const exists = appearancePreviewProducts.some((item) => Number(item.id) === Number(appearancePreviewOpenedProduct.id));
+    if (!exists) setAppearancePreviewOpenedProductId(null);
+  }, [appearancePreviewOpenedProduct, appearancePreviewProducts]);
   const resolvedOrderCost = useMemo(() => {
     const billingCost = Number(billingInfo?.restaurant?.order_cost);
     if (Number.isFinite(billingCost) && billingCost >= 0) return billingCost;
@@ -13593,89 +13707,186 @@ function AdminDashboard() {
                               <aside className="admin-appearance-preview-column">
                                 <div className="admin-appearance-live-preview-sticky">
                                   <div className="admin-appearance-live-preview-card" style={appearancePreviewRootStyle}>
-                                    <div className="admin-appearance-live-preview-topbar">
-                                      <span className="admin-appearance-live-preview-brand">{restaurantSettings?.name || user?.active_restaurant_name || 'Store'}</span>
-                                      <span className="admin-appearance-live-preview-top-icons">
-                                        <UserIcon size={15} />
-                                        <SearchIcon size={15} />
-                                      </span>
-                                    </div>
-                                    <div className="admin-appearance-live-preview-logo-wrap">
-                                      {activeRestaurantLogoUrl ? (
-                                        <img
-                                          src={activeRestaurantLogoUrl}
-                                          alt="Логотип магазина"
-                                          className={`admin-appearance-live-preview-logo ${activeRestaurantLogoDisplayMode === 'horizontal' ? 'is-horizontal' : ''}`}
-                                          loading="lazy"
-                                        />
-                                      ) : (
-                                        <span className="admin-appearance-live-preview-logo-fallback">
-                                          {(restaurantSettings?.name || 'S').slice(0, 1).toUpperCase()}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div className="admin-appearance-live-preview-content">
-                                      {appearancePreviewMenuMode === 'grid_categories' && (
-                                        <>
-                                          <div className="admin-appearance-live-section-title">
-                                            {appearancePreviewPrimaryCategory?.title || (language === 'uz' ? 'Kategoriyalar' : 'Категории')}
+                                    <div className="admin-appearance-live-preview-device">
+                                      <div className="admin-appearance-live-preview-viewport">
+                                        <div className="admin-appearance-live-preview-header">
+                                          <div className="admin-appearance-live-preview-topbar">
+                                            <span className="admin-appearance-live-preview-brand">{restaurantSettings?.name || user?.active_restaurant_name || 'Store'}</span>
+                                            <span className="admin-appearance-live-preview-top-icons">
+                                              <UserIcon size={15} />
+                                              <SearchIcon size={15} />
+                                            </span>
                                           </div>
-                                          <div className="admin-appearance-live-category-grid">
-                                            {appearancePreviewCategories.slice(0, 4).map((categoryItem) => (
-                                              <div key={`appearance-preview-category-${categoryItem.id}`} className="admin-appearance-live-category-card">
-                                                <img src={categoryItem.image} alt={categoryItem.title} loading="lazy" />
-                                                <span>{categoryItem.title}</span>
+                                          <div className="admin-appearance-live-preview-logo-wrap">
+                                            {activeRestaurantLogoUrl ? (
+                                              <img
+                                                src={activeRestaurantLogoUrl}
+                                                alt="Логотип магазина"
+                                                className={`admin-appearance-live-preview-logo ${activeRestaurantLogoDisplayMode === 'horizontal' ? 'is-horizontal' : ''}`}
+                                                loading="lazy"
+                                              />
+                                            ) : (
+                                              <span className="admin-appearance-live-preview-logo-fallback">
+                                                {(restaurantSettings?.name || 'S').slice(0, 1).toUpperCase()}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="admin-appearance-live-preview-content">
+                                          {appearancePreviewOpenedProduct ? (
+                                            <div className="admin-appearance-live-product-detail">
+                                              <button
+                                                type="button"
+                                                className="admin-appearance-live-detail-back"
+                                                onClick={() => setAppearancePreviewOpenedProductId(null)}
+                                              >
+                                                ← {language === 'uz' ? 'Orqaga' : 'Назад'}
+                                              </button>
+                                              <div className="admin-appearance-live-detail-image-wrap">
+                                                <img src={appearancePreviewOpenedProduct.image} alt={appearancePreviewOpenedProduct.title} loading="lazy" />
                                               </div>
-                                            ))}
-                                          </div>
-                                        </>
-                                      )}
+                                              <div className="admin-appearance-live-detail-title">{appearancePreviewOpenedProduct.title}</div>
+                                              <div className="admin-appearance-live-detail-price">{appearancePreviewOpenedProduct.priceLabel}</div>
+                                              <div className="admin-appearance-live-detail-meta">{language === 'uz' ? "Mavjud: 12 ta" : 'В наличии: 12 шт'}</div>
+                                              <button type="button" className="admin-appearance-live-detail-cta">
+                                                {language === 'uz' ? "Savatga qo'shish" : 'В корзину'}
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <>
+                                              {(appearancePreviewActiveTab === 'showcase' || appearancePreviewActiveTab === 'catalog') && appearancePreviewMenuMode === 'grid_categories' && (
+                                                <>
+                                                  <div className="admin-appearance-live-section-title">
+                                                    {appearancePreviewPrimaryCategory?.title || (language === 'uz' ? 'Kategoriyalar' : 'Категории')}
+                                                  </div>
+                                                  <div className="admin-appearance-live-category-grid">
+                                                    {appearancePreviewCategories.slice(0, 6).map((categoryItem) => (
+                                                      <button
+                                                        key={`appearance-preview-category-${categoryItem.id}`}
+                                                        type="button"
+                                                        className={`admin-appearance-live-category-card${Number(appearancePreviewSelectedCategoryId) === Number(categoryItem.id) ? ' is-active' : ''}`}
+                                                        onClick={() => {
+                                                          setAppearancePreviewSelectedCategoryId(categoryItem.id);
+                                                          setAppearancePreviewOpenedProductId(null);
+                                                        }}
+                                                      >
+                                                        <img src={categoryItem.image} alt={categoryItem.title} loading="lazy" />
+                                                        <span>{categoryItem.title}</span>
+                                                      </button>
+                                                    ))}
+                                                  </div>
+                                                </>
+                                              )}
 
-                                      <div className="admin-appearance-live-section-title">
-                                        {appearancePreviewMenuMode === 'grid_categories'
-                                          ? (language === 'uz' ? 'Mahsulotlar' : 'Товары')
-                                          : (language === 'uz' ? "Barcha mahsulotlar" : 'Все товары')}
+                                              {appearancePreviewActiveTab === 'reservations' ? (
+                                                <div className="admin-appearance-live-empty-state">
+                                                  {language === 'uz'
+                                                    ? 'Bronlash oynasi shu yerda ko‘rinadi'
+                                                    : 'Окно бронирования отображается здесь'}
+                                                </div>
+                                              ) : appearancePreviewActiveTab === 'cart' ? (
+                                                <div className="admin-appearance-live-cart-list">
+                                                  <div className="admin-appearance-live-section-title">
+                                                    {language === 'uz' ? 'Savat' : 'Корзина'}
+                                                  </div>
+                                                  {appearancePreviewCartProducts.map((productItem) => (
+                                                    <button
+                                                      key={`appearance-preview-cart-${productItem.id}`}
+                                                      type="button"
+                                                      className="admin-appearance-live-cart-item"
+                                                      onClick={() => setAppearancePreviewOpenedProductId(productItem.id)}
+                                                    >
+                                                      <img src={productItem.image} alt={productItem.title} loading="lazy" />
+                                                      <span className="admin-appearance-live-cart-item-title">{productItem.title}</span>
+                                                      <span className="admin-appearance-live-cart-item-price">{productItem.priceLabel}</span>
+                                                    </button>
+                                                  ))}
+                                                  <button type="button" className="admin-appearance-live-detail-cta">
+                                                    {language === 'uz' ? 'Buyurtma berish' : 'Оформить заказ'}
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <>
+                                                  <div className="admin-appearance-live-section-title">
+                                                    {appearancePreviewActiveTab === 'favorites'
+                                                      ? (language === 'uz' ? 'Saralanganlar' : 'Избранные')
+                                                      : appearancePreviewMenuMode === 'grid_categories'
+                                                        ? (language === 'uz' ? 'Mahsulotlar' : 'Товары')
+                                                        : (language === 'uz' ? 'Barcha mahsulotlar' : 'Все товары')}
+                                                  </div>
+                                                  <div
+                                                    className={`admin-appearance-live-products ${appearancePreviewCardMode === 'portrait' ? 'is-portrait' : 'is-wide'}`}
+                                                  >
+                                                    {(appearancePreviewActiveTab === 'favorites'
+                                                      ? appearancePreviewFavoriteProducts
+                                                      : appearancePreviewVisibleProducts
+                                                    ).slice(0, 8).map((productItem) => (
+                                                      <button
+                                                        type="button"
+                                                        key={`appearance-preview-product-${productItem.id}`}
+                                                        className="admin-appearance-live-product-card"
+                                                        onClick={() => setAppearancePreviewOpenedProductId(productItem.id)}
+                                                      >
+                                                        <div className="admin-appearance-live-product-image-wrap">
+                                                          <img src={productItem.image} alt={productItem.title} loading="lazy" />
+                                                          <span className="admin-appearance-live-product-heart">♡</span>
+                                                          <span className="admin-appearance-live-product-plus">+</span>
+                                                        </div>
+                                                        <div className="admin-appearance-live-product-body">
+                                                          <span className="admin-appearance-live-product-name">{productItem.title}</span>
+                                                          <span className="admin-appearance-live-product-unit">{productItem.unit}</span>
+                                                          <span className="admin-appearance-live-product-price">{productItem.priceLabel}</span>
+                                                        </div>
+                                                      </button>
+                                                    ))}
+                                                  </div>
+                                                </>
+                                              )}
+                                            </>
+                                          )}
+                                        </div>
                                       </div>
                                       <div
-                                        className={`admin-appearance-live-products ${appearancePreviewCardMode === 'portrait' ? 'is-portrait' : 'is-wide'}`}
+                                        className="admin-appearance-live-preview-nav"
+                                        style={{
+                                          '--appearance-preview-nav-count': String(Math.max(4, appearancePreviewNavItems.length)),
+                                          background: restaurantSettings.menu_liquid_glass_enabled === true
+                                            ? `rgba(255,255,255,${(appearancePreviewGlassOpacity / 100).toFixed(2)})`
+                                            : '#ffffff',
+                                          backdropFilter: restaurantSettings.menu_liquid_glass_enabled === true
+                                            ? `blur(${appearancePreviewGlassBlur}px)`
+                                            : 'none',
+                                          WebkitBackdropFilter: restaurantSettings.menu_liquid_glass_enabled === true
+                                            ? `blur(${appearancePreviewGlassBlur}px)`
+                                            : 'none'
+                                        }}
                                       >
-                                        {(appearancePreviewMenuMode === 'grid_categories'
-                                          ? appearancePreviewCatalogProducts
-                                          : appearancePreviewProducts
-                                        ).slice(0, 6).map((productItem) => (
-                                          <div key={`appearance-preview-product-${productItem.id}`} className="admin-appearance-live-product-card">
-                                            <div className="admin-appearance-live-product-image-wrap">
-                                              <img src={productItem.image} alt={productItem.title} loading="lazy" />
-                                              <span className="admin-appearance-live-product-heart">♡</span>
-                                              <span className="admin-appearance-live-product-plus">+</span>
-                                            </div>
-                                            <div className="admin-appearance-live-product-body">
-                                              <span className="admin-appearance-live-product-name">{productItem.title}</span>
-                                              <span className="admin-appearance-live-product-unit">{productItem.unit}</span>
-                                              <span className="admin-appearance-live-product-price">{productItem.priceLabel}</span>
-                                            </div>
-                                          </div>
+                                        {appearancePreviewNavItems.map((item) => (
+                                          <button
+                                            key={`appearance-preview-nav-${item.key}`}
+                                            type="button"
+                                            className={`admin-appearance-live-preview-nav-item${appearancePreviewActiveTab === item.key ? ' is-active' : ''}`}
+                                            onClick={() => {
+                                              setAppearancePreviewActiveTab(item.key);
+                                              setAppearancePreviewOpenedProductId(null);
+                                            }}
+                                          >
+                                            <span className="admin-appearance-live-preview-nav-icon" aria-hidden="true">
+                                              {isImageIconValue(item.icon) ? (
+                                                <img
+                                                  src={toAbsoluteFileUrl(item.icon)}
+                                                  alt=""
+                                                  className="admin-appearance-live-preview-nav-icon-image"
+                                                  loading="lazy"
+                                                />
+                                              ) : (
+                                                item.icon
+                                              )}
+                                            </span>
+                                            <span className="admin-appearance-live-preview-nav-label">{item.label}</span>
+                                          </button>
                                         ))}
                                       </div>
-                                    </div>
-                                    <div
-                                      className="admin-appearance-live-preview-nav"
-                                      style={{
-                                        background: restaurantSettings.menu_liquid_glass_enabled === true
-                                          ? `rgba(255,255,255,${(appearancePreviewGlassOpacity / 100).toFixed(2)})`
-                                          : '#ffffff',
-                                        backdropFilter: restaurantSettings.menu_liquid_glass_enabled === true
-                                          ? `blur(${appearancePreviewGlassBlur}px)`
-                                          : 'none',
-                                        WebkitBackdropFilter: restaurantSettings.menu_liquid_glass_enabled === true
-                                          ? `blur(${appearancePreviewGlassBlur}px)`
-                                          : 'none'
-                                      }}
-                                    >
-                                      <span className="is-active">{language === 'uz' ? 'Vitrina' : 'Витрина'}</span>
-                                      <span>{language === 'uz' ? 'Menyu' : 'Меню'}</span>
-                                      <span>{language === 'uz' ? 'Saralanganlar' : 'Избранные'}</span>
-                                      <span>{language === 'uz' ? 'Savat' : 'Корзина'}</span>
                                     </div>
                                   </div>
                                 </div>
