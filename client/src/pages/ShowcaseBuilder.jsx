@@ -1236,6 +1236,19 @@ function ShowcaseBuilder({ embedded = false }) {
                         )}
                       </div>
                       <div className="menu-icon-input-controls">
+                        <span className="menu-icon-current" aria-hidden="true">
+                          {isImageIconValue(resolvedMenuIconSettings[item.key]) ? (
+                            <img
+                              src={resolveMenuIconUrl(resolvedMenuIconSettings[item.key])}
+                              alt=""
+                              className="menu-icon-current-image"
+                              loading="lazy"
+                              draggable={false}
+                            />
+                          ) : (
+                            (resolvedMenuIconSettings[item.key] || item.placeholder)
+                          )}
+                        </span>
                         <Form.Control
                           id={`menu-icon-input-${item.key}`}
                           type="text"
