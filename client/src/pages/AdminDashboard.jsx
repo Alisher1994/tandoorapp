@@ -282,6 +282,7 @@ const PAYMENT_PLACEHOLDER_SYSTEMS = ['click', 'uzum', 'xazna'];
 const ANALYTICS_PAYMENT_METHOD_ORDER = ['payme', 'click', 'uzum', 'xazna', 'card', 'cash'];
 const MAX_ORDER_RATING = 5;
 const ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS = 7000;
+const ADMIN_DASHBOARD_LOADING_GUARD_MS = 12000;
 const CONTAINER_LABEL_WORDS_BY_LANGUAGE = Object.freeze({
   ru: ['Пакет', 'Посуда', 'Коробка', 'Мешок'],
   uz: ['Paket', 'Idish', 'Quti', 'Qop']
@@ -1929,6 +1930,7 @@ function AdminDashboard() {
   const [productsLimit, setProductsLimit] = useState(15);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);
   const [mainTab, setMainTab] = useState(() => {
     if (typeof window === 'undefined') return 'dashboard';
     try {
@@ -3845,6 +3847,29 @@ function AdminDashboard() {
       if (interval) clearInterval(interval);
     };
   }, [effectiveOrdersStatusFilter, user?.active_restaurant_id, mainTab]);
+
+  useEffect(() => {
+    if (!loading) {
+      if (loadingGuardTriggered) setLoadingGuardTriggered(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setLoadingGuardTriggered(true);
+      setLoading(false);
+      setAlertMessage((prev) => {
+        if (prev?.type && String(prev?.text || '').trim()) return prev;
+        return {
+          type: 'warning',
+          text: language === 'uz'
+            ? "Ma'lumotlar yuklanishi kechikdi. Oyna ochildi, kerakli bo'limni qayta tanlang."
+            : 'Загрузка данных задержалась. Панель открыта, выберите нужный раздел ещё раз.'
+        };
+      });
+    }, ADMIN_DASHBOARD_LOADING_GUARD_MS);
+
+    return () => clearTimeout(timer);
+  }, [loading, loadingGuardTriggered, language]);
 
   useEffect(() => {
     if (mainTab === 'feedback' && user?.active_restaurant_id) {
