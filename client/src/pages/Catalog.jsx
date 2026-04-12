@@ -21,6 +21,7 @@ import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
 const MENU_VIEW_MODES = ['grid_categories', 'single_list'];
+const CATALOG_CARD_MODES = ['wide', 'portrait'];
 const HIDE_CATALOG_SECTION_TABS = true;
 const catalogSectionTabKey = (id) => (
   id === null || id === undefined ? '' : String(id)
@@ -35,6 +36,10 @@ const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
 const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalized = String(value || '').trim().toLowerCase();
   return MENU_VIEW_MODES.includes(normalized) ? normalized : fallback;
+};
+const normalizeCatalogCardMode = (value, fallback = 'wide') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return CATALOG_CARD_MODES.includes(normalized) ? normalized : fallback;
 };
 const normalizeMenuGlassOpacity = (value, fallback = 34) => {
   const parsed = Number.parseFloat(value);
@@ -159,6 +164,7 @@ function Catalog() {
   const [productDetailsError, setProductDetailsError] = useState('');
   const [selectedProductSummary, setSelectedProductSummary] = useState(null);
   const [selectedProductDetails, setSelectedProductDetails] = useState(null);
+  const [relatedProducts, setRelatedProducts] = useState([]);
   const [productReviews, setProductReviews] = useState([]);
   const [productReviewsTotal, setProductReviewsTotal] = useState(0);
   const [productReviewsAverage, setProductReviewsAverage] = useState(0);
@@ -1377,6 +1383,10 @@ function Catalog() {
   }, [currentRestaurant?.currency_code, setCountryCurrency]);
   const menuViewMode = useMemo(
     () => normalizeMenuViewMode(currentRestaurant?.menu_view_mode, 'grid_categories'),
+    [currentRestaurant]
+  );
+  const catalogCardMode = useMemo(
+    () => normalizeCatalogCardMode(currentRestaurant?.catalog_card_mode, 'wide'),
     [currentRestaurant]
   );
   const isSingleListMode = menuViewMode === 'single_list';
@@ -2675,6 +2685,10 @@ function Catalog() {
 
   // Product card component
   const renderProductCard = (product) => {
+    const isPortraitCardMode = catalogCardMode === 'portrait';
+    const cardImageAspectRatio = isPortraitCardMode ? '3 / 4' : '4 / 3';
+    const cardTitleFontSize = isPortraitCardMode ? '0.86rem' : '0.85rem';
+    const cardPriceFontSize = isPortraitCardMode ? '0.94rem' : '0.9rem';
     const selectedVariant = getSelectedVariantForProduct(product);
     const cartItem = getCartItem(product.id, selectedVariant);
     const hasQty = !!cartItem;
@@ -2692,7 +2706,7 @@ function Catalog() {
     const stockLimit = resolveProductStockLimit(product, selectedVariant);
     const isAtStockLimit = Number.isFinite(stockLimit) && Number(qty || 0) >= stockLimit;
     const renderImageFallback = () => renderStoreLogoFallback({
-      wrapperStyle: { width: '100%', aspectRatio: '4 / 3', background: '#f8f9fa' }
+      wrapperStyle: { width: '100%', aspectRatio: cardImageAspectRatio, background: '#f8f9fa' }
     });
 
     return (
@@ -2718,7 +2732,7 @@ function Catalog() {
               decoding="async"
               style={{
                 width: '100%',
-                aspectRatio: '4 / 3',
+                aspectRatio: cardImageAspectRatio,
                 objectFit: 'cover',
                 cursor: 'zoom-in',
                 display: 'block'
@@ -2941,7 +2955,7 @@ function Catalog() {
           )}
         </div>
         <Card.Body className="d-flex flex-column p-2">
-          <Card.Title className="fs-6 mb-1" style={{ fontSize: '0.85rem', lineHeight: '1.2' }}>
+          <Card.Title className="fs-6 mb-1" style={{ fontSize: cardTitleFontSize, lineHeight: '1.2' }}>
             {productName}
           </Card.Title>
           <Card.Text className="text-muted small mb-1" style={{ fontSize: '0.7rem' }}>
@@ -2960,7 +2974,7 @@ function Catalog() {
                 {formatPrice(productPriceMeta.originalPrice)} {t('sum')}
               </span>
             )}
-            <span className="fw-bold" style={{ fontSize: '0.9rem', color: productPriceMeta.isDiscount ? '#dc2626' : 'var(--primary-color)' }}>
+            <span className="fw-bold" style={{ fontSize: cardPriceFontSize, color: productPriceMeta.isDiscount ? '#dc2626' : 'var(--primary-color)' }}>
               {formatPrice(productDisplayPrice)} {t('sum')}
             </span>
           </div>
@@ -3139,6 +3153,7 @@ function Catalog() {
 
   const resetProductDetailsState = () => {
     setSelectedProductDetails(null);
+    setRelatedProducts([]);
     setProductReviews([]);
     setProductReviewsTotal(0);
     setProductReviewsAverage(0);
@@ -3177,6 +3192,7 @@ function Catalog() {
       const response = await axios.get(`${API_URL}/products/${productId}/details`);
       const payload = response.data || {};
       const detailsProduct = payload.product || fallbackProduct || null;
+      const related = Array.isArray(payload?.related_products) ? payload.related_products.slice(0, 15) : [];
       const ratingAverage = normalizeRatingValue(payload?.rating?.average, 0);
       const ratingTotal = Number.parseInt(payload?.rating?.total, 10) || 0;
       const latestReviews = Array.isArray(payload?.latest_reviews) ? payload.latest_reviews : [];
@@ -3189,6 +3205,7 @@ function Catalog() {
       const canReview = Boolean(reviewPermissions?.can_review);
 
       setSelectedProductDetails(detailsProduct);
+      setRelatedProducts(related);
       setProductReviewsAverage(ratingAverage);
       setProductReviewsTotal(ratingTotal);
       setProductReviews(latestReviews);
@@ -3218,6 +3235,7 @@ function Catalog() {
           : 'Не удалось загрузить детали товара'
       );
       setSelectedProductDetails(fallbackProduct || null);
+      setRelatedProducts([]);
       setProductReviews([]);
       setProductReviewsAverage(0);
       setProductReviewsTotal(0);
@@ -4858,6 +4876,85 @@ function Catalog() {
                       {activeProductDescription || (language === 'uz' ? "Tavsif kiritilmagan" : 'Описание не указано')}
                     </div>
                   </div>
+
+                  {relatedProducts.length > 0 && (
+                    <div className="product-details-block mb-3">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <div className="fw-semibold">{language === 'uz' ? "O'xshash mahsulotlar" : 'Похожие товары'}</div>
+                        <small className="text-muted">{relatedProducts.length}/15</small>
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 10,
+                          overflowX: 'auto',
+                          overflowY: 'hidden',
+                          WebkitOverflowScrolling: 'touch',
+                          paddingBottom: 4
+                        }}
+                      >
+                        {relatedProducts.slice(0, 15).map((item) => {
+                          const relatedName = getProductName(item);
+                          const relatedImageUrl = getProductCardImage(item, getSelectedVariantForProduct(item));
+                          const relatedPriceMeta = getSelectedVariantPriceMeta(item, getSelectedVariantForProduct(item));
+                          return (
+                            <button
+                              key={`related-${item.id}`}
+                              type="button"
+                              onClick={() => openProductDetailsModal(item)}
+                              style={{
+                                flex: '0 0 132px',
+                                border: '1px solid rgba(148,163,184,0.28)',
+                                borderRadius: 12,
+                                background: '#fff',
+                                textAlign: 'left',
+                                padding: 0,
+                                overflow: 'hidden'
+                              }}
+                            >
+                              {relatedImageUrl ? (
+                                <img
+                                  src={relatedImageUrl}
+                                  alt={relatedName}
+                                  style={{
+                                    width: '100%',
+                                    aspectRatio: '4 / 3',
+                                    objectFit: 'cover',
+                                    display: 'block'
+                                  }}
+                                />
+                              ) : (
+                                renderStoreLogoFallback({
+                                  wrapperStyle: { width: '100%', aspectRatio: '4 / 3', background: '#f8fafc' },
+                                  imageStyle: { width: '46%', maxHeight: '46%' }
+                                })
+                              )}
+                              <div style={{ padding: '8px 9px 9px' }}>
+                                <div
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    lineHeight: 1.2,
+                                    color: '#0f172a',
+                                    fontWeight: 600,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    minHeight: 34
+                                  }}
+                                >
+                                  {relatedName}
+                                </div>
+                                <div style={{ marginTop: 6, fontSize: '0.8rem', fontWeight: 700, color: '#0f766e' }}>
+                                  {formatPrice(relatedPriceMeta.currentPrice)} {t('sum')}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="product-details-block">
                     <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">

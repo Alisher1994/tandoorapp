@@ -233,6 +233,12 @@ const normalizeDeliveryPricingMode = (value, fallback = 'dynamic') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return normalizedFallback === 'fixed' ? 'fixed' : 'dynamic';
 };
+const normalizeCatalogCardMode = (value, fallback = 'wide') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'portrait' || normalized === 'wide') return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return normalizedFallback === 'portrait' ? 'portrait' : 'wide';
+};
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const VARIANT_IMAGE_SLOTS_COUNT = 5;
@@ -749,6 +755,7 @@ const buildRestaurantSettingsSignature = (settings) => {
     menu_view_mode: String(settings.menu_view_mode || '').trim().toLowerCase() === 'single_list'
       ? 'single_list'
       : 'grid_categories',
+    catalog_card_mode: normalizeCatalogCardMode(settings.catalog_card_mode, 'wide'),
     menu_liquid_glass_enabled: normalizeSettingsBoolean(settings.menu_liquid_glass_enabled, false),
     menu_height_lock_enabled: normalizeSettingsBoolean(settings.menu_height_lock_enabled, false),
     menu_liquid_glass_opacity: normalizeMenuGlassOpacity(
@@ -5013,6 +5020,7 @@ function AdminDashboard() {
         ui_theme: normalizeUiTheme(response.data?.ui_theme, 'classic'),
         ui_font_family: normalizeUiFontFamily(response.data?.ui_font_family, 'sans'),
         menu_view_mode: response.data?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
+        catalog_card_mode: normalizeCatalogCardMode(response.data?.catalog_card_mode, 'wide'),
         menu_liquid_glass_enabled: response.data?.menu_liquid_glass_enabled === true,
         menu_height_lock_enabled: response.data?.menu_height_lock_enabled === true,
         menu_liquid_glass_opacity: normalizeMenuGlassOpacity(
@@ -5073,6 +5081,10 @@ function AdminDashboard() {
         ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
         ui_font_family: normalizeUiFontFamily(savedSettings?.ui_font_family, restaurantSettings?.ui_font_family || 'sans'),
         menu_view_mode: savedSettings?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
+        catalog_card_mode: normalizeCatalogCardMode(
+          savedSettings?.catalog_card_mode,
+          restaurantSettings?.catalog_card_mode || 'wide'
+        ),
         menu_liquid_glass_enabled: savedSettings?.menu_liquid_glass_enabled === true
           ? true
           : Boolean(restaurantSettings?.menu_liquid_glass_enabled),
@@ -13091,6 +13103,70 @@ function AdminDashboard() {
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
                                     Выберите один режим отображения без выпадающего списка.
+                                  </Form.Text>
+                                </Form.Group>
+                              </div>
+
+                              <div className="admin-settings-surface-block">
+                                <Form.Group className="mb-0">
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим карточек товара</Form.Label>
+                                  <div className="admin-menu-mode-preview-grid">
+                                    <button
+                                      type="button"
+                                      className={`admin-menu-mode-preview-card ${normalizeCatalogCardMode(restaurantSettings.catalog_card_mode, 'wide') === 'wide' ? 'is-active' : ''}`}
+                                      onClick={() => setRestaurantSettings({ ...restaurantSettings, catalog_card_mode: 'wide' })}
+                                    >
+                                      <span className="admin-menu-mode-preview-visual" style={{ display: 'grid', placeItems: 'center' }}>
+                                        <span
+                                          style={{
+                                            width: '88%',
+                                            borderRadius: 10,
+                                            border: '1px solid rgba(99,102,241,0.24)',
+                                            background: 'linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)',
+                                            display: 'grid',
+                                            gridTemplateColumns: '46% 1fr',
+                                            minHeight: 68
+                                          }}
+                                        >
+                                          <span style={{ background: 'linear-gradient(135deg, #dbeafe, #c7d2fe)', borderRight: '1px solid rgba(99,102,241,0.16)' }} />
+                                          <span style={{ display: 'grid', alignContent: 'center', gap: 5, padding: '7px 8px' }}>
+                                            <span style={{ height: 8, width: '90%', borderRadius: 999, background: 'rgba(30,41,59,0.24)' }} />
+                                            <span style={{ height: 7, width: '62%', borderRadius: 999, background: 'rgba(30,41,59,0.18)' }} />
+                                          </span>
+                                        </span>
+                                      </span>
+                                      <span className="admin-menu-mode-preview-title">Широкий</span>
+                                      <span className="admin-menu-mode-preview-desc">Картинка 4:3, компактная карточка</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`admin-menu-mode-preview-card ${normalizeCatalogCardMode(restaurantSettings.catalog_card_mode, 'wide') === 'portrait' ? 'is-active' : ''}`}
+                                      onClick={() => setRestaurantSettings({ ...restaurantSettings, catalog_card_mode: 'portrait' })}
+                                    >
+                                      <span className="admin-menu-mode-preview-visual" style={{ display: 'grid', placeItems: 'center' }}>
+                                        <span
+                                          style={{
+                                            width: 72,
+                                            borderRadius: 10,
+                                            border: '1px solid rgba(99,102,241,0.24)',
+                                            background: 'linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)',
+                                            overflow: 'hidden',
+                                            minHeight: 88
+                                          }}
+                                        >
+                                          <span style={{ display: 'block', height: 52, background: 'linear-gradient(135deg, #dbeafe, #c7d2fe)' }} />
+                                          <span style={{ display: 'grid', gap: 5, padding: '7px 8px' }}>
+                                            <span style={{ height: 7, width: '88%', borderRadius: 999, background: 'rgba(30,41,59,0.24)' }} />
+                                            <span style={{ height: 7, width: '66%', borderRadius: 999, background: 'rgba(30,41,59,0.18)' }} />
+                                          </span>
+                                        </span>
+                                      </span>
+                                      <span className="admin-menu-mode-preview-title">Книжный</span>
+                                      <span className="admin-menu-mode-preview-desc">Картинка 3:4, акцент на фото</span>
+                                    </button>
+                                  </div>
+                                  <Form.Text className="text-muted d-block mt-2">
+                                    Влияет на карточки товаров в меню и в витрине клиента.
                                   </Form.Text>
                                 </Form.Group>
                               </div>

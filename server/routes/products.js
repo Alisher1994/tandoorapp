@@ -46,6 +46,12 @@ const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return normalizedFallback === 'single_list' ? 'single_list' : 'grid_categories';
 };
+const normalizeCatalogCardMode = (value, fallback = 'wide') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'portrait' || normalized === 'wide') return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return normalizedFallback === 'portrait' ? 'portrait' : 'wide';
+};
 const normalizeBooleanFlag = (value, fallback = false) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === 'boolean') return value;
@@ -378,6 +384,7 @@ const ensureRestaurantCurrencySchema = async () => {
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT false`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_opacity INTEGER DEFAULT 34`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_blur INTEGER DEFAULT 16`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS catalog_card_mode VARCHAR(16) DEFAULT 'wide'`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET currency_code = 'uz'
@@ -400,6 +407,13 @@ const ensureRestaurantCurrencySchema = async () => {
       WHERE menu_liquid_glass_blur IS NULL
          OR menu_liquid_glass_blur < 8
          OR menu_liquid_glass_blur > 24
+    `).catch(() => {});
+    await pool.query(`
+      UPDATE restaurants
+      SET catalog_card_mode = 'wide'
+      WHERE catalog_card_mode IS NULL
+         OR BTRIM(catalog_card_mode) = ''
+         OR LOWER(catalog_card_mode) NOT IN ('wide', 'portrait')
     `).catch(() => {});
     restaurantCurrencySchemaReady = true;
   })();
@@ -949,6 +963,7 @@ router.get('/restaurant/:id', async (req, res) => {
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: normalizeUiTheme(r.ui_theme, 'classic'),
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
+      catalog_card_mode: normalizeCatalogCardMode(r.catalog_card_mode, 'wide'),
       menu_liquid_glass_enabled: normalizeBooleanFlag(r.menu_liquid_glass_enabled, false),
       menu_height_lock_enabled: normalizeBooleanFlag(r.menu_height_lock_enabled, false),
       menu_liquid_glass_opacity: normalizeMenuGlassOpacity(r.menu_liquid_glass_opacity, MENU_GLASS_OPACITY_DEFAULT),
@@ -1254,7 +1269,17 @@ router.get('/:id/details', async (req, res) => {
 
     const product = productResult.rows[0];
 
-    const [summaryResult, latestReviewsResult, weeklyStatsResult] = await Promise.all([
+    const productRestaurantId = Number.parseInt(product.restaurant_id, 10);
+    const normalizedProductRestaurantId = Number.isInteger(productRestaurantId) && productRestaurantId > 0
+      ? productRestaurantId
+      : null;
+    const productCategoryId = Number.parseInt(product.category_id, 10);
+    const normalizedProductCategoryId = Number.isInteger(productCategoryId) && productCategoryId > 0
+      ? productCategoryId
+      : null;
+    const currentSeasonScope = getCurrentSeasonScope();
+
+    const [summaryResult, latestReviewsResult, weeklyStatsResult, relatedProductsResult] = await Promise.all([
       pool.query(
         `
         SELECT
@@ -1302,7 +1327,27 @@ router.get('/:id/details', async (req, res) => {
           AND timezone($2, o.created_at)::date < (date_trunc('week', timezone($2, CURRENT_TIMESTAMP)) + interval '7 day')::date
       `,
         [productId, TASHKENT_TZ]
-      )
+      ),
+      normalizedProductRestaurantId
+        ? pool.query(
+          `
+          SELECT p.*
+          FROM products p
+          WHERE p.restaurant_id = $1
+            AND p.id <> $2
+            AND COALESCE(p.is_hidden_catalog, false) = false
+            AND COALESCE(NULLIF(p.season_scope, ''), 'all') IN ('all', $3)
+            AND ($4::int IS NULL OR p.category_id = $4)
+          ORDER BY
+            COALESCE(p.in_stock, true) DESC,
+            COALESCE(p.sort_order, 0) ASC,
+            p.name_ru ASC,
+            p.id ASC
+          LIMIT 15
+        `,
+          [normalizedProductRestaurantId, productId, currentSeasonScope, normalizedProductCategoryId]
+        )
+        : Promise.resolve({ rows: [] })
     ]);
 
     const totalReviews = Number.parseInt(summaryResult.rows[0]?.total_reviews, 10) || 0;
@@ -1313,10 +1358,6 @@ router.get('/:id/details', async (req, res) => {
 
     const authUserIdRaw = getOptionalAuthUserId(req);
     const authUserId = Number.parseInt(authUserIdRaw, 10);
-    const productRestaurantId = Number.parseInt(product.restaurant_id, 10);
-    const normalizedProductRestaurantId = Number.isInteger(productRestaurantId) && productRestaurantId > 0
-      ? productRestaurantId
-      : null;
     let myReview = null;
     let hasSuccessfulOrder = false;
     if (Number.isInteger(authUserId) && authUserId > 0) {
@@ -1360,6 +1401,9 @@ router.get('/:id/details', async (req, res) => {
         has_successful_order: hasSuccessfulOrder,
         can_review: hasSuccessfulOrder
       },
+      related_products: Array.isArray(relatedProductsResult?.rows)
+        ? relatedProductsResult.rows.slice(0, 15)
+        : [],
       my_review: myReview
     });
   } catch (error) {
@@ -1822,6 +1866,7 @@ router.get('/restaurants/list', async (req, res) => {
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: normalizeUiTheme(r.ui_theme, 'classic'),
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
+      catalog_card_mode: normalizeCatalogCardMode(r.catalog_card_mode, 'wide'),
       menu_liquid_glass_enabled: normalizeBooleanFlag(r.menu_liquid_glass_enabled, false),
       menu_height_lock_enabled: normalizeBooleanFlag(r.menu_height_lock_enabled, false),
       menu_liquid_glass_opacity: normalizeMenuGlassOpacity(r.menu_liquid_glass_opacity, MENU_GLASS_OPACITY_DEFAULT),

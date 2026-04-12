@@ -414,6 +414,12 @@ const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return normalizedFallback === 'single_list' ? 'single_list' : 'grid_categories';
 };
+const normalizeCatalogCardMode = (value, fallback = 'wide') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'portrait' || normalized === 'wide') return normalized;
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  return normalizedFallback === 'portrait' ? 'portrait' : 'wide';
+};
 const normalizeBooleanFlag = (value, fallback = false) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === 'boolean') return value;
@@ -475,6 +481,7 @@ const ensureRestaurantCurrencySchema = async () => {
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT false`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_opacity INTEGER DEFAULT 34`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_blur INTEGER DEFAULT 16`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS catalog_card_mode VARCHAR(16) DEFAULT 'wide'`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET currency_code = 'uz'
@@ -553,6 +560,13 @@ const ensureRestaurantCurrencySchema = async () => {
        WHERE menu_liquid_glass_blur IS NULL
           OR menu_liquid_glass_blur < 8
           OR menu_liquid_glass_blur > 24`
+    ).catch(() => {});
+    await pool.query(
+      `UPDATE restaurants
+       SET catalog_card_mode = 'wide'
+       WHERE catalog_card_mode IS NULL
+          OR BTRIM(catalog_card_mode) = ''
+          OR LOWER(catalog_card_mode) NOT IN ('wide', 'portrait')`
     ).catch(() => {});
     await pool.query(
       `UPDATE restaurants SET inventory_tracking_enabled = false WHERE inventory_tracking_enabled IS NULL`
@@ -1800,6 +1814,7 @@ router.put('/restaurant', async (req, res) => {
          ui_theme,
          ui_font_family,
          menu_view_mode,
+         catalog_card_mode,
          menu_liquid_glass_enabled,
          menu_height_lock_enabled,
          menu_liquid_glass_opacity,
@@ -1827,7 +1842,7 @@ router.put('/restaurant', async (req, res) => {
       latitude, longitude, delivery_base_radius, delivery_base_price,
       delivery_price_per_km, delivery_pricing_mode, delivery_fixed_price, is_delivery_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
-      logo_display_mode, ui_theme, ui_font_family, menu_view_mode, payment_placeholders, currency_code,
+      logo_display_mode, ui_theme, ui_font_family, menu_view_mode, catalog_card_mode, payment_placeholders, currency_code,
       menu_liquid_glass_enabled, menu_height_lock_enabled, menu_liquid_glass_opacity, menu_liquid_glass_blur,
       send_balance_after_confirm, send_daily_close_report, minimum_order_amount,
       inventory_tracking_enabled, inventory_min_threshold,
@@ -1857,6 +1872,10 @@ router.put('/restaurant', async (req, res) => {
     const normalizedMenuViewMode = normalizeMenuViewMode(
       menu_view_mode,
       previousRestaurant.menu_view_mode || 'grid_categories'
+    );
+    const normalizedCatalogCardMode = normalizeCatalogCardMode(
+      catalog_card_mode,
+      previousRestaurant.catalog_card_mode || 'wide'
     );
     const normalizedMenuLiquidGlassEnabled = normalizeBooleanFlag(
       menu_liquid_glass_enabled,
@@ -2062,6 +2081,19 @@ router.put('/restaurant', async (req, res) => {
       );
       result.rows[0].is_operator_delivery_later_enabled = deliveryLaterResult.rows[0]?.is_operator_delivery_later_enabled === true;
     }
+
+    const cardModeUpdateResult = await pool.query(
+      `UPDATE restaurants
+       SET catalog_card_mode = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING catalog_card_mode`,
+      [normalizedCatalogCardMode, restaurantId]
+    );
+    result.rows[0].catalog_card_mode = normalizeCatalogCardMode(
+      cardModeUpdateResult.rows[0]?.catalog_card_mode,
+      normalizedCatalogCardMode
+    );
 
     const fontUpdateResult = await pool.query(
       `UPDATE restaurants
