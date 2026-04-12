@@ -219,9 +219,9 @@ const UI_FONT_FAMILY_PREVIEW_STYLES = Object.freeze({
   serif_baskerville: "Baskerville, 'Times New Roman', Georgia, serif"
 });
 const MENU_MODE_PREVIEW_MEDIA = Object.freeze({
-  categoryPhoto: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=900&q=80',
-  categoryPhotoAlt: 'https://images.unsplash.com/photo-1608198093002-ad4e005484ec?auto=format&fit=crop&w=900&q=80',
-  productPhoto: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?auto=format&fit=crop&w=900&q=80'
+  categoryPhoto: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='900' viewBox='0 0 1200 900'%3E%3Crect width='1200' height='900' rx='24' fill='%23eef2f7'/%3E%3Crect x='60' y='80' width='1080' height='740' rx='28' fill='%23dde5ef'/%3E%3Cpath d='M260 640h680l-70 120H330z' fill='%23c5ceda'/%3E%3Ccircle cx='420' cy='420' r='118' fill='%23b6c2d2'/%3E%3Ccircle cx='780' cy='420' r='118' fill='%23b6c2d2'/%3E%3C/svg%3E",
+  categoryPhotoAlt: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='900' viewBox='0 0 1200 900'%3E%3Crect width='1200' height='900' rx='24' fill='%23eef2f7'/%3E%3Crect x='60' y='80' width='1080' height='740' rx='28' fill='%23dde5ef'/%3E%3Cpath d='M260 640h680l-70 120H330z' fill='%23c5ceda'/%3E%3Ccircle cx='420' cy='420' r='118' fill='%23b6c2d2'/%3E%3Ccircle cx='780' cy='420' r='118' fill='%23b6c2d2'/%3E%3C/svg%3E",
+  productPhoto: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='900' viewBox='0 0 1200 900'%3E%3Crect width='1200' height='900' rx='24' fill='%23eef2f7'/%3E%3Crect x='60' y='80' width='1080' height='740' rx='28' fill='%23dde5ef'/%3E%3Cpath d='M260 640h680l-70 120H330z' fill='%23c5ceda'/%3E%3Ccircle cx='420' cy='420' r='118' fill='%23b6c2d2'/%3E%3Ccircle cx='780' cy='420' r='118' fill='%23b6c2d2'/%3E%3C/svg%3E"
 });
 const APPEARANCE_PREVIEW_THEME_TOKENS = Object.freeze({
   classic: { bgStart: '#edf3ff', bgEnd: '#f6fbff', accent: '#4f46e5', accentSoft: '#c7d2fe' },
@@ -2484,8 +2484,8 @@ function AdminDashboard() {
     if (mapped.length > 0) return mapped.slice(0, 8);
 
     return [
-      { id: 1, sort: 1, title: language === 'uz' ? 'Yangi non' : 'Свежий хлеб', image: MENU_MODE_PREVIEW_MEDIA.categoryPhoto },
-      { id: 2, sort: 2, title: language === 'uz' ? 'Shirinliklar' : 'Выпечка', image: MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt }
+      { id: 1, sort: 1, title: language === 'uz' ? 'Kategoriya 1' : 'Категория 1', image: MENU_MODE_PREVIEW_MEDIA.categoryPhoto },
+      { id: 2, sort: 2, title: language === 'uz' ? 'Kategoriya 2' : 'Категория 2', image: MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt }
     ];
   }, [categories, language]);
   const appearancePreviewProducts = useMemo(() => {
@@ -2535,19 +2535,19 @@ function AdminDashboard() {
         id: 1,
         categoryId: appearancePreviewCategories[0]?.id || null,
         sort: 1,
-        title: language === 'uz' ? 'Qarsildoq baton' : 'Батон хрустящий',
+        title: language === 'uz' ? 'Mahsulot 1' : 'Товар 1',
         unit: language === 'uz' ? 'dona' : 'шт',
         image: MENU_MODE_PREVIEW_MEDIA.productPhoto,
-        priceLabel: `${formatPrice(12000)} ${activeRestaurantCurrencyLabel}`
+        priceLabel: `${formatPrice(16000)} ${activeRestaurantCurrencyLabel}`
       },
       {
         id: 2,
         categoryId: appearancePreviewCategories[0]?.id || null,
         sort: 2,
-        title: language === 'uz' ? 'Qora non' : 'Ржаной хлеб',
+        title: language === 'uz' ? 'Mahsulot 2' : 'Товар 2',
         unit: language === 'uz' ? 'dona' : 'шт',
         image: MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt,
-        priceLabel: `${formatPrice(10000)} ${activeRestaurantCurrencyLabel}`
+        priceLabel: `${formatPrice(18000)} ${activeRestaurantCurrencyLabel}`
       }
     ];
   }, [products, language, activeRestaurantCurrencyLabel, appearancePreviewCategories]);
@@ -4683,6 +4683,27 @@ function AdminDashboard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (mainTab !== 'settings' || settingsTab !== 'appearance') return;
+    if (!user?.active_restaurant_id) return;
+    if (products.length > 0 && categories.length > 0) return;
+
+    fetchData({
+      includeOrders: false,
+      includeAllOrders: false,
+      includeProducts: true,
+      includeCategories: true,
+      includeContainers: false,
+      includeFeedbackStats: false
+    });
+  }, [
+    mainTab,
+    settingsTab,
+    user?.active_restaurant_id,
+    products.length,
+    categories.length
+  ]);
 
   const resetGlobalImportModalState = () => {
     setGlobalCatalogProducts([]);
