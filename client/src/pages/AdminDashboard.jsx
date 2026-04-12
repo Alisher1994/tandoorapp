@@ -60,9 +60,11 @@ import {
   Plus,
   Printer,
   RefreshCw,
+  Search as SearchIcon,
   Settings,
   ShoppingCart,
   Trash2,
+  User as UserIcon,
   Users
 } from 'lucide-react';
 
