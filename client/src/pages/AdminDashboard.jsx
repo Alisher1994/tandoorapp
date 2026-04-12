@@ -2583,7 +2583,9 @@ function AdminDashboard() {
           sort: Number.isInteger(sortValue) ? sortValue : index + 1,
           title: title || `${language === 'uz' ? 'Mahsulot' : 'Товар'} ${index + 1}`,
           unit: String(product?.unit || (language === 'uz' ? 'dona' : 'шт')).trim() || (language === 'uz' ? 'dona' : 'шт'),
-          image: bestImageRaw ? toAbsoluteFileUrl(bestImageRaw) : MENU_MODE_PREVIEW_MEDIA.productPhoto,
+          image: bestImageRaw
+            ? toAbsoluteFileUrl(bestImageRaw)
+            : (activeRestaurantLogoUrl || MENU_MODE_PREVIEW_MEDIA.productPhoto),
           priceLabel: Number.isFinite(priceValue) && priceValue > 0
             ? `${formatPrice(priceValue)} ${activeRestaurantCurrencyLabel}`
             : `${formatPrice(16000)} ${activeRestaurantCurrencyLabel}`
@@ -2600,7 +2602,7 @@ function AdminDashboard() {
         sort: 1,
         title: language === 'uz' ? 'Mahsulot 1' : 'Товар 1',
         unit: language === 'uz' ? 'dona' : 'шт',
-        image: MENU_MODE_PREVIEW_MEDIA.productPhoto,
+        image: activeRestaurantLogoUrl || MENU_MODE_PREVIEW_MEDIA.productPhoto,
         priceLabel: `${formatPrice(16000)} ${activeRestaurantCurrencyLabel}`
       },
       {
@@ -2609,11 +2611,11 @@ function AdminDashboard() {
         sort: 2,
         title: language === 'uz' ? 'Mahsulot 2' : 'Товар 2',
         unit: language === 'uz' ? 'dona' : 'шт',
-        image: MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt,
+        image: activeRestaurantLogoUrl || MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt,
         priceLabel: `${formatPrice(18000)} ${activeRestaurantCurrencyLabel}`
       }
     ];
-  }, [products, language, activeRestaurantCurrencyLabel, appearancePreviewCategories]);
+  }, [products, language, activeRestaurantCurrencyLabel, appearancePreviewCategories, activeRestaurantLogoUrl]);
   const appearancePreviewPrimaryCategory = appearancePreviewCategoryTree.activeLevel1 || appearancePreviewCategories[0] || null;
   const appearancePreviewCatalogProducts = useMemo(() => {
     const selectedLevel2Id = Number.parseInt(appearancePreviewSelectedCategoryId, 10);

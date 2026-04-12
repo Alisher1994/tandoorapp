@@ -8628,6 +8628,24 @@ body::-webkit-scrollbar,
 
 .admin-appearance-settings-column {
     min-width: 0;
+    max-height: calc(100vh - 118px);
+    overflow-y: auto;
+    padding-right: 0.35rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+}
+
+.admin-appearance-settings-column::-webkit-scrollbar {
+    width: 6px;
+}
+
+.admin-appearance-settings-column::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.admin-appearance-settings-column::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.45);
+    border-radius: 999px;
 }
 
 .admin-settings-single-column--appearance {
@@ -8664,14 +8682,14 @@ body::-webkit-scrollbar,
     background: transparent;
     box-shadow: none;
     position: relative;
-    min-height: 620px;
+    min-height: 0;
     max-height: calc(100vh - 132px);
     overflow: visible;
     overscroll-behavior: contain;
 }
 
 .admin-appearance-live-preview-device {
-    width: min(100%, 318px);
+    width: min(100%, 334px);
     margin: 0 auto;
     background: #2f2f34;
     border-radius: 28px;
@@ -8679,8 +8697,8 @@ body::-webkit-scrollbar,
     display: flex;
     flex-direction: column;
     gap: 8px;
-    height: 100%;
-    min-height: 620px;
+    height: min(610px, calc(100vh - 152px));
+    min-height: 560px;
 }
 
 .admin-appearance-live-preview-viewport {
@@ -9122,16 +9140,23 @@ body::-webkit-scrollbar,
         grid-template-columns: 1fr;
     }
 
+    .admin-appearance-settings-column {
+        max-height: none;
+        overflow: visible;
+        padding-right: 0;
+    }
+
     .admin-appearance-live-preview-sticky {
         position: static;
     }
 
     .admin-appearance-live-preview-card {
         max-height: none;
-        min-height: 560px;
+        min-height: 0;
     }
 
     .admin-appearance-live-preview-device {
+        height: 560px;
         min-height: 560px;
     }
 }
