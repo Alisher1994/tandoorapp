@@ -15659,6 +15659,43 @@ function SuperAdminDashboard() {
                               </div>
                             </div>
 
+                            {foundersCardsData.length > 0 && (
+                              <div className="sa-founders-chart-founders mb-3">
+                                {foundersCardsData.map((founderItem, founderIndex) => {
+                                  const founderKey = founderItem.founder_key;
+                                  const founderColor = FOUNDERS_CHART_COLORS[founderKey] || ['#4f46e5', '#0ea5e9', '#22c55e'][founderIndex % 3];
+                                  const founderInitials = (String(founderItem.founder_name || '')
+                                    .split(/\s+/)
+                                    .filter(Boolean)
+                                    .slice(0, 2)
+                                    .map((part) => part[0]?.toUpperCase())
+                                    .join('')) || 'F';
+                                  return (
+                                    <div className="sa-founders-chart-founder-chip" key={`founder-chart-chip-${founderKey}`}>
+                                      <span className="sa-founders-chart-founder-avatar">
+                                        {founderItem.photo_url ? (
+                                          <img
+                                            src={resolveFounderPhotoUrl(founderItem.photo_url)}
+                                            alt={founderItem.founder_name || 'Founder'}
+                                          />
+                                        ) : (
+                                          <span className="sa-founders-chart-founder-avatar-fallback">{founderInitials}</span>
+                                        )}
+                                      </span>
+                                      <span className="sa-founders-chart-founder-meta">
+                                        <span
+                                          className="sa-founders-chart-founder-dot"
+                                          style={{ backgroundColor: founderColor }}
+                                          aria-hidden="true"
+                                        />
+                                        <span>{founderItem.founder_name || '—'}</span>
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
                             <Row className="g-3">
                               <Col xs={12}>
                                 <div className="sa-founders-chart-card">

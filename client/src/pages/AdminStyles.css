@@ -12736,6 +12736,17 @@ body::-webkit-scrollbar,
     bottom: 6px;
     display: inline-flex;
     gap: 4px;
+    opacity: 0;
+    transform: translateY(6px);
+    pointer-events: none;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.sa-founders-founder-card:hover .sa-founders-founder-avatar-actions,
+.sa-founders-founder-card:focus-within .sa-founders-founder-avatar-actions {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
 }
 
 .sa-founders-avatar-btn {
@@ -12918,6 +12929,69 @@ body::-webkit-scrollbar,
     color: #64748b;
     font-size: 0.78rem;
     line-height: 1.35;
+}
+
+.sa-founders-chart-founders {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.sa-founders-chart-founder-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 6px 10px 6px 6px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+}
+
+.sa-founders-chart-founder-avatar,
+.sa-founders-chart-founder-avatar img,
+.sa-founders-chart-founder-avatar-fallback {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+}
+
+.sa-founders-chart-founder-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: linear-gradient(135deg, #eef2ff, #dbeafe);
+}
+
+.sa-founders-chart-founder-avatar img {
+    display: block;
+    object-fit: cover;
+}
+
+.sa-founders-chart-founder-avatar-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #312e81;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.sa-founders-chart-founder-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #334155;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.sa-founders-chart-founder-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    flex: 0 0 auto;
 }
 
 .sa-founders-founder-table th,
