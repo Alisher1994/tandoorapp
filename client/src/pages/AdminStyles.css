@@ -8664,8 +8664,8 @@ body::-webkit-scrollbar,
     background: transparent;
     box-shadow: none;
     position: relative;
-    min-height: 720px;
-    max-height: calc(100vh - 116px);
+    min-height: 620px;
+    max-height: calc(100vh - 132px);
     overflow: visible;
     overscroll-behavior: contain;
 }
@@ -8680,7 +8680,7 @@ body::-webkit-scrollbar,
     flex-direction: column;
     gap: 8px;
     height: 100%;
-    min-height: 720px;
+    min-height: 620px;
 }
 
 .admin-appearance-live-preview-viewport {
@@ -9128,11 +9128,11 @@ body::-webkit-scrollbar,
 
     .admin-appearance-live-preview-card {
         max-height: none;
-        min-height: 640px;
+        min-height: 560px;
     }
 
     .admin-appearance-live-preview-device {
-        min-height: 640px;
+        min-height: 560px;
     }
 }
 

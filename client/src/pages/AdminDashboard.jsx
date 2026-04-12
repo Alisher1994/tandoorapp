@@ -2461,33 +2461,96 @@ function AdminDashboard() {
     restaurantSettings?.menu_liquid_glass_blur,
     MENU_GLASS_BLUR_DEFAULT
   );
+  const appearancePreviewCategoryTree = useMemo(() => {
+    const sourceCategories = Array.isArray(categories) ? categories : [];
+    const sourceProducts = Array.isArray(products) ? products : [];
+    const parseCategoryId = (value) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isInteger(parsed) ? parsed : null;
+    };
+    const getCategoryTitle = (category, fallbackIndex = 1) => {
+      const title = language === 'uz'
+        ? (String(category?.name_uz || '').trim() || String(category?.name_ru || '').trim())
+        : (String(category?.name_ru || '').trim() || String(category?.name_uz || '').trim());
+      return title || `${language === 'uz' ? 'Kategoriya' : 'Категория'} ${fallbackIndex}`;
+    };
+    const getCategorySort = (category, fallbackIndex = 1) => {
+      const parsed = Number.parseInt(category?.sort_order ?? category?.sort ?? fallbackIndex, 10);
+      return Number.isInteger(parsed) ? parsed : fallbackIndex;
+    };
+    const getCategoryImage = (category) => {
+      const image = toAbsoluteFileUrl(
+        String(category?.image_url || category?.icon_url || category?.image || '').trim()
+      );
+      return image || MENU_MODE_PREVIEW_MEDIA.categoryPhoto;
+    };
+
+    const categoriesById = new Map();
+    const childrenByParent = new Map();
+    sourceCategories.forEach((category, index) => {
+      const id = parseCategoryId(category?.id);
+      if (!id) return;
+      const parentId = parseCategoryId(category?.parent_id);
+      const normalizedCategory = {
+        raw: category,
+        id,
+        parentId,
+        sort: getCategorySort(category, index + 1),
+        title: getCategoryTitle(category, index + 1),
+        image: getCategoryImage(category)
+      };
+      categoriesById.set(id, normalizedCategory);
+      const mapKey = parentId === null ? 'root' : String(parentId);
+      if (!childrenByParent.has(mapKey)) childrenByParent.set(mapKey, []);
+      childrenByParent.get(mapKey).push(normalizedCategory);
+    });
+
+    const sortCategoryList = (list) => list.sort((left, right) => {
+      if (left.sort !== right.sort) return left.sort - right.sort;
+      return left.title.localeCompare(right.title, language === 'uz' ? 'uz' : 'ru');
+    });
+    for (const list of childrenByParent.values()) sortCategoryList(list);
+
+    const productCategoryIds = new Set(
+      sourceProducts
+        .map((product) => parseCategoryId(product?.category_id))
+        .filter((id) => Number.isInteger(id))
+    );
+
+    const nonEmptyCategoryIds = new Set();
+    const collectAncestors = (categoryId) => {
+      let currentId = categoryId;
+      while (Number.isInteger(currentId)) {
+        if (nonEmptyCategoryIds.has(currentId)) break;
+        nonEmptyCategoryIds.add(currentId);
+        currentId = categoriesById.get(currentId)?.parentId ?? null;
+      }
+    };
+    productCategoryIds.forEach((categoryId) => collectAncestors(categoryId));
+
+    const level1Categories = (childrenByParent.get('root') || []).filter((category) => nonEmptyCategoryIds.has(category.id));
+    const activeLevel1 = level1Categories[0] || null;
+    const level2Categories = activeLevel1
+      ? (childrenByParent.get(String(activeLevel1.id)) || []).filter((category) => nonEmptyCategoryIds.has(category.id))
+      : [];
+
+    return {
+      level1Categories,
+      activeLevel1,
+      level2Categories,
+      categoriesById,
+      childrenByParent,
+      nonEmptyCategoryIds
+    };
+  }, [categories, products, language]);
   const appearancePreviewCategories = useMemo(() => {
-    const mapped = (Array.isArray(categories) ? categories : [])
-      .map((category, index) => {
-        const id = Number.parseInt(category?.id, 10);
-        const sortValue = Number.parseInt(category?.sort_order ?? category?.sort ?? index + 1, 10);
-        const image = toAbsoluteFileUrl(
-          String(category?.image_url || category?.icon_url || category?.image || '').trim()
-        );
-        const title = language === 'uz'
-          ? (String(category?.name_uz || '').trim() || String(category?.name_ru || '').trim())
-          : (String(category?.name_ru || '').trim() || String(category?.name_uz || '').trim());
-        return {
-          id: Number.isInteger(id) ? id : index + 1,
-          sort: Number.isInteger(sortValue) ? sortValue : index + 1,
-          title: title || `${language === 'uz' ? 'Kategoriya' : 'Категория'} ${index + 1}`,
-          image: image || MENU_MODE_PREVIEW_MEDIA.categoryPhoto
-        };
-      })
-      .sort((left, right) => left.sort - right.sort);
-
-    if (mapped.length > 0) return mapped.slice(0, 8);
-
+    const level2Categories = appearancePreviewCategoryTree.level2Categories || [];
+    if (level2Categories.length > 0) return level2Categories.slice(0, 8);
     return [
       { id: 1, sort: 1, title: language === 'uz' ? 'Kategoriya 1' : 'Категория 1', image: MENU_MODE_PREVIEW_MEDIA.categoryPhoto },
       { id: 2, sort: 2, title: language === 'uz' ? 'Kategoriya 2' : 'Категория 2', image: MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt }
     ];
-  }, [categories, language]);
+  }, [appearancePreviewCategoryTree, language]);
   const appearancePreviewProducts = useMemo(() => {
     const mapped = (Array.isArray(products) ? products : [])
       .filter((product) => product?.is_active !== false)
@@ -2551,15 +2614,17 @@ function AdminDashboard() {
       }
     ];
   }, [products, language, activeRestaurantCurrencyLabel, appearancePreviewCategories]);
-  const appearancePreviewPrimaryCategory = appearancePreviewCategories[0] || null;
+  const appearancePreviewPrimaryCategory = appearancePreviewCategoryTree.activeLevel1 || appearancePreviewCategories[0] || null;
   const appearancePreviewCatalogProducts = useMemo(() => {
-    if (!appearancePreviewPrimaryCategory) return appearancePreviewProducts.slice(0, 6);
-    const byCategory = appearancePreviewProducts.filter(
-      (item) => Number.parseInt(item?.categoryId, 10) === Number.parseInt(appearancePreviewPrimaryCategory.id, 10)
-    );
-    if (byCategory.length > 0) return byCategory.slice(0, 6);
+    const selectedLevel2Id = Number.parseInt(appearancePreviewSelectedCategoryId, 10);
+    if (Number.isInteger(selectedLevel2Id)) {
+      const level2Children = appearancePreviewCategoryTree.childrenByParent.get(String(selectedLevel2Id)) || [];
+      const allowedCategoryIds = new Set([selectedLevel2Id, ...level2Children.map((item) => Number(item.id))]);
+      const byCategory = appearancePreviewProducts.filter((item) => allowedCategoryIds.has(Number.parseInt(item?.categoryId, 10)));
+      if (byCategory.length > 0) return byCategory.slice(0, 8);
+    }
     return appearancePreviewProducts.slice(0, 6);
-  }, [appearancePreviewProducts, appearancePreviewPrimaryCategory]);
+  }, [appearancePreviewProducts, appearancePreviewCategoryTree, appearancePreviewSelectedCategoryId]);
   const appearancePreviewMenuIconSettings = useMemo(() => {
     const raw = restaurantSettings?.menu_icon_settings;
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -4687,7 +4752,6 @@ function AdminDashboard() {
   useEffect(() => {
     if (mainTab !== 'settings' || settingsTab !== 'appearance') return;
     if (!user?.active_restaurant_id) return;
-    if (products.length > 0 && categories.length > 0) return;
 
     fetchData({
       includeOrders: false,
