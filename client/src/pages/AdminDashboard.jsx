@@ -2800,18 +2800,6 @@ function AdminDashboard() {
       // ignore localStorage failures
     }
   }, [isSidebarCollapsed]);
-  useEffect(() => {
-    if (!mainTab || !adminSidebarTabsMeta[mainTab]) {
-      if (mainTab !== 'dashboard') setMainTab('dashboard');
-      return;
-    }
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(ADMIN_ACTIVE_TAB_STORAGE_KEY, mainTab);
-    } catch (_) {
-      // ignore localStorage failures
-    }
-  }, [mainTab, adminSidebarTabsMeta]);
   const handleSidebarTabSelect = useCallback((key) => {
     if (!key) return;
     const isDesktopSidebar = typeof window !== 'undefined' && window.innerWidth >= 992;
@@ -2843,6 +2831,18 @@ function AdminDashboard() {
 
     return tabs;
   }, [isReservationModuleEnabled, language, t]);
+  useEffect(() => {
+    if (!mainTab || !adminSidebarTabsMeta[mainTab]) {
+      if (mainTab !== 'dashboard') setMainTab('dashboard');
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(ADMIN_ACTIVE_TAB_STORAGE_KEY, mainTab);
+    } catch (_) {
+      // ignore localStorage failures
+    }
+  }, [mainTab, adminSidebarTabsMeta]);
   const renderAdminSidebarTabTitle = (key) => {
     const meta = adminSidebarTabsMeta[key] || { label: key, icon: Home };
     const Icon = meta.icon;
