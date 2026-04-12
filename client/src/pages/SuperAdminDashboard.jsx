@@ -3824,7 +3824,7 @@ function SuperAdminDashboard() {
     setOrganizationExpenseForm({
       id: item.id,
       category_id: String(item.category_id || ''),
-      amount: String(item.amount ?? ''),
+      amount: formatDecimalInputWithThousands(item.amount ?? ''),
       currency_code: String(item.currency_code || countryCurrency?.code || 'uz').trim().toLowerCase(),
       expense_date: String(item.expense_date || getTodayDateInputValue()),
       description: String(item.description || '')
@@ -5805,6 +5805,46 @@ function SuperAdminDashboard() {
       };
     });
   }, [foundersCardsData, foundersChartCurrencyResolved]);
+  const renderFoundersBarValueLabel = (props) => {
+    const { x, y, width, height, value } = props || {};
+    const safeX = Number(x || 0);
+    const safeY = Number(y || 0);
+    const safeWidth = Number(width || 0);
+    const safeHeight = Number(height || 0);
+    const amount = Number(value || 0);
+    const label = `${formatBalanceAmount(amount)} ${getCurrencyLabelByCode(foundersChartCurrencyResolved)}`;
+    const isWideEnough = safeWidth >= 108;
+
+    if (isWideEnough) {
+      return (
+        <text
+          x={safeX + safeWidth - 10}
+          y={safeY + (safeHeight / 2)}
+          textAnchor="end"
+          dominantBaseline="middle"
+          fill="#ffffff"
+          fontSize={11}
+          fontWeight={700}
+        >
+          {label}
+        </text>
+      );
+    }
+
+    return (
+      <text
+        x={safeX + safeWidth - 4}
+        y={safeY - 6}
+        textAnchor="end"
+        dominantBaseline="auto"
+        fill="#0f172a"
+        fontSize={11}
+        fontWeight={700}
+      >
+        {label}
+      </text>
+    );
+  };
   const foundersGeneratedAtLabel = useMemo(() => {
     const raw = foundersAnalyticsData?.generated_at;
     if (!raw) return '';
@@ -5845,6 +5885,18 @@ function SuperAdminDashboard() {
       }))
       .sort((left, right) => String(left.category_name_ru || '').localeCompare(String(right.category_name_ru || ''), 'ru'));
   }, [foundersExpenseCategoryTotals]);
+  const organizationExpenseCurrencyOptions = useMemo(() => {
+    const source = Array.isArray(countryCurrencyOptions) ? countryCurrencyOptions : [];
+    const mapped = source
+      .map((item) => ({
+        code: String(item?.code || '').trim().toLowerCase(),
+        label: language === 'uz'
+          ? (item?.currencyUz || item?.currencyRu || String(item?.code || '').trim().toUpperCase())
+          : (item?.currencyRu || item?.currencyUz || String(item?.code || '').trim().toUpperCase())
+      }))
+      .filter((item) => item.code);
+    return Array.from(new Map(mapped.map((item) => [item.code, item])).values());
+  }, [countryCurrencyOptions, language]);
   const organizationExpenseCategoryOptions = useMemo(() => (
     [...(Array.isArray(organizationExpenseCategories) ? organizationExpenseCategories : [])]
       .sort((left, right) => String(left?.name_ru || '').localeCompare(String(right?.name_ru || ''), 'ru'))
@@ -6194,6 +6246,18 @@ function SuperAdminDashboard() {
     if (!normalized) return 0;
     const parsed = Number.parseFloat(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const formatDecimalInputWithThousands = (value) => {
+    const raw = String(value ?? '').replace(/[^\d.,]/g, '').replace(',', '.');
+    if (!raw) return '';
+    const [integerPartRaw, ...fractionParts] = raw.split('.');
+    const integerDigits = integerPartRaw.replace(/\D/g, '');
+    const fractionDigits = fractionParts.join('').replace(/\D/g, '');
+    const formattedInteger = integerDigits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    if (raw.endsWith('.') && !fractionDigits) {
+      return `${formattedInteger}.`;
+    }
+    return fractionDigits ? `${formattedInteger}.${fractionDigits}` : formattedInteger;
   };
   const getCurrencyLabelByCode = (code) => {
     const normalizedCode = String(code || '').trim().toLowerCase();
@@ -15659,43 +15723,6 @@ function SuperAdminDashboard() {
                               </div>
                             </div>
 
-                            {foundersCardsData.length > 0 && (
-                              <div className="sa-founders-chart-founders mb-3">
-                                {foundersCardsData.map((founderItem, founderIndex) => {
-                                  const founderKey = founderItem.founder_key;
-                                  const founderColor = FOUNDERS_CHART_COLORS[founderKey] || ['#4f46e5', '#0ea5e9', '#22c55e'][founderIndex % 3];
-                                  const founderInitials = (String(founderItem.founder_name || '')
-                                    .split(/\s+/)
-                                    .filter(Boolean)
-                                    .slice(0, 2)
-                                    .map((part) => part[0]?.toUpperCase())
-                                    .join('')) || 'F';
-                                  return (
-                                    <div className="sa-founders-chart-founder-chip" key={`founder-chart-chip-${founderKey}`}>
-                                      <span className="sa-founders-chart-founder-avatar">
-                                        {founderItem.photo_url ? (
-                                          <img
-                                            src={resolveFounderPhotoUrl(founderItem.photo_url)}
-                                            alt={founderItem.founder_name || 'Founder'}
-                                          />
-                                        ) : (
-                                          <span className="sa-founders-chart-founder-avatar-fallback">{founderInitials}</span>
-                                        )}
-                                      </span>
-                                      <span className="sa-founders-chart-founder-meta">
-                                        <span
-                                          className="sa-founders-chart-founder-dot"
-                                          style={{ backgroundColor: founderColor }}
-                                          aria-hidden="true"
-                                        />
-                                        <span>{founderItem.founder_name || '—'}</span>
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
                             <Row className="g-3">
                               <Col xs={12}>
                                 <div className="sa-founders-chart-card">
@@ -15736,6 +15763,45 @@ function SuperAdminDashboard() {
                                     </div>
                                   )}
                                 </div>
+                              </Col>
+
+                              <Col xs={12}>
+                                {foundersCardsData.length > 0 && (
+                                  <div className="sa-founders-chart-founders sa-founders-chart-founders-panel">
+                                    {foundersCardsData.map((founderItem, founderIndex) => {
+                                      const founderKey = founderItem.founder_key;
+                                      const founderColor = FOUNDERS_CHART_COLORS[founderKey] || ['#4f46e5', '#0ea5e9', '#22c55e'][founderIndex % 3];
+                                      const founderInitials = (String(founderItem.founder_name || '')
+                                        .split(/\s+/)
+                                        .filter(Boolean)
+                                        .slice(0, 2)
+                                        .map((part) => part[0]?.toUpperCase())
+                                        .join('')) || 'F';
+                                      return (
+                                        <div className="sa-founders-chart-founder-chip" key={`founder-chart-chip-${founderKey}`}>
+                                          <span className="sa-founders-chart-founder-avatar">
+                                            {founderItem.photo_url ? (
+                                              <img
+                                                src={resolveFounderPhotoUrl(founderItem.photo_url)}
+                                                alt={founderItem.founder_name || 'Founder'}
+                                              />
+                                            ) : (
+                                              <span className="sa-founders-chart-founder-avatar-fallback">{founderInitials}</span>
+                                            )}
+                                          </span>
+                                          <span className="sa-founders-chart-founder-meta">
+                                            <span
+                                              className="sa-founders-chart-founder-dot"
+                                              style={{ backgroundColor: founderColor }}
+                                              aria-hidden="true"
+                                            />
+                                            <span>{founderItem.founder_name || '—'}</span>
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </Col>
 
                               <Col xs={12} xl={8}>
@@ -15813,7 +15879,7 @@ function SuperAdminDashboard() {
                                         <BarChart
                                           data={foundersFoundersBarChartData}
                                           layout="vertical"
-                                          margin={{ top: 8, right: 24, left: 4, bottom: 0 }}
+                                          margin={{ top: 14, right: 18, left: 18, bottom: 0 }}
                                         >
                                           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                           <XAxis
@@ -15824,7 +15890,7 @@ function SuperAdminDashboard() {
                                           <YAxis
                                             type="category"
                                             dataKey="founder_name"
-                                            width={88}
+                                            width={104}
                                             tick={{ fill: '#334155', fontSize: 12 }}
                                           />
                                           <RechartsTooltip
@@ -15837,9 +15903,7 @@ function SuperAdminDashboard() {
                                             ))}
                                             <LabelList
                                               dataKey="amount"
-                                              position="right"
-                                              formatter={(value) => `${formatBalanceAmount(value)} ${getCurrencyLabelByCode(foundersChartCurrencyResolved)}`}
-                                              style={{ fill: '#0f172a', fontSize: 11, fontWeight: 600 }}
+                                              content={renderFoundersBarValueLabel}
                                             />
                                           </Bar>
                                         </BarChart>
@@ -21554,18 +21618,26 @@ function SuperAdminDashboard() {
                 <Form.Control
                   type="text"
                   value={organizationExpenseForm.amount}
-                  onChange={(e) => setOrganizationExpenseForm((prev) => ({ ...prev, amount: e.target.value }))}
-                  placeholder={language === 'uz' ? "Masalan: 250000" : 'Например: 250000'}
+                  inputMode="decimal"
+                  onChange={(e) => setOrganizationExpenseForm((prev) => ({
+                    ...prev,
+                    amount: formatDecimalInputWithThousands(e.target.value)
+                  }))}
+                  placeholder={language === 'uz' ? "Masalan: 250 000" : 'Например: 250 000'}
                 />
               </Col>
               <Col md={6}>
-                <Form.Label>{language === 'uz' ? 'Valyuta kodi' : 'Код валюты'} *</Form.Label>
-                <Form.Control
-                  type="text"
+                <Form.Label>{language === 'uz' ? 'Valyuta' : 'Валюта'} *</Form.Label>
+                <Form.Select
                   value={organizationExpenseForm.currency_code}
                   onChange={(e) => setOrganizationExpenseForm((prev) => ({ ...prev, currency_code: String(e.target.value || '').trim().toLowerCase() }))}
-                  placeholder="uz"
-                />
+                >
+                  {organizationExpenseCurrencyOptions.map((item) => (
+                    <option key={`organization-expense-currency-${item.code}`} value={item.code}>
+                      {item.label}
+                    </option>
+                  ))}
+                </Form.Select>
               </Col>
               <Col md={6}>
                 <Form.Label>{language === 'uz' ? 'Xarajat sanasi' : 'Дата расхода'} *</Form.Label>

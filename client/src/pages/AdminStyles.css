@@ -12937,6 +12937,10 @@ body::-webkit-scrollbar,
     gap: 10px;
 }
 
+.sa-founders-chart-founders-panel {
+    padding: 2px 2px 0;
+}
+
 .sa-founders-chart-founder-chip {
     display: inline-flex;
     align-items: center;
