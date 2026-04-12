@@ -9125,6 +9125,87 @@ body::-webkit-scrollbar,
     font-weight: 700;
 }
 
+.admin-menu-glass-preview {
+    border: 1px solid rgba(148, 163, 184, 0.34);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+    padding: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.admin-menu-glass-preview-phone {
+    width: min(100%, 360px);
+    margin: 0 auto;
+    border: 1px solid rgba(100, 116, 139, 0.28);
+    border-radius: 16px;
+    background: #ffffff;
+    padding: 0.35rem;
+}
+
+.admin-menu-glass-preview-screen {
+    border-radius: 12px;
+    overflow: hidden;
+    min-height: 140px;
+    position: relative;
+    background: linear-gradient(145deg, rgba(226, 232, 240, 0.7), rgba(219, 234, 254, 0.9));
+}
+
+.admin-menu-glass-preview-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.42rem;
+    padding: 0.5rem 0.5rem 3.35rem;
+}
+
+.admin-menu-glass-preview-card {
+    display: block;
+    border-radius: 10px;
+    min-height: 52px;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.95), rgba(226, 232, 240, 0.86));
+    border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.admin-menu-glass-preview-nav {
+    position: absolute;
+    left: 0.38rem;
+    right: 0.38rem;
+    bottom: 0.42rem;
+    min-height: 46px;
+    border: 1px solid rgba(148, 163, 184, 0.36);
+    border-radius: 14px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+    padding: 0.2rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+}
+
+.admin-menu-glass-preview-item {
+    font-size: 0.62rem;
+    color: #64748b;
+    font-weight: 600;
+    text-align: center;
+    border-radius: 10px;
+    padding: 0.32rem 0.2rem;
+}
+
+.admin-menu-glass-preview-item.is-active {
+    background: rgba(34, 197, 94, 0.18);
+    color: #0f766e;
+}
+
+.admin-menu-glass-preview-meta {
+    display: flex;
+    justify-content: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
+    color: #475569;
+    font-weight: 600;
+}
+
 .admin-delivery-pricing-tabs {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -13242,18 +13242,80 @@ function AdminDashboard() {
                                         menu_height_lock_enabled: e.target.checked
                                       })}
                                     />
+                                    <div className="admin-menu-glass-preview">
+                                      <div className="admin-menu-glass-preview-phone">
+                                        <div className="admin-menu-glass-preview-screen">
+                                          <div className="admin-menu-glass-preview-cards">
+                                            <span className="admin-menu-glass-preview-card" />
+                                            <span className="admin-menu-glass-preview-card" />
+                                            <span className="admin-menu-glass-preview-card" />
+                                          </div>
+                                          <div
+                                            className="admin-menu-glass-preview-nav"
+                                            style={{
+                                              background: restaurantSettings.menu_liquid_glass_enabled === true
+                                                ? `rgba(255,255,255,${(normalizeMenuGlassOpacity(
+                                                  restaurantSettings.menu_liquid_glass_opacity,
+                                                  MENU_GLASS_OPACITY_DEFAULT
+                                                ) / 100).toFixed(2)})`
+                                                : '#ffffff',
+                                              backdropFilter: restaurantSettings.menu_liquid_glass_enabled === true
+                                                ? `blur(${normalizeMenuGlassBlur(
+                                                  restaurantSettings.menu_liquid_glass_blur,
+                                                  MENU_GLASS_BLUR_DEFAULT
+                                                )}px)`
+                                                : 'none',
+                                              WebkitBackdropFilter: restaurantSettings.menu_liquid_glass_enabled === true
+                                                ? `blur(${normalizeMenuGlassBlur(
+                                                  restaurantSettings.menu_liquid_glass_blur,
+                                                  MENU_GLASS_BLUR_DEFAULT
+                                                )}px)`
+                                                : 'none'
+                                            }}
+                                          >
+                                            <span className="admin-menu-glass-preview-item is-active">Vitrina</span>
+                                            <span className="admin-menu-glass-preview-item">Menyu</span>
+                                            <span className="admin-menu-glass-preview-item">Savat</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="admin-menu-glass-preview-meta">
+                                        <span>
+                                          {language === 'uz' ? 'Shaffoflik' : 'Прозрачность'}:{' '}
+                                          {normalizeMenuGlassOpacity(
+                                            restaurantSettings.menu_liquid_glass_opacity,
+                                            MENU_GLASS_OPACITY_DEFAULT
+                                          )}%
+                                        </span>
+                                        <span>
+                                          Blur:{' '}
+                                          {normalizeMenuGlassBlur(
+                                            restaurantSettings.menu_liquid_glass_blur,
+                                            MENU_GLASS_BLUR_DEFAULT
+                                          )}px
+                                        </span>
+                                      </div>
+                                    </div>
                                     <Row className="g-2">
                                       <Col md={6}>
                                         <Form.Group>
-                                          <Form.Label className="small fw-semibold mb-1">
+                                          <Form.Label className="small fw-semibold mb-1 d-flex justify-content-between align-items-center">
                                             {language === 'uz' ? 'Shaffoflik foizi' : 'Прозрачность (%)'}
+                                            <span className="text-muted">
+                                              {normalizeMenuGlassOpacity(
+                                                restaurantSettings.menu_liquid_glass_opacity,
+                                                MENU_GLASS_OPACITY_DEFAULT
+                                              )}%
+                                            </span>
                                           </Form.Label>
-                                          <Form.Select
-                                            size="sm"
+                                          <Form.Range
                                             value={normalizeMenuGlassOpacity(
                                               restaurantSettings.menu_liquid_glass_opacity,
                                               MENU_GLASS_OPACITY_DEFAULT
                                             )}
+                                            min={20}
+                                            max={60}
+                                            step={1}
                                             disabled={restaurantSettings.menu_liquid_glass_enabled !== true}
                                             onChange={(e) => setRestaurantSettings({
                                               ...restaurantSettings,
@@ -13262,26 +13324,28 @@ function AdminDashboard() {
                                                 restaurantSettings.menu_liquid_glass_opacity
                                               )
                                             })}
-                                          >
-                                            <option value={20}>20%</option>
-                                            <option value={30}>30%</option>
-                                            <option value={40}>40%</option>
-                                            <option value={50}>50%</option>
-                                            <option value={60}>60%</option>
-                                          </Form.Select>
+                                          />
                                         </Form.Group>
                                       </Col>
                                       <Col md={6}>
                                         <Form.Group>
-                                          <Form.Label className="small fw-semibold mb-1">
+                                          <Form.Label className="small fw-semibold mb-1 d-flex justify-content-between align-items-center">
                                             {language === 'uz' ? 'Xiralashtirish (blur)' : 'Сила blur (px)'}
+                                            <span className="text-muted">
+                                              {normalizeMenuGlassBlur(
+                                                restaurantSettings.menu_liquid_glass_blur,
+                                                MENU_GLASS_BLUR_DEFAULT
+                                              )}px
+                                            </span>
                                           </Form.Label>
-                                          <Form.Select
-                                            size="sm"
+                                          <Form.Range
                                             value={normalizeMenuGlassBlur(
                                               restaurantSettings.menu_liquid_glass_blur,
                                               MENU_GLASS_BLUR_DEFAULT
                                             )}
+                                            min={8}
+                                            max={24}
+                                            step={1}
                                             disabled={restaurantSettings.menu_liquid_glass_enabled !== true}
                                             onChange={(e) => setRestaurantSettings({
                                               ...restaurantSettings,
@@ -13290,13 +13354,7 @@ function AdminDashboard() {
                                                 restaurantSettings.menu_liquid_glass_blur
                                               )
                                             })}
-                                          >
-                                            <option value={8}>8px</option>
-                                            <option value={12}>12px</option>
-                                            <option value={16}>16px</option>
-                                            <option value={20}>20px</option>
-                                            <option value={24}>24px</option>
-                                          </Form.Select>
+                                          />
                                         </Form.Group>
                                       </Col>
                                     </Row>
