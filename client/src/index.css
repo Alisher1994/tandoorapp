@@ -1422,6 +1422,32 @@ h6 {
   margin: 0;
 }
 
+.skeleton-superadmin-tab-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.skeleton-superadmin-tab-filters .skeleton-line {
+  margin-bottom: 0;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.skeleton-superadmin-status-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.skeleton-superadmin-status-pills .skeleton-line {
+  margin-bottom: 0;
+  height: 32px;
+  border-radius: 999px;
+}
+
 @keyframes skeleton-wave {
   100% {
     transform: translateX(100%);

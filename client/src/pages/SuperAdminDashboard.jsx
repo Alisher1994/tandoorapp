@@ -56,7 +56,14 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTimedActionButtonsVisibility } from '../hooks/useTimedActionButtonsVisibility';
 import YandexLocationPicker from '../components/YandexLocationPicker';
 import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
-import { ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
+import {
+  ListSkeleton,
+  SuperAdminClientsSkeleton,
+  SuperAdminLogsSkeleton,
+  SuperAdminOperatorsSkeleton,
+  SuperAdminRestaurantsSkeleton,
+  TableSkeleton
+} from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 import HeaderGlowBackground from '../components/HeaderGlowBackground';
 import {
@@ -12649,7 +12656,7 @@ function SuperAdminDashboard() {
                 )}
 
                 {loading ? (
-                  <TableSkeleton rows={8} columns={7} label="Загрузка списка магазинов" />
+                  <SuperAdminRestaurantsSkeleton label="Загрузка списка магазинов" />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -14263,7 +14270,10 @@ function SuperAdminDashboard() {
                 )}
 
                 {loading ? (
-                  <TableSkeleton rows={7} columns={isHiddenOpsTelemetryEnabled ? 13 : 8} label="Загрузка операторов" />
+                  <SuperAdminOperatorsSkeleton
+                    label="Загрузка операторов"
+                    telemetry={isHiddenOpsTelemetryEnabled}
+                  />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -14510,7 +14520,10 @@ function SuperAdminDashboard() {
                 )}
 
                 {loading ? (
-                  <TableSkeleton rows={7} columns={isHiddenOpsTelemetryEnabled ? 14 : 9} label="Загрузка клиентов" />
+                  <SuperAdminClientsSkeleton
+                    label="Загрузка клиентов"
+                    telemetry={isHiddenOpsTelemetryEnabled}
+                  />
                 ) : (
                   <>
                     <div className="admin-table-container">
@@ -17396,7 +17409,7 @@ function SuperAdminDashboard() {
                 )}
 
                 {loading ? (
-                  <TableSkeleton rows={8} columns={7} label="Загрузка журнала действий" />
+                  <SuperAdminLogsSkeleton label="Загрузка журнала действий" />
                 ) : (
                   <>
                     <div className="admin-table-container">

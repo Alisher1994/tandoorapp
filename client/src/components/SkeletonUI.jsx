@@ -93,6 +93,133 @@ function TableSkeletonLayout({ label, rows = 6, columns = 5 }) {
   );
 }
 
+function SuperAdminTabSkeletonFrame({ label, filterWidthSet = [], children }) {
+  return (
+    <div className="skeleton-shell skeleton-shell-section" role="status" aria-live="polite" aria-busy="true">
+      <span className="visually-hidden">{label}</span>
+      <div className="skeleton-header">
+        <SkeletonBlock className="skeleton-line skeleton-line-title" style={{ width: '30%' }} />
+        <SkeletonBlock className="skeleton-line skeleton-line-subtitle" style={{ width: '18%' }} />
+      </div>
+      <div className="skeleton-superadmin-tab-filters">
+        {filterWidthSet.map((width, index) => (
+          <SkeletonBlock key={`sa-filter-${index}`} className="skeleton-line" style={{ width }} />
+        ))}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function SuperAdminRestaurantsSkeleton({ label = 'Загрузка списка магазинов' }) {
+  return (
+    <SuperAdminTabSkeletonFrame
+      label={label}
+      filterWidthSet={['160px', '210px', '180px', '170px', '140px']}
+    >
+      <div className="skeleton-superadmin-status-pills">
+        {repeat(7).map((index) => (
+          <SkeletonBlock key={`sa-rest-status-${index}`} className="skeleton-line" style={{ width: `${88 + (index % 3) * 12}px` }} />
+        ))}
+      </div>
+      <div className="skeleton-table">
+        <div className="skeleton-table-row skeleton-table-head" style={{ gridTemplateColumns: '90px 90px 2fr 1fr 1fr 1fr 1fr' }}>
+          {repeat(7).map((cell) => (
+            <SkeletonBlock key={`sa-rest-head-${cell}`} className="skeleton-line skeleton-line-small" style={{ width: '68%' }} />
+          ))}
+        </div>
+        {repeat(8).map((row) => (
+          <div key={`sa-rest-row-${row}`} className="skeleton-table-row" style={{ gridTemplateColumns: '90px 90px 2fr 1fr 1fr 1fr 1fr' }}>
+            {repeat(7).map((cell) => (
+              <SkeletonBlock key={`sa-rest-cell-${row}-${cell}`} className="skeleton-line" style={{ width: `${50 + ((row + cell) % 4) * 12}%` }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </SuperAdminTabSkeletonFrame>
+  );
+}
+
+export function SuperAdminOperatorsSkeleton({ label = 'Загрузка операторов', telemetry = false }) {
+  const columnTemplate = telemetry
+    ? '80px 1fr 1.2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 120px 120px'
+    : '80px 1fr 1.2fr 1fr 1fr 1fr 140px 140px';
+  const columnCount = telemetry ? 13 : 8;
+  return (
+    <SuperAdminTabSkeletonFrame
+      label={label}
+      filterWidthSet={['200px', '220px', '180px', '180px']}
+    >
+      <div className="skeleton-table">
+        <div className="skeleton-table-row skeleton-table-head" style={{ gridTemplateColumns: columnTemplate }}>
+          {repeat(columnCount).map((cell) => (
+            <SkeletonBlock key={`sa-op-head-${cell}`} className="skeleton-line skeleton-line-small" style={{ width: '66%' }} />
+          ))}
+        </div>
+        {repeat(7).map((row) => (
+          <div key={`sa-op-row-${row}`} className="skeleton-table-row" style={{ gridTemplateColumns: columnTemplate }}>
+            {repeat(columnCount).map((cell) => (
+              <SkeletonBlock key={`sa-op-cell-${row}-${cell}`} className="skeleton-line" style={{ width: `${52 + ((row + cell) % 3) * 14}%` }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </SuperAdminTabSkeletonFrame>
+  );
+}
+
+export function SuperAdminClientsSkeleton({ label = 'Загрузка клиентов', telemetry = false }) {
+  const columnTemplate = telemetry
+    ? '1.4fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr 120px 120px'
+    : '1.4fr 1fr 1fr 1fr 1fr 1fr 1fr 120px 120px';
+  const columnCount = telemetry ? 14 : 9;
+  return (
+    <SuperAdminTabSkeletonFrame
+      label={label}
+      filterWidthSet={['220px', '200px', '160px', '180px']}
+    >
+      <div className="skeleton-table">
+        <div className="skeleton-table-row skeleton-table-head" style={{ gridTemplateColumns: columnTemplate }}>
+          {repeat(columnCount).map((cell) => (
+            <SkeletonBlock key={`sa-cust-head-${cell}`} className="skeleton-line skeleton-line-small" style={{ width: '66%' }} />
+          ))}
+        </div>
+        {repeat(7).map((row) => (
+          <div key={`sa-cust-row-${row}`} className="skeleton-table-row" style={{ gridTemplateColumns: columnTemplate }}>
+            {repeat(columnCount).map((cell) => (
+              <SkeletonBlock key={`sa-cust-cell-${row}-${cell}`} className="skeleton-line" style={{ width: `${48 + ((row + cell) % 4) * 12}%` }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </SuperAdminTabSkeletonFrame>
+  );
+}
+
+export function SuperAdminLogsSkeleton({ label = 'Загрузка журнала действий' }) {
+  return (
+    <SuperAdminTabSkeletonFrame
+      label={label}
+      filterWidthSet={['220px', '190px', '170px', '170px', '150px']}
+    >
+      <div className="skeleton-table">
+        <div className="skeleton-table-row skeleton-table-head" style={{ gridTemplateColumns: '1fr 1.1fr 0.8fr 1fr 1.2fr 1fr 0.9fr' }}>
+          {repeat(7).map((cell) => (
+            <SkeletonBlock key={`sa-log-head-${cell}`} className="skeleton-line skeleton-line-small" style={{ width: '66%' }} />
+          ))}
+        </div>
+        {repeat(8).map((row) => (
+          <div key={`sa-log-row-${row}`} className="skeleton-table-row" style={{ gridTemplateColumns: '1fr 1.1fr 0.8fr 1fr 1.2fr 1fr 0.9fr' }}>
+            {repeat(7).map((cell) => (
+              <SkeletonBlock key={`sa-log-cell-${row}-${cell}`} className="skeleton-line" style={{ width: `${52 + ((row + cell) % 3) * 14}%` }} />
+            ))}
+          </div>
+        ))}
+      </div>
+    </SuperAdminTabSkeletonFrame>
+  );
+}
+
 export function AdminDashboardSkeleton({ label = 'Загрузка панели управления' }) {
   return (
     <div className="skeleton-admin-shell" role="status" aria-live="polite" aria-busy="true">
