@@ -548,6 +548,18 @@ const resolvePreferredFoundersCurrencyCode = (availableCurrencies = [], fallback
   }
   return normalizedList[0];
 };
+const sortFoundersCurrencyCodes = (items = [], primaryCode = '') => {
+  const normalizedPrimary = String(primaryCode || '').trim().toLowerCase();
+  return [...(Array.isArray(items) ? items : [])].sort((left, right) => {
+    const leftCode = String(left?.currency_code || left || '').trim().toLowerCase();
+    const rightCode = String(right?.currency_code || right || '').trim().toLowerCase();
+    if (leftCode === normalizedPrimary && rightCode !== normalizedPrimary) return -1;
+    if (rightCode === normalizedPrimary && leftCode !== normalizedPrimary) return 1;
+    if (leftCode === 'uz' && rightCode !== 'uz') return -1;
+    if (rightCode === 'uz' && leftCode !== 'uz') return 1;
+    return leftCode.localeCompare(rightCode, 'ru');
+  });
+};
 const formatCompactDateTime = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '—';
@@ -1761,7 +1773,9 @@ function SuperAdminDashboard() {
   const [foundersAccessError, setFoundersAccessError] = useState('');
   const [foundersChartsCurrency, setFoundersChartsCurrency] = useState('');
   const [foundersExpandedModulesMap, setFoundersExpandedModulesMap] = useState({});
+  const [foundersProfileSavingMap, setFoundersProfileSavingMap] = useState({});
   const [foundersInnerTab, setFoundersInnerTab] = useState('analytics');
+  const foundersPhotoInputRefs = useRef({});
   const isBillingTransactionsViewActive = activeTab === 'billing_transactions'
     || (activeTab === 'founders' && foundersInnerTab === 'billing_transactions');
   const [organizationExpenseCategories, setOrganizationExpenseCategories] = useState([]);
@@ -3623,6 +3637,81 @@ function SuperAdminDashboard() {
       setFoundersAnalyticsLoading(false);
     }
   };
+  const resolveFounderPhotoUrl = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^(https?:\/\/|data:image\/|blob:)/i.test(raw)) return raw;
+    return `${API_URL.replace('/api', '')}${raw.startsWith('/') ? '' : '/'}${raw}`;
+  };
+  const saveFounderPhoto = async (founderKey, photoUrl) => {
+    const resolvedPassword = String(foundersAccessPassword || '').trim();
+    if (!resolvedPassword) {
+      setError(language === 'uz'
+        ? "Ta’sischilar paroli topilmadi. Qayta kiring."
+        : 'Пароль учредителей не найден. Войдите заново.');
+      return false;
+    }
+    const normalizedFounderKey = String(founderKey || '').trim().toLowerCase();
+    if (!normalizedFounderKey) return false;
+
+    setFoundersProfileSavingMap((prev) => ({ ...prev, [normalizedFounderKey]: true }));
+    try {
+      await axios.put(
+        `${API_URL}/superadmin/founders/profiles/${normalizedFounderKey}`,
+        { photo_url: photoUrl || null },
+        {
+          headers: {
+            'x-founders-password': resolvedPassword
+          }
+        }
+      );
+      await loadFoundersAnalytics(resolvedPassword);
+      setSuccess(language === 'uz'
+        ? "Ta’sischi rasmi saqlandi"
+        : 'Фото учредителя сохранено');
+      return true;
+    } catch (err) {
+      setError(err?.response?.data?.error || (language === 'uz'
+        ? "Ta’sischi rasmini saqlashda xatolik"
+        : 'Ошибка сохранения фото учредителя'));
+      return false;
+    } finally {
+      setFoundersProfileSavingMap((prev) => ({ ...prev, [normalizedFounderKey]: false }));
+    }
+  };
+  const handleFounderPhotoUpload = async (founderKey, file) => {
+    if (!file) return;
+    if (!String(file.type || '').startsWith('image/')) {
+      setError(language === 'uz'
+        ? 'Faqat PNG/JPG/WebP rasmini yuklash mumkin'
+        : 'Можно загрузить только PNG/JPG/WebP изображение');
+      return;
+    }
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await axios.post(`${API_URL}/upload/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const uploadedUrl = response.data?.url || response.data?.imageUrl || '';
+      if (!uploadedUrl) {
+        throw new Error('Upload did not return image url');
+      }
+      await saveFounderPhoto(founderKey, uploadedUrl);
+    } catch (err) {
+      setError(err?.response?.data?.error || (language === 'uz'
+        ? 'Rasm yuklashda xatolik'
+        : 'Ошибка загрузки изображения'));
+    } finally {
+      const inputRef = foundersPhotoInputRefs.current[String(founderKey || '').trim().toLowerCase()];
+      if (inputRef) inputRef.value = '';
+    }
+  };
+  const handleFounderPhotoClear = async (founderKey) => {
+    await saveFounderPhoto(founderKey, null);
+    const inputRef = foundersPhotoInputRefs.current[String(founderKey || '').trim().toLowerCase()];
+    if (inputRef) inputRef.value = '';
+  };
 
   const handleFoundersAccessSubmit = async (event) => {
     if (event?.preventDefault) event.preventDefault();
@@ -5459,6 +5548,12 @@ function SuperAdminDashboard() {
     }
     return Array.from(set).sort((left, right) => left.localeCompare(right, 'ru'));
   }, [foundersAnalyticsData?.available_currencies, foundersTotalsByCurrency, foundersFounderModuleTotals]);
+  const foundersPrimaryCurrencyCode = useMemo(() => (
+    resolvePreferredFoundersCurrencyCode(foundersAvailableCurrencies, countryCurrency?.code)
+  ), [foundersAvailableCurrencies, countryCurrency?.code]);
+  const foundersTotalsByCurrencySorted = useMemo(() => (
+    sortFoundersCurrencyCodes(foundersTotalsByCurrency, foundersPrimaryCurrencyCode)
+  ), [foundersTotalsByCurrency, foundersPrimaryCurrencyCode]);
   const foundersModulesConfig = useMemo(() => {
     const fallbackMap = new Map(
       FOUNDERS_MODULE_UI_ORDER.map((item) => ([
@@ -5557,14 +5652,19 @@ function SuperAdminDashboard() {
         };
       });
       const founderTotal = totalByCurrency.reduce((acc, row) => acc + Number(row.amount || 0), 0);
+      const sortedTotalByCurrency = sortFoundersCurrencyCodes(totalByCurrency, foundersPrimaryCurrencyCode);
+      const primaryTotalLine = sortedTotalByCurrency[0] || null;
 
       return {
         founder_key: founderKey,
         founder_name: founderName,
+        photo_url: String(founder?.photo_url || founder?.photoUrl || '').trim() || null,
         order_percent: Number(founder?.order_percent || founder?.orderPercent || 0),
         reservation_percent: Number(founder?.reservation_percent || founder?.reservationPercent || 0),
         modules,
-        total_by_currency: totalByCurrency,
+        total_by_currency: sortedTotalByCurrency,
+        primary_total_line: primaryTotalLine,
+        secondary_total_lines: sortedTotalByCurrency.slice(1),
         total_amount: Math.round((founderTotal + Number.EPSILON) * 100) / 100
       };
     });
@@ -5573,7 +5673,8 @@ function SuperAdminDashboard() {
     foundersAnalyticsData?.founder_totals,
     foundersFounderModuleTotals,
     foundersModulesConfig,
-    foundersAvailableCurrencies
+    foundersAvailableCurrencies,
+    foundersPrimaryCurrencyCode
   ]);
   const foundersChartCurrencyResolved = useMemo(() => {
     const normalized = String(foundersChartsCurrency || '').trim().toLowerCase();
@@ -15167,52 +15268,58 @@ function SuperAdminDashboard() {
 
                     {foundersInnerTab === 'analytics' && (
                       <>
-                    <div className="d-flex flex-wrap gap-2 align-items-center mb-3">
-                      <Form.Control
-                        type="date"
-                        className="form-control-custom"
-                        style={{ width: '170px' }}
-                        value={foundersAnalyticsFilter.start_date}
-                        onChange={(e) => setFoundersAnalyticsFilter((prev) => ({ ...prev, start_date: e.target.value }))}
-                      />
-                      <Form.Control
-                        type="date"
-                        className="form-control-custom"
-                        style={{ width: '170px' }}
-                        value={foundersAnalyticsFilter.end_date}
-                        onChange={(e) => setFoundersAnalyticsFilter((prev) => ({ ...prev, end_date: e.target.value }))}
-                      />
-                      <Button
-                        className="btn-primary-custom"
-                        onClick={() => loadFoundersAnalytics()}
-                        disabled={foundersAnalyticsLoading}
-                      >
-                        {language === 'uz' ? "Ko'rsatish" : 'Показать'}
-                      </Button>
-                      <Button
-                        variant="light"
-                        className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
-                        style={{ height: '38px', padding: '0 15px' }}
-                        onClick={() => setFoundersAnalyticsFilter({ start_date: '', end_date: '' })}
-                        disabled={!foundersAnalyticsFilter.start_date && !foundersAnalyticsFilter.end_date}
-                      >
-                        {language === 'uz' ? 'Tozalash' : 'Сброс'}
-                      </Button>
-                    </div>
-
-                    <div className="small text-muted mb-3 d-flex flex-wrap gap-3">
-                      <span>
-                        {language === 'uz' ? 'Yangilangan:' : 'Обновлено:'}{' '}
-                        <strong>{foundersGeneratedAtLabel || '—'}</strong>
-                      </span>
-                      <span>
-                        {language === 'uz' ? 'Tanlangan period:' : 'Выбранный период:'}{' '}
-                        <strong>
-                          {foundersAnalyticsFilter.start_date || (language === 'uz' ? 'boshlanishdan' : 'с начала')}
-                          {' — '}
-                          {foundersAnalyticsFilter.end_date || (language === 'uz' ? 'hozirgacha' : 'по сегодня')}
-                        </strong>
-                      </span>
+                    <div className="sa-founders-toolbar mb-3">
+                      <div className="sa-founders-toolbar-group">
+                        <div className="sa-founders-toolbar-label">
+                          {language === 'uz' ? 'Davr filtri' : 'Фильтр периода'}
+                        </div>
+                        <div className="sa-founders-toolbar-controls">
+                          <Form.Control
+                            type="date"
+                            className="form-control-custom"
+                            style={{ width: '170px' }}
+                            value={foundersAnalyticsFilter.start_date}
+                            onChange={(e) => setFoundersAnalyticsFilter((prev) => ({ ...prev, start_date: e.target.value }))}
+                          />
+                          <Form.Control
+                            type="date"
+                            className="form-control-custom"
+                            style={{ width: '170px' }}
+                            value={foundersAnalyticsFilter.end_date}
+                            onChange={(e) => setFoundersAnalyticsFilter((prev) => ({ ...prev, end_date: e.target.value }))}
+                          />
+                          <Button
+                            className="btn-primary-custom"
+                            onClick={() => loadFoundersAnalytics()}
+                            disabled={foundersAnalyticsLoading}
+                          >
+                            {language === 'uz' ? "Ko'rsatish" : 'Показать'}
+                          </Button>
+                          <Button
+                            variant="light"
+                            className="border form-control-custom text-muted d-flex align-items-center justify-content-center"
+                            style={{ height: '38px', padding: '0 15px' }}
+                            onClick={() => setFoundersAnalyticsFilter({ start_date: '', end_date: '' })}
+                            disabled={!foundersAnalyticsFilter.start_date && !foundersAnalyticsFilter.end_date}
+                          >
+                            {language === 'uz' ? 'Tozalash' : 'Сброс'}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="sa-founders-toolbar-meta">
+                        <div className="sa-founders-toolbar-meta-item">
+                          <span>{language === 'uz' ? 'Yangilangan' : 'Обновлено'}</span>
+                          <strong>{foundersGeneratedAtLabel || '—'}</strong>
+                        </div>
+                        <div className="sa-founders-toolbar-meta-item">
+                          <span>{language === 'uz' ? 'Davr' : 'Период'}</span>
+                          <strong>
+                            {foundersAnalyticsFilter.start_date || (language === 'uz' ? 'boshlanishdan' : 'с начала')}
+                            {' — '}
+                            {foundersAnalyticsFilter.end_date || (language === 'uz' ? 'hozirgacha' : 'по сегодня')}
+                          </strong>
+                        </div>
+                      </div>
                     </div>
 
                     {foundersAnalyticsLoading ? (
@@ -15232,23 +15339,30 @@ function SuperAdminDashboard() {
                     ) : (
                       <>
                         <Row className="g-3 mb-4">
-                          {foundersTotalsByCurrency.map((row) => (
+                          {foundersTotalsByCurrencySorted.map((row, index) => (
                             <Col xs={12} md={6} xl={4} key={`founders-total-${row.currency_code}`}>
-                                <Card className="admin-card border-0 h-100">
+                                <Card className={`admin-card border-0 h-100 sa-founders-summary-card${index === 0 ? ' is-primary' : ''}`}>
                                 <Card.Body className="p-3">
-                                  <div className="small text-muted mb-1">
-                                    {language === 'uz' ? 'Valyuta kesimida balans' : 'Баланс по валюте'}
+                                  <div className="sa-founders-summary-label">
+                                    {index === 0
+                                      ? (language === 'uz' ? 'Asosiy valyuta balansi' : 'Баланс в основной валюте')
+                                      : (language === 'uz' ? 'Qo‘shimcha valyuta' : 'Дополнительная валюта')}
                                   </div>
-                                  <div className="fw-bold fs-5 mb-1">
+                                  <div className="sa-founders-summary-amount">
                                     {formatBalanceAmount(row.balance_total || 0)} {getCurrencyLabelByCode(row.currency_code)}
                                   </div>
-                                  <div className="small text-muted">
-                                    {language === 'uz' ? 'Kirim:' : 'Приход:'}{' '}
-                                    {formatBalanceAmount(row.income_total || 0)} ({row.income_transactions_count || 0})
+                                  <div className="sa-founders-summary-stats">
+                                    <span>
+                                      {language === 'uz' ? 'Kirim' : 'Приход'}: {formatBalanceAmount(row.income_total || 0)}
+                                    </span>
+                                    <span>
+                                      {language === 'uz' ? 'Chiqim' : 'Расход'}: {formatBalanceAmount(row.expense_total || 0)}
+                                    </span>
                                   </div>
-                                  <div className="small text-muted">
-                                    {language === 'uz' ? 'Chiqim:' : 'Расход:'}{' '}
-                                    {formatBalanceAmount(row.expense_total || 0)} ({row.expense_records_count || 0})
+                                  <div className="sa-founders-summary-meta">
+                                    {language === 'uz'
+                                      ? `${row.income_transactions_count || 0} ta tushum • ${row.expense_records_count || 0} ta xarajat`
+                                      : `${row.income_transactions_count || 0} поступлений • ${row.expense_records_count || 0} расходов`}
                                   </div>
                                 </Card.Body>
                               </Card>
@@ -15332,156 +15446,189 @@ function SuperAdminDashboard() {
                             <Col xs={12} lg={4} key={`founders-card-${founderItem.founder_key || founderIndex}`}>
                               <Card className="admin-card border-0 h-100 sa-founders-founder-card">
                                 <Card.Body className="p-0">
-                                  <div className="sa-founders-founder-head">
-                                    <div className="sa-founders-founder-caption">
-                                      {language === 'uz' ? 'Ta’sischi F.I.Sh.' : 'ФИО учредителя'}
-                                    </div>
-                                    <div className="sa-founders-founder-name">{founderItem.founder_name || '—'}</div>
-                                    <div className="sa-founders-founder-percents">
-                                      {language === 'uz'
-                                        ? `Buyurtma: ${Number(founderItem.order_percent || 0)}% • Bron: ${Number(founderItem.reservation_percent || 0)}%`
-                                        : `Заказы: ${Number(founderItem.order_percent || 0)}% • Бронирование: ${Number(founderItem.reservation_percent || 0)}%`}
-                                    </div>
-                                  </div>
-                                  <div className="admin-table-container">
-                                    <Table responsive className="admin-table mb-0 sa-founders-founder-table">
-                                      <thead>
-                                        <tr>
-                                          <th style={{ width: '34%' }}>{language === 'uz' ? 'Modul' : 'Модуль'}</th>
-                                          <th>{language === 'uz' ? 'Valyutalar bo‘yicha summa' : 'Сумма по валютам'}</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {(() => {
-                                          const priorityKeys = ['orders', 'reservations'];
-                                          const priorityModules = founderItem.modules.filter((moduleItem) => priorityKeys.includes(moduleItem.module_key));
-                                          const fallbackModules = founderItem.modules.filter((moduleItem) => !priorityKeys.includes(moduleItem.module_key));
-                                          const defaultModules = [
-                                            ...priorityModules,
-                                            ...fallbackModules.slice(0, Math.max(0, 2 - priorityModules.length))
-                                          ];
-                                          const isExpanded = Boolean(foundersExpandedModulesMap[founderItem.founder_key]);
-                                          const shownModules = isExpanded
-                                            ? founderItem.modules
-                                            : defaultModules;
-                                          const hiddenCount = Math.max(0, founderItem.modules.length - defaultModules.length);
-                                          return (
-                                            <>
-                                              {shownModules.map((moduleItem) => (
-                                          <tr key={`founder-module-${founderItem.founder_key}-${moduleItem.module_key}`}>
-                                            <td className="fw-semibold">{moduleItem.module_label}</td>
-                                            <td>
-                                              {foundersAvailableCurrencies.length === 0 ? (
-                                                <span className="text-muted">—</span>
+                                  {(() => {
+                                    const priorityKeys = ['orders', 'reservations'];
+                                    const priorityModules = founderItem.modules.filter((moduleItem) => priorityKeys.includes(moduleItem.module_key));
+                                    const fallbackModules = founderItem.modules.filter((moduleItem) => !priorityKeys.includes(moduleItem.module_key));
+                                    const defaultModules = [
+                                      ...priorityModules,
+                                      ...fallbackModules.slice(0, Math.max(0, 2 - priorityModules.length))
+                                    ];
+                                    const isExpanded = Boolean(foundersExpandedModulesMap[founderItem.founder_key]);
+                                    const shownModules = isExpanded ? founderItem.modules : defaultModules;
+                                    const hiddenCount = Math.max(0, founderItem.modules.length - defaultModules.length);
+                                    const founderInitials = (String(founderItem.founder_name || '')
+                                      .split(/\s+/)
+                                      .filter(Boolean)
+                                      .slice(0, 2)
+                                      .map((part) => part[0]?.toUpperCase())
+                                      .join('')) || 'F';
+
+                                    return (
+                                      <>
+                                        <div className="sa-founders-founder-head sa-founders-founder-head-rich">
+                                          <div className="sa-founders-founder-identity">
+                                            <div className="sa-founders-founder-avatar-shell">
+                                              {founderItem.photo_url ? (
+                                                <img
+                                                  src={resolveFounderPhotoUrl(founderItem.photo_url)}
+                                                  alt={founderItem.founder_name || 'Founder'}
+                                                  className="sa-founders-founder-avatar"
+                                                />
                                               ) : (
-                                                <div className="sa-founders-currency-stack">
-                                                  {moduleItem.amounts_by_currency.map((line) => {
-                                                    const flagUrl = resolveCurrencyFlagSvgUrl(line.currency_code);
-                                                    return (
-                                                      <div className="sa-founders-currency-line" key={`line-${moduleItem.module_key}-${line.currency_code}`}>
-                                                        {flagUrl ? (
-                                                          <img
-                                                            src={flagUrl}
-                                                            alt={line.currency_code?.toUpperCase() || 'CUR'}
-                                                            className="sa-founders-currency-flag"
-                                                          />
-                                                        ) : (
-                                                        <span className="sa-founders-currency-flag sa-founders-currency-flag-placeholder">
-                                                          {String(line.currency_code || '').toUpperCase().slice(0, 2)}
-                                                        </span>
-                                                      )}
-                                                      <span className="sa-founders-currency-amount">
-                                                        {formatBalanceAmount(line.founder_amount || 0)} {getCurrencyLabelByCode(line.currency_code)}
-                                                      </span>
-                                                      </div>
-                                                    );
-                                                  })}
-                                                </div>
+                                                <div className="sa-founders-founder-avatar-fallback">{founderInitials}</div>
                                               )}
-                                            </td>
-                                          </tr>
-                                              ))}
-                                            </>
-                                          );
-                                        })()}
-                                        <tr className="sa-founders-total-row">
-                                          <td className="fw-bold">
-                                            <div className="sa-founders-total-row-label">
-                                              <span>{language === 'uz' ? 'Jami' : 'Итого'}</span>
-                                              {(() => {
-                                                const priorityKeys = ['orders', 'reservations'];
-                                                const priorityModules = founderItem.modules.filter((moduleItem) => priorityKeys.includes(moduleItem.module_key));
-                                                const fallbackModules = founderItem.modules.filter((moduleItem) => !priorityKeys.includes(moduleItem.module_key));
-                                                const defaultModules = [
-                                                  ...priorityModules,
-                                                  ...fallbackModules.slice(0, Math.max(0, 2 - priorityModules.length))
-                                                ];
-                                                const hiddenCount = Math.max(0, founderItem.modules.length - defaultModules.length);
-                                                if (hiddenCount <= 0) return null;
-                                                const isExpanded = Boolean(foundersExpandedModulesMap[founderItem.founder_key]);
-                                                return (
-                                                  <button
-                                                    type="button"
-                                                    className="sa-founders-more-btn"
-                                                    onClick={() => {
-                                                      setFoundersExpandedModulesMap((prev) => ({
-                                                        ...prev,
-                                                        [founderItem.founder_key]: !prev[founderItem.founder_key]
-                                                      }));
-                                                    }}
-                                                    aria-label={isExpanded
-                                                      ? (language === 'uz' ? 'Ro‘yxatni yig‘ish' : 'Свернуть список')
-                                                      : (language === 'uz' ? `Yana ${hiddenCount} modulni ko‘rsatish` : `Показать ещё ${hiddenCount}`)}
-                                                  >
-                                                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                                                    <span>
-                                                      {isExpanded
-                                                        ? (language === 'uz' ? 'Yopish' : 'Свернуть')
-                                                        : (language === 'uz' ? `Yana ${hiddenCount}` : `Ещё ${hiddenCount}`)}
-                                                    </span>
-                                                  </button>
-                                                );
-                                              })()}
+                                              <input
+                                                ref={(node) => {
+                                                  foundersPhotoInputRefs.current[founderItem.founder_key] = node;
+                                                }}
+                                                type="file"
+                                                accept="image/*"
+                                                className="d-none"
+                                                onChange={(e) => handleFounderPhotoUpload(founderItem.founder_key, e.target.files?.[0])}
+                                              />
+                                              <div className="sa-founders-founder-avatar-actions">
+                                                <button
+                                                  type="button"
+                                                  className="sa-founders-avatar-btn"
+                                                  onClick={() => foundersPhotoInputRefs.current[founderItem.founder_key]?.click()}
+                                                  disabled={Boolean(foundersProfileSavingMap[founderItem.founder_key])}
+                                                >
+                                                  <Pencil size={13} />
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className="sa-founders-avatar-btn is-danger"
+                                                  onClick={() => handleFounderPhotoClear(founderItem.founder_key)}
+                                                  disabled={!founderItem.photo_url || Boolean(foundersProfileSavingMap[founderItem.founder_key])}
+                                                >
+                                                  <Trash2 size={13} />
+                                                </button>
+                                              </div>
                                             </div>
-                                          </td>
-                                          <td>
-                                            {foundersAvailableCurrencies.length === 0 ? (
-                                              <span className="text-muted">—</span>
-                                            ) : (
-                                              <div className="sa-founders-currency-stack">
-                                                {founderItem.total_by_currency.map((line) => {
-                                                  const flagUrl = resolveCurrencyFlagSvgUrl(line.currency_code);
-                                                  return (
-                                                    <div className="sa-founders-currency-line" key={`total-line-${founderItem.founder_key}-${line.currency_code}`}>
-                                                      {flagUrl ? (
-                                                        <img
-                                                          src={flagUrl}
-                                                          alt={line.currency_code?.toUpperCase() || 'CUR'}
-                                                          className="sa-founders-currency-flag"
-                                                        />
-                                                      ) : (
-                                                        <span className="sa-founders-currency-flag sa-founders-currency-flag-placeholder">
-                                                          {String(line.currency_code || '').toUpperCase().slice(0, 2)}
-                                                        </span>
-                                                      )}
-                                                      <span className="sa-founders-currency-amount">
-                                                        {formatBalanceAmount(line.amount || 0)} {getCurrencyLabelByCode(line.currency_code)}
-                                                      </span>
-                                                      <span className="text-muted small">
-                                                        {language === 'uz'
-                                                          ? `Kirim ${formatBalanceAmount(line.gross_amount || 0)} • Chiqim ${formatBalanceAmount(line.expense_amount || 0)}`
-                                                          : `Приход ${formatBalanceAmount(line.gross_amount || 0)} • Расход ${formatBalanceAmount(line.expense_amount || 0)}`}
-                                                      </span>
-                                                    </div>
-                                                  );
-                                                })}
+                                            <div className="sa-founders-founder-meta">
+                                              <div className="sa-founders-founder-caption">
+                                                {language === 'uz' ? 'Ta’sischi' : 'Учредитель'}
+                                              </div>
+                                              <div className="sa-founders-founder-name">{founderItem.founder_name || '—'}</div>
+                                              <div className="sa-founders-founder-percents">
+                                                {language === 'uz'
+                                                  ? `Buyurtma ${Number(founderItem.order_percent || 0)}% • Bron ${Number(founderItem.reservation_percent || 0)}%`
+                                                  : `Заказы ${Number(founderItem.order_percent || 0)}% • Бронирование ${Number(founderItem.reservation_percent || 0)}%`}
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="sa-founders-founder-balance">
+                                            <div className="sa-founders-founder-balance-label">
+                                              {language === 'uz' ? 'Asosiy saldo' : 'Основной баланс'}
+                                            </div>
+                                            <div className="sa-founders-founder-balance-value">
+                                              {founderItem.primary_total_line
+                                                ? `${formatBalanceAmount(founderItem.primary_total_line.amount || 0)} ${getCurrencyLabelByCode(founderItem.primary_total_line.currency_code)}`
+                                                : '—'}
+                                            </div>
+                                            {Boolean(foundersProfileSavingMap[founderItem.founder_key]) && (
+                                              <div className="sa-founders-founder-saving">
+                                                {language === 'uz' ? 'Saqlanmoqda...' : 'Сохраняется...'}
                                               </div>
                                             )}
-                                          </td>
-                                        </tr>
-                                      </tbody>
-                                    </Table>
-                                  </div>
+                                          </div>
+                                        </div>
+                                        {founderItem.secondary_total_lines.length > 0 && (
+                                          <div className="sa-founders-founder-currency-pills">
+                                            {founderItem.secondary_total_lines.map((line) => (
+                                              <span className="sa-founders-founder-currency-pill" key={`founder-secondary-${founderItem.founder_key}-${line.currency_code}`}>
+                                                {formatBalanceAmount(line.amount || 0)} {getCurrencyLabelByCode(line.currency_code)}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
+                                        <div className="sa-founders-founder-modules">
+                                          {shownModules.map((moduleItem) => {
+                                            const sortedLines = sortFoundersCurrencyCodes(moduleItem.amounts_by_currency, foundersPrimaryCurrencyCode);
+                                            const primaryLine = sortedLines[0] || null;
+                                            const secondaryLines = sortedLines.slice(1);
+                                            const modulePercent = Number(primaryLine?.founder_percent || sortedLines[0]?.founder_percent || 0);
+                                            return (
+                                              <div className="sa-founders-module-row" key={`founder-module-${founderItem.founder_key}-${moduleItem.module_key}`}>
+                                                <div className="sa-founders-module-main">
+                                                  <div className="sa-founders-module-name">{moduleItem.module_label}</div>
+                                                  <div className="sa-founders-module-percent">
+                                                    {language === 'uz' ? 'Ulush' : 'Доля'} {modulePercent}%
+                                                  </div>
+                                                </div>
+                                                <div className="sa-founders-module-amounts">
+                                                  {primaryLine ? (
+                                                    <div className="sa-founders-currency-line is-primary">
+                                                      <span className="sa-founders-currency-amount">
+                                                        {formatBalanceAmount(primaryLine.founder_amount || 0)} {getCurrencyLabelByCode(primaryLine.currency_code)}
+                                                      </span>
+                                                    </div>
+                                                  ) : (
+                                                    <span className="text-muted">—</span>
+                                                  )}
+                                                  {secondaryLines.length > 0 && (
+                                                    <div className="sa-founders-module-secondary">
+                                                      {secondaryLines.map((line) => (
+                                                        <span className="sa-founders-founder-currency-pill is-muted" key={`module-line-${founderItem.founder_key}-${moduleItem.module_key}-${line.currency_code}`}>
+                                                          {formatBalanceAmount(line.founder_amount || 0)} {getCurrencyLabelByCode(line.currency_code)}
+                                                        </span>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                          <div className="sa-founders-total-card">
+                                            <div className="sa-founders-total-card-top">
+                                              <span>{language === 'uz' ? 'Jami' : 'Итого'}</span>
+                                              {hiddenCount > 0 && (
+                                                <button
+                                                  type="button"
+                                                  className="sa-founders-more-btn"
+                                                  onClick={() => {
+                                                    setFoundersExpandedModulesMap((prev) => ({
+                                                      ...prev,
+                                                      [founderItem.founder_key]: !prev[founderItem.founder_key]
+                                                    }));
+                                                  }}
+                                                >
+                                                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                                  <span>
+                                                    {isExpanded
+                                                      ? (language === 'uz' ? 'Yopish' : 'Свернуть')
+                                                      : (language === 'uz' ? `Yana ${hiddenCount}` : `Ещё ${hiddenCount}`)}
+                                                  </span>
+                                                </button>
+                                              )}
+                                            </div>
+                                            <div className="sa-founders-total-card-amount">
+                                              {founderItem.primary_total_line
+                                                ? `${formatBalanceAmount(founderItem.primary_total_line.amount || 0)} ${getCurrencyLabelByCode(founderItem.primary_total_line.currency_code)}`
+                                                : '—'}
+                                            </div>
+                                            {founderItem.primary_total_line && (
+                                              <div className="sa-founders-total-card-meta">
+                                                {language === 'uz'
+                                                  ? `Kirim ${formatBalanceAmount(founderItem.primary_total_line.gross_amount || 0)} • Chiqim ${formatBalanceAmount(founderItem.primary_total_line.expense_amount || 0)}`
+                                                  : `Приход ${formatBalanceAmount(founderItem.primary_total_line.gross_amount || 0)} • Расход ${formatBalanceAmount(founderItem.primary_total_line.expense_amount || 0)}`}
+                                              </div>
+                                            )}
+                                            {founderItem.secondary_total_lines.length > 0 && (
+                                              <div className="sa-founders-total-card-secondary">
+                                                {founderItem.secondary_total_lines.map((line) => (
+                                                  <span className="sa-founders-founder-currency-pill is-muted" key={`founder-total-secondary-${founderItem.founder_key}-${line.currency_code}`}>
+                                                    {formatBalanceAmount(line.amount || 0)} {getCurrencyLabelByCode(line.currency_code)}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
                                 </Card.Body>
                               </Card>
                             </Col>
@@ -15503,7 +15650,7 @@ function SuperAdminDashboard() {
                                   value={foundersChartCurrencyResolved}
                                   onChange={(e) => setFoundersChartsCurrency(String(e.target.value || '').trim().toLowerCase())}
                                 >
-                                  {foundersAvailableCurrencies.map((currencyCode) => (
+                                  {sortFoundersCurrencyCodes(foundersAvailableCurrencies, foundersPrimaryCurrencyCode).map((currencyCode) => (
                                     <option key={`founders-chart-currency-${currencyCode}`} value={currencyCode}>
                                       {getCurrencyLabelByCode(currencyCode)}
                                     </option>

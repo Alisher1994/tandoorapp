@@ -12555,6 +12555,108 @@ body::-webkit-scrollbar,
     display: none !important;
 }
 
+.sa-founders-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.sa-founders-toolbar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sa-founders-toolbar-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.sa-founders-toolbar-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.sa-founders-toolbar-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.sa-founders-toolbar-meta-item {
+    min-width: 190px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+}
+
+.sa-founders-toolbar-meta-item span {
+    font-size: 0.73rem;
+    color: #64748b;
+}
+
+.sa-founders-toolbar-meta-item strong {
+    font-size: 0.88rem;
+    color: #0f172a;
+}
+
+.sa-founders-summary-card {
+    border-radius: 16px !important;
+    overflow: hidden;
+}
+
+.sa-founders-summary-card.is-primary {
+    border-color: rgba(79, 70, 229, 0.24) !important;
+    background: linear-gradient(135deg, rgba(238, 242, 255, 0.98), rgba(255, 255, 255, 1));
+}
+
+.sa-founders-summary-label {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.sa-founders-summary-amount {
+    margin-top: 8px;
+    font-size: 1.5rem;
+    line-height: 1.1;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.sa-founders-summary-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-top: 10px;
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.sa-founders-summary-meta {
+    margin-top: 8px;
+    font-size: 0.76rem;
+    color: #64748b;
+}
+
 .sa-founders-founder-card {
     border: 1px solid var(--border-color) !important;
     border-radius: 12px !important;
@@ -12581,10 +12683,241 @@ body::-webkit-scrollbar,
     color: #0f172a;
 }
 
+.sa-founders-founder-head-rich {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 16px;
+    background: linear-gradient(180deg, #f8fbff, #ffffff);
+}
+
+.sa-founders-founder-identity {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.sa-founders-founder-avatar-shell {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    flex: 0 0 72px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #eef2ff, #dbeafe);
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.sa-founders-founder-avatar,
+.sa-founders-founder-avatar-fallback {
+    width: 100%;
+    height: 100%;
+}
+
+.sa-founders-founder-avatar {
+    object-fit: cover;
+    display: block;
+}
+
+.sa-founders-founder-avatar-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #312e81;
+    font-size: 1.1rem;
+    font-weight: 800;
+}
+
+.sa-founders-founder-avatar-actions {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    display: inline-flex;
+    gap: 4px;
+}
+
+.sa-founders-avatar-btn {
+    width: 26px;
+    height: 26px;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.82);
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+}
+
+.sa-founders-avatar-btn.is-danger {
+    background: rgba(190, 24, 93, 0.88);
+}
+
+.sa-founders-avatar-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.sa-founders-founder-meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
 .sa-founders-founder-percents {
     margin-top: 3px;
     font-size: 0.74rem;
     color: #64748b;
+}
+
+.sa-founders-founder-balance {
+    flex: 0 0 auto;
+    min-width: 164px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+}
+
+.sa-founders-founder-balance-label {
+    font-size: 0.72rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+}
+
+.sa-founders-founder-balance-value {
+    margin-top: 6px;
+    color: #0f172a;
+    font-size: 1.05rem;
+    line-height: 1.2;
+    font-weight: 800;
+}
+
+.sa-founders-founder-saving {
+    margin-top: 6px;
+    color: #6366f1;
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.sa-founders-founder-currency-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 16px 6px;
+}
+
+.sa-founders-founder-currency-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: #f8fafc;
+    border: 1px solid rgba(226, 232, 240, 0.94);
+    color: #334155;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.sa-founders-founder-currency-pill.is-muted {
+    background: #ffffff;
+    color: #64748b;
+}
+
+.sa-founders-founder-modules {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px 16px;
+}
+
+.sa-founders-module-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 13px;
+    border-radius: 14px;
+    background: #ffffff;
+    border: 1px solid rgba(226, 232, 240, 0.96);
+}
+
+.sa-founders-module-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.sa-founders-module-name {
+    font-size: 0.9rem;
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.sa-founders-module-percent {
+    font-size: 0.74rem;
+    color: #64748b;
+}
+
+.sa-founders-module-amounts {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+.sa-founders-currency-line.is-primary .sa-founders-currency-amount {
+    font-size: 0.92rem;
+}
+
+.sa-founders-module-secondary,
+.sa-founders-total-card-secondary {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.sa-founders-total-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #eff6ff, #ffffff);
+    border: 1px solid rgba(191, 219, 254, 0.92);
+}
+
+.sa-founders-total-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: #0f172a;
+    font-size: 0.88rem;
+    font-weight: 800;
+}
+
+.sa-founders-total-card-amount {
+    color: #0f172a;
+    font-size: 1.1rem;
+    line-height: 1.15;
+    font-weight: 800;
+}
+
+.sa-founders-total-card-meta {
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.35;
 }
 
 .sa-founders-founder-table th,
@@ -12887,6 +13220,23 @@ body::-webkit-scrollbar,
 @media (max-width: 1199px) {
     .sa-founders-monthly-group {
         min-width: 64px;
+    }
+
+    .sa-founders-founder-head-rich,
+    .sa-founders-module-row {
+        flex-direction: column;
+    }
+
+    .sa-founders-founder-balance,
+    .sa-founders-module-amounts {
+        width: 100%;
+        min-width: 0;
+        align-items: flex-start;
+    }
+
+    .sa-founders-module-secondary,
+    .sa-founders-total-card-secondary {
+        justify-content: flex-start;
     }
 }
 

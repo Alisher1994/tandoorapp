@@ -106,6 +106,8 @@ let aiUsageSchemaReady = false;
 let aiUsageSchemaPromise = null;
 let organizationExpensesSchemaReady = false;
 let organizationExpensesSchemaPromise = null;
+let founderProfilesSchemaReady = false;
+let founderProfilesSchemaPromise = null;
 const GLOBAL_PRODUCT_MAX_IMAGES = 5;
 const GLOBAL_PRODUCT_AI_OUTPUT_SIZE = 1024;
 const GLOBAL_PRODUCT_AI_MAX_SOURCE_BYTES = 12 * 1024 * 1024;
@@ -241,6 +243,19 @@ const FOUNDERS_MODULE_LABEL_MAP = Object.fromEntries(
 const FOUNDER_CONFIG_BY_KEY = Object.fromEntries(
   FOUNDER_SHARE_CONFIG.map((item) => [item.key, item])
 );
+const normalizeFounderKey = (value) => String(value || '').trim().toLowerCase();
+const normalizeFounderPhotoUrl = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return null;
+  if (
+    normalized.startsWith('/uploads/')
+    || /^https?:\/\//i.test(normalized)
+    || /^data:image\//i.test(normalized)
+  ) {
+    return normalized;
+  }
+  return null;
+};
 const getFounderModuleSharePercent = (founderKey, moduleKey) => {
   const founder = FOUNDER_CONFIG_BY_KEY[String(founderKey || '').trim().toLowerCase()];
   if (!founder) return 0;
@@ -991,6 +1006,37 @@ const ensureOrganizationExpensesSchema = async () => {
     await organizationExpensesSchemaPromise;
   } finally {
     organizationExpensesSchemaPromise = null;
+  }
+};
+const ensureFounderProfilesSchema = async () => {
+  if (founderProfilesSchemaReady) return;
+  if (founderProfilesSchemaPromise) {
+    await founderProfilesSchemaPromise;
+    return;
+  }
+
+  founderProfilesSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS founder_profiles (
+        founder_key VARCHAR(80) PRIMARY KEY,
+        photo_url TEXT,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`ALTER TABLE founder_profiles ADD COLUMN IF NOT EXISTS founder_key VARCHAR(80)`).catch(() => {});
+    await pool.query(`ALTER TABLE founder_profiles ADD COLUMN IF NOT EXISTS photo_url TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE founder_profiles ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`).catch(() => {});
+    await pool.query(`ALTER TABLE founder_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
+    await pool.query(`UPDATE founder_profiles SET founder_key = LOWER(BTRIM(founder_key)) WHERE founder_key IS NOT NULL`).catch(() => {});
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_founder_profiles_key ON founder_profiles(founder_key)`).catch(() => {});
+    founderProfilesSchemaReady = true;
+  })();
+
+  try {
+    await founderProfilesSchemaPromise;
+  } finally {
+    founderProfilesSchemaPromise = null;
   }
 };
 const normalizeLogoDisplayMode = (value, fallback = 'square') => {
@@ -4692,6 +4738,7 @@ router.get('/founders/analytics', async (req, res) => {
   try {
     if (!ensureFoundersAccessByPassword(req, res)) return;
     await ensureOrganizationExpensesSchema();
+    await ensureFounderProfilesSchema();
 
     const startDate = parseDateRangeFilterValue(req.query.start_date);
     const endDate = parseDateRangeFilterValue(req.query.end_date);
@@ -4872,6 +4919,16 @@ router.get('/founders/analytics', async (req, res) => {
       records_count: Number.parseInt(row.records_count, 10) || 0,
       amount: roundMoneyValue(row.amount)
     }));
+    const founderProfilesResult = await pool.query(`
+      SELECT founder_key, photo_url
+      FROM founder_profiles
+    `);
+    const founderPhotoMap = new Map(
+      (founderProfilesResult.rows || []).map((row) => ([
+        normalizeFounderKey(row.founder_key),
+        normalizeFounderPhotoUrl(row.photo_url)
+      ]))
+    );
 
     const currencySet = new Set();
     for (const row of rawModuleTotals) currencySet.add(row.currency_code);
@@ -5164,7 +5221,10 @@ router.get('/founders/analytics', async (req, res) => {
       },
       modules_config: FOUNDERS_MODULE_DEFINITIONS.map((item) => ({ key: item.key, label: item.label })),
       available_currencies: availableCurrencies,
-      shares_config: FOUNDER_SHARE_CONFIG,
+      shares_config: FOUNDER_SHARE_CONFIG.map((item) => ({
+        ...item,
+        photo_url: founderPhotoMap.get(normalizeFounderKey(item.key)) || null
+      })),
       totals_by_currency: totalsByCurrency,
       expense_totals_by_currency: rawExpenseTotals,
       expense_category_totals: rawExpenseCategoryTotals,
@@ -5227,6 +5287,40 @@ router.get('/founders/expense-categories', async (req, res) => {
   } catch (error) {
     console.error('Get founders expense categories error:', error);
     res.status(500).json({ error: 'Ошибка загрузки статей расходов' });
+  }
+});
+
+router.put('/founders/profiles/:founderKey', async (req, res) => {
+  try {
+    if (!ensureFoundersAccessByPassword(req, res)) return;
+    await ensureFounderProfilesSchema();
+
+    const founderKey = normalizeFounderKey(req.params.founderKey);
+    if (!founderKey || !FOUNDER_CONFIG_BY_KEY[founderKey]) {
+      return res.status(404).json({ error: 'Учредитель не найден' });
+    }
+
+    const photoUrl = normalizeFounderPhotoUrl(req.body?.photo_url);
+    await pool.query(
+      `
+      INSERT INTO founder_profiles (founder_key, photo_url, updated_by, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      ON CONFLICT (founder_key)
+      DO UPDATE SET
+        photo_url = EXCLUDED.photo_url,
+        updated_by = EXCLUDED.updated_by,
+        updated_at = CURRENT_TIMESTAMP
+      `,
+      [founderKey, photoUrl, req.user?.id || null]
+    );
+
+    res.json({
+      founder_key: founderKey,
+      photo_url: photoUrl
+    });
+  } catch (error) {
+    console.error('Update founder profile error:', error);
+    res.status(500).json({ error: 'Ошибка сохранения фото учредителя' });
   }
 });
 
