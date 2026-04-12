@@ -2358,6 +2358,79 @@ function AdminDashboard() {
       || 'square'
     ).trim().toLowerCase() === 'horizontal' ? 'horizontal' : 'square'
   ), [restaurantSettings?.logo_display_mode, user?.active_restaurant_logo_display_mode]);
+
+  const languageOptions = useMemo(() => ([
+    {
+      code: 'ru',
+      shortLabel: 'RU',
+      label: 'Русский',
+      flag: 'https://flagcdn.com/w20/ru.png'
+    },
+    {
+      code: 'uz',
+      shortLabel: 'UZ',
+      label: "O'zbek",
+      flag: 'https://flagcdn.com/w20/uz.png'
+    }
+  ]), []);
+  const activeLanguageOption = useMemo(() => (
+    languageOptions.find((option) => option.code === language) || languageOptions[0]
+  ), [language, languageOptions]);
+  const handleLanguageSelect = useCallback((nextLanguage) => {
+    if (!nextLanguage || nextLanguage === language) return;
+    setLanguage(nextLanguage);
+  }, [language, setLanguage]);
+  useEffect(() => {
+    if (!showProductModal) return undefined;
+    setProductContainerLabelWordIndex(0);
+    const intervalId = window.setInterval(() => {
+      setProductContainerLabelWordIndex((prev) => (
+        (prev + 1) % Math.max(containerLabelAnimatedWords.length, 1)
+      ));
+    }, 1700);
+    return () => window.clearInterval(intervalId);
+  }, [showProductModal, containerLabelAnimatedWords.length]);
+  const selectedRestaurantCurrencyOption = useMemo(() => {
+    const nextCode = String(
+      restaurantSettings?.currency_code
+      || user?.active_restaurant_currency_code
+      || countryCurrency?.code
+      || 'uz'
+    ).trim().toLowerCase();
+    return countryCurrencyOptions.find((option) => option.code === nextCode) || countryCurrencyOptions[0] || null;
+  }, [
+    restaurantSettings?.currency_code,
+    user?.active_restaurant_currency_code,
+    countryCurrency?.code,
+    countryCurrencyOptions
+  ]);
+  const resolveCurrencyLabelByCode = useCallback((rawCode) => {
+    const normalizedCode = String(rawCode || '').trim().toLowerCase();
+    const fallback = countryCurrencyOptions?.[0];
+    const matched = countryCurrencyOptions?.find((option) => (
+      String(option?.code || '').trim().toLowerCase() === normalizedCode
+    )) || fallback;
+
+    if (!matched) return t('sum');
+    if (language === 'uz') {
+      return matched.currencyUz || matched.currencyRu || t('sum');
+    }
+    return matched.currencyRu || matched.currencyUz || t('sum');
+  }, [countryCurrencyOptions, language, t]);
+  const activeRestaurantCurrencyLabel = useMemo(() => (
+    resolveCurrencyLabelByCode(
+      restaurantSettings?.currency_code
+      || billingInfo?.restaurant?.currency_code
+      || user?.active_restaurant_currency_code
+      || countryCurrency?.code
+    )
+  ), [
+    resolveCurrencyLabelByCode,
+    restaurantSettings?.currency_code,
+    billingInfo?.restaurant?.currency_code,
+    user?.active_restaurant_currency_code,
+    countryCurrency?.code
+  ]);
   const appearancePreviewThemeKey = normalizeUiTheme(restaurantSettings?.ui_theme, 'classic');
   const appearancePreviewTheme = APPEARANCE_PREVIEW_THEME_TOKENS[appearancePreviewThemeKey]
     || APPEARANCE_PREVIEW_THEME_TOKENS.classic;
@@ -2482,78 +2555,6 @@ function AdminDashboard() {
     '--appearance-preview-accent-soft': appearancePreviewTheme.accentSoft,
     fontFamily: appearancePreviewFontFamily
   }), [appearancePreviewTheme, appearancePreviewFontFamily]);
-  const languageOptions = useMemo(() => ([
-    {
-      code: 'ru',
-      shortLabel: 'RU',
-      label: 'Русский',
-      flag: 'https://flagcdn.com/w20/ru.png'
-    },
-    {
-      code: 'uz',
-      shortLabel: 'UZ',
-      label: "O'zbek",
-      flag: 'https://flagcdn.com/w20/uz.png'
-    }
-  ]), []);
-  const activeLanguageOption = useMemo(() => (
-    languageOptions.find((option) => option.code === language) || languageOptions[0]
-  ), [language, languageOptions]);
-  const handleLanguageSelect = useCallback((nextLanguage) => {
-    if (!nextLanguage || nextLanguage === language) return;
-    setLanguage(nextLanguage);
-  }, [language, setLanguage]);
-  useEffect(() => {
-    if (!showProductModal) return undefined;
-    setProductContainerLabelWordIndex(0);
-    const intervalId = window.setInterval(() => {
-      setProductContainerLabelWordIndex((prev) => (
-        (prev + 1) % Math.max(containerLabelAnimatedWords.length, 1)
-      ));
-    }, 1700);
-    return () => window.clearInterval(intervalId);
-  }, [showProductModal, containerLabelAnimatedWords.length]);
-  const selectedRestaurantCurrencyOption = useMemo(() => {
-    const nextCode = String(
-      restaurantSettings?.currency_code
-      || user?.active_restaurant_currency_code
-      || countryCurrency?.code
-      || 'uz'
-    ).trim().toLowerCase();
-    return countryCurrencyOptions.find((option) => option.code === nextCode) || countryCurrencyOptions[0] || null;
-  }, [
-    restaurantSettings?.currency_code,
-    user?.active_restaurant_currency_code,
-    countryCurrency?.code,
-    countryCurrencyOptions
-  ]);
-  const resolveCurrencyLabelByCode = useCallback((rawCode) => {
-    const normalizedCode = String(rawCode || '').trim().toLowerCase();
-    const fallback = countryCurrencyOptions?.[0];
-    const matched = countryCurrencyOptions?.find((option) => (
-      String(option?.code || '').trim().toLowerCase() === normalizedCode
-    )) || fallback;
-
-    if (!matched) return t('sum');
-    if (language === 'uz') {
-      return matched.currencyUz || matched.currencyRu || t('sum');
-    }
-    return matched.currencyRu || matched.currencyUz || t('sum');
-  }, [countryCurrencyOptions, language, t]);
-  const activeRestaurantCurrencyLabel = useMemo(() => (
-    resolveCurrencyLabelByCode(
-      restaurantSettings?.currency_code
-      || billingInfo?.restaurant?.currency_code
-      || user?.active_restaurant_currency_code
-      || countryCurrency?.code
-    )
-  ), [
-    resolveCurrencyLabelByCode,
-    restaurantSettings?.currency_code,
-    billingInfo?.restaurant?.currency_code,
-    user?.active_restaurant_currency_code,
-    countryCurrency?.code
-  ]);
   const resolvedOrderCost = useMemo(() => {
     const billingCost = Number(billingInfo?.restaurant?.order_cost);
     if (Number.isFinite(billingCost) && billingCost >= 0) return billingCost;
@@ -18724,4 +18725,5 @@ function AdminDashboard() {
 }
 
 export default AdminDashboard;
+
 
