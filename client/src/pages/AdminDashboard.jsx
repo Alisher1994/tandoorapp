@@ -2583,6 +2583,7 @@ function AdminDashboard() {
           sort: Number.isInteger(sortValue) ? sortValue : index + 1,
           title: title || `${language === 'uz' ? 'Mahsulot' : 'Товар'} ${index + 1}`,
           unit: String(product?.unit || (language === 'uz' ? 'dona' : 'шт')).trim() || (language === 'uz' ? 'dona' : 'шт'),
+          isLogoFallback: !bestImageRaw && Boolean(activeRestaurantLogoUrl),
           image: bestImageRaw
             ? toAbsoluteFileUrl(bestImageRaw)
             : (activeRestaurantLogoUrl || MENU_MODE_PREVIEW_MEDIA.productPhoto),
@@ -2602,6 +2603,7 @@ function AdminDashboard() {
         sort: 1,
         title: language === 'uz' ? 'Mahsulot 1' : 'Товар 1',
         unit: language === 'uz' ? 'dona' : 'шт',
+        isLogoFallback: Boolean(activeRestaurantLogoUrl),
         image: activeRestaurantLogoUrl || MENU_MODE_PREVIEW_MEDIA.productPhoto,
         priceLabel: `${formatPrice(16000)} ${activeRestaurantCurrencyLabel}`
       },
@@ -2611,6 +2613,7 @@ function AdminDashboard() {
         sort: 2,
         title: language === 'uz' ? 'Mahsulot 2' : 'Товар 2',
         unit: language === 'uz' ? 'dona' : 'шт',
+        isLogoFallback: Boolean(activeRestaurantLogoUrl),
         image: activeRestaurantLogoUrl || MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt,
         priceLabel: `${formatPrice(18000)} ${activeRestaurantCurrencyLabel}`
       }
@@ -13915,7 +13918,12 @@ function AdminDashboard() {
                                                         onClick={() => setAppearancePreviewOpenedProductId(productItem.id)}
                                                       >
                                                         <div className="admin-appearance-live-product-image-wrap">
-                                                          <img src={productItem.image} alt={productItem.title} loading="lazy" />
+                                                          <img
+                                                            src={productItem.image}
+                                                            alt={productItem.title}
+                                                            loading="lazy"
+                                                            className={productItem.isLogoFallback ? 'is-logo-fallback' : ''}
+                                                          />
                                                           <span className="admin-appearance-live-product-heart">♡</span>
                                                           <span className="admin-appearance-live-product-plus">+</span>
                                                         </div>
