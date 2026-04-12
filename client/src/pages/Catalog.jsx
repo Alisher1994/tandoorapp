@@ -238,11 +238,21 @@ function Catalog() {
     typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp)
   ), []);
   const shouldShowDesktopLogout = isDesktopViewport && !isTelegramWebView && !isOperator();
+  const requestedShareContext = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search || '');
+    const requestedProductId = normalizeId(searchParams.get('product_id'));
+    const requestedRestaurantId = normalizeId(searchParams.get('restaurant_id'));
+    if (!requestedProductId || !requestedRestaurantId) {
+      return { productId: null, restaurantId: null };
+    }
+    return { productId: requestedProductId, restaurantId: requestedRestaurantId };
+  }, [location.search]);
+  const requestedShareRestaurantId = requestedShareContext.restaurantId;
 
   // Load restaurants (for header/logo and operator selection); re-sync when active shop changes (tabs / Telegram)
   useEffect(() => {
     fetchRestaurants();
-  }, [user?.active_restaurant_id]);
+  }, [user?.active_restaurant_id, requestedShareRestaurantId]);
 
   useEffect(() => {
     const onResize = () => {
@@ -267,12 +277,13 @@ function Catalog() {
 
   useEffect(() => {
     // Keep catalog bound to token-selected restaurant in Telegram WebApp.
+    if (requestedShareRestaurantId) return;
     if (!isTelegramWebView) return;
     const activeRestaurantId = Number.parseInt(user?.active_restaurant_id, 10);
     if (!Number.isInteger(activeRestaurantId) || activeRestaurantId <= 0) return;
     if (Number(selectedRestaurant) === activeRestaurantId) return;
     setSelectedRestaurant(activeRestaurantId);
-  }, [isTelegramWebView, user?.active_restaurant_id, selectedRestaurant]);
+  }, [isTelegramWebView, user?.active_restaurant_id, selectedRestaurant, requestedShareRestaurantId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -289,10 +300,17 @@ function Catalog() {
   useEffect(() => {
     const role = user?.role;
     if (role === 'operator' || role === 'superadmin') return;
+    if (requestedShareRestaurantId) return;
     if (user?.active_restaurant_id) {
       setSelectedRestaurant(user.active_restaurant_id);
     }
-  }, [user?.active_restaurant_id, user?.role]);
+  }, [user?.active_restaurant_id, user?.role, requestedShareRestaurantId]);
+
+  useEffect(() => {
+    if (!requestedShareRestaurantId) return;
+    if (normalizeId(selectedRestaurant) === requestedShareRestaurantId) return;
+    setSelectedRestaurant(requestedShareRestaurantId);
+  }, [requestedShareRestaurantId, selectedRestaurant]);
 
   useEffect(() => {
     const raw = user?.active_restaurant_id;
@@ -1076,6 +1094,13 @@ function Catalog() {
       const response = await axios.get(`${API_URL}/products/restaurants/list`);
       const restaurantList = response.data || [];
       setRestaurants(restaurantList);
+      const hasRequestedRestaurant = requestedShareRestaurantId
+        ? restaurantList.some((item) => Number(item?.id) === Number(requestedShareRestaurantId))
+        : false;
+      if (hasRequestedRestaurant) {
+        setSelectedRestaurant(requestedShareRestaurantId);
+        return;
+      }
 
       const activeRestaurantId = Number.parseInt(user?.active_restaurant_id, 10);
       const hasActiveRestaurantInList = Number.isInteger(activeRestaurantId) && activeRestaurantId > 0
