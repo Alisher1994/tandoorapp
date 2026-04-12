@@ -128,6 +128,7 @@ const resolveSettingsNavTargetTab = (key) => {
   return SUPERADMIN_SETTINGS_TARGET_TABS.has(key) ? key : 'categories';
 };
 const SUPERADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'sa_sidebar_collapsed_v1';
+const SUPERADMIN_ACTIVE_TAB_STORAGE_KEY = 'sa_active_tab_v1';
 const CATEGORY_LEVEL_COUNT = 3;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 12 * 1024 * 1024;
 const MAX_SPREADSHEET_IMPORT_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -1436,7 +1437,15 @@ function SuperAdminDashboard() {
   const navigate = useNavigate();
 
   // State
-  const [activeTab, setActiveTab] = useState('restaurants');
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window === 'undefined') return 'restaurants';
+    try {
+      const savedTab = String(window.localStorage.getItem(SUPERADMIN_ACTIVE_TAB_STORAGE_KEY) || '').trim();
+      return savedTab || 'restaurants';
+    } catch (_) {
+      return 'restaurants';
+    }
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
@@ -10533,6 +10542,18 @@ function SuperAdminDashboard() {
       // ignore localStorage failures
     }
   }, [isSidebarCollapsed]);
+  useEffect(() => {
+    if (!activeTab || !superAdminSidebarTabsMeta[activeTab]) {
+      if (activeTab !== 'restaurants') setActiveTab('restaurants');
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(SUPERADMIN_ACTIVE_TAB_STORAGE_KEY, activeTab);
+    } catch (_) {
+      // ignore localStorage failures
+    }
+  }, [activeTab, superAdminSidebarTabsMeta]);
   const handleSidebarTabSelect = (key) => {
     if (!key) return;
     const isDesktopSidebar = typeof window !== 'undefined' && window.innerWidth >= 992;

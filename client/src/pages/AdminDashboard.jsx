@@ -68,6 +68,7 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const ADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'admin_sidebar_collapsed_v1';
+const ADMIN_ACTIVE_TAB_STORAGE_KEY = 'admin_active_tab_v1';
 const MY_TAXI_URL_TEMPLATE = import.meta.env.VITE_MY_TAXI_URL_TEMPLATE || '';
 const MILLENIUM_TAXI_URL_TEMPLATE = import.meta.env.VITE_MILLENIUM_TAXI_URL_TEMPLATE || '';
 const DEFAULT_MY_TAXI_URL_TEMPLATE = 'mytaxiapp://start?q={lat},{lng}';
@@ -1918,7 +1919,15 @@ function AdminDashboard() {
   const [productsLimit, setProductsLimit] = useState(15);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [mainTab, setMainTab] = useState('dashboard');
+  const [mainTab, setMainTab] = useState(() => {
+    if (typeof window === 'undefined') return 'dashboard';
+    try {
+      const savedTab = String(window.localStorage.getItem(ADMIN_ACTIVE_TAB_STORAGE_KEY) || '').trim();
+      return savedTab || 'dashboard';
+    } catch (_) {
+      return 'dashboard';
+    }
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
@@ -2656,6 +2665,18 @@ function AdminDashboard() {
       // ignore localStorage failures
     }
   }, [isSidebarCollapsed]);
+  useEffect(() => {
+    if (!mainTab || !adminSidebarTabsMeta[mainTab]) {
+      if (mainTab !== 'dashboard') setMainTab('dashboard');
+      return;
+    }
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(ADMIN_ACTIVE_TAB_STORAGE_KEY, mainTab);
+    } catch (_) {
+      // ignore localStorage failures
+    }
+  }, [mainTab, adminSidebarTabsMeta]);
   const handleSidebarTabSelect = useCallback((key) => {
     if (!key) return;
     const isDesktopSidebar = typeof window !== 'undefined' && window.innerWidth >= 992;
