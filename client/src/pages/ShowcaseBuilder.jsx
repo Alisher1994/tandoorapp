@@ -1193,29 +1193,6 @@ function ShowcaseBuilder({ embedded = false }) {
                 <p className="menu-icons-settings-hint">
                   Можно указать эмодзи в поле или выбрать файл PNG/SVG кнопкой справа.
                 </p>
-                <div className="menu-icons-preview-card">
-                  <div className="menu-icons-preview-title">Предпросмотр</div>
-                  <div className="menu-icons-preview-nav">
-                    {ICON_SETTINGS_ITEMS.map((item) => (
-                      <div key={`preview_icon_${item.key}`} className="menu-icons-preview-item">
-                        <span className="menu-icons-preview-emoji">
-                          {isImageIconValue(resolvedMenuIconSettings[item.key]) ? (
-                            <img
-                              src={resolveMenuIconUrl(resolvedMenuIconSettings[item.key])}
-                              alt=""
-                              className="menu-icons-preview-image"
-                              loading="lazy"
-                              draggable={false}
-                            />
-                          ) : (
-                            (resolvedMenuIconSettings[item.key] || item.placeholder)
-                          )}
-                        </span>
-                        <span className="menu-icons-preview-label">{item.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
                 <div className="menu-icons-inputs">
                   <div className="menu-icon-table-head">
                     <span>Название меню</span>

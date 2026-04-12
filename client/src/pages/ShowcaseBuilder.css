@@ -366,7 +366,34 @@
   gap: 0.7rem;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 2px;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.7) rgba(226, 232, 240, 0.65);
+}
+
+.menu-icons-settings::-webkit-scrollbar {
+  width: 8px;
+}
+
+.menu-icons-settings::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.7);
+  border-radius: 999px;
+}
+
+.menu-icons-settings::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.95), rgba(100, 116, 139, 0.92));
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+.menu-icons-settings::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(129, 140, 248, 0.9), rgba(79, 70, 229, 0.92));
+}
+
+.menu-icons-settings::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .menu-icons-settings-hint {
