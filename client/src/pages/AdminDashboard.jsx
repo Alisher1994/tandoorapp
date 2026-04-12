@@ -211,9 +211,9 @@ const UI_FONT_FAMILY_PREVIEW_STYLES = Object.freeze({
   serif_baskerville: "Baskerville, 'Times New Roman', Georgia, serif"
 });
 const MENU_MODE_PREVIEW_MEDIA = Object.freeze({
-  categoryPhoto: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=480&q=80',
-  categoryPhotoAlt: 'https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=480&q=80',
-  productPhoto: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=480&q=80'
+  categoryPhoto: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=900&q=80',
+  categoryPhotoAlt: 'https://images.unsplash.com/photo-1608198093002-ad4e005484ec?auto=format&fit=crop&w=900&q=80',
+  productPhoto: 'https://images.unsplash.com/photo-1549931319-a545dcf3bc73?auto=format&fit=crop&w=900&q=80'
 });
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -13059,26 +13059,26 @@ function AdminDashboard() {
                                       className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'grid_categories' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'grid_categories' })}
                                     >
-                                      <span className="admin-menu-mode-preview-visual admin-preview-shell">
+                                      <span className="admin-menu-mode-preview-visual admin-preview-shell admin-preview-shell-catalog">
                                         <span className="admin-preview-header-line" />
-                                        <span className="admin-preview-catalog-grid">
-                                          <span className="admin-preview-category-card">
+                                        <span className="admin-preview-category-grid-live">
+                                          <span className="admin-preview-category-live-item">
                                             <img
                                               src={MENU_MODE_PREVIEW_MEDIA.categoryPhoto}
                                               alt="Категория 1"
-                                              className="admin-preview-category-image"
+                                              className="admin-preview-category-live-image"
                                               loading="lazy"
                                             />
-                                            <span className="admin-preview-category-name">Книжки</span>
+                                            <span className="admin-preview-category-live-name">Хлеб пшеничный</span>
                                           </span>
-                                          <span className="admin-preview-category-card">
+                                          <span className="admin-preview-category-live-item">
                                             <img
                                               src={MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt}
                                               alt="Категория 2"
-                                              className="admin-preview-category-image"
+                                              className="admin-preview-category-live-image"
                                               loading="lazy"
                                             />
-                                            <span className="admin-preview-category-name">Игрушки</span>
+                                            <span className="admin-preview-category-live-name">Хлеб ржаной</span>
                                           </span>
                                         </span>
                                       </span>
@@ -13090,34 +13090,38 @@ function AdminDashboard() {
                                       className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'single_list' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'single_list' })}
                                     >
-                                      <span className="admin-menu-mode-preview-visual admin-preview-shell">
+                                      <span className="admin-menu-mode-preview-visual admin-preview-shell admin-preview-shell-card-mode">
                                         <span className="admin-preview-header-line" />
-                                        <span className="admin-preview-product-list">
-                                          <span className="admin-preview-product-row">
+                                        <span className="admin-preview-card-grid-live admin-preview-card-grid-live-wide">
+                                          <span className="admin-preview-live-card admin-preview-live-card-wide">
                                             <img
                                               src={MENU_MODE_PREVIEW_MEDIA.productPhoto}
                                               alt="Товар 1"
-                                              className="admin-preview-product-thumb"
+                                              className="admin-preview-live-card-image"
                                               loading="lazy"
                                             />
-                                            <span className="admin-preview-product-copy">
-                                              <span className="admin-preview-product-name">Развивающая книга</span>
-                                              <span className="admin-preview-product-price">45 000 сум</span>
+                                            <span className="admin-preview-live-overlay-heart">♡</span>
+                                            <span className="admin-preview-live-overlay-plus">+</span>
+                                            <span className="admin-preview-live-card-body">
+                                              <span className="admin-preview-live-card-name">Хлеб «Фермерский»</span>
+                                              <span className="admin-preview-live-card-unit">шт</span>
+                                              <span className="admin-preview-live-card-price">12 000 сум</span>
                                             </span>
-                                            <span className="admin-preview-product-add">+</span>
                                           </span>
-                                          <span className="admin-preview-product-row">
+                                          <span className="admin-preview-live-card admin-preview-live-card-wide">
                                             <img
                                               src={MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt}
                                               alt="Товар 2"
-                                              className="admin-preview-product-thumb"
+                                              className="admin-preview-live-card-image"
                                               loading="lazy"
                                             />
-                                            <span className="admin-preview-product-copy">
-                                              <span className="admin-preview-product-name">Игрушка-конструктор</span>
-                                              <span className="admin-preview-product-price">29 000 сум</span>
+                                            <span className="admin-preview-live-overlay-heart">♡</span>
+                                            <span className="admin-preview-live-overlay-plus">+</span>
+                                            <span className="admin-preview-live-card-body">
+                                              <span className="admin-preview-live-card-name">Батон нарезной</span>
+                                              <span className="admin-preview-live-card-unit">шт</span>
+                                              <span className="admin-preview-live-card-price">10 000 сум</span>
                                             </span>
-                                            <span className="admin-preview-product-add">+</span>
                                           </span>
                                         </span>
                                       </span>
@@ -13142,29 +13146,35 @@ function AdminDashboard() {
                                     >
                                       <span className="admin-menu-mode-preview-visual admin-preview-shell">
                                         <span className="admin-preview-header-line" />
-                                        <span className="admin-preview-card-grid admin-preview-card-grid-wide">
-                                          <span className="admin-preview-product-card admin-preview-product-card-wide">
+                                        <span className="admin-preview-card-grid-live admin-preview-card-grid-live-wide">
+                                          <span className="admin-preview-live-card admin-preview-live-card-wide">
                                             <img
                                               src={MENU_MODE_PREVIEW_MEDIA.categoryPhoto}
                                               alt="Wide 1"
-                                              className="admin-preview-product-card-image"
+                                              className="admin-preview-live-card-image"
                                               loading="lazy"
                                             />
-                                            <span className="admin-preview-product-card-body">
-                                              <span className="admin-preview-product-card-name">Fiat buket N. Z-9</span>
-                                              <span className="admin-preview-product-card-price">16 000 сум</span>
+                                            <span className="admin-preview-live-overlay-heart">♡</span>
+                                            <span className="admin-preview-live-overlay-plus">+</span>
+                                            <span className="admin-preview-live-card-body">
+                                              <span className="admin-preview-live-card-name">Хлеб «Фермерский»</span>
+                                              <span className="admin-preview-live-card-unit">шт</span>
+                                              <span className="admin-preview-live-card-price">12 000 сум</span>
                                             </span>
                                           </span>
-                                          <span className="admin-preview-product-card admin-preview-product-card-wide">
+                                          <span className="admin-preview-live-card admin-preview-live-card-wide">
                                             <img
                                               src={MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt}
                                               alt="Wide 2"
-                                              className="admin-preview-product-card-image"
+                                              className="admin-preview-live-card-image"
                                               loading="lazy"
                                             />
-                                            <span className="admin-preview-product-card-body">
-                                              <span className="admin-preview-product-card-name">Mayda buket</span>
-                                              <span className="admin-preview-product-card-price">18 000 сум</span>
+                                            <span className="admin-preview-live-overlay-heart">♡</span>
+                                            <span className="admin-preview-live-overlay-plus">+</span>
+                                            <span className="admin-preview-live-card-body">
+                                              <span className="admin-preview-live-card-name">Батон нарезной</span>
+                                              <span className="admin-preview-live-card-unit">шт</span>
+                                              <span className="admin-preview-live-card-price">10 000 сум</span>
                                             </span>
                                           </span>
                                         </span>
@@ -13179,29 +13189,35 @@ function AdminDashboard() {
                                     >
                                       <span className="admin-menu-mode-preview-visual admin-preview-shell">
                                         <span className="admin-preview-header-line" />
-                                        <span className="admin-preview-card-grid admin-preview-card-grid-portrait">
-                                          <span className="admin-preview-product-card admin-preview-product-card-portrait">
+                                        <span className="admin-preview-card-grid-live admin-preview-card-grid-live-portrait">
+                                          <span className="admin-preview-live-card admin-preview-live-card-portrait">
                                             <img
                                               src={MENU_MODE_PREVIEW_MEDIA.categoryPhoto}
                                               alt="Portrait 1"
-                                              className="admin-preview-product-card-image"
+                                              className="admin-preview-live-card-image"
                                               loading="lazy"
                                             />
-                                            <span className="admin-preview-product-card-body">
-                                              <span className="admin-preview-product-card-name">Fiat buket N. Z-9</span>
-                                              <span className="admin-preview-product-card-price">16 000 сум</span>
+                                            <span className="admin-preview-live-overlay-heart">♡</span>
+                                            <span className="admin-preview-live-overlay-plus">+</span>
+                                            <span className="admin-preview-live-card-body">
+                                              <span className="admin-preview-live-card-name">Хлеб «Фермерский»</span>
+                                              <span className="admin-preview-live-card-unit">шт</span>
+                                              <span className="admin-preview-live-card-price">12 000 сум</span>
                                             </span>
                                           </span>
-                                          <span className="admin-preview-product-card admin-preview-product-card-portrait">
+                                          <span className="admin-preview-live-card admin-preview-live-card-portrait">
                                             <img
                                               src={MENU_MODE_PREVIEW_MEDIA.productPhoto}
                                               alt="Portrait 2"
-                                              className="admin-preview-product-card-image"
+                                              className="admin-preview-live-card-image"
                                               loading="lazy"
                                             />
-                                            <span className="admin-preview-product-card-body">
-                                              <span className="admin-preview-product-card-name">N. P-17/P-18</span>
-                                              <span className="admin-preview-product-card-price">16 000 сум</span>
+                                            <span className="admin-preview-live-overlay-heart">♡</span>
+                                            <span className="admin-preview-live-overlay-plus">+</span>
+                                            <span className="admin-preview-live-card-body">
+                                              <span className="admin-preview-live-card-name">Бородинский хлеб</span>
+                                              <span className="admin-preview-live-card-unit">шт</span>
+                                              <span className="admin-preview-live-card-price">14 000 сум</span>
                                             </span>
                                           </span>
                                         </span>

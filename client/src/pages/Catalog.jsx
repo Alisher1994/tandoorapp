@@ -29,6 +29,8 @@ const catalogSectionTabKey = (id) => (
 const CATALOG_SEARCH_RESULTS_LIMIT = 80;
 const PENDING_PRODUCT_REVIEW_SNOOZE_MS = 24 * 60 * 60 * 1000;
 const LANGUAGE_STORAGE_KEY = 'language';
+const CATALOG_CARD_SWIPE_THRESHOLD_PX = 34;
+const CATALOG_CARD_SWIPE_BLOCK_CLICK_MS = 320;
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return CATALOG_ANIMATION_SEASONS.includes(normalized) ? normalized : fallback;
@@ -189,6 +191,7 @@ function Catalog() {
   const [productWeeklyOrders, setProductWeeklyOrders] = useState(0);
   const [productWeeklySoldCount, setProductWeeklySoldCount] = useState(0);
   const [selectedProductVariants, setSelectedProductVariants] = useState({});
+  const [catalogCardImageIndexes, setCatalogCardImageIndexes] = useState({});
   const [productHeroIndex, setProductHeroIndex] = useState(0);
   const [catalogAnimationSeason, setCatalogAnimationSeason] = useState('off');
   const [loading, setLoading] = useState(true);
@@ -238,6 +241,8 @@ function Catalog() {
   const tabActivationSourceRef = useRef('init');
   const activeSubcategoryTabRef = useRef(null);
   const showcaseEntryScrollOffsetRef = useRef(0);
+  const catalogCardTouchStartRef = useRef({});
+  const catalogCardSwipeTimestampRef = useRef({});
   const catalogHeaderBackground = '#f8fafc';
   const catalogTabGap = 8;
   const isTelegramWebView = useMemo(() => (
@@ -2683,6 +2688,51 @@ function Catalog() {
     closeEntryPopup();
   };
 
+  const getCatalogCardMediaKey = (productId, selectedVariant = null) => (
+    `catalog_card_media_${Number(productId) || 0}_${normalizeVariantKey(selectedVariant || 'base')}`
+  );
+
+  const isCatalogCardSwipeRecentlyTriggered = (mediaKey) => {
+    const lastTimestamp = Number(catalogCardSwipeTimestampRef.current?.[mediaKey] || 0);
+    if (!lastTimestamp) return false;
+    return (Date.now() - lastTimestamp) < CATALOG_CARD_SWIPE_BLOCK_CLICK_MS;
+  };
+
+  const handleCatalogCardTouchStart = (event, mediaKey) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    catalogCardTouchStartRef.current[mediaKey] = {
+      x: touch.clientX,
+      y: touch.clientY
+    };
+  };
+
+  const handleCatalogCardTouchEnd = (event, mediaKey, imagesCount) => {
+    if (!mediaKey || !Number.isFinite(imagesCount) || imagesCount <= 1) return;
+    const started = catalogCardTouchStartRef.current?.[mediaKey];
+    delete catalogCardTouchStartRef.current[mediaKey];
+    const touch = event.changedTouches?.[0];
+    if (!started || !touch) return;
+    const dx = touch.clientX - started.x;
+    const dy = touch.clientY - started.y;
+    if (Math.abs(dx) < CATALOG_CARD_SWIPE_THRESHOLD_PX || Math.abs(dx) <= Math.abs(dy)) return;
+
+    setCatalogCardImageIndexes((prev) => {
+      const currentIndex = Number(prev?.[mediaKey] || 0);
+      const normalizedCurrent = Number.isFinite(currentIndex)
+        ? Math.max(0, Math.min(imagesCount - 1, currentIndex))
+        : 0;
+      const nextIndex = dx < 0
+        ? (normalizedCurrent + 1) % imagesCount
+        : (normalizedCurrent - 1 + imagesCount) % imagesCount;
+      return {
+        ...(prev || {}),
+        [mediaKey]: nextIndex
+      };
+    });
+    catalogCardSwipeTimestampRef.current[mediaKey] = Date.now();
+  };
+
   // Product card component
   const renderProductCard = (product) => {
     const isPortraitCardMode = catalogCardMode === 'portrait';
@@ -2699,6 +2749,16 @@ function Catalog() {
     const favoriteActive = isFavorite(product.id);
     const productName = getProductName(product);
     const primaryImageUrl = getProductCardImage(product, selectedVariant);
+    const cardGalleryImages = getProductGalleryImages(product, selectedVariant);
+    const mediaImages = cardGalleryImages.length > 0
+      ? cardGalleryImages
+      : (primaryImageUrl ? [primaryImageUrl] : []);
+    const cardMediaKey = getCatalogCardMediaKey(product.id, selectedVariant);
+    const storedCardMediaIndex = Number(catalogCardImageIndexes?.[cardMediaKey] || 0);
+    const activeCardMediaIndex = mediaImages.length > 0
+      ? Math.max(0, Math.min(mediaImages.length - 1, storedCardMediaIndex))
+      : 0;
+    const displayCardImageUrl = mediaImages[activeCardMediaIndex] || primaryImageUrl;
     const productSizeOptions = getProductSizeOptions(product);
     const productPriceMeta = getSelectedVariantPriceMeta(product, selectedVariant);
     const productDisplayPrice = productPriceMeta.currentPrice;
@@ -2723,10 +2783,10 @@ function Catalog() {
         }}
       >
         <div style={{ position: 'relative' }}>
-          {primaryImageUrl ? (
+          {displayCardImageUrl ? (
             <Card.Img
               variant="top"
-              src={primaryImageUrl}
+              src={displayCardImageUrl}
               alt={productName}
               loading="lazy"
               decoding="async"
@@ -2735,12 +2795,19 @@ function Catalog() {
                 aspectRatio: cardImageAspectRatio,
                 objectFit: 'cover',
                 cursor: 'zoom-in',
-                display: 'block'
+                display: 'block',
+                touchAction: 'pan-y'
               }}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                if (isCatalogCardSwipeRecentlyTriggered(cardMediaKey)) return;
                 openProductDetailsModal(product);
+              }}
+              onTouchStart={(event) => handleCatalogCardTouchStart(event, cardMediaKey)}
+              onTouchEnd={(event) => handleCatalogCardTouchEnd(event, cardMediaKey, mediaImages.length)}
+              onTouchCancel={() => {
+                delete catalogCardTouchStartRef.current[cardMediaKey];
               }}
               onError={(e) => {
                 if (storeLogoFallbackUrl) {
@@ -2757,6 +2824,36 @@ function Catalog() {
             />
           ) : (
             renderImageFallback()
+          )}
+          {mediaImages.length > 1 && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                bottom: 8,
+                zIndex: 5,
+                display: 'flex',
+                gap: 4,
+                padding: '2px 6px',
+                borderRadius: 999,
+                background: 'rgba(15, 23, 42, 0.28)',
+                pointerEvents: 'none'
+              }}
+            >
+              {mediaImages.map((_, imageIndex) => (
+                <span
+                  key={`card-media-dot-${cardMediaKey}-${imageIndex}`}
+                  style={{
+                    width: imageIndex === activeCardMediaIndex ? 10 : 6,
+                    height: 6,
+                    borderRadius: 999,
+                    background: imageIndex === activeCardMediaIndex ? '#ffffff' : 'rgba(255,255,255,0.55)',
+                    transition: 'all 0.18s ease'
+                  }}
+                />
+              ))}
+            </div>
           )}
           {!isAvailable && (
             <div

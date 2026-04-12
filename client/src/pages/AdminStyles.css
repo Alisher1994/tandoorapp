@@ -9125,6 +9125,135 @@ body::-webkit-scrollbar,
     font-weight: 700;
 }
 
+.admin-preview-shell-catalog,
+.admin-preview-shell-card-mode {
+    min-height: 128px;
+}
+
+.admin-preview-category-grid-live {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.42rem;
+}
+
+.admin-preview-category-live-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.24rem;
+}
+
+.admin-preview-category-live-image {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 11px;
+    object-fit: cover;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: #fff;
+}
+
+.admin-preview-category-live-name {
+    font-size: 0.7rem;
+    color: #334155;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-preview-card-grid-live {
+    display: grid;
+    gap: 0.42rem;
+}
+
+.admin-preview-card-grid-live-wide,
+.admin-preview-card-grid-live-portrait {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-preview-live-card {
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 11px;
+    overflow: hidden;
+    background: #fff;
+    position: relative;
+}
+
+.admin-preview-live-card-wide .admin-preview-live-card-image {
+    aspect-ratio: 4 / 3;
+}
+
+.admin-preview-live-card-portrait .admin-preview-live-card-image {
+    aspect-ratio: 3 / 4;
+}
+
+.admin-preview-live-card-image {
+    display: block;
+    width: 100%;
+    object-fit: cover;
+    background: #f8fafc;
+}
+
+.admin-preview-live-overlay-heart,
+.admin-preview-live-overlay-plus {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.62rem;
+    line-height: 1;
+}
+
+.admin-preview-live-overlay-heart {
+    top: 5px;
+    right: 5px;
+    background: rgba(255, 255, 255, 0.82);
+    color: #334155;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.admin-preview-live-overlay-plus {
+    right: 5px;
+    bottom: 34px;
+    background: #4f46e5;
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.admin-preview-live-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.08rem;
+    padding: 0.22rem 0.32rem 0.3rem;
+}
+
+.admin-preview-live-card-name {
+    font-size: 0.66rem;
+    color: #1f2937;
+    font-weight: 600;
+    line-height: 1.14;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-preview-live-card-unit {
+    font-size: 0.58rem;
+    color: #64748b;
+    line-height: 1.1;
+}
+
+.admin-preview-live-card-price {
+    font-size: 0.7rem;
+    color: #4f46e5;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
 .admin-menu-glass-preview {
     border: 1px solid rgba(148, 163, 184, 0.34);
     border-radius: 12px;
