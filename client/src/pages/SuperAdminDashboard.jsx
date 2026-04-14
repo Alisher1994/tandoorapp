@@ -1754,6 +1754,7 @@ function SuperAdminDashboard() {
   });
   const [billingOpsData, setBillingOpsData] = useState({ transactions: [], total: 0 });
   const [billingOpsLoading, setBillingOpsLoading] = useState(false);
+  const [billingOpsPdfLoading, setBillingOpsPdfLoading] = useState(false);
   const [showBillingOpsFilterPanel, setShowBillingOpsFilterPanel] = useState(false);
   const [billingOpsRestaurantSearch, setBillingOpsRestaurantSearch] = useState('');
   const [hiddenOpsInsights, setHiddenOpsInsights] = useState(null);
@@ -3513,34 +3514,43 @@ function SuperAdminDashboard() {
     }
   };
 
+  const getBillingExportTypeLabel = (rawType) => {
+    const normalized = String(rawType || '').trim().toLowerCase();
+    if (normalized === 'deposit') return language === 'uz' ? "To'ldirish" : 'Пополнение';
+    if (normalized === 'refund') return language === 'uz' ? 'Qaytarish' : 'Возврат';
+    return normalized || '—';
+  };
+
+  const buildBillingExportStamp = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const fetchBillingTransactionsForExport = async () => {
+    const response = await axios.get(`${API_URL}/superadmin/billing/transactions`, {
+      params: {
+        ...billingOpsFilter,
+        page: 1,
+        limit: 5000
+      }
+    });
+    return Array.isArray(response.data?.transactions) ? response.data.transactions : [];
+  };
+
   const exportBillingTransactionsXls = async () => {
     try {
       const XLSX = await loadXlsxModule();
-      const response = await axios.get(`${API_URL}/superadmin/billing/transactions`, {
-        params: {
-          ...billingOpsFilter,
-          page: 1,
-          limit: 5000
-        }
-      });
-      const rows = Array.isArray(response.data?.transactions) ? response.data.transactions : [];
+      const rows = await fetchBillingTransactionsForExport();
       if (!rows.length) {
         setError(language === 'uz' ? "Eksport uchun ma'lumot yo'q" : 'Нет данных для экспорта');
         return;
       }
 
-      const localizedType = (rawType) => {
-        const normalized = String(rawType || '').toLowerCase();
-        if (normalized === 'deposit') return language === 'uz' ? "To'ldirish" : 'Пополнение';
-        if (normalized === 'refund') return language === 'uz' ? 'Qaytarish' : 'Возврат';
-        return normalized || '—';
-      };
-
       const sheetRows = rows.map((item) => ({
         ID: item.id,
         Дата: formatBalanceOperationDate(item.created_at),
         Магазин: item.restaurant_name || '—',
-        'Тип операции': localizedType(item.type),
+        'Тип операции': getBillingExportTypeLabel(item.type),
         Сумма: formatBalanceAmount(item.amount || 0),
         Валюта: getCurrencyLabelByCode(item.restaurant_currency_code || countryCurrency?.code),
         Описание: item.description || '',
@@ -3550,14 +3560,193 @@ function SuperAdminDashboard() {
       const sheet = XLSX.utils.json_to_sheet(sheetRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, sheet, 'Оплаты');
-      const now = new Date();
-      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      const stamp = buildBillingExportStamp();
       XLSX.writeFile(wb, `billing_transactions_${stamp}.xls`, { bookType: 'biff8' });
       setSuccess(language === 'uz'
         ? `Eksport bajarildi: ${sheetRows.length} ta yozuv`
         : `Экспорт выполнен: ${sheetRows.length} записей`);
     } catch (err) {
       setError(err.response?.data?.error || (language === 'uz' ? "Eksportda xatolik" : 'Ошибка экспорта'));
+    }
+  };
+
+  const exportBillingTransactionsPdf = async () => {
+    let exportRoot = null;
+    const escapeHtml = (value) => String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    const waitForImages = async (container) => {
+      const images = Array.from(container.querySelectorAll('img'));
+      await Promise.all(images.map((img) => (
+        img.complete
+          ? Promise.resolve()
+          : new Promise((resolve) => {
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          })
+      )));
+    };
+
+    setBillingOpsPdfLoading(true);
+    try {
+      const [{ default: html2canvasLib }, { jsPDF: JsPdfCtor }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ]);
+      const rows = await fetchBillingTransactionsForExport();
+      if (!rows.length) {
+        setError(language === 'uz' ? "Eksport uchun ma'lumot yo'q" : 'Нет данных для экспорта');
+        return;
+      }
+
+      const rowsPerPage = 18;
+      const pageWidthPx = 794;
+      const pageHeightPx = 1123;
+      const generatedAt = new Date();
+      const exportRows = rows.map((item, index) => {
+        const operationMeta = getBillingOperationMeta(item.type);
+        const currencyCode = item.restaurant_currency_code || countryCurrency?.code;
+        return {
+          index: index + 1,
+          date: formatBalanceOperationDate(item.created_at),
+          restaurant: item.restaurant_name || '—',
+          type: getBillingExportTypeLabel(item.type),
+          amount: `${operationMeta.sign}${formatBalanceAmount(item.amount || 0)} ${getCurrencyLabelByCode(currencyCode)}`,
+          description: item.description || '—',
+          currencyCode,
+          signedAmount: String(item.type || '').trim().toLowerCase() === 'refund'
+            ? -Math.abs(Number(item.amount) || 0)
+            : Math.abs(Number(item.amount) || 0)
+        };
+      });
+
+      const totalsByCurrency = exportRows.reduce((acc, row) => {
+        const key = String(row.currencyCode || countryCurrency?.code || 'uz').trim().toLowerCase();
+        acc.set(key, (acc.get(key) || 0) + row.signedAmount);
+        return acc;
+      }, new Map());
+      const totalText = Array.from(totalsByCurrency.entries())
+        .map(([currencyCode, amount]) => `${amount < 0 ? '-' : ''}${formatBalanceAmount(Math.abs(amount))} ${getCurrencyLabelByCode(currencyCode)}`)
+        .join(' | ');
+
+      const pageChunks = [];
+      for (let i = 0; i < exportRows.length; i += rowsPerPage) {
+        pageChunks.push(exportRows.slice(i, i + rowsPerPage));
+      }
+
+      const periodText = billingOpsFilter.start_date || billingOpsFilter.end_date
+        ? `${billingOpsFilter.start_date || '...'} - ${billingOpsFilter.end_date || '...'}`
+        : (language === 'uz' ? 'Barcha yozuvlar' : 'Все записи');
+      const reportTitle = language === 'uz' ? "Do'konlar to'lovlar jurnali" : 'Журнал оплат магазинов';
+      const reportSubtitle = language === 'uz'
+        ? `Hisobot sanasi: ${generatedAt.toLocaleString('uz-UZ')}`
+        : `Дата формирования: ${generatedAt.toLocaleString('ru-RU')}`;
+      exportRoot = document.createElement('div');
+      exportRoot.setAttribute('aria-hidden', 'true');
+      exportRoot.style.position = 'fixed';
+      exportRoot.style.left = '-10000px';
+      exportRoot.style.top = '0';
+      exportRoot.style.zIndex = '-1';
+      exportRoot.style.pointerEvents = 'none';
+      exportRoot.style.background = '#ffffff';
+
+      const logoSrc = `${window.location.origin}/talablar.svg`;
+      exportRoot.innerHTML = pageChunks.map((chunk, pageIndex) => {
+        const isLastPage = pageIndex === pageChunks.length - 1;
+        const bodyRows = chunk.map((row) => `
+          <tr>
+            <td style="border:1px solid #cbd5e1;padding:10px 8px;text-align:center;font-size:12px;">${row.index}</td>
+            <td style="border:1px solid #cbd5e1;padding:10px 8px;font-size:12px;">${escapeHtml(row.date)}</td>
+            <td style="border:1px solid #cbd5e1;padding:10px 8px;font-size:12px;font-weight:600;">${escapeHtml(row.restaurant)}</td>
+            <td style="border:1px solid #cbd5e1;padding:10px 8px;font-size:12px;">${escapeHtml(row.type)}</td>
+            <td style="border:1px solid #cbd5e1;padding:10px 8px;font-size:12px;text-align:right;white-space:nowrap;">${escapeHtml(row.amount)}</td>
+            <td style="border:1px solid #cbd5e1;padding:10px 8px;font-size:12px;">${escapeHtml(row.description)}</td>
+          </tr>
+        `).join('');
+
+        const totalRow = isLastPage ? `
+          <tr>
+            <td colspan="4" style="border:1px solid #94a3b8;padding:12px 10px;font-size:12px;font-weight:700;background:#eef2ff;">${language === 'uz' ? 'Jami:' : 'Итого:'}</td>
+            <td style="border:1px solid #94a3b8;padding:12px 10px;font-size:12px;font-weight:700;text-align:right;background:#eef2ff;white-space:nowrap;">${escapeHtml(totalText)}</td>
+            <td style="border:1px solid #94a3b8;padding:12px 10px;background:#eef2ff;"></td>
+          </tr>
+        ` : '';
+
+        return `
+          <div class="billing-pdf-page" style="width:${pageWidthPx}px;min-height:${pageHeightPx}px;background:#ffffff;box-sizing:border-box;padding:32px 32px 28px 32px;font-family:Inter, Arial, sans-serif;color:#0f172a;page-break-after:always;">
+            <div style="background:#6366f1;border-radius:22px;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:18px;">
+              <img src="${logoSrc}" alt="talablar" style="height:32px;width:auto;display:block;" />
+              <div style="color:#ffffff;text-align:right;">
+                <div style="font-size:20px;font-weight:700;line-height:1.2;">${escapeHtml(reportTitle)}</div>
+                <div style="font-size:12px;opacity:0.92;margin-top:6px;">${escapeHtml(reportSubtitle)}</div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:16px;margin-top:18px;margin-bottom:18px;">
+              <div style="font-size:12px;color:#475569;">
+                <div style="font-weight:700;color:#0f172a;margin-bottom:4px;">${language === 'uz' ? 'Davr' : 'Период'}</div>
+                <div>${escapeHtml(periodText)}</div>
+              </div>
+              <div style="font-size:12px;color:#475569;text-align:right;">
+                <div style="font-weight:700;color:#0f172a;margin-bottom:4px;">${language === 'uz' ? 'Jami yozuvlar' : 'Всего записей'}</div>
+                <div>${exportRows.length}</div>
+              </div>
+            </div>
+            <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+              <thead>
+                <tr>
+                  <th style="width:6%;border:1px solid #a5b4fc;background:#eef2ff;padding:10px 8px;font-size:12px;font-weight:700;text-align:center;">№</th>
+                  <th style="width:18%;border:1px solid #a5b4fc;background:#eef2ff;padding:10px 8px;font-size:12px;font-weight:700;text-align:left;">${language === 'uz' ? 'Sana' : 'Дата'}</th>
+                  <th style="width:22%;border:1px solid #a5b4fc;background:#eef2ff;padding:10px 8px;font-size:12px;font-weight:700;text-align:left;">${language === 'uz' ? "Do'kon nomi" : 'Название магазина'}</th>
+                  <th style="width:16%;border:1px solid #a5b4fc;background:#eef2ff;padding:10px 8px;font-size:12px;font-weight:700;text-align:left;">${language === 'uz' ? 'Operatsiya turi' : 'Тип операции'}</th>
+                  <th style="width:16%;border:1px solid #a5b4fc;background:#eef2ff;padding:10px 8px;font-size:12px;font-weight:700;text-align:right;">${language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                  <th style="width:22%;border:1px solid #a5b4fc;background:#eef2ff;padding:10px 8px;font-size:12px;font-weight:700;text-align:left;">${language === 'uz' ? 'Tavsif' : 'Описание'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${bodyRows}
+                ${totalRow}
+              </tbody>
+            </table>
+            <div style="margin-top:16px;font-size:11px;color:#64748b;text-align:right;">
+              ${language === 'uz' ? 'Sahifa' : 'Страница'} ${pageIndex + 1} / ${pageChunks.length}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.body.appendChild(exportRoot);
+      await waitForImages(exportRoot);
+
+      const pdf = new JsPdfCtor('p', 'pt', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const pageNodes = Array.from(exportRoot.querySelectorAll('.billing-pdf-page'));
+
+      for (let pageIndex = 0; pageIndex < pageNodes.length; pageIndex += 1) {
+        const canvas = await html2canvasLib(pageNodes[pageIndex], {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true
+        });
+        if (pageIndex > 0) pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pageWidth, pageHeight);
+      }
+
+      exportRoot.remove();
+      exportRoot = null;
+      pdf.save(`billing_transactions_${buildBillingExportStamp()}.pdf`);
+      setSuccess(language === 'uz'
+        ? `PDF eksport bajarildi: ${exportRows.length} ta yozuv`
+        : `PDF экспорт выполнен: ${exportRows.length} записей`);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || (language === 'uz' ? "PDF eksportda xatolik" : 'Ошибка экспорта PDF'));
+    } finally {
+      if (exportRoot) exportRoot.remove();
+      setBillingOpsPdfLoading(false);
     }
   };
 
@@ -11628,6 +11817,10 @@ function SuperAdminDashboard() {
             <i className="bi bi-file-earmark-spreadsheet me-2" />
             XLS
           </Button>
+          <Button variant="outline-secondary" onClick={exportBillingTransactionsPdf} disabled={billingOpsPdfLoading}>
+            <i className="bi bi-file-earmark-pdf me-2" />
+            {billingOpsPdfLoading ? 'PDF...' : 'PDF'}
+          </Button>
           <Button className="btn-primary-custom" onClick={() => openTopupModal()}>
             {language === 'uz' ? "To'lovni kiritish" : 'Зафиксировать оплату'}
           </Button>
@@ -11640,6 +11833,9 @@ function SuperAdminDashboard() {
         </Button>
         <Button variant="outline-secondary" onClick={exportBillingTransactionsXls}>
           XLS
+        </Button>
+        <Button variant="outline-secondary" onClick={exportBillingTransactionsPdf} disabled={billingOpsPdfLoading}>
+          {billingOpsPdfLoading ? 'PDF...' : 'PDF'}
         </Button>
         <Button className="btn-primary-custom ms-auto" onClick={() => openTopupModal()}>
           {language === 'uz' ? "Kiritish" : 'Оплата'}
