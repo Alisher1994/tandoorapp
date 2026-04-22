@@ -2022,6 +2022,8 @@ function AdminDashboard() {
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
   const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
   const restaurantLogoInputRef = useRef(null);
+  const productModalBodyRef = useRef(null);
+  const pendingProductModalScrollTopRef = useRef(null);
 
   // Broadcast state
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
@@ -6205,7 +6207,7 @@ function AdminDashboard() {
         unit: variantFallbackUnit
       });
       const hasVariants = normalizedVariantOptions.length > 0;
-      const initialEditorVariants = hasVariants
+      const initialEditorVariantsRaw = hasVariants
         ? normalizedVariantOptions.map((variant) => ({ ...variant, __draft: false }))
         : (product.size_enabled === true
           ? [createProductVariantDraft('', fallbackBasePrice, true, {
@@ -6216,6 +6218,10 @@ function AdminDashboard() {
             unit: variantFallbackUnit
           })]
           : []);
+      const initialEditorVariants = normalizeProductVariantOptionsForEditor(initialEditorVariantsRaw, {
+        fallbackPrice: fallbackBasePrice,
+        unit: variantFallbackUnit
+      });
       setSelectedProduct(product);
       setProductForm({
         category_id: product.category_id || '',
@@ -6514,6 +6520,25 @@ function AdminDashboard() {
       };
     });
   };
+  const preserveProductModalScrollPosition = useCallback(() => {
+    if (!showProductModal) return;
+    const modalBody = productModalBodyRef.current;
+    if (!modalBody) return;
+    pendingProductModalScrollTopRef.current = modalBody.scrollTop;
+  }, [showProductModal]);
+
+  useEffect(() => {
+    const pendingScrollTop = pendingProductModalScrollTopRef.current;
+    if (!Number.isFinite(pendingScrollTop)) return;
+    pendingProductModalScrollTopRef.current = null;
+    if (typeof window === 'undefined') return;
+    window.requestAnimationFrame(() => {
+      const modalBody = productModalBodyRef.current;
+      if (!modalBody) return;
+      modalBody.scrollTop = pendingScrollTop;
+    });
+  }, [productForm.variant_options, uploadingImage]);
+
   const updateProductVariantOption = (index, field, value) => {
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
@@ -6650,6 +6675,7 @@ function AdminDashboard() {
     });
   };
   const updateProductVariantImageSlot = (variantIndex, slotIndex, nextUrl, nextThumbUrl = '') => {
+    preserveProductModalScrollPosition();
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
       const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
@@ -6706,6 +6732,7 @@ function AdminDashboard() {
     });
   };
   const addProductVariantImageSlot = (variantIndex) => {
+    preserveProductModalScrollPosition();
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
       const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
@@ -6741,6 +6768,7 @@ function AdminDashboard() {
     updateProductVariantImageSlot(variantIndex, slotIndex, '', '');
   };
   const setMainProductVariantImageSlot = (variantIndex, slotIndex) => {
+    preserveProductModalScrollPosition();
     setProductForm((prev) => {
       const fallbackBasePrice = normalizeProductPriceValue(prev.price, NaN);
       const variants = normalizeProductVariantOptionsForEditor(prev.variant_options, {
@@ -6780,6 +6808,7 @@ function AdminDashboard() {
     });
   };
   const handlePasteToVariantImageSlot = (variantIndex, e) => {
+    preserveProductModalScrollPosition();
     const fallbackBasePrice = normalizeProductPriceValue(productForm.price, NaN);
     const variants = normalizeProductVariantOptionsForEditor(productForm.variant_options, {
       fallbackPrice: fallbackBasePrice,
@@ -7351,19 +7380,21 @@ function AdminDashboard() {
 
   // Handle paste from clipboard (Ctrl+V)
   const handlePaste = async (e, setImageUrl, options = {}) => {
-    const items = e.clipboardData?.items;
-    if (!items) return;
+    const items = Array.from(e.clipboardData?.items || []);
+    if (!items.length) return false;
 
-    for (const item of items) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault();
-        const file = item.getAsFile();
-        if (file) {
-          handleImageUpload(file, setImageUrl, options);
-        }
-        break;
-      }
-    }
+    const imageItem = items.find((item) => (
+      String(item?.kind || '').toLowerCase() === 'file'
+      && String(item?.type || '').toLowerCase().startsWith('image/')
+    ));
+    if (!imageItem) return false;
+
+    e.preventDefault();
+    e.stopPropagation();
+    const file = imageItem.getAsFile();
+    if (!file) return false;
+    await handleImageUpload(file, setImageUrl, options);
+    return true;
   };
 
   // Duplicate product
@@ -7381,7 +7412,7 @@ function AdminDashboard() {
       fallbackOrderStep: duplicateOrderStep,
       unit: duplicateVariantUnit
     });
-    const duplicateVariantOptions = sourceVariantOptions.length
+    const duplicateVariantOptionsRaw = sourceVariantOptions.length
       ? sourceVariantOptions.map((variant) => ({ ...variant, __draft: false }))
       : (product.size_enabled === true
         ? [createProductVariantDraft('', normalizeProductPriceValue(product.price, NaN), true, {
@@ -7392,6 +7423,10 @@ function AdminDashboard() {
           unit: duplicateVariantUnit
         })]
         : []);
+    const duplicateVariantOptions = normalizeProductVariantOptionsForEditor(duplicateVariantOptionsRaw, {
+      fallbackPrice: normalizeProductPriceValue(product.price, NaN),
+      unit: duplicateVariantUnit
+    });
     setProductForm({
       category_id: product.category_id || '',
       name_ru: product.name_ru || '',
@@ -16622,7 +16657,7 @@ function AdminDashboard() {
             </Modal.Title>
           </Modal.Header>
           <Form onSubmit={handleProductSubmit}>
-            <Modal.Body>
+            <Modal.Body ref={productModalBodyRef}>
               {(() => {
                 const getCategoryPathIds = (catId) => {
                   const path = [];
