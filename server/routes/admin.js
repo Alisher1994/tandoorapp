@@ -1273,8 +1273,9 @@ router.post('/switch-restaurant', async (req, res) => {
       return res.status(400).json({ error: 'ID ресторана обязателен' });
     }
 
-    // Check if user has access to an active restaurant (superadmin has access to all, but still only active shops here)
-    if (req.user.role !== 'superadmin') {
+    // Check if user has access to an active restaurant.
+    // Superadmin and moderator can switch to any active shop from superadmin list by ID click.
+    if (req.user.role !== 'superadmin' && req.user.role !== 'moderator') {
       const accessCheck = await pool.query(`
         SELECT 1
         FROM operator_restaurants opr
