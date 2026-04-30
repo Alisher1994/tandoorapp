@@ -372,6 +372,13 @@ h6 {
   text-transform: uppercase;
 }
 
+.login-password-toggle {
+  min-width: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, var(--primary-light), var(--primary-color));
   border-color: rgba(71, 85, 105, 0.18);

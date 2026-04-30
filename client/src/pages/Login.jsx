@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Form from 'react-bootstrap/Form';
+import InputGroup from 'react-bootstrap/InputGroup';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
@@ -14,6 +15,7 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [showAccountChoiceModal, setShowAccountChoiceModal] = useState(false);
   const [accountChoiceMessage, setAccountChoiceMessage] = useState('');
   const [accountChoices, setAccountChoices] = useState([]);
@@ -179,14 +181,37 @@ function Login() {
 
             <Form.Group className="mb-3">
               <Form.Label>Пароль</Form.Label>
-              <Form.Control
-                type="password"
-                placeholder="Введите пароль"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
+              <InputGroup>
+                <Form.Control
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Введите пароль"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+                <Button
+                  variant="outline-secondary"
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                  className="login-password-toggle"
+                >
+                  {showPassword ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M3 3L21 21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                      <path d="M10.59 10.58A2 2 0 0 0 13.41 13.4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                      <path d="M9.88 5.08A10.94 10.94 0 0 1 12 4.88C17.52 4.88 21.27 9.5 22 12c-.25.85-.84 2.09-1.9 3.34" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                      <path d="M6.61 6.61C4.07 8.12 2.55 10.35 2 12c.73 2.5 4.48 7.12 10 7.12 1.89 0 3.57-.54 5-1.34" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M2 12c.73-2.5 4.48-7.12 10-7.12S21.27 9.5 22 12c-.73 2.5-4.48 7.12-10 7.12S2.73 14.5 2 12Z" stroke="currentColor" strokeWidth="1.8" />
+                      <circle cx="12" cy="12" r="2.8" stroke="currentColor" strokeWidth="1.8" />
+                    </svg>
+                  )}
+                </Button>
+              </InputGroup>
             </Form.Group>
 
             <Button

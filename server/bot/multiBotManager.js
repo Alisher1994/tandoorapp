@@ -21,6 +21,7 @@ const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/
 
 // Store all bots: Map<botToken, { bot, restaurantId, restaurantName }>
 const restaurantBots = new Map();
+const disabledBotTokens = new Set();
 
 // Store for registration states: Map<`${botToken}_${telegramUserId}`, state>
 const registrationStates = new Map();
@@ -68,6 +69,12 @@ const TELEGRAM_WEBAPP_MENU_INIT_STAGGER_MS = Math.max(
   0,
   Number.parseInt(process.env.TELEGRAM_WEBAPP_MENU_INIT_STAGGER_MS, 10) || 0
 );
+const TELEGRAM_DISABLE_REVOKED_BOT_ON_401 = String(
+  process.env.TELEGRAM_DISABLE_REVOKED_BOT_ON_401 ?? '1'
+).trim() !== '0';
+const TELEGRAM_CLEAR_TOKEN_ON_401 = String(
+  process.env.TELEGRAM_CLEAR_TOKEN_ON_401 ?? '0'
+).trim() === '1';
 
 function isWebAppChatMenuButtonEnabledForRestaurant(restaurantId) {
   if (!TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED) return false;
@@ -89,6 +96,29 @@ function appendWebAppCacheVersion(rawUrl) {
     return parsed.toString();
   } catch {
     return rawUrl;
+  }
+}
+
+async function persistRestaurantBotStatus(restaurantId, status, reason = null, options = {}) {
+  if (!restaurantId) return;
+  const { clearToken = false } = options;
+  const normalizedStatus = String(status || '').trim() || 'active';
+  const normalizedReason = String(reason || '').trim() || null;
+  try {
+    await pool.query(
+      `
+      UPDATE restaurants
+      SET telegram_bot_status = $2,
+          telegram_bot_disable_reason = $3,
+          telegram_bot_disabled_at = CASE WHEN $2 = 'disabled' THEN CURRENT_TIMESTAMP ELSE NULL END,
+          telegram_bot_token = CASE WHEN $4 THEN '' ELSE telegram_bot_token END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      `,
+      [restaurantId, normalizedStatus, normalizedReason, clearToken]
+    );
+  } catch (_) {
+    // Backward compatibility for databases without these columns.
   }
 }
 
@@ -3431,8 +3461,25 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
   // Error handling
   bot.on('polling_error', (error) => {
-    if (error.response?.body?.error_code === 409) {
+    const errorCode = Number(error?.response?.body?.error_code || 0);
+    if (errorCode === 409) {
       console.warn(`⚠️  Bot conflict for ${restaurantName}: Another instance running`);
+    } else if (errorCode === 401) {
+      if (disabledBotTokens.has(botToken)) return;
+      disabledBotTokens.add(botToken);
+      console.error(`🛑 ${restaurantName}: TELEGRAM 401 Unauthorized. Disabling bot polling until token is fixed.`);
+      if (TELEGRAM_DISABLE_REVOKED_BOT_ON_401) {
+        void persistRestaurantBotStatus(
+          restaurantId,
+          'disabled',
+          'TELEGRAM_401_UNAUTHORIZED',
+          { clearToken: TELEGRAM_CLEAR_TOKEN_ON_401 }
+        );
+      }
+      Promise.resolve()
+        .then(() => bot.stopPolling())
+        .catch(() => {});
+      bot.removeAllListeners('polling_error');
     } else {
       console.error(`Telegram polling error for ${restaurantName}:`, error.message);
     }
@@ -3465,6 +3512,32 @@ async function initMultiBots() {
     for (const restaurant of result.rows) {
       try {
         console.log(`🔄 Initializing bot for: ${restaurant.name}`);
+
+        // Quick token preflight: prevents endless polling loops on invalid/rotated tokens.
+        try {
+          const probeBot = new TelegramBot(restaurant.telegram_bot_token);
+          await probeBot.getMe();
+          disabledBotTokens.delete(restaurant.telegram_bot_token);
+          if (TELEGRAM_DISABLE_REVOKED_BOT_ON_401) {
+            await persistRestaurantBotStatus(restaurant.id, 'active', null);
+          }
+        } catch (tokenError) {
+          const tokenErrorCode = Number(tokenError?.response?.body?.error_code || 0);
+          if (tokenErrorCode === 401) {
+            disabledBotTokens.add(restaurant.telegram_bot_token);
+            if (TELEGRAM_DISABLE_REVOKED_BOT_ON_401) {
+              await persistRestaurantBotStatus(
+                restaurant.id,
+                'disabled',
+                'TELEGRAM_401_UNAUTHORIZED',
+                { clearToken: TELEGRAM_CLEAR_TOKEN_ON_401 }
+              );
+            }
+            console.error(`🛑 ${restaurant.name}: invalid Telegram bot token (401). Skip bot init until token is updated.`);
+            continue;
+          }
+          throw tokenError;
+        }
 
         let bot;
 

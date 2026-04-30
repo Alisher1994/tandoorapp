@@ -51,6 +51,9 @@ async function migrate() {
       `ui_theme VARCHAR(20) DEFAULT 'classic'`,
       `ui_font_family VARCHAR(32) DEFAULT 'sans'`,
       `menu_view_mode VARCHAR(24) DEFAULT 'grid_categories'`,
+      `telegram_bot_status VARCHAR(16) DEFAULT 'active'`,
+      'telegram_bot_disabled_at TIMESTAMP',
+      'telegram_bot_disable_reason VARCHAR(120)',
       'delivery_zone JSONB',
       'start_time VARCHAR(5)',
       'end_time VARCHAR(5)',
@@ -110,6 +113,20 @@ async function migrate() {
         await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ${col}`);
       } catch (e) { }
     }
+    await client.query(`
+      UPDATE restaurants
+      SET telegram_bot_status = 'active'
+      WHERE telegram_bot_status IS NULL OR BTRIM(COALESCE(telegram_bot_status, '')) = ''
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      DROP CONSTRAINT IF EXISTS restaurants_telegram_bot_status_check
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      ADD CONSTRAINT restaurants_telegram_bot_status_check
+      CHECK (telegram_bot_status IN ('active', 'disabled'))
+    `).catch(() => {});
     await client.query(`
       UPDATE restaurants
       SET logo_display_mode = 'square'
