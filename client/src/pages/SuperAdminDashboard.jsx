@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import 'leaflet/dist/leaflet.css';
@@ -133,6 +133,20 @@ const normalizeModeratorPermissions = (value) => {
     normalized[key] = { view: perm.view === true, edit: perm.edit === true };
   });
   return normalized;
+};
+const resolveModeratorMenuKey = (key) => {
+  const normalized = String(key || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (SUPERADMIN_SETTINGS_TARGET_TABS.has(normalized)) return 'settings';
+  if (normalized === 'billing_transactions') return 'founders';
+  return normalized;
+};
+const canAccessModeratorMenuByPermissions = (permissions, key, accessType = 'view') => {
+  const menuKey = resolveModeratorMenuKey(key);
+  if (!MODERATOR_MENU_KEYS.includes(menuKey)) return false;
+  const perm = permissions[menuKey] || { view: false, edit: false };
+  if (accessType === 'edit') return perm.edit === true;
+  return perm.view === true || perm.edit === true;
 };
 const createEmptyModeratorPermissions = () => normalizeModeratorPermissions({});
 const resolveSettingsNavTargetTab = (key) => {
@@ -2274,12 +2288,19 @@ function SuperAdminDashboard() {
     setShowScamPrankModal(false);
     setSuccess(language === 'uz' ? 'Anti-scam prank yakunlandi :)' : 'Анти-скам пранк завершён :)');
   }, [showScamPrankModal, scamPrankSecondsLeft, language]);
+  const canAccessCurrentSuperadminTab = (key, accessType = 'view') => {
+    if (user?.role !== 'moderator') return true;
+    const normalizedPermissions = normalizeModeratorPermissions(user?.moderator_permissions);
+    return canAccessModeratorMenuByPermissions(normalizedPermissions, key, accessType);
+  };
 
   useEffect(() => {
+    if (!canAccessCurrentSuperadminTab('analytics', 'view')) return;
     loadStats();
-  }, []);
+  }, [user?.role, user?.moderator_permissions]);
 
   useEffect(() => {
+    if (!canAccessCurrentSuperadminTab(activeTab, 'view')) return;
     if (['restaurants', 'operators', 'customers', 'ads'].includes(activeTab) || isBillingTransactionsViewActive) {
       loadInternalRestaurants({ preferCache: true });
     }
@@ -2301,6 +2322,7 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     if (activeTab !== 'analytics') return;
+    if (!canAccessCurrentSuperadminTab('analytics', 'view')) return;
     loadOverviewAnalytics();
     loadOverviewProductReviewAnalytics();
   }, [
@@ -2314,8 +2336,9 @@ function SuperAdminDashboard() {
   ]);
 
   useEffect(() => {
+    if (!canAccessCurrentSuperadminTab('restaurants', 'view')) return;
     if (activeTab === 'restaurants') loadRestaurants();
-  }, [activeTab, restaurantsPage, restaurantsLimit]);
+  }, [activeTab, restaurantsPage, restaurantsLimit, user?.role, user?.moderator_permissions]);
 
   useEffect(() => {
     return () => {
@@ -2326,20 +2349,24 @@ function SuperAdminDashboard() {
   }, []);
 
   useEffect(() => {
+    if (!canAccessCurrentSuperadminTab('operators', 'view')) return;
     if (activeTab === 'operators') loadOperators();
-  }, [activeTab, operatorsPage, operatorsLimit, operatorSearch, operatorRoleFilter, operatorStatusFilter, operatorRestaurantFilter]);
+  }, [activeTab, operatorsPage, operatorsLimit, operatorSearch, operatorRoleFilter, operatorStatusFilter, operatorRestaurantFilter, user?.role, user?.moderator_permissions]);
 
   useEffect(() => {
+    if (!canAccessCurrentSuperadminTab('customers', 'view')) return;
     if (activeTab === 'customers') loadCustomers();
-  }, [activeTab, customerPage, customerLimit, customerSearch, customerStatusFilter, customerRestaurantFilter]);
+  }, [activeTab, customerPage, customerLimit, customerSearch, customerStatusFilter, customerRestaurantFilter, user?.role, user?.moderator_permissions]);
 
   useEffect(() => {
+    if (!canAccessCurrentSuperadminTab('settings', 'view')) return;
     if (activeTab === 'logs') loadLogs();
-  }, [activeTab, logsFilter]);
+  }, [activeTab, logsFilter, user?.role, user?.moderator_permissions]);
 
   useEffect(() => {
+    if (!canAccessCurrentSuperadminTab('settings', 'view')) return;
     if (activeTab === 'security') loadSecurityEvents();
-  }, [securityFilter, activeTab]);
+  }, [securityFilter, activeTab, user?.role, user?.moderator_permissions]);
 
   useEffect(() => {
     if (!isBillingTransactionsViewActive) return;
@@ -2390,7 +2417,7 @@ function SuperAdminDashboard() {
   }, [activeTab, adBannerStatusFilter]);
   useEffect(() => {
     if (user?.role === 'moderator') {
-      const normalizedTab = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab) ? 'settings' : activeTab;
+      const normalizedTab = resolveModeratorMenuKey(activeTab);
       const tabHeader = MODERATOR_MENU_KEYS.includes(normalizedTab) ? normalizedTab : '';
       if (tabHeader) {
         axios.defaults.headers.common['X-Superadmin-Tab'] = tabHeader;
@@ -2872,21 +2899,51 @@ function SuperAdminDashboard() {
 
     const requestPromise = (async () => {
       try {
-        const [response, opResponse] = await Promise.all([
-          axios.get(`${API_URL}/superadmin/restaurants`, {
-            params: { limit: 1000 }, // Load all for filters
-            timeout: Math.max(SUPERADMIN_REQUEST_TIMEOUT_MS, 15000)
-          }),
-          axios.get(`${API_URL}/superadmin/operators`, {
-            params: { limit: 1000 },
-            timeout: Math.max(SUPERADMIN_REQUEST_TIMEOUT_MS, 15000)
-          })
+        const canLoadRestaurantsDirectory = canAccessCurrentSuperadminTab('restaurants', 'view')
+          || canAccessCurrentSuperadminTab('customers', 'view')
+          || canAccessCurrentSuperadminTab('ads', 'view')
+          || canAccessCurrentSuperadminTab('founders', 'view');
+        const canLoadOperatorsDirectory = canAccessCurrentSuperadminTab('operators', 'view');
+        const requestTimeout = Math.max(SUPERADMIN_REQUEST_TIMEOUT_MS, 12000);
+
+        const [restaurantResponse, operatorsResponse] = await Promise.all([
+          canLoadRestaurantsDirectory
+            ? axios.get(`${API_URL}/superadmin/restaurants`, {
+              params: { limit: 400 },
+              timeout: requestTimeout
+            }).catch((error) => {
+              if (error?.response?.status === 401 || error?.response?.status === 403) return null;
+              throw error;
+            })
+            : Promise.resolve(null),
+          canLoadOperatorsDirectory
+            ? axios.get(`${API_URL}/superadmin/operators`, {
+              params: { limit: 300 },
+              timeout: requestTimeout
+            }).catch((error) => {
+              if (error?.response?.status === 401 || error?.response?.status === 403) return null;
+              throw error;
+            })
+            : Promise.resolve(null)
         ]);
-        // Handle both formats: [r1, r2] or { restaurants: [r1, r2] }
-        const restaurantData = Array.isArray(response.data) ? response.data : (response.data?.restaurants || []);
-        setAllRestaurants(restaurantData);
-        const operatorData = Array.isArray(opResponse.data) ? opResponse.data : (opResponse.data?.operators || []);
-        setAllOperators(operatorData);
+
+        if (restaurantResponse) {
+          const restaurantData = Array.isArray(restaurantResponse.data)
+            ? restaurantResponse.data
+            : (restaurantResponse.data?.restaurants || []);
+          setAllRestaurants(restaurantData);
+        } else if (!canLoadRestaurantsDirectory) {
+          setAllRestaurants([]);
+        }
+
+        if (operatorsResponse) {
+          const operatorData = Array.isArray(operatorsResponse.data)
+            ? operatorsResponse.data
+            : (operatorsResponse.data?.operators || []);
+          setAllOperators(operatorData);
+        } else if (!canLoadOperatorsDirectory) {
+          setAllOperators([]);
+        }
         internalDirectoryLoadedAtRef.current = Date.now();
       } catch (err) {
         console.error('Load filter data error:', err);
@@ -11230,13 +11287,12 @@ function SuperAdminDashboard() {
     () => normalizeModeratorPermissions(user?.moderator_permissions),
     [user?.moderator_permissions]
   );
-  const canModeratorAccessTab = (key, accessType = 'view') => {
+  const hasSuperadminTabAccess = useCallback((key, accessType = 'view') => {
     if (user?.role !== 'moderator') return true;
-    const normalizedKey = SUPERADMIN_SETTINGS_TARGET_TABS.has(key) ? 'settings' : key;
-    if (!MODERATOR_MENU_KEYS.includes(normalizedKey)) return false;
-    const perm = userModeratorPermissions[normalizedKey] || { view: false, edit: false };
-    if (accessType === 'edit') return perm.edit === true;
-    return perm.view === true || perm.edit === true;
+    return canAccessModeratorMenuByPermissions(userModeratorPermissions, key, accessType);
+  }, [user?.role, userModeratorPermissions]);
+  const canModeratorAccessTab = (key, accessType = 'view') => {
+    return hasSuperadminTabAccess(key, accessType);
   };
   const superAdminSidebarTabsMeta = useMemo(() => ({
     analytics: { label: language === 'uz' ? 'Analitika' : 'Аналитика', icon: BarChart3 },
