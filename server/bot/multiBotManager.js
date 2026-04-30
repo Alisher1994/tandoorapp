@@ -22,6 +22,19 @@ const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/
 // Store all bots: Map<botToken, { bot, restaurantId, restaurantName }>
 const restaurantBots = new Map();
 
+// ---------------------------------------------------------------------------
+// Polling-error throttle / batching
+// Prevents log-rate-limit exhaustion when many bots have invalid tokens.
+//
+// Per-bot state: Map<restaurantName, { counts: Map<errorCode, number>, firstSeenAt: number, lastLoggedAt: number, backoffUntil: number }>
+// ---------------------------------------------------------------------------
+const POLLING_ERROR_BATCH_INTERVAL_MS = 60_000; // emit a summary at most once per minute per bot
+const POLLING_ERROR_BACKOFF_CODES = new Set([401, 404]); // codes that trigger backoff
+const POLLING_ERROR_BACKOFF_MS = 10 * 60_000; // silence repeated 401/404 for 10 min after first summary
+
+/** @type {Map<string, { counts: Map<string, number>, firstSeenAt: number, lastLoggedAt: number, backoffUntil: number }>} */
+const pollingErrorState = new Map();
+
 // Store for registration states: Map<`${botToken}_${telegramUserId}`, state>
 const registrationStates = new Map();
 const passwordResetCooldown = new Map();
@@ -3429,13 +3442,64 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
   });
 
-  // Error handling
+  // Error handling — throttled to prevent log-rate-limit exhaustion.
+  // 401/404 errors (invalid/deleted tokens) are batched and summarised at most
+  // once per POLLING_ERROR_BATCH_INTERVAL_MS, then silenced for POLLING_ERROR_BACKOFF_MS.
   bot.on('polling_error', (error) => {
-    if (error.response?.body?.error_code === 409) {
+    const errorCode = error.response?.body?.error_code;
+
+    // 409 Conflict: always log immediately (different instance running — actionable)
+    if (errorCode === 409) {
       console.warn(`⚠️  Bot conflict for ${restaurantName}: Another instance running`);
-    } else {
-      console.error(`Telegram polling error for ${restaurantName}:`, error.message);
+      return;
     }
+
+    const now = Date.now();
+    let state = pollingErrorState.get(restaurantName);
+
+    if (!state) {
+      state = { counts: new Map(), firstSeenAt: now, lastLoggedAt: 0, backoffUntil: 0 };
+      pollingErrorState.set(restaurantName, state);
+    }
+
+    // While in backoff window, drop the error silently
+    if (now < state.backoffUntil) {
+      return;
+    }
+
+    // Accumulate error counts by code (or 'unknown')
+    const codeKey = errorCode != null ? String(errorCode) : 'unknown';
+    state.counts.set(codeKey, (state.counts.get(codeKey) || 0) + 1);
+
+    // Only emit a log summary once per batch interval
+    if (now - state.lastLoggedAt < POLLING_ERROR_BATCH_INTERVAL_MS) {
+      return;
+    }
+
+    // Build summary line
+    const parts = [];
+    for (const [code, count] of state.counts) {
+      parts.push(`${count}x ${code}`);
+    }
+    const summary = parts.join(', ');
+    const durationSec = Math.round((now - state.firstSeenAt) / 1000);
+
+    if (POLLING_ERROR_BACKOFF_CODES.has(errorCode)) {
+      // Expected auth/not-found failures — warn level, then enter backoff
+      console.warn(
+        `⚠️  Polling errors for ${restaurantName} (${durationSec}s): ${summary}. ` +
+        `Token may be invalid or bot deleted. Suppressing further logs for ${POLLING_ERROR_BACKOFF_MS / 60_000} min.`
+      );
+      state.backoffUntil = now + POLLING_ERROR_BACKOFF_MS;
+    } else {
+      // Unexpected errors — error level, no backoff (keep monitoring)
+      console.error(`Telegram polling error for ${restaurantName} (${durationSec}s): ${summary}`);
+    }
+
+    // Reset counters after logging
+    state.counts.clear();
+    state.firstSeenAt = now;
+    state.lastLoggedAt = now;
   });
 }
 

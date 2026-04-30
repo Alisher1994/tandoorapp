@@ -25,6 +25,21 @@ const {
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
+
+// ---------------------------------------------------------------------------
+// Superadmin-bot polling-error throttle
+// Batches errors and emits a summary at most once per minute to avoid
+// overwhelming Railway's 500 logs/sec limit.
+// ---------------------------------------------------------------------------
+const SUPERADMIN_POLLING_ERROR_BATCH_INTERVAL_MS = 60_000;
+const SUPERADMIN_POLLING_ERROR_BACKOFF_CODES = new Set([401, 404]);
+const SUPERADMIN_POLLING_ERROR_BACKOFF_MS = 10 * 60_000;
+const superadminPollingErrorState = {
+  counts: new Map(),
+  firstSeenAt: 0,
+  lastLoggedAt: 0,
+  backoffUntil: 0
+};
 const WEB_APP_CACHE_VERSION = String(
   process.env.WEB_APP_FORCE_VERSION
   || process.env.WEB_APP_CACHE_VERSION
@@ -3227,15 +3242,65 @@ async function initBot() {
     }
   });
 
-  // Error handling
+  // Error handling — throttled to prevent log-rate-limit exhaustion.
+  // 401/404 errors are batched and summarised at most once per
+  // SUPERADMIN_POLLING_ERROR_BATCH_INTERVAL_MS, then silenced for
+  // SUPERADMIN_POLLING_ERROR_BACKOFF_MS.
   bot.on('polling_error', (error) => {
-    if (error.response?.body?.error_code === 409) {
+    const errorCode = error.response?.body?.error_code;
+
+    // 409 Conflict: always log immediately (actionable — another instance running)
+    if (errorCode === 409) {
       console.warn('⚠️  Telegram bot conflict: Another instance is running');
-    } else {
-      console.error('Telegram polling error:', error.message);
+      return;
     }
+
+    const now = Date.now();
+    const state = superadminPollingErrorState;
+
+    // Initialise firstSeenAt on first error
+    if (state.firstSeenAt === 0) {
+      state.firstSeenAt = now;
+    }
+
+    // While in backoff window, drop the error silently
+    if (now < state.backoffUntil) {
+      return;
+    }
+
+    // Accumulate error counts by code (or 'unknown')
+    const codeKey = errorCode != null ? String(errorCode) : 'unknown';
+    state.counts.set(codeKey, (state.counts.get(codeKey) || 0) + 1);
+
+    // Only emit a log summary once per batch interval
+    if (now - state.lastLoggedAt < SUPERADMIN_POLLING_ERROR_BATCH_INTERVAL_MS) {
+      return;
+    }
+
+    // Build summary line
+    const parts = [];
+    for (const [code, count] of state.counts) {
+      parts.push(`${count}x ${code}`);
+    }
+    const summary = parts.join(', ');
+    const durationSec = Math.round((now - state.firstSeenAt) / 1000);
+
+    if (SUPERADMIN_POLLING_ERROR_BACKOFF_CODES.has(errorCode)) {
+      console.warn(
+        `⚠️  Superadmin bot polling errors (${durationSec}s): ${summary}. ` +
+        `Token may be invalid. Suppressing further logs for ${SUPERADMIN_POLLING_ERROR_BACKOFF_MS / 60_000} min.`
+      );
+      state.backoffUntil = now + SUPERADMIN_POLLING_ERROR_BACKOFF_MS;
+    } else {
+      console.error(`Telegram superadmin bot polling error (${durationSec}s): ${summary}`);
+    }
+
+    // Reset counters after logging
+    state.counts.clear();
+    state.firstSeenAt = now;
+    state.lastLoggedAt = now;
   });
-  
+
   bot.on('webhook_error', (error) => {
     console.error('Telegram webhook error:', error);
   });
