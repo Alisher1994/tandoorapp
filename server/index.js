@@ -491,6 +491,9 @@ async function startServer() {
         const migrate = require('./database/migrate');
         await migrate();
         console.log('✅ Migrations completed');
+
+        const migrateDisableInvalidBots = require('./database/migrate_disable_invalid_bots');
+        await migrateDisableInvalidBots();
       } catch (error) {
         console.error('⚠️  Migration error:', error.message);
       }
