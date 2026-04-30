@@ -25,6 +25,17 @@ const {
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
+
+// --- Superadmin bot polling-error throttle ---
+const SUPERADMIN_POLLING_ERROR_BATCH_INTERVAL_MS = 60_000;
+const SUPERADMIN_POLLING_ERROR_BACKOFF_CODES = new Set([401, 404]);
+const SUPERADMIN_POLLING_ERROR_BACKOFF_MS = 10 * 60_000;
+const superadminPollingErrorState = {
+  counts: {},      // { [errorCode]: number }
+  firstSeenAt: null,
+  lastLoggedAt: 0,
+  backoffUntil: 0
+};
 const WEB_APP_CACHE_VERSION = String(
   process.env.WEB_APP_FORCE_VERSION
   || process.env.WEB_APP_CACHE_VERSION
@@ -3227,15 +3238,50 @@ async function initBot() {
     }
   });
 
-  // Error handling
+  // Error handling — batch repeated polling errors to avoid log storms
   bot.on('polling_error', (error) => {
-    if (error.response?.body?.error_code === 409) {
-      console.warn('⚠️  Telegram bot conflict: Another instance is running');
-    } else {
-      console.error('Telegram polling error:', error.message);
+    const errorCode = error.response?.body?.error_code ?? 'unknown';
+
+    // 409 Conflict is always actionable — log immediately
+    if (errorCode === 409) {
+      console.warn('⚠️  Telegram superadmin bot conflict: Another instance is running');
+      return;
+    }
+
+    const now = Date.now();
+
+    // If we are in backoff for this error code, stay silent
+    if (now < superadminPollingErrorState.backoffUntil) {
+      superadminPollingErrorState.counts[errorCode] = (superadminPollingErrorState.counts[errorCode] || 0) + 1;
+      return;
+    }
+
+    // Count the error
+    if (!superadminPollingErrorState.firstSeenAt) {
+      superadminPollingErrorState.firstSeenAt = now;
+    }
+    superadminPollingErrorState.counts[errorCode] = (superadminPollingErrorState.counts[errorCode] || 0) + 1;
+
+    // Emit a summary at most once per batch interval
+    if (now - superadminPollingErrorState.lastLoggedAt >= SUPERADMIN_POLLING_ERROR_BATCH_INTERVAL_MS) {
+      const summary = Object.entries(superadminPollingErrorState.counts)
+        .map(([code, count]) => `${count}x ${code}`)
+        .join(', ');
+      console.warn(`⚠️  Superadmin bot polling errors (last 60s): ${summary}`);
+
+      // Enter backoff if the current error code warrants it
+      if (SUPERADMIN_POLLING_ERROR_BACKOFF_CODES.has(errorCode)) {
+        superadminPollingErrorState.backoffUntil = now + SUPERADMIN_POLLING_ERROR_BACKOFF_MS;
+        console.warn(`⏸  Superadmin bot: suppressing polling errors for 10 min (code ${errorCode})`);
+      }
+
+      // Reset counters after logging
+      superadminPollingErrorState.counts = {};
+      superadminPollingErrorState.firstSeenAt = null;
+      superadminPollingErrorState.lastLoggedAt = now;
     }
   });
-  
+
   bot.on('webhook_error', (error) => {
     console.error('Telegram webhook error:', error);
   });

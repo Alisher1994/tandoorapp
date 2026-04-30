@@ -494,6 +494,15 @@ async function startServer() {
       } catch (error) {
         console.error('⚠️  Migration error:', error.message);
       }
+
+      // Disable restaurants with invalid/expired Telegram bot tokens to prevent
+      // polling error storms that exceed Railway's 500 logs/sec limit.
+      try {
+        const migrateDisableInvalidBots = require('./database/migrate_disable_invalid_bots');
+        await migrateDisableInvalidBots();
+      } catch (error) {
+        console.error('⚠️  migrate_disable_invalid_bots error:', error.message);
+      }
     } else {
       console.warn('⚠️  DATABASE_URL not set, skipping migrations');
     }
