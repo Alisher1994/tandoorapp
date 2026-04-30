@@ -2061,7 +2061,7 @@ async function ensureShowcaseLayoutsSchema() {
 
 async function hasShowcaseRestaurantReadAccess(user, restaurantId) {
   const role = String(user?.role || '').trim().toLowerCase();
-  if (role === 'superadmin') return true;
+  if (role === 'superadmin' || role === 'moderator') return true;
   if (role === 'customer') {
     return Number.parseInt(user?.active_restaurant_id, 10) === restaurantId;
   }
@@ -2079,7 +2079,7 @@ async function hasShowcaseRestaurantReadAccess(user, restaurantId) {
 
 async function hasShowcaseRestaurantWriteAccess(user, restaurantId) {
   const role = String(user?.role || '').trim().toLowerCase();
-  if (role === 'superadmin') return true;
+  if (role === 'superadmin' || role === 'moderator') return true;
   if (role !== 'operator' && role !== 'admin') return false;
   return hasShowcaseRestaurantReadAccess(user, restaurantId);
 }
