@@ -2872,18 +2872,19 @@ function SuperAdminDashboard() {
 
     const requestPromise = (async () => {
       try {
-        const response = await axios.get(`${API_URL}/superadmin/restaurants`, {
-          params: { limit: 1000 }, // Load all for filters
-          timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
-        });
+        const [response, opResponse] = await Promise.all([
+          axios.get(`${API_URL}/superadmin/restaurants`, {
+            params: { limit: 1000 }, // Load all for filters
+            timeout: Math.max(SUPERADMIN_REQUEST_TIMEOUT_MS, 15000)
+          }),
+          axios.get(`${API_URL}/superadmin/operators`, {
+            params: { limit: 1000 },
+            timeout: Math.max(SUPERADMIN_REQUEST_TIMEOUT_MS, 15000)
+          })
+        ]);
         // Handle both formats: [r1, r2] or { restaurants: [r1, r2] }
         const restaurantData = Array.isArray(response.data) ? response.data : (response.data?.restaurants || []);
         setAllRestaurants(restaurantData);
-
-        const opResponse = await axios.get(`${API_URL}/superadmin/operators`, {
-          params: { limit: 1000 },
-          timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
-        });
         const operatorData = Array.isArray(opResponse.data) ? opResponse.data : (opResponse.data?.operators || []);
         setAllOperators(operatorData);
         internalDirectoryLoadedAtRef.current = Date.now();

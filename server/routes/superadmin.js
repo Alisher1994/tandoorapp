@@ -9153,8 +9153,8 @@ router.get('/stats', async (req, res) => {
         (SELECT COUNT(*) FROM users WHERE role = 'operator' AND is_active = true) as operators_count,
         (SELECT COUNT(*) FROM users WHERE role = 'customer') as customers_count,
         (SELECT COUNT(*) FROM orders WHERE status = 'new') as new_orders_count,
-        (SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURRENT_DATE) as today_orders_count,
-        (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE DATE(created_at) = CURRENT_DATE) as today_revenue
+        (SELECT COUNT(*) FROM orders WHERE created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + INTERVAL '1 day') as today_orders_count,
+        (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + INTERVAL '1 day') as today_revenue
     `);
 
     res.json(stats.rows[0]);

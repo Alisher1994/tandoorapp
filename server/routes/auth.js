@@ -877,39 +877,66 @@ router.post('/login', loginRateLimiter, async (req, res) => {
     const normalizedPhone = normalizePhone(identifier);
     const phoneDigits = normalizedPhone.replace(/\D/g, '');
 
-    const result = await pool.query(`
-      SELECT u.*, r.name as active_restaurant_name, r.logo_url as active_restaurant_logo,
-             r.logo_display_mode as active_restaurant_logo_display_mode,
-             r.currency_code as active_restaurant_currency_code,
-             r.service_fee as active_restaurant_service_fee,
-             r.is_delivery_enabled as active_restaurant_is_delivery_enabled,
-             r.ui_theme as active_restaurant_ui_theme,
-             r.ui_font_family as active_restaurant_ui_font_family,
-             CASE
-               WHEN $3 <> '' AND COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3 THEN 0
-               WHEN $3 <> '' AND COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3 THEN 1
-               WHEN LOWER(u.username) = $1 THEN 2
-               WHEN LOWER(u.username) = $2 THEN 3
-               ELSE 4
-             END AS login_match_priority,
-             CASE
-               WHEN $4::int IS NULL THEN false
-               ELSE EXISTS (
-                 SELECT 1
-                 FROM operator_restaurants opr
-                 WHERE opr.user_id = u.id
-                   AND opr.restaurant_id = $4::int
-               )
-             END AS matches_portal_restaurant
-      FROM users u
-      LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
-      WHERE LOWER(u.username) = $1
-         OR LOWER(u.username) = $2
-         OR ($3 <> '' AND COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $3)
-         OR ($3 <> '' AND COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $3)
-      ORDER BY login_match_priority ASC, u.id DESC
-      LIMIT 20
-    `, [usernameLower, usernameWithAt, phoneDigits, requestedRestaurantId]);
+    const lookupByDigitsOnly = /^\+?\d[\d\s-]*$/.test(identifier) && phoneDigits.length >= 7;
+    const result = lookupByDigitsOnly
+      ? await pool.query(`
+          SELECT u.*, r.name as active_restaurant_name, r.logo_url as active_restaurant_logo,
+                 r.logo_display_mode as active_restaurant_logo_display_mode,
+                 r.currency_code as active_restaurant_currency_code,
+                 r.service_fee as active_restaurant_service_fee,
+                 r.is_delivery_enabled as active_restaurant_is_delivery_enabled,
+                 r.ui_theme as active_restaurant_ui_theme,
+                 r.ui_font_family as active_restaurant_ui_font_family,
+                 CASE
+                   WHEN COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $1 THEN 0
+                   WHEN COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $1 THEN 1
+                   ELSE 2
+                 END AS login_match_priority,
+                 CASE
+                   WHEN $2::int IS NULL THEN false
+                   ELSE EXISTS (
+                     SELECT 1
+                     FROM operator_restaurants opr
+                     WHERE opr.user_id = u.id
+                       AND opr.restaurant_id = $2::int
+                   )
+                 END AS matches_portal_restaurant
+          FROM users u
+          LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
+          WHERE COALESCE(regexp_replace(u.phone, '[^0-9]', '', 'g'), '') = $1
+             OR COALESCE(regexp_replace(u.username, '[^0-9]', '', 'g'), '') = $1
+          ORDER BY login_match_priority ASC, u.id DESC
+          LIMIT 10
+        `, [phoneDigits, requestedRestaurantId])
+      : await pool.query(`
+          SELECT u.*, r.name as active_restaurant_name, r.logo_url as active_restaurant_logo,
+                 r.logo_display_mode as active_restaurant_logo_display_mode,
+                 r.currency_code as active_restaurant_currency_code,
+                 r.service_fee as active_restaurant_service_fee,
+                 r.is_delivery_enabled as active_restaurant_is_delivery_enabled,
+                 r.ui_theme as active_restaurant_ui_theme,
+                 r.ui_font_family as active_restaurant_ui_font_family,
+                 CASE
+                   WHEN LOWER(u.username) = $1 THEN 0
+                   WHEN LOWER(u.username) = $2 THEN 1
+                   ELSE 2
+                 END AS login_match_priority,
+                 CASE
+                   WHEN $3::int IS NULL THEN false
+                   ELSE EXISTS (
+                     SELECT 1
+                     FROM operator_restaurants opr
+                     WHERE opr.user_id = u.id
+                       AND opr.restaurant_id = $3::int
+                   )
+                 END AS matches_portal_restaurant
+          FROM users u
+          LEFT JOIN restaurants r ON u.active_restaurant_id = r.id
+          WHERE LOWER(u.username) = $1
+             OR LOWER(u.username) = $2
+          ORDER BY login_match_priority ASC, u.id DESC
+          LIMIT 10
+        `, [usernameLower, usernameWithAt, requestedRestaurantId]);
 
     if (result.rows.length === 0) {
       console.warn('⚠️ Login failed: account not found', {

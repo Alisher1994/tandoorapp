@@ -812,11 +812,15 @@ async function migrate() {
 
     const indexes = [
       'CREATE INDEX IF NOT EXISTS idx_users_active_restaurant ON users(active_restaurant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_users_lower_username ON users(LOWER(username))',
+      `CREATE INDEX IF NOT EXISTS idx_users_phone_digits ON users((regexp_replace(phone, '[^0-9]', '', 'g')))`,
+      `CREATE INDEX IF NOT EXISTS idx_users_username_digits ON users((regexp_replace(username, '[^0-9]', '', 'g')))`,
       'CREATE INDEX IF NOT EXISTS idx_operator_restaurants_user ON operator_restaurants(user_id)',
       'CREATE INDEX IF NOT EXISTS idx_operator_restaurants_restaurant ON operator_restaurants(restaurant_id)',
       'CREATE INDEX IF NOT EXISTS idx_categories_restaurant ON categories(restaurant_id)',
       'CREATE INDEX IF NOT EXISTS idx_products_restaurant ON products(restaurant_id)',
       'CREATE INDEX IF NOT EXISTS idx_orders_restaurant ON orders(restaurant_id)',
+      'CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at)',
       'CREATE INDEX IF NOT EXISTS idx_orders_processed_by ON orders(processed_by)',
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_payme_login_unique ON restaurants(payme_api_login) WHERE payme_api_login IS NOT NULL',
       'CREATE INDEX IF NOT EXISTS idx_payme_transactions_restaurant ON payme_transactions(restaurant_id)',
