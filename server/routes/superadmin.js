@@ -3922,38 +3922,150 @@ router.get('/restaurants', async (req, res) => {
     await ensureRestaurantAdminCommentSchema();
     await ensureRestaurantWorkflowStatusSchema();
     await ensureReservationSchema();
+    const parsedPage = Number.parseInt(req.query.page, 10);
+    const parsedLimit = Number.parseInt(req.query.limit, 10);
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 500) : 20;
+    const offset = (page - 1) * limit;
+    const compact = ['1', 'true', 'yes'].includes(String(req.query.compact || '').trim().toLowerCase());
+    const params = [];
+    const where = [];
+
+    const search = String(req.query.search || '').trim();
+    if (search) {
+      params.push(`%${search}%`);
+      where.push(`(r.name ILIKE $${params.length} OR CAST(r.id AS TEXT) ILIKE $${params.length})`);
+    }
+
+    const status = String(req.query.status || '').trim().toLowerCase();
+    if (status === 'active') where.push('r.is_active = true');
+    if (status === 'inactive') where.push('r.is_active = false');
+
+    const activityTypeRaw = String(req.query.activity_type_id || '').trim().toLowerCase();
+    if (activityTypeRaw === 'none') {
+      where.push('r.activity_type_id IS NULL');
+    } else if (activityTypeRaw) {
+      const activityTypeId = Number.parseInt(activityTypeRaw, 10);
+      if (Number.isFinite(activityTypeId) && activityTypeId > 0) {
+        params.push(activityTypeId);
+        where.push(`r.activity_type_id = $${params.length}`);
+      }
+    }
+
+    const workflowStatus = parseRestaurantWorkflowStatus(req.query.workflow_status);
+    if (workflowStatus) {
+      params.push(workflowStatus);
+      where.push(`r.workflow_status = $${params.length}`);
+    }
+
+    const createdFrom = String(req.query.created_from || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(createdFrom)) {
+      params.push(createdFrom);
+      where.push(`r.created_at::date >= $${params.length}::date`);
+    }
+
+    const createdTo = String(req.query.created_to || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(createdTo)) {
+      params.push(createdTo);
+      where.push(`r.created_at::date <= $${params.length}::date`);
+    }
+
+    const tariff = String(req.query.tariff || '').trim().toLowerCase();
+    if (tariff === 'free') where.push('r.is_free_tier = true');
+    if (tariff === 'paid') where.push('COALESCE(r.is_free_tier, false) = false');
+    const products = String(req.query.products || '').trim().toLowerCase();
+    if (products === 'with_products') {
+      where.push('EXISTS (SELECT 1 FROM products p WHERE p.restaurant_id = r.id)');
+    }
+    if (products === 'without_products') {
+      where.push('NOT EXISTS (SELECT 1 FROM products p WHERE p.restaurant_id = r.id)');
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    const countResult = await pool.query(`
+      SELECT COUNT(*)::int AS total
+      FROM restaurants r
+      ${whereSql}
+    `, params);
+    const total = Number(countResult.rows[0]?.total || 0);
+
+    if (compact) {
+      const compactParams = [...params, limit, offset];
+      const compactResult = await pool.query(`
+        SELECT
+          r.id,
+          r.name,
+          r.is_active,
+          r.activity_type_id,
+          r.created_at,
+          r.is_free_tier
+        FROM restaurants r
+        ${whereSql}
+        ORDER BY r.created_at DESC, r.id DESC
+        LIMIT $${compactParams.length - 1}
+        OFFSET $${compactParams.length}
+      `, compactParams);
+      return res.json({
+        restaurants: compactResult.rows || [],
+        total,
+        page,
+        limit
+      });
+    }
+
+    const listParams = [...params, limit, offset];
     const result = await pool.query(`
-      SELECT r.*, 
+      WITH r_page AS (
+        SELECT r.*
+        FROM restaurants r
+        ${whereSql}
+        ORDER BY r.created_at DESC, r.id DESC
+        LIMIT $${listParams.length - 1}
+        OFFSET $${listParams.length}
+      ),
+      operator_counts AS (
+        SELECT
+          opr.restaurant_id,
+          COUNT(*)::int AS operators_count,
+          COUNT(*) FILTER (WHERE u.role = 'operator' AND u.is_active = true)::int AS active_operators_count,
+          MAX(u.last_activity_at) FILTER (WHERE u.role = 'operator') AS latest_operator_activity_at
+        FROM operator_restaurants opr
+        LEFT JOIN users u ON u.id = opr.user_id
+        GROUP BY opr.restaurant_id
+      ),
+      order_counts AS (
+        SELECT restaurant_id, COUNT(*)::int AS orders_count
+        FROM orders
+        GROUP BY restaurant_id
+      ),
+      product_counts AS (
+        SELECT restaurant_id, COUNT(*)::int AS products_count
+        FROM products
+        GROUP BY restaurant_id
+      )
+      SELECT
+        r_page.*,
         bat.name AS activity_type_name,
         bat.is_visible AS activity_type_is_visible,
         COALESCE(rs.enabled, false) AS reservation_enabled_setting,
-        COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost,
+        COALESCE(rs.reservation_service_cost, COALESCE(r_page.reservation_cost, 0)) AS reservation_service_cost,
         op.full_name AS primary_operator_full_name,
         op.phone AS primary_operator_phone,
         op.username AS primary_operator_username,
         op.telegram_id AS primary_operator_telegram_id,
         op.last_activity_at AS primary_operator_last_activity_at,
-        (SELECT COUNT(*) FROM operator_restaurants WHERE restaurant_id = r.id) as operators_count,
-        (SELECT COUNT(*) FROM orders WHERE restaurant_id = r.id) as orders_count,
-        (SELECT COUNT(*) FROM products WHERE restaurant_id = r.id) as products_count,
-        (
-          SELECT MAX(u.last_activity_at)
-          FROM operator_restaurants opr
-          INNER JOIN users u ON u.id = opr.user_id
-          WHERE opr.restaurant_id = r.id
-            AND u.role = 'operator'
-        ) AS latest_operator_activity_at,
-        (
-          SELECT COUNT(*)
-          FROM operator_restaurants opr
-          INNER JOIN users u ON u.id = opr.user_id
-          WHERE opr.restaurant_id = r.id
-            AND u.role = 'operator'
-            AND u.is_active = true
-        ) AS active_operators_count
-      FROM restaurants r
-      LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
-      LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
+        COALESCE(oc.operators_count, 0) AS operators_count,
+        COALESCE(orc.orders_count, 0) AS orders_count,
+        COALESCE(pc.products_count, 0) AS products_count,
+        oc.latest_operator_activity_at,
+        COALESCE(oc.active_operators_count, 0) AS active_operators_count
+      FROM r_page
+      LEFT JOIN business_activity_types bat ON bat.id = r_page.activity_type_id
+      LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r_page.id
+      LEFT JOIN operator_counts oc ON oc.restaurant_id = r_page.id
+      LEFT JOIN order_counts orc ON orc.restaurant_id = r_page.id
+      LEFT JOIN product_counts pc ON pc.restaurant_id = r_page.id
       LEFT JOIN LATERAL (
         SELECT
           u.full_name,
@@ -3963,13 +4075,13 @@ router.get('/restaurants', async (req, res) => {
           u.last_activity_at
         FROM operator_restaurants opr
         INNER JOIN users u ON u.id = opr.user_id
-        WHERE opr.restaurant_id = r.id
+        WHERE opr.restaurant_id = r_page.id
           AND u.role = 'operator'
         ORDER BY COALESCE(u.last_activity_at, u.created_at) DESC NULLS LAST, u.id DESC
         LIMIT 1
       ) op ON true
-      ORDER BY r.created_at DESC
-    `);
+      ORDER BY r_page.created_at DESC, r_page.id DESC
+    `, listParams);
     const restaurants = await Promise.all(result.rows.map(async (row) => {
       const restaurantWithBotMeta = await enrichRestaurantWithBotMeta({
         ...row,
@@ -3977,7 +4089,12 @@ router.get('/restaurants', async (req, res) => {
       });
       return enrichRestaurantWithWorkflowStatus(restaurantWithBotMeta);
     }));
-    res.json(restaurants);
+    res.json({
+      restaurants,
+      total,
+      page,
+      limit
+    });
   } catch (error) {
     console.error('Get restaurants error:', error);
     res.status(500).json({ error: 'Ошибка получения ресторанов' });

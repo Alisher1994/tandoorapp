@@ -2338,7 +2338,21 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (!canAccessCurrentSuperadminTab('restaurants', 'view')) return;
     if (activeTab === 'restaurants') loadRestaurants();
-  }, [activeTab, restaurantsPage, restaurantsLimit, user?.role, user?.moderator_permissions]);
+  }, [
+    activeTab,
+    restaurantsPage,
+    restaurantsLimit,
+    restaurantsNameFilter,
+    restaurantsSelectFilter,
+    restaurantsStatusFilter,
+    restaurantsActivityTypeFilter,
+    restaurantsCreatedFromFilter,
+    restaurantsCreatedToFilter,
+    restaurantsTariffFilter,
+    restaurantsProductsFilter,
+    user?.role,
+    user?.moderator_permissions
+  ]);
 
   useEffect(() => {
     return () => {
@@ -2871,12 +2885,29 @@ function SuperAdminDashboard() {
   const loadRestaurants = async () => {
     setLoading(true);
     try {
+      const normalizedStatusFilter = String(restaurantsStatusFilter || '').trim().toLowerCase();
+      const isActiveFlagFilter = normalizedStatusFilter === 'active' || normalizedStatusFilter === 'inactive';
+      const workflowStatusFilter = RESTAURANT_WORKFLOW_STATUS_SET.has(normalizedStatusFilter)
+        ? normalizedStatusFilter
+        : undefined;
+      const searchFilter = String(restaurantsNameFilter || '').trim() || String(restaurantsSelectFilter || '').trim() || undefined;
       const response = await axios.get(`${API_URL}/superadmin/restaurants`, {
-        params: { page: restaurantsPage, limit: restaurantsLimit },
+        params: {
+          page: restaurantsPage,
+          limit: restaurantsLimit,
+          search: searchFilter,
+          status: isActiveFlagFilter ? normalizedStatusFilter : undefined,
+          workflow_status: workflowStatusFilter,
+          activity_type_id: restaurantsActivityTypeFilter || undefined,
+          created_from: restaurantsCreatedFromFilter || undefined,
+          created_to: restaurantsCreatedToFilter || undefined,
+          tariff: restaurantsTariffFilter || undefined,
+          products: restaurantsProductsFilter || undefined
+        },
         timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
       });
       const data = Array.isArray(response.data)
-        ? { restaurants: response.data, total: response.data.length }
+        ? { restaurants: response.data, total: response.data.length, page: restaurantsPage, limit: restaurantsLimit }
         : response.data;
       setRestaurants(data);
     } catch (err) {
@@ -2909,7 +2940,7 @@ function SuperAdminDashboard() {
         const [restaurantResponse, operatorsResponse] = await Promise.all([
           canLoadRestaurantsDirectory
             ? axios.get(`${API_URL}/superadmin/restaurants`, {
-              params: { limit: 400 },
+              params: { limit: 400, compact: 1 },
               timeout: requestTimeout
             }).catch((error) => {
               if (error?.response?.status === 401 || error?.response?.status === 403) return null;
@@ -6431,10 +6462,7 @@ function SuperAdminDashboard() {
     restaurantIssueCountMap
   ]);
 
-  const paginatedRestaurants = useMemo(() => {
-    const start = (restaurantsPage - 1) * restaurantsLimit;
-    return filteredRestaurants.slice(start, start + restaurantsLimit);
-  }, [filteredRestaurants, restaurantsPage, restaurantsLimit]);
+  const paginatedRestaurants = useMemo(() => filteredRestaurants, [filteredRestaurants]);
 
   useEffect(() => {
     const visibleIds = new Set((paginatedRestaurants || []).map((item) => Number(item?.id)).filter((id) => Number.isFinite(id) && id > 0));
@@ -13598,7 +13626,7 @@ function SuperAdminDashboard() {
 
                     <DataPagination
                       current={restaurantsPage}
-                      total={filteredRestaurants.length}
+                      total={Number(restaurants?.total || 0)}
                       limit={restaurantsLimit}
                       onPageChange={setRestaurantsPage}
                       limitOptions={[15, 20, 30, 50]}

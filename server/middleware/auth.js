@@ -311,7 +311,7 @@ const requireSuperAdmin = (req, res, next) => {
  * Требует роль operator или superadmin
  */
 const requireOperator = (req, res, next) => {
-  if (req.user.role !== 'operator' && req.user.role !== 'superadmin') {
+  if (req.user.role !== 'operator' && req.user.role !== 'moderator' && req.user.role !== 'superadmin') {
     return res.status(403).json({ error: 'Доступ только для операторов' });
   }
   next();
