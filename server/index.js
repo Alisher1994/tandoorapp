@@ -498,6 +498,14 @@ async function startServer() {
       console.warn('⚠️  DATABASE_URL not set, skipping migrations');
     }
 
+    // Immediately isolate unreachable bots to prevent error storms
+    try {
+      const migrateIsolateUnreachableBots = require('./database/migrate_isolate_unreachable_bots');
+      await migrateIsolateUnreachableBots();
+    } catch (error) {
+      console.error('⚠️ Error isolating unreachable bots:', error.message);
+    }
+
     // Initialize legacy Telegram bot (fallback for old system)
     await initBot();
     initSuperadminServerMonitoring({ bot: getBot() });
