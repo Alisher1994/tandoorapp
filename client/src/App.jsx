@@ -63,7 +63,7 @@ function RoutePrefetcher() {
     const role = String(user?.role || '');
     const tasks = [];
 
-    if (role === 'superadmin') {
+    if (role === 'superadmin' || role === 'moderator') {
       tasks.push(
         { key: 'admin-dashboard', load: () => import('./pages/AdminDashboard') },
         { key: 'superadmin-dashboard', load: () => import('./pages/SuperAdminDashboard') }

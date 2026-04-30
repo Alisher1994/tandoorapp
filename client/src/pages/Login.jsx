@@ -68,9 +68,9 @@ function Login() {
   }, [user, loginPortal]);
 
   const redirectBasedOnRole = (role) => {
-    if (role === 'superadmin') {
+    if (role === 'superadmin' || role === 'moderator') {
       navigate('/superadmin');
-    } else if (role === 'operator' || role === 'moderator') {
+    } else if (role === 'operator') {
       navigate('/admin');
     } else {
       navigate('/');
