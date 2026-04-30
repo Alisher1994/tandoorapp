@@ -22,6 +22,13 @@ const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/
 // Store all bots: Map<botToken, { bot, restaurantId, restaurantName }>
 const restaurantBots = new Map();
 
+// --- Per-restaurant polling-error throttle ---
+const POLLING_ERROR_BATCH_INTERVAL_MS = 60_000;
+const POLLING_ERROR_BACKOFF_CODES = new Set([401, 404]);
+const POLLING_ERROR_BACKOFF_MS = 10 * 60_000;
+// Map<restaurantName, { counts, firstSeenAt, lastLoggedAt, backoffUntil }>
+const pollingErrorState = new Map();
+
 // Store for registration states: Map<`${botToken}_${telegramUserId}`, state>
 const registrationStates = new Map();
 const passwordResetCooldown = new Map();
@@ -3429,12 +3436,57 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
   });
 
-  // Error handling
+  // Error handling — batch repeated polling errors to avoid log storms
   bot.on('polling_error', (error) => {
-    if (error.response?.body?.error_code === 409) {
+    const errorCode = error.response?.body?.error_code ?? 'unknown';
+
+    // 409 Conflict is always actionable — log immediately
+    if (errorCode === 409) {
       console.warn(`⚠️  Bot conflict for ${restaurantName}: Another instance running`);
-    } else {
-      console.error(`Telegram polling error for ${restaurantName}:`, error.message);
+      return;
+    }
+
+    const now = Date.now();
+
+    if (!pollingErrorState.has(restaurantName)) {
+      pollingErrorState.set(restaurantName, {
+        counts: {},
+        firstSeenAt: null,
+        lastLoggedAt: 0,
+        backoffUntil: 0
+      });
+    }
+    const state = pollingErrorState.get(restaurantName);
+
+    // If we are in backoff for this restaurant, stay silent
+    if (now < state.backoffUntil) {
+      state.counts[errorCode] = (state.counts[errorCode] || 0) + 1;
+      return;
+    }
+
+    // Count the error
+    if (!state.firstSeenAt) {
+      state.firstSeenAt = now;
+    }
+    state.counts[errorCode] = (state.counts[errorCode] || 0) + 1;
+
+    // Emit a summary at most once per batch interval
+    if (now - state.lastLoggedAt >= POLLING_ERROR_BATCH_INTERVAL_MS) {
+      const summary = Object.entries(state.counts)
+        .map(([code, count]) => `${count}x ${code}`)
+        .join(', ');
+      console.warn(`⚠️  [${restaurantName}] polling errors (last 60s): ${summary}`);
+
+      // Enter backoff if the current error code warrants it
+      if (POLLING_ERROR_BACKOFF_CODES.has(errorCode)) {
+        state.backoffUntil = now + POLLING_ERROR_BACKOFF_MS;
+        console.warn(`⏸  [${restaurantName}] suppressing polling errors for 10 min (code ${errorCode})`);
+      }
+
+      // Reset counters after logging
+      state.counts = {};
+      state.firstSeenAt = null;
+      state.lastLoggedAt = now;
     }
   });
 }
