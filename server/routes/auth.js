@@ -11,6 +11,7 @@ const rateLimit = require('express-rate-limit');
 const pool = require('../database/connection');
 const { authenticate } = require('../middleware/auth');
 const { getBot } = require('../bot/bot');
+const { getBotByRestaurantId } = require('../bot/multiBotManager');
 const {
   logActivity,
   getIpFromRequest,
@@ -133,11 +134,36 @@ function normalizePhone(rawPhone) {
 
 function normalizeLoginPortal(value) {
   const portal = String(value || '').trim().toLowerCase();
-  if (['customer', 'admin', 'operator', 'superadmin'].includes(portal)) {
+  if (['customer', 'admin', 'operator', 'superadmin', 'moderator'].includes(portal)) {
     return portal;
   }
   return '';
 }
+const SUPERADMIN_MENU_KEYS = [
+  'analytics',
+  'restaurants',
+  'global_products',
+  'operators',
+  'customers',
+  'ads',
+  'founders',
+  'settings'
+];
+const SUPERADMIN_MENU_KEY_SET = new Set(SUPERADMIN_MENU_KEYS);
+const normalizeModeratorPermissions = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const normalized = {};
+  for (const [rawKey, rawPerm] of Object.entries(value)) {
+    const key = String(rawKey || '').trim().toLowerCase();
+    if (!SUPERADMIN_MENU_KEY_SET.has(key)) continue;
+    const perm = rawPerm && typeof rawPerm === 'object' ? rawPerm : {};
+    normalized[key] = {
+      view: perm.view === true,
+      edit: perm.edit === true
+    };
+  }
+  return normalized;
+};
 
 function parseOptionalInt(value) {
   const parsed = Number.parseInt(value, 10);
@@ -696,10 +722,11 @@ function getPortalRoleRank(role, portal) {
   if (!portal) return 0;
 
   const ranksByPortal = {
-    customer: { customer: 0, operator: 1, superadmin: 2 },
-    admin: { operator: 0, superadmin: 1, customer: 2 },
-    operator: { operator: 0, superadmin: 1, customer: 2 },
-    superadmin: { superadmin: 0, operator: 1, customer: 2 }
+    customer: { customer: 0, operator: 1, moderator: 2, superadmin: 3 },
+    admin: { moderator: 0, operator: 1, superadmin: 2, customer: 3 },
+    operator: { operator: 0, moderator: 1, superadmin: 2, customer: 3 },
+    superadmin: { superadmin: 0, moderator: 1, operator: 2, customer: 3 },
+    moderator: { moderator: 0, superadmin: 1, operator: 2, customer: 3 }
   };
 
   const rankMap = ranksByPortal[portal] || {};
@@ -709,9 +736,50 @@ function getPortalRoleRank(role, portal) {
 function isRoleAllowedForPortal(role, portal) {
   if (!portal) return true;
   if (portal === 'customer') return role === 'customer';
-  if (portal === 'admin') return role === 'operator' || role === 'superadmin';
-  if (portal === 'operator') return role === 'operator' || role === 'superadmin';
+  if (portal === 'admin') return role === 'operator' || role === 'moderator' || role === 'superadmin';
+  if (portal === 'operator') return role === 'operator' || role === 'moderator' || role === 'superadmin';
   if (portal === 'superadmin') return role === 'superadmin';
+  if (portal === 'moderator') return role === 'moderator' || role === 'superadmin';
+  return true;
+}
+
+async function resolveAnyActiveRestaurantIdForUser(userId) {
+  const result = await pool.query(
+    `
+    SELECT r.id
+    FROM operator_restaurants opr
+    INNER JOIN restaurants r ON r.id = opr.restaurant_id
+    WHERE opr.user_id = $1 AND r.is_active = true
+    ORDER BY r.id ASC
+    LIMIT 1
+    `,
+    [userId]
+  );
+  return Number.parseInt(result.rows[0]?.id, 10) || null;
+}
+
+async function sendPasswordResetCodeTelegramMessage(user, code) {
+  const telegramId = Number.parseInt(user?.telegram_id, 10);
+  if (!Number.isFinite(telegramId) || telegramId <= 0) return false;
+
+  let bot = null;
+  const preferredRestaurantId = Number.parseInt(user?.active_restaurant_id, 10) || null;
+  if (preferredRestaurantId) {
+    bot = getBotByRestaurantId(preferredRestaurantId);
+  }
+  if (!bot) {
+    const fallbackRestaurantId = await resolveAnyActiveRestaurantIdForUser(user.id);
+    if (fallbackRestaurantId) {
+      bot = getBotByRestaurantId(fallbackRestaurantId);
+    }
+  }
+  if (!bot) bot = getBot();
+  if (!bot) return false;
+
+  await bot.sendMessage(
+    telegramId,
+    `Код для входа: ${code}\nКод действует 2 минуты. Никому не сообщайте его.`
+  );
   return true;
 }
 
@@ -982,7 +1050,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
     // Get restaurants for operators and superadmins.
     // For operators, force active_restaurant_id to an active linked shop.
     let restaurants = [];
-    if (user.role === 'superadmin' || user.role === 'operator') {
+    if (user.role === 'superadmin' || user.role === 'moderator' || user.role === 'operator') {
       const restaurantsResult = await pool.query(`
         SELECT
           r.id,
@@ -1001,7 +1069,7 @@ router.post('/login', loginRateLimiter, async (req, res) => {
       `, [user.id]);
       restaurants = restaurantsResult.rows.map((row) => ({ id: row.id, name: row.name }));
 
-      if (user.role === 'operator') {
+      if (user.role === 'operator' || user.role === 'moderator') {
         if (restaurantsResult.rows.length === 0) {
           return res.status(403).json({
             error: 'Магазин деактивирован. Обратитесь к супер-администратору.'
@@ -1080,7 +1148,8 @@ router.post('/login', loginRateLimiter, async (req, res) => {
         active_restaurant_ui_font_family: normalizeUiFontFamily(user.active_restaurant_ui_font_family, 'sans'),
         active_restaurant_service_fee: user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: user.active_restaurant_is_delivery_enabled,
-        restaurants
+        restaurants,
+        moderator_permissions: normalizeModeratorPermissions(user.moderator_permissions)
       }
     });
   } catch (error) {
@@ -1396,6 +1465,195 @@ router.post('/telegram-webapp-store-registration/meta', loginRateLimiter, async 
   }
 });
 
+router.post('/forgot-password/request', loginRateLimiter, async (req, res) => {
+  try {
+    const identifier = String(req.body?.username || '').trim();
+    if (!identifier) {
+      return res.status(400).json({ error: 'Логин обязателен' });
+    }
+
+    const usernameLower = identifier.toLowerCase();
+    const usernameWithAt = identifier.startsWith('@')
+      ? identifier.toLowerCase()
+      : `@${identifier.toLowerCase()}`;
+    const normalizedPhone = normalizePhone(identifier);
+    const phoneDigits = normalizedPhone.replace(/\D/g, '');
+
+    const userResult = await pool.query(
+      `
+      SELECT id, username, full_name, phone, telegram_id, role, is_active, active_restaurant_id
+      FROM users
+      WHERE role IN ('operator', 'moderator', 'superadmin')
+        AND (
+          LOWER(username) = $1
+          OR LOWER(username) = $2
+          OR ($3 <> '' AND COALESCE(regexp_replace(phone, '[^0-9]', '', 'g'), '') = $3)
+          OR ($3 <> '' AND COALESCE(regexp_replace(username, '[^0-9]', '', 'g'), '') = $3)
+        )
+      ORDER BY id DESC
+      LIMIT 1
+      `,
+      [usernameLower, usernameWithAt, phoneDigits]
+    );
+
+    if (userResult.rows.length === 0 || !userResult.rows[0].is_active) {
+      return res.status(200).json({ success: true, message: 'Если пользователь существует, код отправлен.' });
+    }
+
+    const user = userResult.rows[0];
+    const telegramId = Number.parseInt(user.telegram_id, 10);
+    if (!Number.isFinite(telegramId) || telegramId <= 0) {
+      return res.status(400).json({ error: 'У пользователя не привязан Telegram' });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const codeHash = await bcrypt.hash(code, 10);
+
+    await pool.query(
+      `
+      UPDATE auth_password_reset_codes
+      SET used_at = CURRENT_TIMESTAMP
+      WHERE user_id = $1 AND used_at IS NULL
+      `,
+      [user.id]
+    );
+    await pool.query(
+      `
+      INSERT INTO auth_password_reset_codes (user_id, code_hash, expires_at)
+      VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '2 minutes')
+      `,
+      [user.id, codeHash]
+    );
+
+    const sent = await sendPasswordResetCodeTelegramMessage(user, code);
+    if (!sent) {
+      return res.status(500).json({ error: 'Не удалось отправить код в Telegram' });
+    }
+
+    return res.json({ success: true, expires_in_seconds: 120 });
+  } catch (error) {
+    console.error('Forgot password request error:', error);
+    return res.status(500).json({ error: 'Ошибка отправки кода' });
+  }
+});
+
+router.post('/forgot-password/verify', loginRateLimiter, async (req, res) => {
+  try {
+    const identifier = String(req.body?.username || '').trim();
+    const code = String(req.body?.code || '').trim();
+    const newPassword = String(req.body?.new_password || '');
+    const portal = normalizeLoginPortal(req.body?.portal);
+
+    if (!identifier || !code || !newPassword) {
+      return res.status(400).json({ error: 'Логин, код и новый пароль обязательны' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ error: 'Пароль должен быть не короче 4 символов' });
+    }
+
+    const usernameLower = identifier.toLowerCase();
+    const usernameWithAt = identifier.startsWith('@')
+      ? identifier.toLowerCase()
+      : `@${identifier.toLowerCase()}`;
+    const normalizedPhone = normalizePhone(identifier);
+    const phoneDigits = normalizedPhone.replace(/\D/g, '');
+
+    const userResult = await pool.query(
+      `
+      SELECT id, username, full_name, phone, telegram_id, role, is_active, active_restaurant_id, moderator_permissions
+      FROM users
+      WHERE role IN ('operator', 'moderator', 'superadmin')
+        AND (
+          LOWER(username) = $1
+          OR LOWER(username) = $2
+          OR ($3 <> '' AND COALESCE(regexp_replace(phone, '[^0-9]', '', 'g'), '') = $3)
+          OR ($3 <> '' AND COALESCE(regexp_replace(username, '[^0-9]', '', 'g'), '') = $3)
+        )
+      ORDER BY id DESC
+      LIMIT 1
+      `,
+      [usernameLower, usernameWithAt, phoneDigits]
+    );
+
+    if (userResult.rows.length === 0 || !userResult.rows[0].is_active) {
+      return res.status(400).json({ error: 'Неверный код или логин' });
+    }
+    const user = userResult.rows[0];
+    if (portal && !isRoleAllowedForPortal(user.role, portal)) {
+      return res.status(403).json({ error: 'Нет доступа к этому разделу' });
+    }
+
+    const codeResult = await pool.query(
+      `
+      SELECT id, code_hash, expires_at, attempts
+      FROM auth_password_reset_codes
+      WHERE user_id = $1 AND used_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+      `,
+      [user.id]
+    );
+    if (codeResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Код не найден. Запросите новый' });
+    }
+
+    const record = codeResult.rows[0];
+    const isExpired = new Date(record.expires_at).getTime() < Date.now();
+    if (isExpired) {
+      return res.status(400).json({ error: 'Код истек. Запросите новый' });
+    }
+
+    const isValidCode = await bcrypt.compare(code, record.code_hash);
+    if (!isValidCode) {
+      await pool.query(
+        'UPDATE auth_password_reset_codes SET attempts = COALESCE(attempts, 0) + 1 WHERE id = $1',
+        [record.id]
+      );
+      return res.status(400).json({ error: 'Неверный код' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [hashedPassword, user.id]);
+    await pool.query('UPDATE auth_password_reset_codes SET used_at = CURRENT_TIMESTAMP WHERE id = $1', [record.id]);
+
+    const restaurantsResult = await pool.query(`
+      SELECT r.id, r.name
+      FROM restaurants r
+      INNER JOIN operator_restaurants opr ON r.id = opr.restaurant_id
+      WHERE opr.user_id = $1 AND r.is_active = true
+      ORDER BY r.name
+    `, [user.id]);
+    const restaurants = restaurantsResult.rows || [];
+
+    const tokenPayload = {
+      userId: user.id,
+      username: user.username,
+      role: user.role
+    };
+    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    });
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        full_name: user.full_name,
+        phone: user.phone,
+        role: user.role,
+        active_restaurant_id: user.active_restaurant_id,
+        restaurants,
+        moderator_permissions: normalizeModeratorPermissions(user.moderator_permissions)
+      }
+    });
+  } catch (error) {
+    console.error('Forgot password verify error:', error);
+    return res.status(500).json({ error: 'Ошибка сброса пароля' });
+  }
+});
+
 router.post('/telegram-webapp-store-registration/upload-logo', loginRateLimiter, (req, res, next) => {
   storeRegistrationLogoUpload.single('image')(req, res, (error) => {
     if (error) {
@@ -1621,6 +1879,7 @@ router.get('/me', authenticate, async (req, res) => {
         active_restaurant_service_fee: req.user.active_restaurant_service_fee,
         active_restaurant_is_delivery_enabled: req.user.active_restaurant_is_delivery_enabled,
         restaurants: req.user.restaurants || [],
+        moderator_permissions: normalizeModeratorPermissions(req.user.moderator_permissions),
         balance: req.user.balance,
         last_latitude: req.user.last_latitude,
         last_longitude: req.user.last_longitude,

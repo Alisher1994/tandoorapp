@@ -38,6 +38,21 @@ const normalizeUiFontFamily = (value, fallback = 'sans') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return UI_FONT_FAMILY_VALUES.has(normalizedFallback) ? normalizedFallback : 'sans';
 };
+const normalizeModeratorPermissions = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const entries = Object.entries(value);
+  const normalized = {};
+  for (const [rawTab, rawPerm] of entries) {
+    const tab = String(rawTab || '').trim().toLowerCase();
+    if (!tab) continue;
+    const perm = rawPerm && typeof rawPerm === 'object' ? rawPerm : {};
+    normalized[tab] = {
+      view: perm.view === true,
+      edit: perm.edit === true
+    };
+  }
+  return normalized;
+};
 
 /**
  * Аутентификация пользователя по JWT токену
@@ -72,7 +87,8 @@ const authenticate = async (req, res, next) => {
         u.balance,
         u.last_latitude,
         u.last_longitude,
-        u.last_address
+        u.last_address,
+        u.moderator_permissions
       FROM users u
       WHERE u.id = $1
     `, [decoded.userId]);
@@ -85,7 +101,7 @@ const authenticate = async (req, res, next) => {
 
     // Operator/superadmin tokens can carry explicit restaurant context (e.g. "My store" button in bot).
     // Respect it when user has access to that restaurant to prevent opening the wrong store.
-    if ((user.role === 'operator' || user.role === 'superadmin') && tokenRestaurantId) {
+    if ((user.role === 'operator' || user.role === 'moderator' || user.role === 'superadmin') && tokenRestaurantId) {
       const adminRestaurantAccessResult = await pool.query(`
         SELECT 1
         FROM operator_restaurants opr
@@ -129,7 +145,7 @@ const authenticate = async (req, res, next) => {
     }
 
     let operatorEffectiveRestaurant = null;
-    if (user.role === 'operator') {
+    if (user.role === 'operator' || user.role === 'moderator') {
       const operatorRestaurantsResult = await pool.query(`
         SELECT
           r.id,
@@ -231,7 +247,7 @@ const authenticate = async (req, res, next) => {
     }
 
     // For operators/superadmins, use restaurant balance as "the" balance
-    if (user.role === 'operator' || user.role === 'superadmin') {
+    if (user.role === 'operator' || user.role === 'moderator' || user.role === 'superadmin') {
       user.balance = user.restaurant_balance;
     }
 
@@ -267,6 +283,11 @@ const authenticate = async (req, res, next) => {
       `, [user.id]);
       user.restaurants = restaurantsResult.rows;
     }
+    if (user.role === 'moderator') {
+      user.moderator_permissions = normalizeModeratorPermissions(user.moderator_permissions);
+    } else {
+      user.moderator_permissions = {};
+    }
 
     req.user = user;
     next();
@@ -280,8 +301,8 @@ const authenticate = async (req, res, next) => {
  * Требует роль superadmin
  */
 const requireSuperAdmin = (req, res, next) => {
-  if (req.user.role !== 'superadmin') {
-    return res.status(403).json({ error: 'Доступ только для супер-администратора' });
+  if (req.user.role !== 'superadmin' && req.user.role !== 'moderator') {
+    return res.status(403).json({ error: 'Доступ только для супер-администратора или модератора' });
   }
   next();
 };

@@ -5415,6 +5415,12 @@ body::-webkit-scrollbar,
     color: #991b1b !important;
 }
 
+.sa-role-badge-moderator {
+    background: #fef3c7 !important;
+    border-color: #fde68a !important;
+    color: #92400e !important;
+}
+
 .sa-role-badge-customer {
     background: #dcfce7 !important;
     border-color: #bbf7d0 !important;

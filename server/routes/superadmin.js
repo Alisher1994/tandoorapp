@@ -54,11 +54,67 @@ const {
 // All routes require superadmin authentication
 router.use(authenticate);
 router.use(requireSuperAdmin);
+router.use((req, res, next) => {
+  if (req.user?.role !== 'moderator') return next();
+  const rawHeaderTab = String(req.headers['x-superadmin-tab'] || '').trim().toLowerCase();
+  const pathValue = String(req.path || '').toLowerCase();
+  const inferredTab = (() => {
+    if (rawHeaderTab && SUPERADMIN_MENU_KEY_SET.has(rawHeaderTab)) return rawHeaderTab;
+    if (pathValue.startsWith('/stats') || pathValue.startsWith('/analytics')) return 'analytics';
+    if (pathValue.startsWith('/restaurants')) return 'restaurants';
+    if (pathValue.startsWith('/global-products')) return 'global_products';
+    if (pathValue.startsWith('/operators')) return 'operators';
+    if (pathValue.startsWith('/customers')) return 'customers';
+    if (pathValue.startsWith('/ads')) return 'ads';
+    if (pathValue.startsWith('/founders') || pathValue.startsWith('/billing/transactions')) return 'founders';
+    if (
+      pathValue.startsWith('/categories')
+      || pathValue.startsWith('/activity-types')
+      || pathValue.startsWith('/reservation-table-templates')
+      || pathValue.startsWith('/help-instructions')
+      || pathValue.startsWith('/broadcast')
+      || pathValue.startsWith('/billing/settings')
+      || pathValue.startsWith('/security')
+      || pathValue.startsWith('/ai/')
+    ) {
+      return 'settings';
+    }
+    return '';
+  })();
+  const tab = inferredTab;
+  if (!SUPERADMIN_MENU_KEY_SET.has(tab)) {
+    return res.status(403).json({ error: 'Для модератора не указан раздел доступа' });
+  }
+  const permissions = normalizeModeratorPermissions(req.user.moderator_permissions);
+  const tabPerm = permissions[tab] || { view: false, edit: false };
+  const isRead = req.method === 'GET' || req.method === 'HEAD';
+  const isAllowed = isRead ? (tabPerm.view || tabPerm.edit) : tabPerm.edit;
+  if (!isAllowed) {
+    return res.status(403).json({ error: 'Недостаточно прав модератора для этого действия' });
+  }
+  return next();
+});
 
 const { sendBalanceNotification, getRestaurantBot } = require('../bot/notifications');
 
 const MAX_CATEGORY_LEVEL = 3;
 const CATEGORY_CHAIN_GUARD_LIMIT = 50;
+const SUPERADMIN_MENU_KEYS = ['analytics', 'restaurants', 'global_products', 'operators', 'customers', 'ads', 'founders', 'settings'];
+const SUPERADMIN_MENU_KEY_SET = new Set(SUPERADMIN_MENU_KEYS);
+const normalizeModeratorPermissions = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const normalized = {};
+  for (const [rawKey, rawPerm] of Object.entries(value)) {
+    const key = String(rawKey || '').trim().toLowerCase();
+    if (!SUPERADMIN_MENU_KEY_SET.has(key)) continue;
+    const perm = rawPerm && typeof rawPerm === 'object' ? rawPerm : {};
+    normalized[key] = {
+      view: perm.view === true,
+      edit: perm.edit === true
+    };
+  }
+  return normalized;
+};
 const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
 const RESTAURANT_WORKFLOW_STATUS_VALUES = new Set([
   'new',
@@ -2723,7 +2779,7 @@ const normalizeUserIdentityForDisplay = (user) => {
   const usernameRaw = String(user.username || '');
   const shouldShowPhoneLogin =
     !!digitsFromPhone &&
-    (user.role === 'operator' || user.role === 'superadmin') &&
+    (user.role === 'operator' || user.role === 'moderator' || user.role === 'superadmin') &&
     (looksLikePhoneOrTelegramLogin(usernameRaw) || !usernameRaw);
 
   return {
@@ -6841,10 +6897,10 @@ router.get('/operators', async (req, res) => {
     const offset = (page - 1) * limit;
     const { role = '', status = '', search = '', restaurant_id = '' } = req.query;
 
-    const whereClauses = [`u.role IN ('operator', 'superadmin')`];
+    const whereClauses = [`u.role IN ('operator', 'moderator', 'superadmin')`];
     const params = [];
 
-    if (role === 'operator' || role === 'superadmin') {
+    if (role === 'operator' || role === 'moderator' || role === 'superadmin') {
       params.push(role);
       whereClauses.push(`u.role = $${params.length}`);
     }
@@ -6877,6 +6933,7 @@ router.get('/operators', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         u.id, u.username, u.full_name, u.phone, u.role, u.is_active, u.created_at,
+        u.moderator_permissions,
         u.active_restaurant_id, u.telegram_id,
         u.last_activity_at,
         u.last_ip_address,
@@ -7880,11 +7937,16 @@ router.delete('/categories/:id', async (req, res) => {
 router.post('/operators', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { username, password, full_name, phone, telegram_id, restaurant_ids } = req.body;
+    const { username, password, full_name, phone, telegram_id, restaurant_ids, role, moderator_permissions } = req.body;
     const normalizedAuth = normalizeOperatorAuthFields({ username, phone });
+    const normalizedRole = String(role || 'operator').trim().toLowerCase();
+    const normalizedModeratorPermissions = normalizeModeratorPermissions(moderator_permissions);
 
     if (!normalizedAuth.username || !password) {
       return res.status(400).json({ error: 'Логин и пароль обязательны' });
+    }
+    if (!['operator', 'moderator', 'superadmin'].includes(normalizedRole)) {
+      return res.status(400).json({ error: 'Недопустимая роль' });
     }
 
     await client.query('BEGIN');
@@ -7899,10 +7961,18 @@ router.post('/operators', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const userResult = await client.query(`
-      INSERT INTO users (username, password, full_name, phone, role, is_active, telegram_id)
-      VALUES ($1, $2, $3, $4, 'operator', true, $5)
-      RETURNING id, username, full_name, phone, role, is_active, created_at, telegram_id
-    `, [normalizedAuth.username, hashedPassword, full_name, normalizedAuth.phone, telegram_id || null]);
+      INSERT INTO users (username, password, full_name, phone, role, is_active, telegram_id, moderator_permissions)
+      VALUES ($1, $2, $3, $4, $5, true, $6, $7::jsonb)
+      RETURNING id, username, full_name, phone, role, is_active, created_at, telegram_id, moderator_permissions
+    `, [
+      normalizedAuth.username,
+      hashedPassword,
+      full_name,
+      normalizedAuth.phone,
+      normalizedRole,
+      telegram_id || null,
+      JSON.stringify(normalizedModeratorPermissions)
+    ]);
 
     const user = userResult.rows[0];
 
@@ -7949,7 +8019,12 @@ router.post('/operators', async (req, res) => {
 router.put('/operators/:id', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { full_name, phone, password, is_active, telegram_id, restaurant_ids } = req.body;
+    const { full_name, phone, password, is_active, telegram_id, restaurant_ids, role, moderator_permissions } = req.body;
+    const requestedRole = role === undefined ? undefined : String(role || '').trim().toLowerCase();
+    const normalizedModeratorPermissions = normalizeModeratorPermissions(moderator_permissions);
+    if (requestedRole !== undefined && !['operator', 'moderator', 'superadmin'].includes(requestedRole)) {
+      return res.status(400).json({ error: 'Недопустимая роль' });
+    }
 
     await client.query('BEGIN');
 
@@ -7972,9 +8047,18 @@ router.put('/operators/:id', async (req, res) => {
         phone = COALESCE($2, phone),
         is_active = COALESCE($3, is_active),
         telegram_id = $4,
+        role = COALESCE($5, role),
+        moderator_permissions = COALESCE($6::jsonb, moderator_permissions),
         updated_at = CURRENT_TIMESTAMP
     `;
-    let params = [full_name, normalizedPhone, is_active, telegram_id || null];
+    let params = [
+      full_name,
+      normalizedPhone,
+      is_active,
+      telegram_id || null,
+      requestedRole || null,
+      moderator_permissions === undefined ? null : JSON.stringify(normalizedModeratorPermissions)
+    ];
 
     if (normalizedUsernameFromPhone) {
       updateQuery += `, username = $${params.length + 1}`;
@@ -8104,9 +8188,9 @@ router.delete('/operators/:id/permanent', async (req, res) => {
       return res.status(404).json({ error: 'Оператор не найден' });
     }
     const user = userResult.rows[0];
-    if (String(user.role || '').toLowerCase() !== 'operator') {
+    if (!['operator', 'moderator'].includes(String(user.role || '').toLowerCase())) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'Можно удалять из БД только операторов' });
+      return res.status(400).json({ error: 'Можно удалять из БД только операторов/модераторов' });
     }
 
     const linkedRestaurantsResult = await client.query(

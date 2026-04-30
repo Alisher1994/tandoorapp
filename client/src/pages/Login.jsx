@@ -9,6 +9,9 @@ import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
 import deliveryTruckVideo from '../assets/animations/delivery-truck.mp4';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -16,6 +19,11 @@ function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotCode, setForgotCode] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotTimer, setForgotTimer] = useState(0);
   const [showAccountChoiceModal, setShowAccountChoiceModal] = useState(false);
   const [accountChoiceMessage, setAccountChoiceMessage] = useState('');
   const [accountChoices, setAccountChoices] = useState([]);
@@ -28,6 +36,7 @@ function Login() {
   const portalTitles = {
     admin: 'Вход для администратора',
     operator: 'Вход для оператора',
+    moderator: 'Вход для модератора',
     superadmin: 'Вход для суперадмина',
     customer: 'Вход для клиента'
   };
@@ -35,8 +44,9 @@ function Login() {
   const isRoleCompatibleWithPortal = (role, portal) => {
     if (!portal) return true;
     if (portal === 'customer') return role === 'customer';
-    if (portal === 'admin') return role === 'operator' || role === 'superadmin';
-    if (portal === 'operator') return role === 'operator' || role === 'superadmin';
+    if (portal === 'admin') return role === 'operator' || role === 'moderator' || role === 'superadmin';
+    if (portal === 'operator') return role === 'operator' || role === 'moderator' || role === 'superadmin';
+    if (portal === 'moderator') return role === 'moderator' || role === 'superadmin';
     if (portal === 'superadmin') return role === 'superadmin';
     return true;
   };
@@ -60,7 +70,7 @@ function Login() {
   const redirectBasedOnRole = (role) => {
     if (role === 'superadmin') {
       navigate('/superadmin');
-    } else if (role === 'operator') {
+    } else if (role === 'operator' || role === 'moderator') {
       navigate('/admin');
     } else {
       navigate('/');
@@ -119,12 +129,68 @@ function Login() {
     setLoading(false);
   };
 
+  useEffect(() => {
+    if (forgotTimer <= 0) return undefined;
+    const timer = window.setInterval(() => {
+      setForgotTimer((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [forgotTimer]);
+
+  const requestForgotPasswordCode = async () => {
+    if (!username.trim()) {
+      setError('Введите логин, чтобы получить код в Telegram');
+      return;
+    }
+    setError('');
+    setForgotLoading(true);
+    try {
+      await axios.post(`${API_URL}/auth/forgot-password/request`, { username });
+      setShowForgotPassword(true);
+      setForgotTimer(120);
+    } catch (requestError) {
+      setError(requestError.response?.data?.error || 'Не удалось отправить код');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleForgotPasswordConfirm = async () => {
+    if (!username.trim() || !forgotCode.trim() || !forgotNewPassword.trim()) {
+      setError('Заполните логин, код и новый пароль');
+      return;
+    }
+    setError('');
+    setForgotLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/auth/forgot-password/verify`, {
+        username,
+        code: forgotCode.trim(),
+        new_password: forgotNewPassword,
+        portal: loginPortal
+      });
+      const { token, user: nextUser } = response.data || {};
+      if (!token || !nextUser) {
+        setError('Ошибка входа после подтверждения кода');
+      } else {
+        localStorage.setItem('token', token);
+        localStorage.setItem('active_restaurant_id', String(nextUser?.active_restaurant_id || ''));
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        window.location.reload();
+      }
+    } catch (confirmError) {
+      setError(confirmError.response?.data?.error || 'Неверный код или пароль');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
   return (
     <Container className="d-flex justify-content-center align-items-center login-shell" style={{ minHeight: '100vh' }}>
       <Card style={{ width: '100%', maxWidth: '420px' }} className="shadow login-card">
         <Card.Body className="p-4">
           <div className="text-center mb-4">
-            {(loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'superadmin' || loginPortal === 'customer') && (
+            {(loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'moderator' || loginPortal === 'superadmin' || loginPortal === 'customer') && (
               <div className="mb-3">
                 <span className="login-context-chip">
                   {loginPortal === 'customer' ? 'Client Portal' : 'Admin Portal'}
@@ -157,7 +223,7 @@ function Login() {
             </div>
             <h2>{portalTitles[loginPortal] || 'Вход в систему'}</h2>
             <p className="text-muted">
-              {loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'superadmin'
+              {loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'moderator' || loginPortal === 'superadmin'
                 ? 'Введите данные администратора'
                 : 'Введите ваши данные для входа'}
             </p>
@@ -222,6 +288,54 @@ function Login() {
             >
               {loading ? 'Вход...' : 'Войти'}
             </Button>
+            <div className="d-flex justify-content-end mt-2">
+              <button
+                type="button"
+                className="login-inline-link"
+                onClick={requestForgotPasswordCode}
+                disabled={forgotLoading}
+              >
+                Забыли пароль?
+              </button>
+            </div>
+            {showForgotPassword && (
+              <div className="login-forgot-panel mt-3">
+                <div className="small text-muted mb-2">
+                  Код отправлен в Telegram {forgotTimer > 0 ? `(осталось ${forgotTimer} сек.)` : '(код истек)'}
+                </div>
+                <Form.Control
+                  className="mb-2"
+                  placeholder="Код из Telegram"
+                  value={forgotCode}
+                  onChange={(e) => setForgotCode(e.target.value)}
+                />
+                <Form.Control
+                  className="mb-2"
+                  type="password"
+                  placeholder="Новый пароль"
+                  value={forgotNewPassword}
+                  onChange={(e) => setForgotNewPassword(e.target.value)}
+                />
+                <div className="d-flex gap-2">
+                  <Button
+                    variant="outline-secondary"
+                    type="button"
+                    onClick={requestForgotPasswordCode}
+                    disabled={forgotLoading}
+                  >
+                    Отправить заново
+                  </Button>
+                  <Button
+                    variant="primary"
+                    type="button"
+                    onClick={handleForgotPasswordConfirm}
+                    disabled={forgotLoading || forgotTimer <= 0}
+                  >
+                    Подтвердить
+                  </Button>
+                </div>
+              </div>
+            )}
           </Form>
 
         </Card.Body>

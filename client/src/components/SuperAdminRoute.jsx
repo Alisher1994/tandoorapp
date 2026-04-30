@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { SuperAdminDashboardSkeleton } from './SkeletonUI';
 
 function SuperAdminRoute({ children }) {
-  const { user, loading, isSuperAdmin } = useAuth();
+  const { user, loading } = useAuth();
 
   if (loading) {
     return <SuperAdminDashboardSkeleton label="Проверка прав супер-админа" />;
@@ -13,8 +13,8 @@ function SuperAdminRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Only allow superadmin role
-  if (!isSuperAdmin()) {
+  // Allow superadmin and moderator
+  if (!(user?.role === 'superadmin' || user?.role === 'moderator')) {
     return <Navigate to="/admin" replace />;
   }
 

@@ -351,10 +351,10 @@ h6 {
 
 .login-card {
   border: 1px solid rgba(71, 85, 105, 0.12);
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.14) !important;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 28px 56px rgba(15, 23, 42, 0.16) !important;
 }
 
 .login-context-chip {
@@ -377,6 +377,26 @@ h6 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.login-inline-link {
+  border: none;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 0.9rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.login-inline-link:disabled {
+  opacity: 0.6;
+}
+
+.login-forgot-panel {
+  border: 1px solid rgba(71, 85, 105, 0.14);
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px;
 }
 
 .btn-primary {

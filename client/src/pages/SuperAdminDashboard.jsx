@@ -124,6 +124,17 @@ const SUPERADMIN_SIDEBAR_NAV_ORDER = [
   'founders',
   'settings'
 ];
+const MODERATOR_MENU_KEYS = ['analytics', 'restaurants', 'global_products', 'operators', 'customers', 'ads', 'founders', 'settings'];
+const normalizeModeratorPermissions = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const normalized = {};
+  MODERATOR_MENU_KEYS.forEach((key) => {
+    const perm = value[key] && typeof value[key] === 'object' ? value[key] : {};
+    normalized[key] = { view: perm.view === true, edit: perm.edit === true };
+  });
+  return normalized;
+};
+const createEmptyModeratorPermissions = () => normalizeModeratorPermissions({});
 const resolveSettingsNavTargetTab = (key) => {
   return SUPERADMIN_SETTINGS_TARGET_TABS.has(key) ? key : 'categories';
 };
@@ -1692,7 +1703,13 @@ function SuperAdminDashboard() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
   const [operatorForm, setOperatorForm] = useState({
-    username: '', password: '', full_name: '', phone: '', restaurant_ids: []
+    username: '',
+    password: '',
+    full_name: '',
+    phone: '',
+    role: 'operator',
+    restaurant_ids: [],
+    moderator_permissions: createEmptyModeratorPermissions()
   });
   const [operatorStoreAccessSearch, setOperatorStoreAccessSearch] = useState('');
   const [showOperatorStoresModal, setShowOperatorStoresModal] = useState(false);
@@ -2371,6 +2388,22 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'ads') loadAdBanners();
   }, [activeTab, adBannerStatusFilter]);
+  useEffect(() => {
+    if (user?.role === 'moderator') {
+      const normalizedTab = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab) ? 'settings' : activeTab;
+      const tabHeader = MODERATOR_MENU_KEYS.includes(normalizedTab) ? normalizedTab : '';
+      if (tabHeader) {
+        axios.defaults.headers.common['X-Superadmin-Tab'] = tabHeader;
+      } else {
+        delete axios.defaults.headers.common['X-Superadmin-Tab'];
+      }
+    } else {
+      delete axios.defaults.headers.common['X-Superadmin-Tab'];
+    }
+    return () => {
+      delete axios.defaults.headers.common['X-Superadmin-Tab'];
+    };
+  }, [activeTab, user?.role]);
 
   useEffect(() => {
     if (activeTab !== 'billing') return;
@@ -8557,12 +8590,20 @@ function SuperAdminDashboard() {
         password: '',
         full_name: operator.full_name || '',
         phone: operator.phone || '',
-        restaurant_ids: operator.restaurants?.map(r => r.id) || []
+        role: operator.role || 'operator',
+        restaurant_ids: operator.restaurants?.map(r => r.id) || [],
+        moderator_permissions: normalizeModeratorPermissions(operator.moderator_permissions)
       });
     } else {
       setEditingOperator(null);
       setOperatorForm({
-        username: '', password: '', full_name: '', phone: '', restaurant_ids: []
+        username: '',
+        password: '',
+        full_name: '',
+        phone: '',
+        role: 'operator',
+        restaurant_ids: [],
+        moderator_permissions: createEmptyModeratorPermissions()
       });
     }
     setOperatorStoreAccessSearch('');
@@ -8574,6 +8615,9 @@ function SuperAdminDashboard() {
       if (editingOperator) {
         const data = { ...operatorForm };
         if (!data.password) delete data.password;
+        if (data.role !== 'moderator') {
+          data.moderator_permissions = createEmptyModeratorPermissions();
+        }
         await axios.put(`${API_URL}/superadmin/operators/${editingOperator.id}`, data);
         setSuccess('Оператор обновлен');
       } else {
@@ -8581,7 +8625,11 @@ function SuperAdminDashboard() {
           setError('Пароль обязателен для нового оператора');
           return;
         }
-        await axios.post(`${API_URL}/superadmin/operators`, operatorForm);
+        const payload = { ...operatorForm };
+        if (payload.role !== 'moderator') {
+          payload.moderator_permissions = createEmptyModeratorPermissions();
+        }
+        await axios.post(`${API_URL}/superadmin/operators`, payload);
         setSuccess('Оператор создан');
       }
       setShowOperatorModal(false);
@@ -11177,6 +11225,18 @@ function SuperAdminDashboard() {
         previewStorePlaceholder: 'Выберите магазин'
       };
 
+  const userModeratorPermissions = useMemo(
+    () => normalizeModeratorPermissions(user?.moderator_permissions),
+    [user?.moderator_permissions]
+  );
+  const canModeratorAccessTab = (key, accessType = 'view') => {
+    if (user?.role !== 'moderator') return true;
+    const normalizedKey = SUPERADMIN_SETTINGS_TARGET_TABS.has(key) ? 'settings' : key;
+    if (!MODERATOR_MENU_KEYS.includes(normalizedKey)) return false;
+    const perm = userModeratorPermissions[normalizedKey] || { view: false, edit: false };
+    if (accessType === 'edit') return perm.edit === true;
+    return perm.view === true || perm.edit === true;
+  };
   const superAdminSidebarTabsMeta = useMemo(() => ({
     analytics: { label: language === 'uz' ? 'Analitika' : 'Аналитика', icon: BarChart3 },
     restaurants: { label: t('restaurants'), icon: Store },
@@ -11215,16 +11275,17 @@ function SuperAdminDashboard() {
     { key: 'security', icon: '🛡️', label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность' }
   ]), [language, t]);
   const sidebarVisibleTabKeys = useMemo(
-    () => SUPERADMIN_SIDEBAR_NAV_ORDER.filter((key) => Boolean(superAdminSidebarTabsMeta[key])),
-    [superAdminSidebarTabsMeta]
+    () => SUPERADMIN_SIDEBAR_NAV_ORDER.filter((key) => Boolean(superAdminSidebarTabsMeta[key]) && canModeratorAccessTab(key, 'view')),
+    [superAdminSidebarTabsMeta, user?.role, userModeratorPermissions]
   );
   const sidebarActiveKey = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab)
     ? 'settings'
     : (activeTab === 'billing_transactions' ? 'founders' : activeTab);
   const isSettingsSectionActive = SUPERADMIN_SETTINGS_TARGET_TABS.has(activeTab);
   useEffect(() => {
-    if (!activeTab || !superAdminSidebarTabsMeta[activeTab]) {
-      if (activeTab !== 'restaurants') setActiveTab('restaurants');
+    const defaultTab = sidebarVisibleTabKeys[0] || 'restaurants';
+    if (!activeTab || !superAdminSidebarTabsMeta[activeTab] || !canModeratorAccessTab(activeTab, 'view')) {
+      if (activeTab !== defaultTab) setActiveTab(defaultTab);
       return;
     }
     if (typeof window === 'undefined') return;
@@ -11233,7 +11294,7 @@ function SuperAdminDashboard() {
     } catch (_) {
       // ignore localStorage failures
     }
-  }, [activeTab, superAdminSidebarTabsMeta]);
+  }, [activeTab, superAdminSidebarTabsMeta, sidebarVisibleTabKeys, user?.role, userModeratorPermissions]);
   const renderSuperAdminSidebarTabTitle = (key) => {
     const meta = superAdminSidebarTabsMeta[key] || { label: key, icon: FileText };
     const Icon = meta.icon;
@@ -11515,6 +11576,7 @@ function SuperAdminDashboard() {
           >
             <option value="">{t('saAllRoles')}</option>
             <option value="operator">{t('saRoleOperator')}</option>
+            <option value="moderator">Модератор</option>
             <option value="superadmin">{t('saRoleSuperadmin')}</option>
           </Form.Select>
           <Form.Select
@@ -11651,6 +11713,7 @@ function SuperAdminDashboard() {
           >
             <option value="">Все роли</option>
             <option value="operator">Операторы</option>
+            <option value="moderator">Модераторы</option>
             <option value="customer">Клиенты</option>
             <option value="superadmin">Суперадмины</option>
           </Form.Select>
@@ -14566,6 +14629,7 @@ function SuperAdminDashboard() {
                     >
                       <option value="">{t('saAllRoles')}</option>
                       <option value="operator">{t('saRoleOperator')}</option>
+                      <option value="moderator">Модератор</option>
                       <option value="superadmin">{t('saRoleSuperadmin')}</option>
                     </Form.Select>
                     <Form.Select
@@ -14704,8 +14768,12 @@ function SuperAdminDashboard() {
                                 })()}
                               </td>
                               <td>
-                                <Badge className={`badge-custom sa-role-badge ${op.role === 'superadmin' ? 'sa-role-badge-superadmin' : 'sa-role-badge-operator'}`}>
-                                  {op.role === 'superadmin' ? 'Супер-админ' : 'Оператор'}
+                                <Badge className={`badge-custom sa-role-badge ${
+                                  op.role === 'superadmin'
+                                    ? 'sa-role-badge-superadmin'
+                                    : (op.role === 'moderator' ? 'sa-role-badge-moderator' : 'sa-role-badge-operator')
+                                }`}>
+                                  {op.role === 'superadmin' ? 'Супер-админ' : (op.role === 'moderator' ? 'Модератор' : 'Оператор')}
                                 </Badge>
                               </td>
                               <td>
@@ -17705,6 +17773,7 @@ function SuperAdminDashboard() {
                     >
                       <option value="">Все роли</option>
                       <option value="operator">Операторы</option>
+                      <option value="moderator">Модераторы</option>
                       <option value="customer">Клиенты</option>
                       <option value="superadmin">Суперадмины</option>
                     </Form.Select>
@@ -20446,6 +20515,30 @@ function SuperAdminDashboard() {
               </Col>
               <Col md={6}>
                 <Form.Group className="mb-3">
+                  <Form.Label>Роль</Form.Label>
+                  <Form.Select
+                    value={operatorForm.role || 'operator'}
+                    onChange={(e) => {
+                      const nextRole = e.target.value;
+                      setOperatorForm((prev) => ({
+                        ...prev,
+                        role: nextRole,
+                        moderator_permissions: nextRole === 'moderator'
+                          ? normalizeModeratorPermissions(prev.moderator_permissions)
+                          : createEmptyModeratorPermissions()
+                      }));
+                    }}
+                  >
+                    <option value="operator">Оператор</option>
+                    <option value="moderator">Модератор</option>
+                    <option value="superadmin">Супер-админ</option>
+                  </Form.Select>
+                </Form.Group>
+              </Col>
+            </Row>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3">
                   <Form.Label>Телефон</Form.Label>
                   <Form.Control
                     value={operatorForm.phone}
@@ -20455,6 +20548,81 @@ function SuperAdminDashboard() {
                 </Form.Group>
               </Col>
             </Row>
+            {operatorForm.role === 'moderator' && (
+              <Form.Group className="mb-3">
+                <Form.Label>Права модератора по меню</Form.Label>
+                <div className="table-responsive border rounded">
+                  <Table size="sm" className="mb-0 align-middle">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '40px' }}>№</th>
+                        <th>Название меню</th>
+                        <th style={{ width: '140px' }}>Просмотр</th>
+                        <th style={{ width: '160px' }}>Редактирование</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ['analytics', 'Аналитика'],
+                        ['restaurants', 'Магазины'],
+                        ['global_products', 'Глобальные товары'],
+                        ['operators', 'Операторы'],
+                        ['customers', 'Клиенты'],
+                        ['ads', 'Реклама'],
+                        ['founders', 'Учредители'],
+                        ['settings', 'Настройки']
+                      ].map(([menuKey, label], index) => {
+                        const perm = operatorForm.moderator_permissions?.[menuKey] || { view: false, edit: false };
+                        return (
+                          <tr key={`mod-perm-${menuKey}`}>
+                            <td>{index + 1}</td>
+                            <td>{label}</td>
+                            <td>
+                              <Form.Check
+                                type="checkbox"
+                                checked={perm.view}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setOperatorForm((prev) => ({
+                                    ...prev,
+                                    moderator_permissions: {
+                                      ...normalizeModeratorPermissions(prev.moderator_permissions),
+                                      [menuKey]: {
+                                        ...((prev.moderator_permissions || {})[menuKey] || { view: false, edit: false }),
+                                        view: checked
+                                      }
+                                    }
+                                  }));
+                                }}
+                              />
+                            </td>
+                            <td>
+                              <Form.Check
+                                type="checkbox"
+                                checked={perm.edit}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setOperatorForm((prev) => ({
+                                    ...prev,
+                                    moderator_permissions: {
+                                      ...normalizeModeratorPermissions(prev.moderator_permissions),
+                                      [menuKey]: {
+                                        view: checked ? true : (((prev.moderator_permissions || {})[menuKey] || {}).view === true),
+                                        edit: checked
+                                      }
+                                    }
+                                  }));
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </Table>
+                </div>
+              </Form.Group>
+            )}
             <Form.Group className="mb-3">
               <Form.Label>Доступ к магазинам</Form.Label>
               <Form.Control

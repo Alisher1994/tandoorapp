@@ -669,7 +669,7 @@ async function migrate() {
       SELECT DISTINCT ON (u.telegram_id) u.telegram_id, u.id
       FROM users u
       WHERE u.telegram_id IS NOT NULL
-        AND u.role IN ('operator', 'superadmin', 'admin')
+        AND u.role IN ('operator', 'moderator', 'superadmin', 'admin')
       ORDER BY
         u.telegram_id,
         CASE WHEN u.role = 'superadmin' THEN 0 ELSE 1 END,
@@ -689,12 +689,41 @@ async function migrate() {
       await client.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check`);
       await client.query(`
         ALTER TABLE users ADD CONSTRAINT users_role_check 
-        CHECK (role IN ('superadmin', 'operator', 'customer'))
+        CHECK (role IN ('superadmin', 'moderator', 'operator', 'customer'))
       `);
     } catch (e) {
       // Constraint might not exist or already correct
     }
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS moderator_permissions JSONB DEFAULT '{}'::jsonb
+    `).catch(() => {});
+    await client.query(`
+      UPDATE users
+      SET moderator_permissions = '{}'::jsonb
+      WHERE moderator_permissions IS NULL
+    `).catch(() => {});
     console.log('✅ User roles updated');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS auth_password_reset_codes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        code_hash VARCHAR(255) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP,
+        attempts INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_auth_password_reset_codes_user_created
+      ON auth_password_reset_codes(user_id, created_at DESC)
+    `).catch(() => {});
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_auth_password_reset_codes_expires_at
+      ON auth_password_reset_codes(expires_at)
+    `).catch(() => {});
 
     // =====================================================
     // Step 6: Create default restaurant

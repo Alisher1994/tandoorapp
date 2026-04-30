@@ -408,7 +408,7 @@ export function AuthProvider({ children }) {
 
   // Helper to check roles
   const isSuperAdmin = () => user?.role === 'superadmin';
-  const isOperator = () => user?.role === 'operator' || user?.role === 'superadmin';
+  const isOperator = () => user?.role === 'operator' || user?.role === 'moderator' || user?.role === 'superadmin';
   const isCustomer = () => user?.role === 'customer';
 
   return (
