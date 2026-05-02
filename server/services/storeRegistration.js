@@ -410,7 +410,7 @@ const registerStoreViaWebApp = async ({
     }
 
     const adminAutoLoginToken = generateLoginToken(userIdDb, username, {
-      expiresIn: '1h',
+      expiresIn: '30d',
       role: 'operator'
     });
     const loginUrl = buildWebLoginUrl({

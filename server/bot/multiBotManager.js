@@ -1123,7 +1123,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
     const username = user.username || `user_${user.id}`;
     const adminAutoLoginToken = generateLoginToken(user.id, username, {
-      expiresIn: '1h',
+      expiresIn: '30d',
       role: user.role,
       restaurantId
     });

@@ -1267,7 +1267,7 @@ const buildTaxiUrl = (template, fallbackTemplate, lat, lng) => {
 };
 const toAbsoluteFileUrl = (value) => {
   if (!value) return '';
-  if (/^https?:\/\//i.test(value)) return value;
+  if (/^(https?:\/\/|data:|blob:)/i.test(value)) return value;
   const base = API_URL.replace(/\/api$/, '');
   const normalized = String(value).startsWith('/') ? String(value) : `/${value}`;
   return `${base}${normalized}`;
@@ -5951,7 +5951,7 @@ function AdminDashboard() {
 
     try {
       const res = await axios.post(`${API_URL}/upload`, formData);
-      const fullUrl = window.location.origin + res.data.imageUrl;
+      const fullUrl = toAbsoluteFileUrl(res.data?.imageUrl || res.data?.url || '');
       setBroadcastForm(prev => ({ ...prev, image_url: fullUrl, video_url: '' }));
     } catch (error) {
       alert('Ошибка загрузки изображения');
@@ -5971,7 +5971,7 @@ function AdminDashboard() {
       const res = await axios.post(`${API_URL}/upload/video`, formData);
       const videoUrl = String(res.data.videoUrl || res.data.url || '').trim();
       if (!videoUrl) throw new Error('video url missing');
-      const fullUrl = videoUrl.startsWith('http') ? videoUrl : `${window.location.origin}${videoUrl}`;
+      const fullUrl = toAbsoluteFileUrl(videoUrl);
       setBroadcastForm(prev => ({ ...prev, video_url: fullUrl, image_url: '' }));
     } catch (error) {
       alert('Ошибка загрузки видео');

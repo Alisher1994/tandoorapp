@@ -286,6 +286,9 @@ if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
 console.log('📦 Serving uploads from:', uploadsPath);
+if (process.env.RAILWAY_ENVIRONMENT && !process.env.UPLOADS_DIR) {
+  console.warn('⚠️ UPLOADS_DIR is not set on Railway. Local disk uploads are ephemeral and can disappear after redeploy/restart.');
+}
 app.use('/uploads', express.static(uploadsPath, {
   maxAge: '365d',
   immutable: true,

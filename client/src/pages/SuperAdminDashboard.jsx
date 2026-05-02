@@ -5641,9 +5641,7 @@ function SuperAdminDashboard() {
       const response = await axios.post(`${API_URL}/upload/image`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const fullUrl = response.data?.url
-        ? `${window.location.origin}${response.data.url}`
-        : (response.data?.imageUrl ? `${window.location.origin}${response.data.imageUrl}` : '');
+      const fullUrl = resolveAdPreviewImageUrl(response.data?.url || response.data?.imageUrl || '');
       setAdBannerForm((prev) => ({ ...prev, image_url: fullUrl }));
       setAdBannerImageMeta(imageDimensions);
       setSuccess('Изображение рекламы загружено');
@@ -8083,7 +8081,7 @@ function SuperAdminDashboard() {
       const response = await axios.post(`${API_URL}/upload/image`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const fullUrl = window.location.origin + response.data.url;
+      const fullUrl = resolveAdPreviewImageUrl(response.data?.url || response.data?.imageUrl || '');
       setImageUrl(fullUrl);
     } catch (error) {
       alert('Ошибка загрузки изображения');
