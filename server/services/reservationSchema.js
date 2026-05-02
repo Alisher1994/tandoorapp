@@ -1,4 +1,5 @@
 const pool = require('../database/connection');
+const { ensureCheckConstraint } = require('../database/constraintHelpers');
 
 let reservationSchemaReady = false;
 let reservationSchemaPromise = null;
@@ -199,11 +200,11 @@ async function createReservationSchema(executor) {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await run(executor, `
-    ALTER TABLE restaurant_reservation_settings
-    ADD CONSTRAINT IF NOT EXISTS restaurant_reservation_settings_prepay_mode_check
-    CHECK (prepay_mode IN ('none', 'fixed', 'percent'))
-  `).catch(() => {});
+  await ensureCheckConstraint(executor, {
+    tableName: 'restaurant_reservation_settings',
+    constraintName: 'restaurant_reservation_settings_prepay_mode_check',
+    checkExpression: `prepay_mode IN ('none', 'fixed', 'percent')`
+  }).catch(() => {});
   await run(executor, `
     UPDATE restaurant_reservation_settings
     SET reservation_service_cost = 0
@@ -218,11 +219,11 @@ async function createReservationSchema(executor) {
     SET time_slot_step_minutes = 30
     WHERE time_slot_step_minutes IS NULL
   `).catch(() => {});
-  await run(executor, `
-    ALTER TABLE restaurant_reservation_settings
-    ADD CONSTRAINT IF NOT EXISTS restaurant_reservation_settings_time_slot_step_check
-    CHECK (time_slot_step_minutes BETWEEN 5 AND 60)
-  `).catch(() => {});
+  await ensureCheckConstraint(executor, {
+    tableName: 'restaurant_reservation_settings',
+    constraintName: 'restaurant_reservation_settings_time_slot_step_check',
+    checkExpression: 'time_slot_step_minutes BETWEEN 5 AND 60'
+  }).catch(() => {});
 
   await run(executor, `
     CREATE TABLE IF NOT EXISTS reservation_floors (
@@ -256,16 +257,16 @@ async function createReservationSchema(executor) {
     SET plan_dark_overlay = 0
     WHERE plan_dark_overlay IS NULL
   `).catch(() => {});
-  await run(executor, `
-    ALTER TABLE reservation_floors
-    ADD CONSTRAINT IF NOT EXISTS reservation_floors_plan_image_opacity_check
-    CHECK (plan_image_opacity >= 0 AND plan_image_opacity <= 1)
-  `).catch(() => {});
-  await run(executor, `
-    ALTER TABLE reservation_floors
-    ADD CONSTRAINT IF NOT EXISTS reservation_floors_plan_dark_overlay_check
-    CHECK (plan_dark_overlay >= 0 AND plan_dark_overlay <= 1)
-  `).catch(() => {});
+  await ensureCheckConstraint(executor, {
+    tableName: 'reservation_floors',
+    constraintName: 'reservation_floors_plan_image_opacity_check',
+    checkExpression: 'plan_image_opacity >= 0 AND plan_image_opacity <= 1'
+  }).catch(() => {});
+  await ensureCheckConstraint(executor, {
+    tableName: 'reservation_floors',
+    constraintName: 'reservation_floors_plan_dark_overlay_check',
+    checkExpression: 'plan_dark_overlay >= 0 AND plan_dark_overlay <= 1'
+  }).catch(() => {});
 
   await run(executor, `
     CREATE TABLE IF NOT EXISTS reservation_table_templates (
@@ -305,16 +306,16 @@ async function createReservationSchema(executor) {
     SET furniture_category = 'tables_chairs'
     WHERE furniture_category IS NULL OR BTRIM(furniture_category) = ''
   `).catch(() => {});
-  await run(executor, `
-    ALTER TABLE reservation_table_templates
-    ADD CONSTRAINT IF NOT EXISTS reservation_table_templates_shape_check
-    CHECK (shape IN ('round', 'square', 'rect', 'sofa', 'custom'))
-  `).catch(() => {});
-  await run(executor, `
-    ALTER TABLE reservation_table_templates
-    ADD CONSTRAINT IF NOT EXISTS reservation_table_templates_furniture_category_check
-    CHECK (furniture_category IN ('tables_chairs', 'bed', 'garage_box', 'work_desk', 'bunk'))
-  `).catch(() => {});
+  await ensureCheckConstraint(executor, {
+    tableName: 'reservation_table_templates',
+    constraintName: 'reservation_table_templates_shape_check',
+    checkExpression: `shape IN ('round', 'square', 'rect', 'sofa', 'custom')`
+  }).catch(() => {});
+  await ensureCheckConstraint(executor, {
+    tableName: 'reservation_table_templates',
+    constraintName: 'reservation_table_templates_furniture_category_check',
+    checkExpression: `furniture_category IN ('tables_chairs', 'bed', 'garage_box', 'work_desk', 'bunk')`
+  }).catch(() => {});
 
   await run(executor, `
     CREATE TABLE IF NOT EXISTS reservation_tables (
@@ -371,16 +372,16 @@ async function createReservationSchema(executor) {
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  await run(executor, `
-    ALTER TABLE reservations
-    ADD CONSTRAINT IF NOT EXISTS reservations_status_check
-    CHECK (status IN ('new', 'confirmed', 'seated', 'completed', 'cancelled', 'no_show'))
-  `).catch(() => {});
-  await run(executor, `
-    ALTER TABLE reservations
-    ADD CONSTRAINT IF NOT EXISTS reservations_booking_mode_check
-    CHECK (booking_mode IN ('reservation_only', 'with_items'))
-  `).catch(() => {});
+  await ensureCheckConstraint(executor, {
+    tableName: 'reservations',
+    constraintName: 'reservations_status_check',
+    checkExpression: `status IN ('new', 'confirmed', 'seated', 'completed', 'cancelled', 'no_show')`
+  }).catch(() => {});
+  await ensureCheckConstraint(executor, {
+    tableName: 'reservations',
+    constraintName: 'reservations_booking_mode_check',
+    checkExpression: `booking_mode IN ('reservation_only', 'with_items')`
+  }).catch(() => {});
 
   await run(executor, `
     CREATE TABLE IF NOT EXISTS reservation_tables_map (
@@ -416,11 +417,11 @@ async function createReservationSchema(executor) {
     SET source_type = 'order'
     WHERE source_type IS NULL OR BTRIM(source_type) = ''
   `).catch(() => {});
-  await run(executor, `
-    ALTER TABLE orders
-    ADD CONSTRAINT IF NOT EXISTS orders_source_type_check
-    CHECK (source_type IN ('order', 'reservation'))
-  `).catch(() => {});
+  await ensureCheckConstraint(executor, {
+    tableName: 'orders',
+    constraintName: 'orders_source_type_check',
+    checkExpression: `source_type IN ('order', 'reservation')`
+  }).catch(() => {});
 
   await run(executor, `
     CREATE INDEX IF NOT EXISTS idx_restaurants_reservation_cost

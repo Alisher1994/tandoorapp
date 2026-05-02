@@ -45,6 +45,7 @@ const {
   ensurePrintFormSettingsSchema,
   normalizePrintFormSettingsPayload
 } = require('../services/printFormSettings');
+const { ensureCheckConstraint } = require('../database/constraintHelpers');
 const {
   sendServerStatsToChat,
   refreshSuperadminServerMonitoringSchedule,
@@ -678,11 +679,11 @@ const ensureActivityTypesSchema = async () => {
     await pool.query(`ALTER TABLE ad_banners ADD COLUMN IF NOT EXISTS ad_type VARCHAR(24) DEFAULT 'banner'`).catch(() => {});
     await pool.query(`ALTER TABLE ad_banners ALTER COLUMN ad_type SET DEFAULT 'banner'`).catch(() => {});
     await pool.query(`UPDATE ad_banners SET ad_type = 'banner' WHERE ad_type IS NULL OR BTRIM(ad_type) = ''`).catch(() => {});
-    await pool.query(`
-      ALTER TABLE ad_banners
-      ADD CONSTRAINT IF NOT EXISTS ad_banners_type_check
-      CHECK (ad_type IN ('banner', 'entry_popup'))
-    `).catch(() => {});
+    await ensureCheckConstraint(pool, {
+      tableName: 'ad_banners',
+      constraintName: 'ad_banners_type_check',
+      checkExpression: `ad_type IN ('banner', 'entry_popup')`
+    }).catch(() => {});
     await pool.query('CREATE INDEX IF NOT EXISTS idx_restaurants_activity_type_id ON restaurants(activity_type_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_business_activity_types_sort_order ON business_activity_types(sort_order, id)');
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS uq_business_activity_types_name_lower ON business_activity_types (LOWER(name))');
@@ -755,11 +756,11 @@ const ensureBillingSettingsSchema = async () => {
       WHERE server_stats_interval_ms IS NULL
          OR server_stats_interval_ms NOT IN (1800000, 3600000, 7200000, 10800000, 21600000, 86400000)
     `).catch(() => {});
-    await pool.query(`
-      ALTER TABLE billing_settings
-      ADD CONSTRAINT IF NOT EXISTS billing_settings_catalog_animation_season_check
-      CHECK (catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter'))
-    `).catch(() => {});
+    await ensureCheckConstraint(pool, {
+      tableName: 'billing_settings',
+      constraintName: 'billing_settings_catalog_animation_season_check',
+      checkExpression: `catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter')`
+    }).catch(() => {});
     await ensurePrintFormSettingsSchema();
     billingSettingsSchemaReady = true;
   })();
@@ -989,11 +990,11 @@ const ensureOrganizationExpensesSchema = async () => {
     await pool.query(`UPDATE organization_expense_categories SET is_active = true WHERE is_active IS NULL`).catch(() => {});
     await pool.query(`UPDATE organization_expense_categories SET code = NULL WHERE code IS NOT NULL AND BTRIM(code) = ''`).catch(() => {});
     await pool.query(`UPDATE organization_expense_categories SET code = LOWER(BTRIM(code)) WHERE code IS NOT NULL`).catch(() => {});
-    await pool.query(`
-      ALTER TABLE organization_expense_categories
-      ADD CONSTRAINT IF NOT EXISTS organization_expense_categories_code_format_check
-      CHECK (code IS NULL OR code ~ '^[a-z0-9_]{1,80}$')
-    `).catch(() => {});
+    await ensureCheckConstraint(pool, {
+      tableName: 'organization_expense_categories',
+      constraintName: 'organization_expense_categories_code_format_check',
+      checkExpression: `code IS NULL OR code ~ '^[a-z0-9_]{1,80}$'`
+    }).catch(() => {});
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_organization_expense_categories_code ON organization_expense_categories(code)`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_organization_expense_categories_name_ru ON organization_expense_categories(LOWER(name_ru))`).catch(() => {});
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_organization_expense_categories_name_uz ON organization_expense_categories(LOWER(name_uz))`).catch(() => {});
@@ -3486,11 +3487,11 @@ const ensureRestaurantWorkflowStatusSchema = async () => {
          OR BTRIM(workflow_status) = ''
          OR LOWER(workflow_status) NOT IN ('new', 'negotiation', 'queue', 'token', 'store_settings', 'products', 'active', 'inactive')
     `).catch(() => { });
-    await pool.query(`
-      ALTER TABLE restaurants
-      ADD CONSTRAINT IF NOT EXISTS restaurants_workflow_status_check
-      CHECK (workflow_status IN ('new', 'negotiation', 'queue', 'token', 'store_settings', 'products', 'active', 'inactive'))
-    `).catch(() => { });
+    await ensureCheckConstraint(pool, {
+      tableName: 'restaurants',
+      constraintName: 'restaurants_workflow_status_check',
+      checkExpression: `workflow_status IN ('new', 'negotiation', 'queue', 'token', 'store_settings', 'products', 'active', 'inactive')`
+    }).catch(() => { });
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_restaurants_workflow_status ON restaurants(workflow_status)`).catch(() => { });
     restaurantWorkflowSchemaReady = true;
   })();

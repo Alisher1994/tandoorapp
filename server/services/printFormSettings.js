@@ -1,4 +1,5 @@
 const pool = require('../database/connection');
+const { ensureCheckConstraint } = require('../database/constraintHelpers');
 
 const PRINT_FORM_QR_POSITIONS = new Set(['center', 'lower']);
 const DEFAULT_PRINT_FORM_CAPTION_RU = 'Сканируй и заказывай';
@@ -55,11 +56,11 @@ const ensurePrintFormSettingsSchema = async () => {
       SET print_form_caption_uz = $1
       WHERE print_form_caption_uz IS NULL OR BTRIM(print_form_caption_uz) = ''
     `, [DEFAULT_PRINT_FORM_CAPTION_UZ]).catch(() => {});
-    await pool.query(`
-      ALTER TABLE billing_settings
-      ADD CONSTRAINT IF NOT EXISTS billing_settings_print_form_qr_position_check
-      CHECK (print_form_qr_position IN ('center', 'lower'))
-    `).catch(() => {});
+    await ensureCheckConstraint(pool, {
+      tableName: 'billing_settings',
+      constraintName: 'billing_settings_print_form_qr_position_check',
+      checkExpression: `print_form_qr_position IN ('center', 'lower')`
+    }).catch(() => {});
     printFormSchemaReady = true;
   })();
 

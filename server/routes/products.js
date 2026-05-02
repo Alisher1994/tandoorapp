@@ -6,6 +6,7 @@ const UAParser = require('ua-parser-js');
 const geoip = require('geoip-lite');
 const { authenticate } = require('../middleware/auth');
 const { ensureReservationSchema } = require('../services/reservationSchema');
+const { ensureCheckConstraint } = require('../database/constraintHelpers');
 
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
@@ -313,11 +314,11 @@ const ensureAdBannerTargetingSchema = async () => {
     await pool.query(`ALTER TABLE ad_banners ADD COLUMN IF NOT EXISTS ad_type VARCHAR(24) DEFAULT 'banner'`).catch(() => {});
     await pool.query(`ALTER TABLE ad_banners ALTER COLUMN ad_type SET DEFAULT 'banner'`).catch(() => {});
     await pool.query(`UPDATE ad_banners SET ad_type = 'banner' WHERE ad_type IS NULL OR BTRIM(ad_type) = ''`).catch(() => {});
-    await pool.query(`
-      ALTER TABLE ad_banners
-      ADD CONSTRAINT IF NOT EXISTS ad_banners_type_check
-      CHECK (ad_type IN ('banner', 'entry_popup'))
-    `).catch(() => {});
+    await ensureCheckConstraint(pool, {
+      tableName: 'ad_banners',
+      constraintName: 'ad_banners_type_check',
+      checkExpression: `ad_type IN ('banner', 'entry_popup')`
+    }).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS activity_type_id INTEGER`).catch(() => {});
     adBannerTargetingSchemaReady = true;
   })();
@@ -346,11 +347,11 @@ const ensureCatalogAnimationSettingsSchema = async () => {
         OR BTRIM(catalog_animation_season) = ''
         OR catalog_animation_season NOT IN ('off', 'spring', 'summer', 'autumn', 'winter')
     `).catch(() => {});
-    await pool.query(`
-      ALTER TABLE billing_settings
-      ADD CONSTRAINT IF NOT EXISTS billing_settings_catalog_animation_season_check
-      CHECK (catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter'))
-    `).catch(() => {});
+    await ensureCheckConstraint(pool, {
+      tableName: 'billing_settings',
+      constraintName: 'billing_settings_catalog_animation_season_check',
+      checkExpression: `catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter')`
+    }).catch(() => {});
     catalogAnimationSettingsSchemaReady = true;
   })();
 

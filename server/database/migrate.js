@@ -4,6 +4,7 @@ const pool = require('./connection');
 const bcrypt = require('bcryptjs');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const runPrinterMigrations = require('./printerMigrations');
+const { ensureCheckConstraint, ensureForeignKeyConstraint } = require('./constraintHelpers');
 
 async function migrate() {
   const client = await pool.connect();
@@ -393,11 +394,11 @@ async function migrate() {
     await client.query(`ALTER TABLE products ALTER COLUMN product_images SET DEFAULT '[]'::jsonb`).catch(() => {});
     await client.query(`ALTER TABLE products ALTER COLUMN size_options SET DEFAULT '[]'::jsonb`).catch(() => {});
     await client.query(`UPDATE products SET product_images = '[]'::jsonb WHERE product_images IS NULL`).catch(() => {});
-    await client.query(`
-      ALTER TABLE products
-      ADD CONSTRAINT IF NOT EXISTS products_season_scope_check
-      CHECK (season_scope IN ('all', 'spring', 'summer', 'autumn', 'winter'))
-    `).catch(() => {});
+    await ensureCheckConstraint(client, {
+      tableName: 'products',
+      constraintName: 'products_season_scope_check',
+      checkExpression: `season_scope IN ('all', 'spring', 'summer', 'autumn', 'winter')`
+    }).catch(() => {});
 
     // =====================================================
     // Create containers table (посуда/тара)
@@ -417,15 +418,11 @@ async function migrate() {
     console.log('✅ Containers table ready');
 
     // Add foreign key constraint to products.container_id if not exists
-    try {
-      await client.query(`
-        ALTER TABLE products 
-        ADD CONSTRAINT fk_products_container 
-        FOREIGN KEY (container_id) REFERENCES containers(id) ON DELETE SET NULL
-      `);
-    } catch (e) {
-      // Constraint might already exist
-    }
+    await ensureForeignKeyConstraint(client, {
+      tableName: 'products',
+      constraintName: 'fk_products_container',
+      definition: 'FOREIGN KEY (container_id) REFERENCES containers(id) ON DELETE SET NULL'
+    }).catch(() => {});
 
     // Add columns to orders table
     const orderColumns = [
@@ -951,16 +948,16 @@ async function migrate() {
       WHERE server_stats_interval_ms IS NULL
          OR server_stats_interval_ms NOT IN (1800000, 3600000, 7200000, 10800000, 21600000, 86400000)
     `).catch(() => {});
-    await client.query(`
-      ALTER TABLE billing_settings
-      ADD CONSTRAINT IF NOT EXISTS billing_settings_catalog_animation_season_check
-      CHECK (catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter'))
-    `).catch(() => {});
-    await client.query(`
-      ALTER TABLE billing_settings
-      ADD CONSTRAINT IF NOT EXISTS billing_settings_print_form_qr_position_check
-      CHECK (print_form_qr_position IN ('center', 'lower'))
-    `).catch(() => {});
+    await ensureCheckConstraint(client, {
+      tableName: 'billing_settings',
+      constraintName: 'billing_settings_catalog_animation_season_check',
+      checkExpression: `catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter')`
+    }).catch(() => {});
+    await ensureCheckConstraint(client, {
+      tableName: 'billing_settings',
+      constraintName: 'billing_settings_print_form_qr_position_check',
+      checkExpression: `print_form_qr_position IN ('center', 'lower')`
+    }).catch(() => {});
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS billing_transactions (
@@ -1118,23 +1115,23 @@ async function migrate() {
     await client.query(`ALTER TABLE ad_banners ALTER COLUMN ad_type SET DEFAULT 'banner'`).catch(() => {});
     await client.query(`UPDATE ad_banners SET ad_type = 'banner' WHERE ad_type IS NULL OR BTRIM(ad_type) = ''`).catch(() => {});
 
-    await client.query(`
-      ALTER TABLE ad_banners
-      ADD CONSTRAINT IF NOT EXISTS ad_banners_transition_effect_check
-      CHECK (transition_effect IN ('none', 'fade', 'slide'))
-    `).catch(() => {});
+    await ensureCheckConstraint(client, {
+      tableName: 'ad_banners',
+      constraintName: 'ad_banners_transition_effect_check',
+      checkExpression: `transition_effect IN ('none', 'fade', 'slide')`
+    }).catch(() => {});
 
-    await client.query(`
-      ALTER TABLE ad_banners
-      ADD CONSTRAINT IF NOT EXISTS ad_banners_type_check
-      CHECK (ad_type IN ('banner', 'entry_popup'))
-    `).catch(() => {});
+    await ensureCheckConstraint(client, {
+      tableName: 'ad_banners',
+      constraintName: 'ad_banners_type_check',
+      checkExpression: `ad_type IN ('banner', 'entry_popup')`
+    }).catch(() => {});
 
-    await client.query(`
-      ALTER TABLE ad_banner_events
-      ADD CONSTRAINT IF NOT EXISTS ad_banner_events_type_check
-      CHECK (event_type IN ('view', 'click'))
-    `).catch(() => {});
+    await ensureCheckConstraint(client, {
+      tableName: 'ad_banner_events',
+      constraintName: 'ad_banner_events_type_check',
+      checkExpression: `event_type IN ('view', 'click')`
+    }).catch(() => {});
 
     await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banners_enabled_slot ON ad_banners(is_enabled, is_deleted, slot_order)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_ad_banners_start_end ON ad_banners(start_at, end_at)');

@@ -513,7 +513,7 @@ async function hasSuperadminAccessByTelegram(telegramId) {
       SELECT 'superadmin' AS role
       FROM billing_settings bs
       WHERE bs.id = 1
-        AND BTRIM(COALESCE(bs.superadmin_telegram_id, '')) = $1
+        AND BTRIM(COALESCE(bs.superadmin_telegram_id, '')) = ($1::text)
     ) roles
     WHERE role = 'superadmin'
     LIMIT 1

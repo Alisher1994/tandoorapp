@@ -1,4 +1,5 @@
 const pool = require('./connection');
+const { ensureCheckConstraint } = require('./constraintHelpers');
 
 async function migrate() {
     try {
@@ -125,16 +126,16 @@ async function migrate() {
       WHERE server_stats_interval_ms IS NULL
          OR server_stats_interval_ms NOT IN (1800000, 3600000, 7200000, 10800000, 21600000, 86400000);
     `).catch(() => { });
-        await pool.query(`
-      ALTER TABLE billing_settings
-      ADD CONSTRAINT IF NOT EXISTS billing_settings_catalog_animation_season_check
-      CHECK (catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter'));
-    `).catch(() => { });
-        await pool.query(`
-      ALTER TABLE billing_settings
-      ADD CONSTRAINT IF NOT EXISTS billing_settings_print_form_qr_position_check
-      CHECK (print_form_qr_position IN ('center', 'lower'));
-    `).catch(() => { });
+        await ensureCheckConstraint(pool, {
+            tableName: 'billing_settings',
+            constraintName: 'billing_settings_catalog_animation_season_check',
+            checkExpression: `catalog_animation_season IN ('off', 'spring', 'summer', 'autumn', 'winter')`
+        }).catch(() => { });
+        await ensureCheckConstraint(pool, {
+            tableName: 'billing_settings',
+            constraintName: 'billing_settings_print_form_qr_position_check',
+            checkExpression: `print_form_qr_position IN ('center', 'lower')`
+        }).catch(() => { });
         console.log('✅ Billing settings table created.');
 
         // 4. Create transactions table
