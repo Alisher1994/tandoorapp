@@ -75,6 +75,7 @@ const TELEGRAM_DISABLE_REVOKED_BOT_ON_401 = String(
 const TELEGRAM_CLEAR_TOKEN_ON_401 = String(
   process.env.TELEGRAM_CLEAR_TOKEN_ON_401 ?? '0'
 ).trim() === '1';
+let warnedPersistRestaurantBotStatusSchemaMissing = false;
 
 function isWebAppChatMenuButtonEnabledForRestaurant(restaurantId) {
   if (!TELEGRAM_WEBAPP_MENU_BUTTON_ENABLED) return false;
@@ -102,23 +103,46 @@ function appendWebAppCacheVersion(rawUrl) {
 async function persistRestaurantBotStatus(restaurantId, status, reason = null, options = {}) {
   if (!restaurantId) return;
   const { clearToken = false } = options;
-  const normalizedStatus = String(status || '').trim() || 'active';
-  const normalizedReason = String(reason || '').trim() || null;
+  const normalizedRestaurantId = Number.parseInt(restaurantId, 10);
+  if (!Number.isInteger(normalizedRestaurantId) || normalizedRestaurantId <= 0) return;
+
+  const requestedStatus = String(status || '').trim().toLowerCase();
+  const normalizedStatus = requestedStatus === 'disabled' ? 'disabled' : 'active';
+  const normalizedReasonRaw = String(reason || '').trim();
+  const normalizedReason = normalizedReasonRaw ? normalizedReasonRaw.slice(0, 120) : null;
+  const shouldClearToken = clearToken === true;
+
   try {
     await pool.query(
       `
       UPDATE restaurants
-      SET telegram_bot_status = $2,
-          telegram_bot_disable_reason = $3,
-          telegram_bot_disabled_at = CASE WHEN $2 = 'disabled' THEN CURRENT_TIMESTAMP ELSE NULL END,
-          telegram_bot_token = CASE WHEN $4 THEN '' ELSE telegram_bot_token END,
+      SET telegram_bot_status = $2::varchar(16),
+          telegram_bot_disable_reason = $3::varchar(120),
+          telegram_bot_disabled_at = CASE WHEN $2::varchar(16) = 'disabled' THEN CURRENT_TIMESTAMP ELSE NULL END,
+          telegram_bot_token = CASE WHEN $4::boolean THEN '' ELSE telegram_bot_token END,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
+      WHERE id = $1::integer
       `,
-      [restaurantId, normalizedStatus, normalizedReason, clearToken]
+      [normalizedRestaurantId, normalizedStatus, normalizedReason, shouldClearToken]
     );
-  } catch (_) {
+  } catch (error) {
+    const errorCode = String(error?.code || '');
     // Backward compatibility for databases without these columns.
+    if (errorCode === '42703' || errorCode === '42P01') {
+      if (!warnedPersistRestaurantBotStatusSchemaMissing) {
+        warnedPersistRestaurantBotStatusSchemaMissing = true;
+        console.warn('persistRestaurantBotStatus skipped: schema is missing expected columns/table');
+      }
+      return;
+    }
+
+    // Do not crash bot flow, but always log unexpected DB failures for fast incident response.
+    console.error('persistRestaurantBotStatus error:', {
+      restaurantId: normalizedRestaurantId,
+      status: normalizedStatus,
+      code: errorCode || null,
+      message: error?.message || error
+    });
   }
 }
 
