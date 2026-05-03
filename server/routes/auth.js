@@ -1133,12 +1133,13 @@ router.post('/login', loginRateLimiter, async (req, res) => {
       }
     }
 
+    const tokenRestaurantId = Number.parseInt(user.active_restaurant_id, 10);
     const tokenPayload = {
       userId: user.id,
       username: user.username,
       role: user.role,
-      ...(user.role === 'customer' && user.active_restaurant_id
-        ? { restaurantId: Number(user.active_restaurant_id) }
+      ...(Number.isFinite(tokenRestaurantId) && tokenRestaurantId > 0
+        ? { restaurantId: tokenRestaurantId }
         : {})
     };
 

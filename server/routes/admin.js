@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
 const { authenticate, requireOperator, requireRestaurantAccess } = require('../middleware/auth');
@@ -1324,6 +1325,19 @@ router.post('/switch-restaurant', async (req, res) => {
     if (!restaurantResult.rows.length) {
       return res.status(403).json({ error: 'Магазин деактивирован' });
     }
+    const nextRestaurantId = Number.parseInt(restaurant_id, 10);
+    const nextToken = jwt.sign(
+      {
+        userId: req.user.id,
+        username: req.user.username,
+        role: req.user.role,
+        ...(Number.isFinite(nextRestaurantId) && nextRestaurantId > 0
+          ? { restaurantId: nextRestaurantId }
+          : {})
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
 
     res.json({
       message: 'Ресторан переключен',
@@ -1334,7 +1348,8 @@ router.post('/switch-restaurant', async (req, res) => {
       active_restaurant_ui_theme: normalizeUiTheme(restaurantResult.rows[0]?.ui_theme, 'classic'),
       active_restaurant_ui_font_family: normalizeUiFontFamily(restaurantResult.rows[0]?.ui_font_family, 'sans'),
       active_restaurant_menu_view_mode: normalizeMenuViewMode(restaurantResult.rows[0]?.menu_view_mode, 'grid_categories'),
-      active_restaurant_currency_code: normalizeRestaurantCurrencyCode(restaurantResult.rows[0]?.currency_code, 'uz')
+      active_restaurant_currency_code: normalizeRestaurantCurrencyCode(restaurantResult.rows[0]?.currency_code, 'uz'),
+      token: nextToken
     });
   } catch (error) {
     console.error('Switch restaurant error:', error);

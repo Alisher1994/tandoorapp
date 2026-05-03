@@ -384,6 +384,11 @@ export function AuthProvider({ children }) {
       const response = await axios.post(`${API_URL}/admin/switch-restaurant`, {
         restaurant_id: restaurantId
       });
+      const nextToken = String(response?.data?.token || '').trim();
+      if (nextToken) {
+        localStorage.setItem('token', nextToken);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${nextToken}`;
+      }
       
       setUser(prev => ({
         ...prev,

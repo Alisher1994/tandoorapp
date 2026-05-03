@@ -76,10 +76,6 @@ import {
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const ADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'admin_sidebar_collapsed_v1';
 const ADMIN_ACTIVE_TAB_STORAGE_KEY = 'admin_active_tab_v1';
-const MY_TAXI_URL_TEMPLATE = import.meta.env.VITE_MY_TAXI_URL_TEMPLATE || '';
-const MILLENIUM_TAXI_URL_TEMPLATE = import.meta.env.VITE_MILLENIUM_TAXI_URL_TEMPLATE || '';
-const DEFAULT_MY_TAXI_URL_TEMPLATE = 'mytaxiapp://start?q={lat},{lng}';
-const DEFAULT_MILLENIUM_TAXI_URL_TEMPLATE = 'app_name://order';
 const UI_THEME_VALUES = new Set([
   'classic',
   'modern',
@@ -1264,14 +1260,6 @@ const AnalyticsMapResizeFix = () => {
   }, [map]);
 
   return null;
-};
-const buildTaxiUrlFromTemplate = (template, lat, lng) => String(template)
-  .replace(/\{lat\}/gi, encodeURIComponent(String(lat)))
-  .replace(/\{lng\}/gi, encodeURIComponent(String(lng)))
-  .replace(/\{lon\}/gi, encodeURIComponent(String(lng)));
-const buildTaxiUrl = (template, fallbackTemplate, lat, lng) => {
-  const normalizedTemplate = String(template || '').trim() || fallbackTemplate;
-  return buildTaxiUrlFromTemplate(normalizedTemplate, lat, lng);
 };
 const toAbsoluteFileUrl = (value) => {
   if (!value) return '';
@@ -15325,23 +15313,6 @@ function AdminDashboard() {
             <Modal.Title className="d-flex align-items-center gap-2 flex-wrap">
               <span>Заказ #{selectedOrder?.order_number}</span>
               {selectedOrder && getStatusBadge(getOrderDisplayWorkflowStatus(selectedOrder))}
-              {selectedOrder && (
-                <Button 
-                  variant="outline-secondary" 
-                  size="sm" 
-                  className="ms-auto d-flex align-items-center gap-1"
-                  onClick={async () => {
-                    try {
-                      await axios.post(`${API_URL}/admin/orders/${selectedOrder.id}/print`);
-                      alert('Отправлено на печать!');
-                    } catch (error) {
-                      alert('Ошибка печати');
-                    }
-                  }}
-                >
-                  <i className="bi bi-printer"></i> Распечатать чек
-                </Button>
-              )}
             </Modal.Title>
           </Modal.Header>
           <Modal.Body className="order-details-modal-body">
@@ -15446,21 +15417,7 @@ function AdminDashboard() {
                         if (coords.length === 2) {
                           const [lat, lng] = coords;
                           const yandexMapUrl = `https://yandex.ru/maps/?pt=${lng},${lat}&z=17&l=map`;
-                          const yandexNaviUrl = `yandexnavi://build_route_on_map?lat_to=${lat}&lon_to=${lng}`;
                           const yandexTaxiUrl = `https://3.redirect.appmetrica.yandex.com/route?end-lat=${lat}&end-lon=${lng}&appmetrica_tracking_id=1178268795219780156`;
-                          const myTaxiUrl = buildTaxiUrl(
-                            MY_TAXI_URL_TEMPLATE,
-                            DEFAULT_MY_TAXI_URL_TEMPLATE,
-                            lat,
-                            lng,
-                          );
-                          const milleniumTaxiUrl = buildTaxiUrl(
-                            MILLENIUM_TAXI_URL_TEMPLATE,
-                            DEFAULT_MILLENIUM_TAXI_URL_TEMPLATE,
-                            lat,
-                            lng,
-                          );
-                          const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
                           return (
                             <div className="mt-2">
@@ -15486,42 +15443,12 @@ function AdminDashboard() {
                                   🗺 Яндекс.Карты
                                 </a>
                                 <a
-                                  href={googleMapsUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="btn btn-sm order-map-btn"
-                                >
-                                  📍 Google Maps
-                                </a>
-                                <a
                                   href={yandexTaxiUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="btn btn-sm order-map-btn"
                                 >
                                   🚕 Яндекс Go
-                                </a>
-                                <a
-                                  href={myTaxiUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="btn btn-sm order-map-btn"
-                                >
-                                  🚖 My Taxi
-                                </a>
-                                <a
-                                  href={milleniumTaxiUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="btn btn-sm order-map-btn"
-                                >
-                                  🚕 Millenium Taxi
-                                </a>
-                                <a
-                                  href={yandexNaviUrl}
-                                  className="btn btn-sm order-map-btn"
-                                >
-                                  🧭 Навигатор
                                 </a>
                               </div>
                             </div>
@@ -15541,9 +15468,9 @@ function AdminDashboard() {
                     <div className="order-meta-item order-meta-item-wide">
                       <span className="order-meta-label">{language === 'uz' ? 'Mijoz baholari' : 'Оценки клиента'}</span>
                       <div className="order-meta-note" style={{ background: '#f8fafc' }}>
-                        <div className="d-flex justify-content-between align-items-center mb-1">
-                          <span>{language === 'uz' ? 'Servis' : 'Сервис'}</span>
-                          <span style={{ color: '#f59e0b', letterSpacing: '0.06em' }}>
+                        <div className="order-rating-row mb-1">
+                          <span className="order-rating-label">{language === 'uz' ? 'Servis' : 'Сервис'}</span>
+                          <span className="order-rating-stars">
                             {buildOrderRatingStars(selectedOrder.service_rating || 0)}
                           </span>
                         </div>
@@ -15552,9 +15479,9 @@ function AdminDashboard() {
                             <strong>{language === 'uz' ? 'Sabab (servis):' : 'Причина (сервис):'}</strong> {selectedOrder.service_rating_reason}
                           </div>
                         )}
-                        <div className="d-flex justify-content-between align-items-center">
-                          <span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}</span>
-                          <span style={{ color: '#f59e0b', letterSpacing: '0.06em' }}>
+                        <div className="order-rating-row">
+                          <span className="order-rating-label">{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}</span>
+                          <span className="order-rating-stars">
                             {buildOrderRatingStars(selectedOrder.delivery_rating || 0)}
                           </span>
                         </div>
@@ -15676,20 +15603,41 @@ function AdminDashboard() {
                   <div className="mb-0 d-flex flex-column order-items-content">
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <strong>Товары:</strong>
-                      {!isEditingItems ? (
-                        <Button variant="outline-primary" size="sm" onClick={startEditingItems}>
-                          Редактировать
-                        </Button>
-                      ) : (
-                        <div className="d-flex gap-2">
-                          <Button variant="success" size="sm" onClick={saveEditedItems} disabled={savingItems}>
-                            {savingItems ? '...' : '💾 Сохранить'}
+                      <div className="d-flex align-items-center gap-2">
+                        {selectedOrder && (
+                          <Button
+                            variant="outline-secondary"
+                            size="sm"
+                            className="d-inline-flex align-items-center gap-1"
+                            onClick={async () => {
+                              try {
+                                await axios.post(`${API_URL}/admin/orders/${selectedOrder.id}/print`);
+                                alert('Отправлено на печать!');
+                              } catch (error) {
+                                alert('Ошибка печати');
+                              }
+                            }}
+                          >
+                            <Printer size={15} aria-hidden="true" />
+                            <span>Распечатать чек</span>
                           </Button>
-                          <Button variant="outline-secondary" size="sm" onClick={cancelEditingItems}>
-                            Отмена
+                        )}
+                        {!isEditingItems ? (
+                          <Button variant="outline-primary" size="sm" className="d-inline-flex align-items-center gap-1" onClick={startEditingItems}>
+                            <Pencil size={15} aria-hidden="true" />
+                            <span>Редактировать</span>
                           </Button>
+                        ) : (
+                          <div className="d-flex gap-2">
+                            <Button variant="success" size="sm" onClick={saveEditedItems} disabled={savingItems}>
+                              {savingItems ? '...' : '💾 Сохранить'}
+                            </Button>
+                            <Button variant="outline-secondary" size="sm" onClick={cancelEditingItems}>
+                              Отмена
+                            </Button>
+                          </div>
+                        )}
                         </div>
-                      )}
                     </div>
 
                     {!isEditingItems ? (
@@ -15887,20 +15835,6 @@ function AdminDashboard() {
               </>
             )}
           </Modal.Body>
-          <Modal.Footer className="bg-light border-0">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setShowOrderModal(false);
-                setShowAddOrderItemModal(false);
-                setShowDeliveryLaterModal(false);
-                setDeliveryLaterDate('');
-                setOrderItemSearch('');
-              }}
-            >
-              {t('close')}
-            </Button>
-          </Modal.Footer>
         </Modal>
 
         <Modal

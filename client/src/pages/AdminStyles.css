@@ -7232,7 +7232,7 @@ body::-webkit-scrollbar,
 
 .admin-order-kanban-card-actions {
     display: grid;
-    grid-template-columns: 1fr 32px 32px;
+    grid-template-columns: 1fr 34px 34px;
     align-items: center;
     gap: 6px;
 }
@@ -7259,7 +7259,7 @@ body::-webkit-scrollbar,
 
 .admin-order-actions-grid {
     display: grid;
-    grid-template-columns: 112px 32px 32px;
+    grid-template-columns: 112px 34px 34px;
     align-items: center;
     gap: 6px;
 }
@@ -7275,13 +7275,25 @@ body::-webkit-scrollbar,
     width: 112px;
     min-width: 112px;
     max-width: 112px;
-    min-height: 32px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
     font-size: 0.78rem !important;
     font-weight: 600 !important;
     padding-left: 0.35rem !important;
     padding-right: 0.35rem !important;
     border-radius: var(--admin-btn-radius) !important;
     white-space: nowrap;
+}
+
+.admin-order-actions-grid .action-btn,
+.admin-order-kanban-card-actions .action-btn {
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    max-height: 34px !important;
 }
 
 .admin-order-action-placeholder {
@@ -7292,13 +7304,13 @@ body::-webkit-scrollbar,
 
 .admin-order-action-placeholder-main {
     width: 112px;
-    height: 32px;
+    height: 34px;
     border-radius: 8px;
 }
 
 .admin-order-action-placeholder-icon {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 8px;
 }
 
@@ -7577,7 +7589,7 @@ body::-webkit-scrollbar,
 }
 
 .order-details-modal-content {
-    height: min(92vh, 980px);
+    height: min(94vh, 1020px);
     border-radius: 16px;
     overflow: hidden;
     border: 1px solid var(--border-color);
@@ -7766,6 +7778,24 @@ body::-webkit-scrollbar,
     border-color: #94a3b8 !important;
     background: #eef2f7 !important;
     color: #1f2937 !important;
+}
+
+.order-rating-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.order-rating-label {
+    min-width: 0;
+}
+
+.order-rating-stars {
+    color: #f59e0b;
+    letter-spacing: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .order-items-content {

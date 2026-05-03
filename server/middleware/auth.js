@@ -99,8 +99,10 @@ const authenticate = async (req, res, next) => {
 
     const user = userResult.rows[0];
 
-    // Operator/superadmin tokens can carry explicit restaurant context (e.g. "My store" button in bot).
-    // Respect it when user has access to that restaurant to prevent opening the wrong store.
+    let sessionScopedRestaurantId = null;
+    // Operator/superadmin tokens may carry a session-scoped restaurant context.
+    // Validate access and apply it only in-memory for this request (without DB overwrite),
+    // so each browser session can keep its own active store.
     if ((user.role === 'operator' || user.role === 'moderator' || user.role === 'superadmin') && tokenRestaurantId) {
       const adminRestaurantAccessResult = await pool.query(`
         SELECT 1
@@ -115,13 +117,7 @@ const authenticate = async (req, res, next) => {
       if (adminRestaurantAccessResult.rows.length === 0) {
         return res.status(403).json({ error: 'Нет доступа к этому магазину' });
       }
-
-      if (Number(user.active_restaurant_id) !== Number(tokenRestaurantId)) {
-        await pool.query(
-          'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
-          [tokenRestaurantId, user.id]
-        );
-      }
+      sessionScopedRestaurantId = tokenRestaurantId;
       user.active_restaurant_id = tokenRestaurantId;
     }
 
@@ -183,10 +179,12 @@ const authenticate = async (req, res, next) => {
       ) || operatorRestaurantsResult.rows[0];
 
       if (Number(operatorEffectiveRestaurant.id) !== Number(user.active_restaurant_id)) {
-        await pool.query(
-          'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
-          [operatorEffectiveRestaurant.id, user.id]
-        );
+        if (!sessionScopedRestaurantId) {
+          await pool.query(
+            'UPDATE users SET active_restaurant_id = $1 WHERE id = $2',
+            [operatorEffectiveRestaurant.id, user.id]
+          );
+        }
         user.active_restaurant_id = operatorEffectiveRestaurant.id;
       }
     }
