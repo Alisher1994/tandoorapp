@@ -4627,6 +4627,19 @@ body::-webkit-scrollbar,
     overflow: hidden;
 }
 
+.sa-restaurants-table-container {
+    overflow: visible;
+}
+
+.sa-restaurants-table-container .table-responsive {
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+.sa-restaurants-table-container .dropdown-menu {
+    z-index: 2300 !important;
+}
+
 .admin-table {
     margin-bottom: 0 !important;
 }

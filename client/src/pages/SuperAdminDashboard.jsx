@@ -1667,6 +1667,7 @@ function SuperAdminDashboard() {
   const hiddenOpsHotkeyLastPressedRef = useRef(0);
   const internalDirectoryLoadedAtRef = useRef(0);
   const internalDirectoryInFlightRef = useRef(null);
+  const restaurantsLoadedOnceRef = useRef(false);
   const superadminBroadcastFileInputRef = useRef(null);
   const foundersPasswordInputRef = useRef(null);
   const permanentDeletePasswordInputRef = useRef(null);
@@ -2288,6 +2289,10 @@ function SuperAdminDashboard() {
     setShowScamPrankModal(false);
     setSuccess(language === 'uz' ? 'Anti-scam prank yakunlandi :)' : 'Анти-скам пранк завершён :)');
   }, [showScamPrankModal, scamPrankSecondsLeft, language]);
+  const moderatorPermissionsDependencyKey = useMemo(
+    () => JSON.stringify(normalizeModeratorPermissions(user?.moderator_permissions)),
+    [user?.moderator_permissions]
+  );
   const canAccessCurrentSuperadminTab = (key, accessType = 'view') => {
     if (user?.role !== 'moderator') return true;
     const normalizedPermissions = normalizeModeratorPermissions(user?.moderator_permissions);
@@ -2297,7 +2302,7 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (!canAccessCurrentSuperadminTab('analytics', 'view')) return;
     loadStats();
-  }, [user?.role, user?.moderator_permissions]);
+  }, [user?.role, moderatorPermissionsDependencyKey]);
 
   useEffect(() => {
     if (!canAccessCurrentSuperadminTab(activeTab, 'view')) return;
@@ -2337,7 +2342,9 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     if (!canAccessCurrentSuperadminTab('restaurants', 'view')) return;
-    if (activeTab === 'restaurants') loadRestaurants();
+    if (activeTab === 'restaurants') {
+      loadRestaurants({ silent: restaurantsLoadedOnceRef.current });
+    }
   }, [
     activeTab,
     restaurantsPage,
@@ -2351,7 +2358,7 @@ function SuperAdminDashboard() {
     restaurantsTariffFilter,
     restaurantsProductsFilter,
     user?.role,
-    user?.moderator_permissions
+    moderatorPermissionsDependencyKey
   ]);
 
   useEffect(() => {
@@ -2365,22 +2372,22 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (!canAccessCurrentSuperadminTab('operators', 'view')) return;
     if (activeTab === 'operators') loadOperators();
-  }, [activeTab, operatorsPage, operatorsLimit, operatorSearch, operatorRoleFilter, operatorStatusFilter, operatorRestaurantFilter, user?.role, user?.moderator_permissions]);
+  }, [activeTab, operatorsPage, operatorsLimit, operatorSearch, operatorRoleFilter, operatorStatusFilter, operatorRestaurantFilter, user?.role, moderatorPermissionsDependencyKey]);
 
   useEffect(() => {
     if (!canAccessCurrentSuperadminTab('customers', 'view')) return;
     if (activeTab === 'customers') loadCustomers();
-  }, [activeTab, customerPage, customerLimit, customerSearch, customerStatusFilter, customerRestaurantFilter, user?.role, user?.moderator_permissions]);
+  }, [activeTab, customerPage, customerLimit, customerSearch, customerStatusFilter, customerRestaurantFilter, user?.role, moderatorPermissionsDependencyKey]);
 
   useEffect(() => {
     if (!canAccessCurrentSuperadminTab('settings', 'view')) return;
     if (activeTab === 'logs') loadLogs();
-  }, [activeTab, logsFilter, user?.role, user?.moderator_permissions]);
+  }, [activeTab, logsFilter, user?.role, moderatorPermissionsDependencyKey]);
 
   useEffect(() => {
     if (!canAccessCurrentSuperadminTab('settings', 'view')) return;
     if (activeTab === 'security') loadSecurityEvents();
-  }, [securityFilter, activeTab, user?.role, user?.moderator_permissions]);
+  }, [securityFilter, activeTab, user?.role, moderatorPermissionsDependencyKey]);
 
   useEffect(() => {
     if (!isBillingTransactionsViewActive) return;
@@ -2882,8 +2889,10 @@ function SuperAdminDashboard() {
     }
   };
 
-  const loadRestaurants = async () => {
-    setLoading(true);
+  const loadRestaurants = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
     try {
       const normalizedStatusFilter = String(restaurantsStatusFilter || '').trim().toLowerCase();
       const isActiveFlagFilter = normalizedStatusFilter === 'active' || normalizedStatusFilter === 'inactive';
@@ -2910,10 +2919,13 @@ function SuperAdminDashboard() {
         ? { restaurants: response.data, total: response.data.length, page: restaurantsPage, limit: restaurantsLimit }
         : response.data;
       setRestaurants(data);
+      restaurantsLoadedOnceRef.current = true;
     } catch (err) {
       setError('Ошибка загрузки магазинов');
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -13191,7 +13203,7 @@ function SuperAdminDashboard() {
                   <SuperAdminRestaurantsSkeleton label="Загрузка списка магазинов" />
                 ) : (
                   <>
-                    <div className="admin-table-container">
+                    <div className="admin-table-container sa-restaurants-table-container">
                       <Table responsive hover className="admin-table sa-restaurants-table-compact">
                         <thead>
                           <tr>
