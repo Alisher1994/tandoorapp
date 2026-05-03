@@ -10608,12 +10608,14 @@ body::-webkit-scrollbar,
     height: 100%;
     flex: 1 1 auto;
     min-height: 0;
+    flex-wrap: nowrap;
 }
 
 .admin-global-import-col {
     min-width: 0;
     display: flex;
     min-height: 0;
+    flex: 1 1 0%;
 }
 
 .admin-global-import-arrows-col {
@@ -12028,6 +12030,7 @@ div.form-select.admin-global-import-field {
 
     .admin-global-import-layout {
         height: auto;
+        flex-wrap: wrap;
         row-gap: 0.45rem;
     }
 
