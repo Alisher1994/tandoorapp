@@ -1981,7 +1981,6 @@ function AdminDashboard() {
   const [globalImportLeftSelectedIds, setGlobalImportLeftSelectedIds] = useState([]);
   const [globalImportRightSelectedIds, setGlobalImportRightSelectedIds] = useState([]);
   const [globalImportItems, setGlobalImportItems] = useState([]);
-  const [globalImportCategorySearchByItem, setGlobalImportCategorySearchByItem] = useState({});
   const [productForm, setProductForm] = useState({
     category_id: '',
     name_ru: '',
@@ -4784,7 +4783,6 @@ function AdminDashboard() {
     setGlobalImportLeftSelectedIds([]);
     setGlobalImportRightSelectedIds([]);
     setGlobalImportItems([]);
-    setGlobalImportCategorySearchByItem({});
     setGlobalCatalogLoading(false);
     setGlobalImportSaving(false);
   };
@@ -16431,7 +16429,9 @@ function AdminDashboard() {
                 <div className="admin-global-import-panel">
                   <div className="admin-global-import-panel-head">
                     <strong>{language === 'uz' ? "Global mahsulotlar" : 'Глобальные товары'}</strong>
-                    <span className="small text-muted">{globalCatalogProducts.length}</span>
+                    <span className="small text-muted">
+                      {globalCatalogProducts.filter((entry) => !globalImportItemIdsSet.has(Number(entry.id))).length}
+                    </span>
                   </div>
                   <Row className="g-2 mb-3 admin-global-import-search-row">
                     <Col xs={12} md={7}>
@@ -16456,35 +16456,29 @@ function AdminDashboard() {
                       <div className="text-muted small py-3 text-center admin-global-import-empty-hint">
                         {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
                       </div>
-                    ) : globalCatalogProducts.length === 0 ? (
+                    ) : globalCatalogProducts.filter((entry) => !globalImportItemIdsSet.has(Number(entry.id))).length === 0 ? (
                       <div className="text-muted small py-3 text-center admin-global-import-empty-hint">
                         {language === 'uz' ? "Global mahsulotlar topilmadi" : 'Глобальные товары не найдены'}
                       </div>
                     ) : (
-                      globalCatalogProducts.map((item) => {
+                      globalCatalogProducts
+                        .filter((entry) => !globalImportItemIdsSet.has(Number(entry.id)))
+                        .map((item) => {
                         const itemId = Number(item.id);
                         const isSelected = globalImportLeftSelectedIds.includes(itemId);
-                        const isAlreadyAdded = globalImportItemIdsSet.has(itemId);
                         const imageUrl = item.thumb_url || item.image_url
                           ? toAbsoluteFileUrl(item.thumb_url || item.image_url)
                           : PRODUCT_PLACEHOLDER_IMAGE;
                         return (
                           <div
                             key={`global-catalog-item-${itemId}`}
-                            className={`admin-global-import-list-item${isSelected ? ' is-selected' : ''}${isAlreadyAdded ? ' is-added' : ''}`}
-                            onClick={() => {
-                              if (isAlreadyAdded) return;
-                              toggleGlobalImportLeftSelection(itemId);
-                            }}
+                            className={`admin-global-import-list-item${isSelected ? ' is-selected' : ''}`}
+                            onClick={() => toggleGlobalImportLeftSelection(itemId)}
                           >
                             <Form.Check
                               type="checkbox"
                               checked={isSelected}
-                              disabled={isAlreadyAdded}
-                              onChange={() => {
-                                if (isAlreadyAdded) return;
-                                toggleGlobalImportLeftSelection(itemId);
-                              }}
+                              onChange={() => toggleGlobalImportLeftSelection(itemId)}
                               onClick={(event) => event.stopPropagation()}
                             />
                             <img
@@ -16513,11 +16507,6 @@ function AdminDashboard() {
                                   : (item.recommended_category_name_ru || item.recommended_category_name_uz)) || '—'}
                               </div>
                             </div>
-                            {isAlreadyAdded && (
-                              <Badge bg="success" className="ms-2">
-                                {language === 'uz' ? "Qo'shilgan" : 'Добавлен'}
-                              </Badge>
-                            )}
                           </div>
                         );
                       })
@@ -16565,15 +16554,8 @@ function AdminDashboard() {
                         const itemId = Number(item.global_product_id);
                         const selectedOnRight = globalImportRightSelectedIds.includes(itemId);
                         const sourceImage = item.image_url ? toAbsoluteFileUrl(item.image_url) : PRODUCT_PLACEHOLDER_IMAGE;
-                        const suggestedCategoryId = String(item.category_id || '');
-                        const suggestedCategory = importCategoryById.get(suggestedCategoryId);
-                        const categorySearchValue = String(globalImportCategorySearchByItem?.[itemId] || '');
-                        const normalizedCategorySearch = categorySearchValue.trim().toLowerCase();
-                        const filteredCategoryOptions = normalizedCategorySearch
-                          ? importAssignableCategories.filter((categoryOption) => (
-                            String(categoryOption?.path || '').toLowerCase().includes(normalizedCategorySearch)
-                          ))
-                          : importAssignableCategories;
+                        const selectedCategoryId = String(item.category_id || '');
+                        const selectedCategory = importCategoryById.get(selectedCategoryId);
                         return (
                           <div
                             key={`global-import-item-${itemId}`}
@@ -16616,37 +16598,33 @@ function AdminDashboard() {
                                 />
                               </Col>
                               <Col md={7}>
-                                <Form.Control
-                                  className="admin-global-import-category-search"
-                                  value={categorySearchValue}
-                                  onChange={(e) => setGlobalImportCategorySearchByItem((prev) => ({
-                                    ...(prev || {}),
-                                    [itemId]: String(e.target.value || '').slice(0, 120)
-                                  }))}
-                                  placeholder={language === 'uz' ? 'Kategoriyani qidirish' : 'Поиск категории'}
-                                />
-                                <Form.Select
-                                  className="mt-1"
-                                  value={item.category_id || ''}
-                                  onChange={(e) => updateGlobalImportItem(itemId, 'category_id', e.target.value)}
-                                >
-                                  <option value="">{language === 'uz' ? 'Kategoriya tanlanmagan' : 'Категория не выбрана'}</option>
-                                  {filteredCategoryOptions.map((categoryOption) => (
-                                    <option key={`global-import-category-${categoryOption.id}`} value={String(categoryOption.id)}>
-                                      {categoryOption.path}
-                                    </option>
-                                  ))}
-                                  {filteredCategoryOptions.length === 0 && (
-                                    <option value="" disabled>
-                                      {language === 'uz' ? 'Kategoriyalar topilmadi' : 'Категории не найдены'}
-                                    </option>
-                                  )}
-                                </Form.Select>
+                                <Dropdown>
+                                  <Dropdown.Toggle as={CustomToggle} className="form-select-sm">
+                                    {selectedCategory?.path || (language === 'uz' ? 'Kategoriya tanlanmagan' : 'Категория не выбрана')}
+                                  </Dropdown.Toggle>
+                                  <Dropdown.Menu as={CustomMenu} className="admin-filter-dropdown-menu">
+                                    <Dropdown.Item
+                                      onClick={() => updateGlobalImportItem(itemId, 'category_id', '')}
+                                      active={!selectedCategoryId}
+                                    >
+                                      {language === 'uz' ? 'Kategoriya tanlanmagan' : 'Категория не выбрана'}
+                                    </Dropdown.Item>
+                                    {importAssignableCategories.map((categoryOption) => (
+                                      <Dropdown.Item
+                                        key={`global-import-category-${categoryOption.id}`}
+                                        onClick={() => updateGlobalImportItem(itemId, 'category_id', String(categoryOption.id))}
+                                        active={selectedCategoryId === String(categoryOption.id)}
+                                      >
+                                        {categoryOption.path}
+                                      </Dropdown.Item>
+                                    ))}
+                                  </Dropdown.Menu>
+                                </Dropdown>
                               </Col>
                             </Row>
                             <div className="small text-muted mt-2">
                               {language === 'uz' ? 'Tavsiya:' : 'Рекомендация:'}{' '}
-                              {suggestedCategory?.path || (language === 'uz'
+                              {selectedCategory?.path || (language === 'uz'
                                 ? (item.recommended_category_name_uz || item.recommended_category_name_ru || '—')
                                 : (item.recommended_category_name_ru || item.recommended_category_name_uz || '—'))}
                             </div>

@@ -10651,6 +10651,27 @@ body::-webkit-scrollbar,
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.72) rgba(226, 232, 240, 0.72);
+}
+
+.admin-global-import-list::-webkit-scrollbar {
+    width: 10px;
+}
+
+.admin-global-import-list::-webkit-scrollbar-track {
+    background: rgba(226, 232, 240, 0.72);
+    border-radius: 999px;
+}
+
+.admin-global-import-list::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, 0.72);
+    border-radius: 999px;
+    border: 2px solid rgba(226, 232, 240, 0.72);
+}
+
+.admin-global-import-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(71, 85, 105, 0.88);
 }
 
 .admin-global-import-empty-hint {
@@ -10711,10 +10732,6 @@ body::-webkit-scrollbar,
     flex-direction: column;
     gap: 0.45rem;
     justify-content: center;
-}
-
-.admin-global-import-category-search {
-    font-size: 0.9rem;
 }
 
 .admin-global-import-arrows .btn {
