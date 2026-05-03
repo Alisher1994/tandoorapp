@@ -10585,6 +10585,9 @@ body::-webkit-scrollbar,
 
 .admin-global-import-modal .modal-content {
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .admin-global-import-modal-header {
@@ -10595,14 +10598,22 @@ body::-webkit-scrollbar,
 .admin-global-import-modal-body {
     padding: 0.65rem 0.85rem 0.75rem;
     overflow: hidden;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .admin-global-import-layout {
     height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .admin-global-import-col {
     min-width: 0;
+    display: flex;
+    min-height: 0;
 }
 
 .admin-global-import-arrows-col {
@@ -10621,7 +10632,8 @@ body::-webkit-scrollbar,
     border-radius: 14px;
     background: #ffffff;
     padding: 0.55rem 0.6rem;
-    height: 100%;
+    height: auto;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -10646,7 +10658,7 @@ body::-webkit-scrollbar,
     padding: 0.45rem;
     flex: 1 1 auto;
     min-height: 0;
-    height: 100%;
+    max-height: none;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
