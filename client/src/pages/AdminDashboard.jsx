@@ -16591,6 +16591,7 @@ function AdminDashboard() {
                             <Row className="g-2 mt-1">
                               <Col md={5}>
                                 <Form.Control
+                                  className="admin-global-import-field"
                                   value={item.price}
                                   onChange={(e) => updateGlobalImportItem(itemId, 'price', String(e.target.value || '').replace(/[^\d.,]/g, '').slice(0, 20))}
                                   placeholder={language === 'uz' ? 'Narx *' : 'Цена *'}
@@ -16599,7 +16600,7 @@ function AdminDashboard() {
                               </Col>
                               <Col md={7}>
                                 <Dropdown>
-                                  <Dropdown.Toggle as={CustomToggle} className="form-select-sm">
+                                  <Dropdown.Toggle as={CustomToggle} className="form-select-sm admin-global-import-field">
                                     {selectedCategory?.path || (language === 'uz' ? 'Kategoriya tanlanmagan' : 'Категория не выбрана')}
                                   </Dropdown.Toggle>
                                   <Dropdown.Menu as={CustomMenu} className="admin-filter-dropdown-menu">
