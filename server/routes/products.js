@@ -302,6 +302,8 @@ let restaurantCurrencySchemaReady = false;
 let restaurantCurrencySchemaPromise = null;
 let productReviewsSchemaReady = false;
 let productReviewsSchemaPromise = null;
+let categoryImageOverridesSchemaReady = false;
+let categoryImageOverridesSchemaPromise = null;
 const ensureAdBannerTargetingSchema = async () => {
   if (adBannerTargetingSchemaReady) return;
   if (adBannerTargetingSchemaPromise) {
@@ -425,6 +427,48 @@ const ensureRestaurantCurrencySchema = async () => {
     await restaurantCurrencySchemaPromise;
   } finally {
     restaurantCurrencySchemaPromise = null;
+  }
+};
+
+const ensureCategoryImageOverridesSchema = async () => {
+  if (categoryImageOverridesSchemaReady) return;
+  if (categoryImageOverridesSchemaPromise) {
+    await categoryImageOverridesSchemaPromise;
+    return;
+  }
+
+  categoryImageOverridesSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS restaurant_category_image_overrides (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+        use_custom_image BOOLEAN NOT NULL DEFAULT false,
+        image_url TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (restaurant_id, category_id)
+      )
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE restaurant_category_image_overrides
+      ADD COLUMN IF NOT EXISTS use_custom_image BOOLEAN NOT NULL DEFAULT false
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE restaurant_category_image_overrides
+      ADD COLUMN IF NOT EXISTS image_url TEXT
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_rcio_restaurant_category
+      ON restaurant_category_image_overrides(restaurant_id, category_id)
+    `).catch(() => {});
+    categoryImageOverridesSchemaReady = true;
+  })();
+
+  try {
+    await categoryImageOverridesSchemaPromise;
+  } finally {
+    categoryImageOverridesSchemaPromise = null;
   }
 };
 
@@ -752,6 +796,7 @@ const getShowcaseRestaurantCategories = async (req, res) => {
     }
 
     await ensureShowcaseLayoutsSchema();
+    await ensureCategoryImageOverridesSchema();
 
     // Verify restaurant exists
     const restaurantResult = await pool.query(
@@ -764,9 +809,15 @@ const getShowcaseRestaurantCategories = async (req, res) => {
 
     // Base set: categories linked to products in this restaurant.
     const result = await pool.query(`
-      SELECT DISTINCT c.*
+      SELECT DISTINCT
+        c.*,
+        o.use_custom_image,
+        o.image_url AS custom_image_url
       FROM categories c
       INNER JOIN products p ON c.id = p.category_id
+      LEFT JOIN restaurant_category_image_overrides o
+        ON o.restaurant_id = $1
+       AND o.category_id = c.id
       WHERE p.restaurant_id = $1
       ORDER BY c.id
     `, [restaurantId]);
@@ -796,8 +847,18 @@ const getShowcaseRestaurantCategories = async (req, res) => {
     const missingCategoryIds = [...showcaseCategoryIds].filter((id) => !categoryIds.has(id));
     if (missingCategoryIds.length > 0) {
       const missingResult = await pool.query(
-        'SELECT * FROM categories WHERE id = ANY($1::int[])',
-        [missingCategoryIds]
+        `
+          SELECT
+            c.*,
+            o.use_custom_image,
+            o.image_url AS custom_image_url
+          FROM categories c
+          LEFT JOIN restaurant_category_image_overrides o
+            ON o.restaurant_id = $2
+           AND o.category_id = c.id
+          WHERE c.id = ANY($1::int[])
+        `,
+        [missingCategoryIds, restaurantId]
       );
       const missingRows = Array.isArray(missingResult.rows) ? missingResult.rows : [];
       missingRows.forEach((row) => {
@@ -811,12 +872,24 @@ const getShowcaseRestaurantCategories = async (req, res) => {
 
     const normalizedCategories = categories
       .map((row) => ({
-        ...row,
+        ...(row || {}),
         id: Number.parseInt(row.id, 10),
         name_ru: row.name_ru || row.name || row.name_uz || '',
         name_uz: row.name_uz || row.name || row.name_ru || '',
         name: row.name || row.name_ru || row.name_uz || '',
-        icon_url: row.icon_url || row.image_url || row.image || ''
+        system_image_url: String(row.image_url || '').trim(),
+        custom_image_url: String(row.custom_image_url || '').trim(),
+        use_custom_image: row.use_custom_image === true,
+        effective_image_url: (
+          row.use_custom_image === true
+            ? String(row.custom_image_url || '').trim()
+            : String(row.image_url || '').trim()
+        )
+      }))
+      .map((row) => ({
+        ...row,
+        image_url: row.effective_image_url || '',
+        icon_url: row.effective_image_url || row.icon_url || row.image || ''
       }))
       .filter((row) => Number.isInteger(row.id) && row.id > 0)
       .sort((a, b) => String(a.name_ru || '').localeCompare(String(b.name_ru || ''), 'ru'));
@@ -836,13 +909,43 @@ router.get('/categories/restaurant/:restaurantId', authenticate, getShowcaseRest
 // Get all categories (public - for customers, global/shared)
 router.get('/categories', async (req, res) => {
   try {
-    // Categories are global/shared across restaurants.
-    // We intentionally do not filter by restaurant_id here, because
-    // products are already filtered by restaurant on the catalog side.
-    const result = await pool.query(
-      'SELECT * FROM categories WHERE is_active = true ORDER BY name_ru'
-    );
-    res.json(result.rows);
+    await ensureCategoryImageOverridesSchema();
+    const restaurantId = Number.parseInt(req.query.restaurant_id, 10);
+    if (Number.isInteger(restaurantId) && restaurantId > 0) {
+      const result = await pool.query(`
+        SELECT
+          c.*,
+          o.use_custom_image,
+          o.image_url AS custom_image_url
+        FROM categories c
+        LEFT JOIN restaurant_category_image_overrides o
+          ON o.restaurant_id = $1
+         AND o.category_id = c.id
+        WHERE c.is_active = true
+        ORDER BY c.name_ru
+      `, [restaurantId]);
+
+      const rows = (result.rows || []).map((row) => {
+        const systemImageUrl = String(row.image_url || '').trim();
+        const customImageUrl = String(row.custom_image_url || '').trim();
+        const useCustomImage = row.use_custom_image === true;
+        const effectiveImageUrl = useCustomImage ? customImageUrl : systemImageUrl;
+        return {
+          ...row,
+          system_image_url: systemImageUrl,
+          custom_image_url: customImageUrl,
+          use_custom_image: useCustomImage,
+          is_logo_fallback: useCustomImage && !customImageUrl,
+          effective_image_url: effectiveImageUrl,
+          image_url: effectiveImageUrl || ''
+        };
+      });
+      return res.json(rows);
+    }
+
+    // Fallback for legacy callers without restaurant_id.
+    const result = await pool.query('SELECT * FROM categories WHERE is_active = true ORDER BY name_ru');
+    res.json(result.rows || []);
   } catch (error) {
     console.error('Categories error:', error);
     res.status(500).json({ error: 'Ошибка получения категорий' });

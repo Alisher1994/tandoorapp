@@ -73,6 +73,8 @@ let globalProductsSchemaReady = false;
 let globalProductsSchemaPromise = null;
 let productsIkpuSchemaReady = false;
 let productsIkpuSchemaPromise = null;
+let categoryImageOverridesSchemaReady = false;
+let categoryImageOverridesSchemaPromise = null;
 const normalizeProductSeasonScope = (value, fallback = 'all') => {
   const normalized = String(value || '').trim().toLowerCase();
   return PRODUCT_SEASON_SCOPES.has(normalized) ? normalized : fallback;
@@ -725,6 +727,52 @@ const ensureProductsIkpuSchema = async () => {
     await productsIkpuSchemaPromise;
   } finally {
     productsIkpuSchemaPromise = null;
+  }
+};
+const ensureCategoryImageOverridesSchema = async () => {
+  if (categoryImageOverridesSchemaReady) return;
+  if (categoryImageOverridesSchemaPromise) {
+    await categoryImageOverridesSchemaPromise;
+    return;
+  }
+
+  categoryImageOverridesSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS restaurant_category_image_overrides (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+        use_custom_image BOOLEAN NOT NULL DEFAULT false,
+        image_url TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (restaurant_id, category_id)
+      )
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE restaurant_category_image_overrides
+      ADD COLUMN IF NOT EXISTS use_custom_image BOOLEAN NOT NULL DEFAULT false
+    `).catch(() => {});
+    await pool.query(`
+      ALTER TABLE restaurant_category_image_overrides
+      ADD COLUMN IF NOT EXISTS image_url TEXT
+    `).catch(() => {});
+    await pool.query(`
+      UPDATE restaurant_category_image_overrides
+      SET use_custom_image = false
+      WHERE use_custom_image IS NULL
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_rcio_restaurant_category
+      ON restaurant_category_image_overrides(restaurant_id, category_id)
+    `).catch(() => {});
+    categoryImageOverridesSchemaReady = true;
+  })();
+
+  try {
+    await categoryImageOverridesSchemaPromise;
+  } finally {
+    categoryImageOverridesSchemaPromise = null;
   }
 };
 const normalizeCardReceiptTarget = (value, fallback = 'bot') => {
@@ -4496,16 +4544,203 @@ router.delete('/containers/:id', async (req, res) => {
 // КАТЕГОРИИ
 // =====================================================
 
-// Получить категории (фильтруются по активному ресторану)
-router.get('/categories', async (req, res) => {
+const getUsedCategoryRowsForRestaurant = async ({ restaurantId, includeInactive = false }) => {
+  const result = await pool.query(`
+    WITH RECURSIVE used_tree AS (
+      SELECT DISTINCT c.id, c.parent_id
+      FROM categories c
+      INNER JOIN products p ON p.category_id = c.id
+      WHERE p.restaurant_id = $1
+      UNION
+      SELECT parent.id, parent.parent_id
+      FROM categories parent
+      INNER JOIN used_tree child ON child.parent_id = parent.id
+    )
+    SELECT
+      c.*,
+      o.use_custom_image,
+      o.image_url AS custom_image_url
+    FROM categories c
+    INNER JOIN used_tree u ON u.id = c.id
+    LEFT JOIN restaurant_category_image_overrides o
+      ON o.restaurant_id = $1
+     AND o.category_id = c.id
+    WHERE ($2::boolean OR c.is_active = true)
+    ORDER BY
+      COALESCE(c.sort_order, 999999) ASC,
+      COALESCE(c.name_ru, c.name_uz, '') ASC
+  `, [restaurantId, includeInactive]);
+
+  return (result.rows || []).map((row) => {
+    const systemImageUrl = toOptionalTrimmedText(row.image_url);
+    const customImageUrl = toOptionalTrimmedText(row.custom_image_url);
+    const useCustomImage = row.use_custom_image === true;
+    const effectiveImageUrl = useCustomImage ? customImageUrl : systemImageUrl;
+    return {
+      ...row,
+      system_image_url: systemImageUrl || '',
+      custom_image_url: customImageUrl || '',
+      use_custom_image: useCustomImage,
+      effective_image_url: effectiveImageUrl || '',
+      is_logo_fallback: useCustomImage && !customImageUrl
+    };
+  });
+};
+
+router.get('/categories/used', async (req, res) => {
   try {
+    await ensureCategoryImageOverridesSchema();
+    const restaurantId = Number.parseInt(req.user?.active_restaurant_id, 10);
+    if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Выберите ресторан' });
+    }
     const includeInactive = ['1', 'true', 'yes'].includes(
       String(req.query.include_inactive || '').toLowerCase()
     );
-    const result = includeInactive
-      ? await pool.query('SELECT * FROM categories ORDER BY sort_order, name_ru')
-      : await pool.query('SELECT * FROM categories WHERE is_active = true ORDER BY sort_order, name_ru');
-    res.json(result.rows);
+    const categories = await getUsedCategoryRowsForRestaurant({ restaurantId, includeInactive });
+    res.json(categories);
+  } catch (error) {
+    console.error('Admin used categories error:', error);
+    res.status(500).json({ error: 'Ошибка получения категорий магазина' });
+  }
+});
+
+router.put('/categories/:id/store-image', async (req, res) => {
+  try {
+    await ensureCategoryImageOverridesSchema();
+    const restaurantId = Number.parseInt(req.user?.active_restaurant_id, 10);
+    if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Выберите ресторан' });
+    }
+
+    const categoryId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID категории' });
+    }
+
+    const useCustomImage = normalizeOptionalBoolean(req.body?.use_custom_image);
+    if (useCustomImage === null) {
+      return res.status(400).json({ error: 'Поле use_custom_image обязательно' });
+    }
+    const imageUrlRaw = req.body?.image_url;
+    const imageUrl = imageUrlRaw === undefined || imageUrlRaw === null
+      ? null
+      : toOptionalTrimmedText(imageUrlRaw);
+
+    const categoryCheck = await pool.query(
+      'SELECT id, name_ru FROM categories WHERE id = $1 LIMIT 1',
+      [categoryId]
+    );
+    if (!categoryCheck.rows.length) {
+      return res.status(404).json({ error: 'Категория не найдена' });
+    }
+
+    const usedCategories = await getUsedCategoryRowsForRestaurant({
+      restaurantId,
+      includeInactive: true
+    });
+    const usedIds = new Set(
+      usedCategories
+        .map((item) => Number.parseInt(item.id, 10))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    );
+    if (!usedIds.has(categoryId)) {
+      return res.status(400).json({
+        error: 'Можно настраивать только категории, которые используются в этом магазине'
+      });
+    }
+
+    if (!useCustomImage) {
+      await pool.query(
+        'DELETE FROM restaurant_category_image_overrides WHERE restaurant_id = $1 AND category_id = $2',
+        [restaurantId, categoryId]
+      );
+    } else {
+      await pool.query(`
+        INSERT INTO restaurant_category_image_overrides
+          (restaurant_id, category_id, use_custom_image, image_url, updated_at)
+        VALUES
+          ($1, $2, true, $3, CURRENT_TIMESTAMP)
+        ON CONFLICT (restaurant_id, category_id)
+        DO UPDATE SET
+          use_custom_image = EXCLUDED.use_custom_image,
+          image_url = EXCLUDED.image_url,
+          updated_at = CURRENT_TIMESTAMP
+      `, [restaurantId, categoryId, imageUrl || null]);
+    }
+
+    const updatedList = await getUsedCategoryRowsForRestaurant({
+      restaurantId,
+      includeInactive: true
+    });
+    const updatedCategory = updatedList.find(
+      (row) => Number.parseInt(row.id, 10) === categoryId
+    );
+    if (!updatedCategory) {
+      return res.status(404).json({ error: 'Категория не найдена после обновления' });
+    }
+
+    await logActivity({
+      userId: req.user.id,
+      restaurantId,
+      actionType: ACTION_TYPES.UPDATE_CATEGORY,
+      entityType: ENTITY_TYPES.CATEGORY,
+      entityId: categoryId,
+      entityName: categoryCheck.rows[0]?.name_ru || `Category #${categoryId}`,
+      newValues: {
+        use_custom_image: updatedCategory.use_custom_image,
+        custom_image_url: updatedCategory.custom_image_url,
+        effective_image_url: updatedCategory.effective_image_url
+      },
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req)
+    });
+
+    res.json(updatedCategory);
+  } catch (error) {
+    console.error('Admin store category image update error:', error);
+    res.status(500).json({ error: 'Ошибка сохранения фото категории' });
+  }
+});
+
+// Получить категории (фильтруются по активному ресторану)
+router.get('/categories', async (req, res) => {
+  try {
+    await ensureCategoryImageOverridesSchema();
+    const includeInactive = ['1', 'true', 'yes'].includes(
+      String(req.query.include_inactive || '').toLowerCase()
+    );
+    const restaurantId = Number.parseInt(req.user?.active_restaurant_id, 10);
+    const params = [
+      Number.isInteger(restaurantId) && restaurantId > 0 ? restaurantId : null
+    ];
+    const whereClause = includeInactive ? '' : 'WHERE c.is_active = true';
+    const result = await pool.query(`
+      SELECT
+        c.*,
+        o.use_custom_image,
+        o.image_url AS custom_image_url
+      FROM categories c
+      LEFT JOIN restaurant_category_image_overrides o
+        ON o.restaurant_id = $1
+       AND o.category_id = c.id
+      ${whereClause}
+      ORDER BY COALESCE(c.sort_order, 999999) ASC, c.name_ru ASC
+    `, params);
+
+    const rows = (result.rows || []).map((row) => {
+      const systemImageUrl = toOptionalTrimmedText(row.image_url);
+      const customImageUrl = toOptionalTrimmedText(row.custom_image_url);
+      const useCustomImage = row.use_custom_image === true;
+      return {
+        ...row,
+        system_image_url: systemImageUrl || '',
+        custom_image_url: customImageUrl || '',
+        use_custom_image: useCustomImage,
+        effective_image_url: useCustomImage ? (customImageUrl || '') : (systemImageUrl || '')
+      };
+    });
+    res.json(rows);
   } catch (error) {
     console.error('Admin categories error:', error);
     res.status(500).json({ error: 'Ошибка получения категорий' });
@@ -4515,6 +4750,9 @@ router.get('/categories', async (req, res) => {
 // Создать категорию
 router.post('/categories', async (req, res) => {
   try {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Изменение структуры категорий доступно только суперадмину' });
+    }
     const { name_ru, name_uz, image_url, sort_order, printer_id } = req.body;
     const restaurantId = req.user.active_restaurant_id;
     const normalizedNameRu = normalizeCategoryName(name_ru);
@@ -4573,6 +4811,9 @@ RETURNING *
 // Обновить категорию
 router.put('/categories/:id', async (req, res) => {
   try {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Изменение названия категории доступно только суперадмину' });
+    }
     const { name_ru, name_uz, image_url, sort_order, printer_id } = req.body;
     const normalizedNameRu = normalizeCategoryName(name_ru);
     const normalizedNameUz = normalizeCategoryName(name_uz);
@@ -4641,6 +4882,9 @@ RETURNING *
 // Удалить категорию
 router.delete('/categories/:id', async (req, res) => {
   try {
+    if (req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Удаление категории доступно только суперадмину' });
+    }
     // Get category and check access
     const categoryResult = await pool.query('SELECT * FROM categories WHERE id = $1', [req.params.id]);
     if (categoryResult.rows.length === 0) {

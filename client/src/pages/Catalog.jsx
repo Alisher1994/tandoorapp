@@ -4348,6 +4348,7 @@ function Catalog() {
                       <Row className="g-3">
                         {level2Categories.map((level2Category) => {
                           const categoryImage = resolveImageUrl(level2Category.image_url);
+                          const hasCategoryImage = Boolean(categoryImage);
                           const categoryName = getCategoryName(level2Category);
                           const titleBackground = hideCategoryTitleBackgroundForMenu
                             ? 'transparent'
@@ -4373,11 +4374,17 @@ function Catalog() {
                                     height: imageZoneHeight,
                                     borderRadius: '14px',
                                     overflow: 'hidden',
-                                    backgroundImage: categoryImage ? `url(${categoryImage})` : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                                    backgroundSize: 'cover',
+                                    backgroundImage: hasCategoryImage
+                                      ? `url(${categoryImage})`
+                                      : (
+                                        storeLogoFallbackUrl
+                                          ? `url(${storeLogoFallbackUrl})`
+                                          : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)'
+                                      ),
+                                    backgroundSize: hasCategoryImage ? 'cover' : (storeLogoFallbackUrl ? '58%' : 'cover'),
                                     backgroundPosition: 'center',
                                     backgroundRepeat: 'no-repeat',
-                                    backgroundColor: '#ffffff'
+                                    backgroundColor: hasCategoryImage ? '#ffffff' : '#eef2f7'
                                   }}
                                 >
                                   {!categoryTitleOutsideImageForMenu && (
@@ -4464,6 +4471,7 @@ function Catalog() {
                       <Row className="g-3">
                         {nestedChildCategories.map((nestedCategory) => {
                           const nestedCategoryImage = resolveImageUrl(nestedCategory.image_url);
+                          const hasNestedCategoryImage = Boolean(nestedCategoryImage);
                           return (
                             <Col key={nestedCategory.id} xs={6} lg={3}>
                               <button
@@ -4483,11 +4491,17 @@ function Catalog() {
                                     height: '110px',
                                     borderRadius: '14px',
                                     overflow: 'hidden',
-                                    backgroundImage: nestedCategoryImage ? `url(${nestedCategoryImage})` : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-                                    backgroundSize: 'cover',
+                                    backgroundImage: hasNestedCategoryImage
+                                      ? `url(${nestedCategoryImage})`
+                                      : (
+                                        storeLogoFallbackUrl
+                                          ? `url(${storeLogoFallbackUrl})`
+                                          : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)'
+                                      ),
+                                    backgroundSize: hasNestedCategoryImage ? 'cover' : (storeLogoFallbackUrl ? '58%' : 'cover'),
                                     backgroundPosition: 'center',
                                     backgroundRepeat: 'no-repeat',
-                                    backgroundColor: '#ffffff'
+                                    backgroundColor: hasNestedCategoryImage ? '#ffffff' : '#eef2f7'
                                   }}
                                 >
                                   <div
