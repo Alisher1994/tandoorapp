@@ -109,11 +109,15 @@ const authenticate = async (req, res, next) => {
           SELECT 1
           FROM restaurants r
           WHERE r.id = $1
-            AND r.is_active = true
           LIMIT 1
         `, [tokenRestaurantId]);
-        if (superadminRestaurantAccessResult.rows.length === 0) {
-          return res.status(403).json({ error: 'Нет доступа к этому магазину' });
+        if (superadminRestaurantAccessResult.rows.length > 0) {
+          sessionScopedRestaurantId = tokenRestaurantId;
+          user.active_restaurant_id = tokenRestaurantId;
+        } else {
+          // Do not lock superadmin session if token carries stale/deleted restaurant context.
+          // Keep auth valid and let UI refresh context explicitly.
+          sessionScopedRestaurantId = null;
         }
       } else {
         const adminRestaurantAccessResult = await pool.query(`
@@ -129,9 +133,9 @@ const authenticate = async (req, res, next) => {
         if (adminRestaurantAccessResult.rows.length === 0) {
           return res.status(403).json({ error: 'Нет доступа к этому магазину' });
         }
+        sessionScopedRestaurantId = tokenRestaurantId;
+        user.active_restaurant_id = tokenRestaurantId;
       }
-      sessionScopedRestaurantId = tokenRestaurantId;
-      user.active_restaurant_id = tokenRestaurantId;
     }
 
     // Customer tokens can carry restaurant context; apply it per session to avoid cross-store leakage.
