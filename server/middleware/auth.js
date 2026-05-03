@@ -104,18 +104,31 @@ const authenticate = async (req, res, next) => {
     // Validate access and apply it only in-memory for this request (without DB overwrite),
     // so each browser session can keep its own active store.
     if ((user.role === 'operator' || user.role === 'moderator' || user.role === 'superadmin') && tokenRestaurantId) {
-      const adminRestaurantAccessResult = await pool.query(`
-        SELECT 1
-        FROM operator_restaurants opr
-        INNER JOIN restaurants r ON r.id = opr.restaurant_id
-        WHERE opr.user_id = $1
-          AND opr.restaurant_id = $2
-          AND r.is_active = true
-        LIMIT 1
-      `, [user.id, tokenRestaurantId]);
+      if (user.role === 'superadmin') {
+        const superadminRestaurantAccessResult = await pool.query(`
+          SELECT 1
+          FROM restaurants r
+          WHERE r.id = $1
+            AND r.is_active = true
+          LIMIT 1
+        `, [tokenRestaurantId]);
+        if (superadminRestaurantAccessResult.rows.length === 0) {
+          return res.status(403).json({ error: 'Нет доступа к этому магазину' });
+        }
+      } else {
+        const adminRestaurantAccessResult = await pool.query(`
+          SELECT 1
+          FROM operator_restaurants opr
+          INNER JOIN restaurants r ON r.id = opr.restaurant_id
+          WHERE opr.user_id = $1
+            AND opr.restaurant_id = $2
+            AND r.is_active = true
+          LIMIT 1
+        `, [user.id, tokenRestaurantId]);
 
-      if (adminRestaurantAccessResult.rows.length === 0) {
-        return res.status(403).json({ error: 'Нет доступа к этому магазину' });
+        if (adminRestaurantAccessResult.rows.length === 0) {
+          return res.status(403).json({ error: 'Нет доступа к этому магазину' });
+        }
       }
       sessionScopedRestaurantId = tokenRestaurantId;
       user.active_restaurant_id = tokenRestaurantId;
