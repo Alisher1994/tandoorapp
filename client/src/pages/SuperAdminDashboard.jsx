@@ -10095,7 +10095,7 @@ function SuperAdminDashboard() {
                             background: 'radial-gradient(circle at 16% 12%, #dbeafe 0%, #f8fafc 62%, #e2e8f0 100%)'
                           }}
                         >
-                          {overviewAnalyticsOrderLocations.length === 0 ? (
+                          {overviewVisibleMapPoints.length === 0 ? (
                             <div className="h-100 d-flex align-items-center justify-content-center text-muted">
                               {t('noDataForPeriod')}
                             </div>

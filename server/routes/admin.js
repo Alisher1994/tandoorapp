@@ -47,6 +47,23 @@ const router = express.Router();
 const generateGlobalProductLocalizedText = superadminRoutes.generateGlobalProductLocalizedText;
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const CATEGORY_SORT_ORDER_MIN = 0;
+const CATEGORY_SORT_ORDER_MAX = 1000000;
+const normalizeCategorySortOrder = (value, fallback = 0) => {
+  const fallbackValue = Number.isFinite(Number(fallback)) ? Math.trunc(Number(fallback)) : 0;
+  if (value === undefined || value === null || value === '') {
+    return fallbackValue;
+  }
+  const numeric = Number(String(value).trim().replace(',', '.'));
+  if (!Number.isFinite(numeric)) {
+    return fallbackValue;
+  }
+  const normalized = Math.trunc(numeric);
+  if (!Number.isFinite(normalized)) {
+    return fallbackValue;
+  }
+  return Math.min(CATEGORY_SORT_ORDER_MAX, Math.max(CATEGORY_SORT_ORDER_MIN, normalized));
+};
 const PRODUCT_SEASON_SCOPES = new Set(['all', 'spring', 'summer', 'autumn', 'winter']);
 const MAX_PRODUCT_IMAGES = 5;
 const MAX_PRODUCT_VARIANT_IMAGES = 5;
@@ -4481,10 +4498,11 @@ router.get('/categories', async (req, res) => {
 // Создать категорию
 router.post('/categories', async (req, res) => {
   try {
-    const { name_ru, name_uz, image_url, sort_order } = req.body;
+    const { name_ru, name_uz, image_url, sort_order, printer_id } = req.body;
     const restaurantId = req.user.active_restaurant_id;
     const normalizedNameRu = normalizeCategoryName(name_ru);
     const normalizedNameUz = normalizeCategoryName(name_uz);
+    const normalizedSortOrder = normalizeCategorySortOrder(sort_order, 0);
 
     if (!restaurantId) {
       return res.status(400).json({ error: 'Выберите ресторан' });
@@ -4511,7 +4529,7 @@ router.post('/categories', async (req, res) => {
       INSERT INTO categories(restaurant_id, name_ru, name_uz, image_url, sort_order, printer_id)
 VALUES($1, $2, $3, $4, $5, $6)
 RETURNING *
-  `, [restaurantId, normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, printer_id || null]);
+  `, [restaurantId, normalizedNameRu, normalizedNameUz || null, image_url, normalizedSortOrder, printer_id || null]);
 
     const category = result.rows[0];
 
@@ -4538,9 +4556,10 @@ RETURNING *
 // Обновить категорию
 router.put('/categories/:id', async (req, res) => {
   try {
-    const { name_ru, name_uz, image_url, sort_order } = req.body;
+    const { name_ru, name_uz, image_url, sort_order, printer_id } = req.body;
     const normalizedNameRu = normalizeCategoryName(name_ru);
     const normalizedNameUz = normalizeCategoryName(name_uz);
+    const normalizedSortOrder = normalizeCategorySortOrder(sort_order, 0);
 
     if (!normalizedNameRu) {
       return res.status(400).json({ error: 'Название категории обязательно' });
@@ -4577,7 +4596,7 @@ router.put('/categories/:id', async (req, res) => {
 name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4, printer_id = $5, updated_at = CURRENT_TIMESTAMP
       WHERE id = $6
 RETURNING *
-  `, [normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, printer_id || null, req.params.id]);
+  `, [normalizedNameRu, normalizedNameUz || null, image_url, normalizedSortOrder, printer_id || null, req.params.id]);
 
     const category = result.rows[0];
 

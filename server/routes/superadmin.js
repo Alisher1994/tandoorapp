@@ -100,6 +100,8 @@ const { sendBalanceNotification, getRestaurantBot } = require('../bot/notificati
 
 const MAX_CATEGORY_LEVEL = 3;
 const CATEGORY_CHAIN_GUARD_LIMIT = 50;
+const CATEGORY_SORT_ORDER_MIN = 0;
+const CATEGORY_SORT_ORDER_MAX = 1000000;
 const SUPERADMIN_MENU_KEYS = ['analytics', 'restaurants', 'global_products', 'operators', 'customers', 'ads', 'founders', 'settings'];
 const SUPERADMIN_MENU_KEY_SET = new Set(SUPERADMIN_MENU_KEYS);
 const normalizeModeratorPermissions = (value) => {
@@ -3318,6 +3320,21 @@ const normalizeCategoryId = (value) => {
 };
 
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+const normalizeCategorySortOrder = (value, fallback = 0) => {
+  const fallbackValue = Number.isFinite(Number(fallback)) ? Math.trunc(Number(fallback)) : 0;
+  if (value === undefined || value === null || value === '') {
+    return fallbackValue;
+  }
+  const numeric = Number(String(value).trim().replace(',', '.'));
+  if (!Number.isFinite(numeric)) {
+    return fallbackValue;
+  }
+  const normalized = Math.trunc(numeric);
+  if (!Number.isFinite(normalized)) {
+    return fallbackValue;
+  }
+  return Math.min(CATEGORY_SORT_ORDER_MAX, Math.max(CATEGORY_SORT_ORDER_MIN, normalized));
+};
 
 const getCategoryChainFromLeaf = async (client, categoryId) => {
   const normalizedCategoryId = normalizeCategoryId(categoryId);
@@ -3994,18 +4011,36 @@ router.get('/restaurants', async (req, res) => {
     if (compact) {
       const compactParams = [...params, limit, offset];
       const compactResult = await pool.query(`
+        WITH r_compact AS (
+          SELECT
+            r.id,
+            r.name,
+            r.is_active,
+            r.activity_type_id,
+            r.created_at,
+            r.is_free_tier,
+            r.latitude,
+            r.longitude,
+            r.phone,
+            r.balance,
+            r.currency_code
+          FROM restaurants r
+          ${whereSql}
+          ORDER BY r.created_at DESC, r.id DESC
+          LIMIT $${compactParams.length - 1}
+          OFFSET $${compactParams.length}
+        ),
+        product_counts AS (
+          SELECT restaurant_id, COUNT(*)::int AS products_count
+          FROM products
+          GROUP BY restaurant_id
+        )
         SELECT
-          r.id,
-          r.name,
-          r.is_active,
-          r.activity_type_id,
-          r.created_at,
-          r.is_free_tier
-        FROM restaurants r
-        ${whereSql}
-        ORDER BY r.created_at DESC, r.id DESC
-        LIMIT $${compactParams.length - 1}
-        OFFSET $${compactParams.length}
+          r_compact.*,
+          COALESCE(pc.products_count, 0) AS products_count
+        FROM r_compact
+        LEFT JOIN product_counts pc ON pc.restaurant_id = r_compact.id
+        ORDER BY r_compact.created_at DESC, r_compact.id DESC
       `, compactParams);
       return res.json({
         restaurants: compactResult.rows || [],
@@ -7848,6 +7883,7 @@ router.post('/categories', async (req, res) => {
     const normalizedRestaurantId = normalizeCategoryId(restaurant_id);
     const normalizedNameRu = normalizeCategoryName(name_ru);
     const normalizedNameUz = normalizeCategoryName(name_uz);
+    const normalizedSortOrder = normalizeCategorySortOrder(sort_order, 0);
 
     if (!normalizedNameRu) {
       return res.status(400).json({ error: 'Название категории (RU) обязательно' });
@@ -7893,7 +7929,7 @@ router.post('/categories', async (req, res) => {
       INSERT INTO categories (name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
-    `, [normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, normalizedParentId, normalizedRestaurantId]);
+    `, [normalizedNameRu, normalizedNameUz || null, image_url, normalizedSortOrder, normalizedParentId, normalizedRestaurantId]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Create category error:', error);
@@ -7910,6 +7946,7 @@ router.put('/categories/:id', async (req, res) => {
     const categoryId = Number.parseInt(req.params.id, 10);
     const normalizedNameRu = normalizeCategoryName(name_ru);
     const normalizedNameUz = normalizeCategoryName(name_uz);
+    const normalizedSortOrder = normalizeCategorySortOrder(sort_order, 0);
 
     if (!normalizedNameRu) {
       return res.status(400).json({ error: 'Название категории (RU) обязательно' });
@@ -7971,7 +8008,7 @@ router.put('/categories/:id', async (req, res) => {
         parent_id = $5, restaurant_id = $6, updated_at = CURRENT_TIMESTAMP
       WHERE id = $7
       RETURNING *
-    `, [normalizedNameRu, normalizedNameUz || null, image_url, sort_order || 0, normalizedParentId, normalizedRestaurantId, req.params.id]);
+    `, [normalizedNameRu, normalizedNameUz || null, image_url, normalizedSortOrder, normalizedParentId, normalizedRestaurantId, req.params.id]);
 
     const category = result.rows[0];
 
