@@ -257,6 +257,16 @@ const normalizeCatalogCardMode = (value, fallback = 'wide') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return normalizedFallback === 'portrait' ? 'portrait' : 'wide';
 };
+const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'grid_categories' || normalized === 'single_list' || normalized === 'nested_categories') {
+    return normalized;
+  }
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  if (normalizedFallback === 'single_list') return 'single_list';
+  if (normalizedFallback === 'nested_categories') return 'nested_categories';
+  return 'grid_categories';
+};
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const VARIANT_IMAGE_SLOTS_COUNT = 5;
@@ -771,9 +781,7 @@ const buildRestaurantSettingsSignature = (settings) => {
       : 'square',
     ui_theme: normalizeUiTheme(settings.ui_theme, 'classic'),
     ui_font_family: normalizeUiFontFamily(settings.ui_font_family, 'sans'),
-    menu_view_mode: String(settings.menu_view_mode || '').trim().toLowerCase() === 'single_list'
-      ? 'single_list'
-      : 'grid_categories',
+    menu_view_mode: normalizeMenuViewMode(settings.menu_view_mode, 'grid_categories'),
     catalog_card_mode: normalizeCatalogCardMode(settings.catalog_card_mode, 'wide'),
     menu_liquid_glass_enabled: normalizeSettingsBoolean(settings.menu_liquid_glass_enabled, false),
     menu_height_lock_enabled: normalizeSettingsBoolean(settings.menu_height_lock_enabled, false),
@@ -2451,9 +2459,7 @@ function AdminDashboard() {
   const appearancePreviewFontFamily = UI_FONT_FAMILY_PREVIEW_STYLES[
     normalizeUiFontFamily(restaurantSettings?.ui_font_family, 'sans')
   ] || UI_FONT_FAMILY_PREVIEW_STYLES.sans;
-  const appearancePreviewMenuMode = String(restaurantSettings?.menu_view_mode || '').trim().toLowerCase() === 'single_list'
-    ? 'single_list'
-    : 'grid_categories';
+  const appearancePreviewMenuMode = normalizeMenuViewMode(restaurantSettings?.menu_view_mode, 'grid_categories');
   const appearancePreviewCardMode = normalizeCatalogCardMode(restaurantSettings?.catalog_card_mode, 'wide');
   const appearancePreviewGlassOpacity = normalizeMenuGlassOpacity(
     restaurantSettings?.menu_liquid_glass_opacity,
@@ -2695,7 +2701,7 @@ function AdminDashboard() {
       ));
       if (byCategory.length > 0) return byCategory.slice(0, 10);
     }
-    if (appearancePreviewMenuMode === 'grid_categories') {
+    if (appearancePreviewMenuMode === 'grid_categories' || appearancePreviewMenuMode === 'nested_categories') {
       return appearancePreviewCatalogProducts.slice(0, 10);
     }
     return appearancePreviewProducts.slice(0, 10);
@@ -5413,7 +5419,7 @@ function AdminDashboard() {
         logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(response.data?.ui_theme, 'classic'),
         ui_font_family: normalizeUiFontFamily(response.data?.ui_font_family, 'sans'),
-        menu_view_mode: response.data?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
+        menu_view_mode: normalizeMenuViewMode(response.data?.menu_view_mode, 'grid_categories'),
         catalog_card_mode: normalizeCatalogCardMode(response.data?.catalog_card_mode, 'wide'),
         menu_liquid_glass_enabled: response.data?.menu_liquid_glass_enabled === true,
         menu_height_lock_enabled: response.data?.menu_height_lock_enabled === true,
@@ -5474,7 +5480,10 @@ function AdminDashboard() {
         logo_display_mode: (savedSettings?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
         ui_font_family: normalizeUiFontFamily(savedSettings?.ui_font_family, restaurantSettings?.ui_font_family || 'sans'),
-        menu_view_mode: savedSettings?.menu_view_mode === 'single_list' ? 'single_list' : 'grid_categories',
+        menu_view_mode: normalizeMenuViewMode(
+          savedSettings?.menu_view_mode,
+          restaurantSettings?.menu_view_mode || 'grid_categories'
+        ),
         catalog_card_mode: normalizeCatalogCardMode(
           savedSettings?.catalog_card_mode,
           restaurantSettings?.catalog_card_mode || 'wide'
@@ -13488,7 +13497,7 @@ function AdminDashboard() {
                                   <div className="admin-menu-mode-preview-grid">
                                     <button
                                       type="button"
-                                      className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'grid_categories' ? 'is-active' : ''}`}
+                                      className={`admin-menu-mode-preview-card ${normalizeMenuViewMode(restaurantSettings.menu_view_mode, 'grid_categories') === 'grid_categories' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'grid_categories' })}
                                     >
                                       <span className="admin-menu-mode-preview-visual admin-preview-shell admin-preview-shell-catalog">
@@ -13519,7 +13528,7 @@ function AdminDashboard() {
                                     </button>
                                     <button
                                       type="button"
-                                      className={`admin-menu-mode-preview-card ${(restaurantSettings.menu_view_mode || 'grid_categories') === 'single_list' ? 'is-active' : ''}`}
+                                      className={`admin-menu-mode-preview-card ${normalizeMenuViewMode(restaurantSettings.menu_view_mode, 'grid_categories') === 'single_list' ? 'is-active' : ''}`}
                                       onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'single_list' })}
                                     >
                                       <span className="admin-menu-mode-preview-visual admin-preview-shell admin-preview-shell-card-mode">
@@ -13559,6 +13568,37 @@ function AdminDashboard() {
                                       </span>
                                       <span className="admin-menu-mode-preview-title">Карточный режим</span>
                                       <span className="admin-menu-mode-preview-desc">Все товары по категориям на одном экране</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`admin-menu-mode-preview-card ${normalizeMenuViewMode(restaurantSettings.menu_view_mode, 'grid_categories') === 'nested_categories' ? 'is-active' : ''}`}
+                                      onClick={() => setRestaurantSettings({ ...restaurantSettings, menu_view_mode: 'nested_categories' })}
+                                    >
+                                      <span className="admin-menu-mode-preview-visual admin-preview-shell admin-preview-shell-catalog">
+                                        <span className="admin-preview-header-line" />
+                                        <span className="admin-preview-category-grid-live">
+                                          <span className="admin-preview-category-live-item">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.categoryPhoto}
+                                              alt="Категория A"
+                                              className="admin-preview-category-live-image"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-category-live-name">Напитки</span>
+                                          </span>
+                                          <span className="admin-preview-category-live-item">
+                                            <img
+                                              src={MENU_MODE_PREVIEW_MEDIA.categoryPhotoAlt}
+                                              alt="Категория B"
+                                              className="admin-preview-category-live-image"
+                                              loading="lazy"
+                                            />
+                                            <span className="admin-preview-category-live-name">Соки</span>
+                                          </span>
+                                        </span>
+                                      </span>
+                                      <span className="admin-menu-mode-preview-title">Папки категорий</span>
+                                      <span className="admin-menu-mode-preview-desc">Категория → Категория → Категория → товары</span>
                                     </button>
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
@@ -13882,7 +13922,7 @@ function AdminDashboard() {
                                             </div>
                                           ) : (
                                             <>
-                                              {(appearancePreviewActiveTab === 'showcase' || appearancePreviewActiveTab === 'catalog') && appearancePreviewMenuMode === 'grid_categories' && (
+                                              {(appearancePreviewActiveTab === 'showcase' || appearancePreviewActiveTab === 'catalog') && (appearancePreviewMenuMode === 'grid_categories' || appearancePreviewMenuMode === 'nested_categories') && (
                                                 <>
                                                   <div className="admin-appearance-live-section-title">
                                                     {appearancePreviewPrimaryCategory?.title || (language === 'uz' ? 'Kategoriyalar' : 'Категории')}
@@ -13938,7 +13978,7 @@ function AdminDashboard() {
                                                   <div className="admin-appearance-live-section-title">
                                                     {appearancePreviewActiveTab === 'favorites'
                                                       ? (language === 'uz' ? 'Saralanganlar' : 'Избранные')
-                                                      : appearancePreviewMenuMode === 'grid_categories'
+                                                      : (appearancePreviewMenuMode === 'grid_categories' || appearancePreviewMenuMode === 'nested_categories')
                                                         ? (language === 'uz' ? 'Mahsulotlar' : 'Товары')
                                                         : (language === 'uz' ? 'Barcha mahsulotlar' : 'Все товары')}
                                                   </div>

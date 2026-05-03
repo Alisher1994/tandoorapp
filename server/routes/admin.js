@@ -425,11 +425,13 @@ const normalizeUiFontFamily = (value, fallback = 'sans') => {
 };
 const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'single_list' || normalized === 'grid_categories') {
+  if (normalized === 'single_list' || normalized === 'grid_categories' || normalized === 'nested_categories') {
     return normalized;
   }
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
-  return normalizedFallback === 'single_list' ? 'single_list' : 'grid_categories';
+  if (normalizedFallback === 'single_list') return 'single_list';
+  if (normalizedFallback === 'nested_categories') return 'nested_categories';
+  return 'grid_categories';
 };
 const normalizeCatalogCardMode = (value, fallback = 'wide') => {
   const normalized = String(value || '').trim().toLowerCase();

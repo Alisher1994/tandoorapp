@@ -20,7 +20,7 @@ import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
-const MENU_VIEW_MODES = ['grid_categories', 'single_list'];
+const MENU_VIEW_MODES = ['grid_categories', 'single_list', 'nested_categories'];
 const CATALOG_CARD_MODES = ['wide', 'portrait'];
 const HIDE_CATALOG_SECTION_TABS = true;
 const catalogSectionTabKey = (id) => (
@@ -147,7 +147,7 @@ function Catalog() {
   const [showLanguageSetupModal, setShowLanguageSetupModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [pendingLanguage, setPendingLanguage] = useState('ru');
-  const [selectedCategory, setSelectedCategory] = useState(null); // level 2 category id
+  const [selectedCategory, setSelectedCategory] = useState(null); // selected folder category id
   const [activeSubcategoryTab, setActiveSubcategoryTab] = useState(null);
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
@@ -1395,6 +1395,7 @@ function Catalog() {
     [currentRestaurant]
   );
   const isSingleListMode = menuViewMode === 'single_list';
+  const isNestedCategoriesMode = menuViewMode === 'nested_categories';
   const hideCategoryTitleBackgroundForMenu = categoryStyleSettings?.hideCategoryTitleBackground === true;
   const categoryTitleBackgroundTransparentForMenu = categoryStyleSettings?.categoryTitleBackgroundTransparent === true;
   const categoryTitleOutsideImageForMenu = categoryStyleSettings?.categoryTitleOutsideImage === true;
@@ -2082,6 +2083,10 @@ function Catalog() {
     if (!selectedCategory) return null;
     return categoriesById.get(normalizeId(selectedCategory)) || null;
   }, [selectedCategory, categoriesById]);
+  const selectedCategoryNode = useMemo(() => {
+    if (!selectedCategory) return null;
+    return categoriesById.get(normalizeId(selectedCategory)) || null;
+  }, [selectedCategory, categoriesById]);
   const productsByCategoryId = useMemo(() => {
     const map = new Map();
     products.forEach((product) => {
@@ -2092,6 +2097,15 @@ function Catalog() {
     });
     return map;
   }, [products]);
+  const nestedChildCategories = useMemo(() => {
+    if (!isNestedCategoriesMode || !selectedCategoryNode) return [];
+    return (childrenByParent.get(selectedCategoryNode.id) || [])
+      .filter((category) => nonEmptyCategoryIds.has(category.id));
+  }, [isNestedCategoriesMode, selectedCategoryNode, childrenByParent, nonEmptyCategoryIds]);
+  const nestedDirectProducts = useMemo(() => {
+    if (!isNestedCategoriesMode || !selectedCategoryNode) return [];
+    return productsByCategoryId.get(selectedCategoryNode.id) || [];
+  }, [isNestedCategoriesMode, selectedCategoryNode, productsByCategoryId]);
 
   const level3Categories = useMemo(() => {
     if (!selectedLevel2Category) return [];
@@ -2500,7 +2514,9 @@ function Catalog() {
   }, []);
 
   const openLevel2Category = (categoryId) => {
-    categoryListScrollOffsetRef.current = getCurrentScrollOffset();
+    if (selectedCategory === null) {
+      categoryListScrollOffsetRef.current = getCurrentScrollOffset();
+    }
     isTabAutoScrollRef.current = false;
     setSelectedCategory(categoryId);
     setActiveSubcategoryTab(null);
@@ -2514,6 +2530,20 @@ function Catalog() {
     }
 
     isTabAutoScrollRef.current = false;
+    if (isNestedCategoriesMode && selectedCategory !== null) {
+      const currentCategory = categoriesById.get(normalizeId(selectedCategory)) || null;
+      const parentId = normalizeId(currentCategory?.parent_id);
+      if (parentId !== null) {
+        const parentCategory = categoriesById.get(parentId) || null;
+        const grandParentId = normalizeId(parentCategory?.parent_id);
+        if (grandParentId !== null) {
+          setSelectedCategory(parentId);
+          setActiveSubcategoryTab(null);
+          scrollToTop();
+          return;
+        }
+      }
+    }
     const restoreOffset = categoryListScrollOffsetRef.current;
     setSelectedCategory(null);
     setActiveSubcategoryTab(null);
@@ -3392,9 +3422,14 @@ function Catalog() {
         const parentCategory = categoriesById.get(parentId) || null;
         const grandParentId = normalizeId(parentCategory?.parent_id);
         if (parentCategory && grandParentId !== null) {
-          // Selected category is level 3 -> open its level 2 and activate the tab.
-          targetLevel2CategoryId = parentId;
-          targetLevel3TabId = requestedCategoryId;
+          // Selected category is level 3.
+          if (isNestedCategoriesMode) {
+            targetLevel2CategoryId = requestedCategoryId;
+          } else {
+            // Open its level 2 and activate the tab.
+            targetLevel2CategoryId = parentId;
+            targetLevel3TabId = requestedCategoryId;
+          }
         } else {
           // Selected category is already level 2.
           targetLevel2CategoryId = requestedCategoryId;
@@ -3406,7 +3441,7 @@ function Catalog() {
       setSelectedCategory(targetLevel2CategoryId);
       if (isSingleListMode) {
         setActiveSubcategoryTab(`single-${targetLevel2CategoryId}`);
-      } else if (targetLevel3TabId) {
+      } else if (!isNestedCategoriesMode && targetLevel3TabId) {
         setActiveSubcategoryTab(targetLevel3TabId);
       }
     }
@@ -3419,6 +3454,7 @@ function Catalog() {
     categoriesById,
     childrenByParent,
     isSingleListMode,
+    isNestedCategoriesMode,
     navigate,
     location.pathname
   ]);
@@ -4412,7 +4448,106 @@ function Catalog() {
             )}
 
             {!loading && !normalizedCatalogSearch && (
+              isNestedCategoriesMode && selectedCategory !== null && selectedCategoryNode
+            ) && (
+                <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
+                  {renderAdBannerCarousel()}
+                  <div className="mb-3">
+                    <h6 className="mb-0 fw-bold text-dark">{getCategoryName(selectedCategoryNode)}</h6>
+                  </div>
+
+                  {nestedChildCategories.length > 0 && (
+                    <section className="mb-4">
+                      <h6 className="mb-3 text-muted fw-bold">
+                        {language === 'uz' ? "Bo'limlar" : 'Подкатегории'}
+                      </h6>
+                      <Row className="g-3">
+                        {nestedChildCategories.map((nestedCategory) => {
+                          const nestedCategoryImage = resolveImageUrl(nestedCategory.image_url);
+                          return (
+                            <Col key={nestedCategory.id} xs={6} lg={3}>
+                              <button
+                                type="button"
+                                onClick={() => openLevel2Category(nestedCategory.id)}
+                                className="w-100 border-0 p-0 text-start"
+                                style={{
+                                  borderRadius: '14px',
+                                  overflow: 'hidden',
+                                  background: '#ffffff',
+                                  minHeight: '110px'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    position: 'relative',
+                                    height: '110px',
+                                    borderRadius: '14px',
+                                    overflow: 'hidden',
+                                    backgroundImage: nestedCategoryImage ? `url(${nestedCategoryImage})` : 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center',
+                                    backgroundRepeat: 'no-repeat',
+                                    backgroundColor: '#ffffff'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      position: 'absolute',
+                                      top: 4,
+                                      left: 0,
+                                      right: 0,
+                                      zIndex: 1,
+                                      padding: '6px 10px 0'
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        display: 'inline-block',
+                                        maxWidth: '100%',
+                                        padding: '4px 8px',
+                                        borderRadius: 8,
+                                        background: 'rgba(255, 255, 255, 0.74)',
+                                        backdropFilter: 'blur(2px)',
+                                        WebkitBackdropFilter: 'blur(2px)',
+                                        color: '#111827',
+                                        fontWeight: 700,
+                                        fontSize: '0.78rem',
+                                        lineHeight: 1.2
+                                      }}
+                                    >
+                                      {getCategoryName(nestedCategory)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </button>
+                            </Col>
+                          );
+                        })}
+                      </Row>
+                    </section>
+                  )}
+
+                  {nestedDirectProducts.length > 0 && (
+                    <section className="mb-1">
+                      <h6 className="mb-3 text-muted fw-bold">
+                        {language === 'uz' ? 'Tovarlar' : 'Товары'}
+                      </h6>
+                      <Row className="g-3">
+                        {nestedDirectProducts.map((product) => (
+                          <Col key={product.id} xs={6} lg={3}>
+                            {renderProductCard(product)}
+                          </Col>
+                        ))}
+                      </Row>
+                    </section>
+                  )}
+                </div>
+              )}
+
+            {!loading && !normalizedCatalogSearch && (
+              !isNestedCategoriesMode && (
               (isSingleListMode || (selectedCategory !== null && selectedLevel2Category))
+              )
             ) && (
                 <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                   {renderAdBannerCarousel()}
@@ -4458,7 +4593,15 @@ function Catalog() {
               </div>
             )}
 
-            {!loading && !normalizedCatalogSearch && (isSingleListMode || selectedCategory !== null) && visibleProductSections.length === 0 && (
+            {!loading && !normalizedCatalogSearch && !isNestedCategoriesMode && (isSingleListMode || selectedCategory !== null) && visibleProductSections.length === 0 && (
+              <div className="text-center py-5">
+                <div style={{ fontSize: '4rem', opacity: 0.5 }}>🏪</div>
+                <p className="text-muted mt-3">
+                  {language === 'uz' ? 'Tanlangan bo‘limda mahsulotlar topilmadi' : 'В выбранном разделе товары не найдены'}
+                </p>
+              </div>
+            )}
+            {!loading && !normalizedCatalogSearch && isNestedCategoriesMode && selectedCategory !== null && nestedChildCategories.length === 0 && nestedDirectProducts.length === 0 && (
               <div className="text-center py-5">
                 <div style={{ fontSize: '4rem', opacity: 0.5 }}>🏪</div>
                 <p className="text-muted mt-3">

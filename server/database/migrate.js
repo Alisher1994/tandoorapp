@@ -165,7 +165,7 @@ async function migrate() {
       SET menu_view_mode = 'grid_categories'
       WHERE menu_view_mode IS NULL
         OR BTRIM(COALESCE(menu_view_mode, '')) = ''
-        OR menu_view_mode NOT IN ('grid_categories', 'single_list')
+        OR menu_view_mode NOT IN ('grid_categories', 'single_list', 'nested_categories')
     `).catch(() => {});
     await client.query(`
       UPDATE restaurants
@@ -282,7 +282,7 @@ async function migrate() {
     await client.query(`
       ALTER TABLE restaurants
       ADD CONSTRAINT restaurants_menu_view_mode_check
-      CHECK (menu_view_mode IN ('grid_categories', 'single_list'))
+      CHECK (menu_view_mode IN ('grid_categories', 'single_list', 'nested_categories'))
     `).catch(() => {});
     await client.query(`
       ALTER TABLE restaurants
