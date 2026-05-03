@@ -10657,8 +10657,8 @@ body::-webkit-scrollbar,
     background: #f8fafc;
     padding: 0.45rem;
     flex: 1 1 auto;
-    min-height: 0;
-    max-height: none;
+    min-height: clamp(260px, 38vh, 420px);
+    max-height: min(64vh, 680px);
     overflow-y: auto;
     display: flex;
     flex-direction: column;
