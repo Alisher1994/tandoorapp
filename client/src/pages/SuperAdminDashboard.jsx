@@ -792,9 +792,9 @@ const mapGlobalProductsPasteMatrixRows = (matrix = []) => {
       barcode: normalizeSpreadsheetCellText(normalizedCells[4], 120).replace(/\s+/g, ''),
       ikpu: normalizeSpreadsheetCellText(normalizedCells[5], 64),
       unit: normalizeSpreadsheetCellText(normalizedCells[6], 32) || 'шт',
-      category_id_raw: normalizeSpreadsheetCellText(normalizedCells[7], 50),
-      category_path_raw: normalizeSpreadsheetCellText(normalizedCells[8], 255),
-      category_name_raw: normalizeSpreadsheetCellText(normalizedCells[9], 255)
+      category_level1_raw: normalizeSpreadsheetCellText(normalizedCells[7], 255),
+      category_level2_raw: normalizeSpreadsheetCellText(normalizedCells[8], 255),
+      category_level3_raw: normalizeSpreadsheetCellText(normalizedCells[9], 255)
     });
   });
 
@@ -2160,39 +2160,39 @@ function SuperAdminDashboard() {
     },
     {
       index: 8,
-      header: 'Рекомендуемая категория ID',
+      header: 'Рекомендуемая категория 1',
       required: false,
-      description: language === 'uz' ? 'Kategoriya ID (eng aniq usul)' : 'ID категории (приоритетный способ)',
-      sample: '125'
+      description: language === 'uz' ? '1-daraja kategoriya nomi' : 'Название категории 1-го уровня',
+      sample: 'Магазин'
     },
     {
       index: 9,
-      header: 'Рекомендуемая категория путь',
+      header: 'Рекомендуемая категория 2',
       required: false,
-      description: language === 'uz' ? 'Kategoriya to‘liq yo‘li (aniq mos kelishi kerak)' : 'Полный путь категории (строгое совпадение)',
-      sample: 'Продукты > Бакалея > Шахматы'
+      description: language === 'uz' ? '2-daraja kategoriya nomi' : 'Название категории 2-го уровня',
+      sample: 'Бакалея'
     },
     {
       index: 10,
-      header: 'Рекомендуемая категория',
+      header: 'Рекомендуемая категория 3',
       required: false,
-      description: language === 'uz' ? 'Kategoriya nomi (faqat noyob nom bo‘lsa)' : 'Название категории (если имя уникальное)',
-      sample: 'Шахматы'
+      description: language === 'uz' ? '3-daraja kategoriya nomi (ixtiyoriy)' : 'Название категории 3-го уровня (опционально)',
+      sample: 'Крупы'
     }
   ]), [language]);
 
   const globalProductsImportTemplateDemoRows = useMemo(() => {
     if (language === 'uz') {
       return [
-        ['Namuna mahsulot «A»', 'Namuna A', 'Namuna tavsif', '', '4600000000001', '11111111111111', 'шт', '100', '', ''],
-        ['Namuna mahsulot «B»', '', '', '', '4600000000002', '', 'шт', '', 'Магазин > Отдел > Полка', ''],
-        ['Namuna mahsulot «C»', 'Namuna C', '', '', '', '22222222222222', 'кг', '', '', 'Категория-образец']
+        ['Namuna mahsulot «A»', 'Namuna A', 'Batafsil tavsif A', 'Batafsil tavsif UZ A', '4600000000001', '11111111111111', 'шт', 'Магазин', 'Бакалея', 'Крупы'],
+        ['Namuna mahsulot «B»', 'Namuna B', 'Batafsil tavsif B', 'Batafsil tavsif UZ B', '4600000000002', '22222222222222', 'шт', 'Магазин', 'Напитки', 'Соки'],
+        ['Namuna mahsulot «C»', 'Namuna C', 'Batafsil tavsif C', 'Batafsil tavsif UZ C', '4600000000003', '33333333333333', 'кг', 'Магазин', 'Заморозка', 'Пельмени']
       ];
     }
     return [
-      ['Товар-пример «Альфа»', 'Alpha sample', 'Текст описания', '', '4600000000001', '11111111111111', 'шт', '100', '', ''],
-      ['Товар-пример «Бета»', '', '', '', '4600000000002', '', 'шт', '', 'Магазин > Отдел > Полка', ''],
-      ['Товар-пример «Гамма»', 'Gamma sample', '', '', '', '22222222222222', 'кг', '', '', 'Категория-образец']
+      ['Товар-пример «Альфа»', 'Alpha sample', 'Полное описание товара A', 'Подробное описание UZ A', '4600000000001', '11111111111111', 'шт', 'Магазин', 'Бакалея', 'Крупы'],
+      ['Товар-пример «Бета»', 'Beta sample', 'Полное описание товара B', 'Подробное описание UZ B', '4600000000002', '22222222222222', 'шт', 'Магазин', 'Напитки', 'Соки'],
+      ['Товар-пример «Гамма»', 'Gamma sample', 'Полное описание товара C', 'Подробное описание UZ C', '4600000000003', '33333333333333', 'кг', 'Магазин', 'Заморозка', 'Пельмени']
     ];
   }, [language]);
 
@@ -7535,34 +7535,23 @@ function SuperAdminDashboard() {
           const level2 = pathNames[1] || '';
           const level3 = pathNames[2] || '';
           return {
-            'Категория ID': category?.id ?? '',
             'Категория 1': level1,
             'Категория 2': level2,
-            'Категория 3': level3,
-            'Связка (1 | 2 | 3)': [level1, level2, level3].filter(Boolean).join(' | '),
-            'Полный путь (>)': pathNames.join(' > '),
-            'Можно назначать товар': category?.parent_id ? 'Да' : 'Нет'
+            'Категория 3': level3
           };
         })
         .sort((left, right) => (
-          String(left['Полный путь (>)'] || '').localeCompare(String(right['Полный путь (>)'] || ''), 'ru')
+          String([left['Категория 1'], left['Категория 2'], left['Категория 3']].filter(Boolean).join(' > '))
+            .localeCompare(String([right['Категория 1'], right['Категория 2'], right['Категория 3']].filter(Boolean).join(' > ')), 'ru')
         ));
       const categoriesSheet = XLSX.utils.json_to_sheet(categoriesReferenceRows.length ? categoriesReferenceRows : [{
-        'Категория ID': '',
         'Категория 1': '',
         'Категория 2': '',
-        'Категория 3': '',
-        'Связка (1 | 2 | 3)': '',
-        'Полный путь (>)': '',
-        'Можно назначать товар': ''
+        'Категория 3': ''
       }]);
       categoriesSheet['!cols'] = [
-        { wch: 14 },
         { wch: 24 },
         { wch: 24 },
-        { wch: 24 },
-        { wch: 46 },
-        { wch: 56 },
         { wch: 24 }
       ];
 
@@ -7583,10 +7572,62 @@ function SuperAdminDashboard() {
     }
   };
 
-  const resolveCategoryForGlobalProductImport = ({ categoryIdRaw, categoryPathRaw, categoryNameRaw }, lookups = {}) => {
+  const resolveCategoryForGlobalProductImport = ({
+    categoryIdRaw,
+    categoryPathRaw,
+    categoryNameRaw,
+    categoryLevel1Raw,
+    categoryLevel2Raw,
+    categoryLevel3Raw
+  }, lookups = {}) => {
     const categoryByIdLookup = lookups.byId || categoryLookupById;
     const categoryByPathLookup = lookups.byPath || globalImportCategoryByPath;
     const categoryByUniqueNameLookup = lookups.byUniqueName || globalImportCategoryByUniqueName;
+    const categoriesList = Array.isArray(lookups.categories) ? lookups.categories : [];
+    const categoryPathNamesByIdLookup = lookups.pathNamesById || new Map();
+    const normalizeLevelName = (value) => String(value || '').trim().toLowerCase();
+    const level1 = normalizeLevelName(categoryLevel1Raw);
+    const level2 = normalizeLevelName(categoryLevel2Raw);
+    const level3 = normalizeLevelName(categoryLevel3Raw);
+    const hasLevelInput = level1 || level2 || level3;
+
+    if (hasLevelInput) {
+      const matchedCategories = categoriesList.filter((category) => {
+        if (!category?.parent_id) return false;
+        const pathNames = categoryPathNamesByIdLookup.get(String(category.id)) || [];
+        const pathLevel1 = normalizeLevelName(pathNames[0]);
+        const pathLevel2 = normalizeLevelName(pathNames[1]);
+        const pathLevel3 = normalizeLevelName(pathNames[2]);
+        if (level1 && pathLevel1 !== level1) return false;
+        if (level2 && pathLevel2 !== level2) return false;
+        if (level3 && pathLevel3 !== level3) return false;
+        return true;
+      });
+
+      if (matchedCategories.length === 1) {
+        return {
+          category: matchedCategories[0],
+          message: ''
+        };
+      }
+
+      if (matchedCategories.length > 1) {
+        return {
+          category: null,
+          message: language === 'uz'
+            ? 'Kategoriya darajalari noaniq, aniqroq kiriting'
+            : 'Категории по уровням неоднозначны, укажите точнее'
+        };
+      }
+
+      return {
+        category: null,
+        message: language === 'uz'
+          ? 'Kategoriya 1/2/3 bo‘yicha moslik topilmadi'
+          : 'Не найдена категория по связке 1/2/3'
+      };
+    }
+
     const categoryIdStr = String(categoryIdRaw ?? '').trim();
     if (categoryIdStr) {
       const byId = categoryByIdLookup.get(Number.parseInt(categoryIdStr, 10));
@@ -7689,17 +7730,20 @@ function SuperAdminDashboard() {
       };
 
       const categoryPathByIdLookup = new Map();
+      const categoryPathNamesByIdLookup = new Map();
       (categoriesForImport || []).forEach((category) => {
         const pathIds = getCategoryPathIds(category?.id);
-        const pathRu = pathIds
+        const pathNodes = pathIds
           .map((pathId) => categoryByIdLookup.get(Number(pathId)))
-          .filter(Boolean)
+          .filter(Boolean);
+        const pathNames = pathNodes
           .map((node) => String(node?.name_ru || node?.name_uz || '').trim())
-          .filter(Boolean)
-          .join(' > ');
+          .filter(Boolean);
+        const pathRu = pathNames.join(' > ');
         if (pathRu) {
           categoryPathByIdLookup.set(String(category.id), pathRu);
         }
+        categoryPathNamesByIdLookup.set(String(category.id), pathNames);
       });
 
       const categoryByPathLookup = new Map();
@@ -7722,7 +7766,9 @@ function SuperAdminDashboard() {
       const categoryLookups = {
         byId: categoryByIdLookup,
         byPath: categoryByPathLookup,
-        byUniqueName: categoryByUniqueNameLookup
+        byUniqueName: categoryByUniqueNameLookup,
+        categories: categoriesForImport,
+        pathNamesById: categoryPathNamesByIdLookup
       };
 
       if (!Array.isArray(jsonRows) || jsonRows.length === 0) {
@@ -7800,7 +7846,10 @@ function SuperAdminDashboard() {
         const categoryResolved = resolveCategoryForGlobalProductImport({
           categoryIdRaw: pickCellValue(rowMap, ['рекомендуемая категория id', 'категория id', 'recommended_category_id', 'category_id']),
           categoryPathRaw: pickCellValue(rowMap, ['рекомендуемая категория путь', 'путь категории', 'категория путь', 'recommended_category_path', 'category_path']),
-          categoryNameRaw: pickCellValue(rowMap, ['рекомендуемая категория', 'категория', 'recommended_category', 'category'])
+          categoryNameRaw: pickCellValue(rowMap, ['рекомендуемая категория', 'категория', 'recommended_category', 'category']),
+          categoryLevel1Raw: pickCellValue(rowMap, ['рекомендуемая категория 1', 'категория 1', 'recommended_category_1', 'category_1']),
+          categoryLevel2Raw: pickCellValue(rowMap, ['рекомендуемая категория 2', 'категория 2', 'recommended_category_2', 'category_2']),
+          categoryLevel3Raw: pickCellValue(rowMap, ['рекомендуемая категория 3', 'категория 3', 'recommended_category_3', 'category_3'])
         }, categoryLookups);
 
         const rowNo = toSpreadsheetRowNumber(index);
@@ -7924,9 +7973,9 @@ function SuperAdminDashboard() {
       'Штрихкод': row.barcode,
       'ИКПУ': row.ikpu,
       'Единица': row.unit,
-      'Рекомендуемая категория ID': row.category_id_raw,
-      'Рекомендуемая категория путь': row.category_path_raw,
-      'Рекомендуемая категория': row.category_name_raw
+      'Рекомендуемая категория 1': row.category_level1_raw,
+      'Рекомендуемая категория 2': row.category_level2_raw,
+      'Рекомендуемая категория 3': row.category_level3_raw
     }));
 
     await prepareGlobalProductsImportFromJsonRows(
@@ -19351,7 +19400,7 @@ function SuperAdminDashboard() {
                     <th style={{ minWidth: 120 }}>{language === 'uz' ? 'Shtrixkod' : 'Штрихкод'}</th>
                     <th style={{ minWidth: 110 }}>{language === 'uz' ? 'IKPU' : 'ИКПУ'}</th>
                     <th style={{ minWidth: 88 }}>{language === 'uz' ? "O'lchov" : 'Ед. изм.'}</th>
-                    <th style={{ minWidth: 120 }}>{language === 'uz' ? 'Kategoriya ID' : 'Категория ID'}</th>
+                    <th style={{ minWidth: 260 }}>{language === 'uz' ? 'Kategoriya 1 / 2 / 3' : 'Категория 1 / 2 / 3'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -19373,7 +19422,13 @@ function SuperAdminDashboard() {
                         <td>{row.barcode || '—'}</td>
                         <td>{row.ikpu || '—'}</td>
                         <td>{row.unit || 'шт'}</td>
-                        <td>{row.category_id_raw || '—'}</td>
+                        <td>
+                          {[
+                            row.category_level1_raw,
+                            row.category_level2_raw,
+                            row.category_level3_raw
+                          ].filter(Boolean).join(' | ') || '—'}
+                        </td>
                       </tr>
                     ))
                   )}
