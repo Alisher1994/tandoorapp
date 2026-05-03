@@ -7660,22 +7660,104 @@ function AdminDashboard() {
     ];
   }, [language]);
 
-  const handleDownloadOperatorPasteTemplate = useCallback(() => {
-    const headers = OPERATOR_PASTE_IMPORT_TEMPLATE_HEADERS;
-    const rows = operatorPasteImportDemoRows;
-    const aoa = [headers, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [
-      { wch: 14 }, { wch: 34 }, { wch: 24 }, { wch: 24 }, { wch: 16 },
-      { wch: 28 }, { wch: 24 }, { wch: 10 }, { wch: 8 }, { wch: 16 },
-      { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 14 }
-    ];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, language === 'uz' ? 'Shablon' : 'Шаблон');
-    const stamp = new Date().toISOString().slice(0, 10);
-    const base = language === 'uz' ? 'mahsulotlar_import_shablon' : 'import_tovarov_shablon';
-    XLSX.writeFile(wb, `${base}_${stamp}.xlsx`);
-  }, [operatorPasteImportDemoRows, language]);
+  const handleDownloadOperatorPasteTemplate = useCallback(async () => {
+    try {
+      const headers = OPERATOR_PASTE_IMPORT_TEMPLATE_HEADERS;
+      const rows = operatorPasteImportDemoRows;
+      const aoa = [headers, ...rows];
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [
+        { wch: 14 }, { wch: 34 }, { wch: 24 }, { wch: 24 }, { wch: 16 },
+        { wch: 28 }, { wch: 24 }, { wch: 10 }, { wch: 8 }, { wch: 16 },
+        { wch: 18 }, { wch: 12 }, { wch: 16 }, { wch: 14 }
+      ];
+
+      let categoriesForTemplate = Array.isArray(categories) ? categories : [];
+      if (!categoriesForTemplate.length) {
+        const categoriesResponse = await axios.get(`${API_URL}/admin/categories`);
+        categoriesForTemplate = Array.isArray(categoriesResponse.data) ? categoriesResponse.data : [];
+        if (categoriesForTemplate.length) {
+          applyCategoriesData(categoriesForTemplate);
+        }
+      }
+
+      const categoryById = new Map();
+      categoriesForTemplate.forEach((category) => {
+        const categoryId = Number(category?.id);
+        if (Number.isFinite(categoryId)) {
+          categoryById.set(categoryId, category);
+        }
+      });
+
+      const buildPathNames = (categoryId) => {
+        const normalizedId = Number.parseInt(categoryId, 10);
+        if (!Number.isFinite(normalizedId)) return [];
+        const names = [];
+        const visited = new Set();
+        let current = categoryById.get(normalizedId);
+        while (current && !visited.has(current.id)) {
+          names.unshift(String(current?.name_ru || current?.name_uz || '').trim());
+          visited.add(current.id);
+          if (!current.parent_id) break;
+          current = categoryById.get(Number(current.parent_id));
+        }
+        return names.filter(Boolean);
+      };
+
+      const categoriesRows = categoriesForTemplate
+        .map((category) => {
+          const pathNames = buildPathNames(category?.id);
+          const level1 = pathNames[0] || '';
+          const level2 = pathNames[1] || '';
+          const level3 = pathNames[2] || '';
+          return {
+            'Категория ID': category?.id ?? '',
+            'Категория 1': level1,
+            'Категория 2': level2,
+            'Категория 3': level3,
+            'Связка (1 | 2 | 3)': [level1, level2, level3].filter(Boolean).join(' | '),
+            'Полный путь (>)': pathNames.join(' > '),
+            'Можно назначать товар': category?.parent_id ? 'Да' : 'Нет'
+          };
+        })
+        .sort((left, right) => (
+          String(left['Полный путь (>)'] || '').localeCompare(String(right['Полный путь (>)'] || ''), 'ru')
+        ));
+
+      const categoriesSheet = XLSX.utils.json_to_sheet(categoriesRows.length ? categoriesRows : [{
+        'Категория ID': '',
+        'Категория 1': '',
+        'Категория 2': '',
+        'Категория 3': '',
+        'Связка (1 | 2 | 3)': '',
+        'Полный путь (>)': '',
+        'Можно назначать товар': ''
+      }]);
+      categoriesSheet['!cols'] = [
+        { wch: 14 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 46 },
+        { wch: 56 },
+        { wch: 24 }
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, language === 'uz' ? 'Shablon' : 'Шаблон');
+      XLSX.utils.book_append_sheet(wb, categoriesSheet, language === 'uz' ? 'Kategoriyalar' : 'Категории');
+      const stamp = new Date().toISOString().slice(0, 10);
+      const base = language === 'uz' ? 'mahsulotlar_import_shablon' : 'import_tovarov_shablon';
+      XLSX.writeFile(wb, `${base}_${stamp}.xlsx`);
+      setSuccess(language === 'uz'
+        ? 'Import shabloni yuklab olindi'
+        : 'Шаблон импорта скачан');
+    } catch (error) {
+      setError(language === 'uz'
+        ? "Shablonni yuklab bo'lmadi"
+        : 'Не удалось скачать шаблон импорта');
+    }
+  }, [operatorPasteImportDemoRows, language, categories, applyCategoriesData]);
 
   const buildPreparedImportRows = (jsonData = [], rowNumberOffset = 2) => (
     (Array.isArray(jsonData) ? jsonData : []).map((row, index) => {
@@ -11846,9 +11928,16 @@ function AdminDashboard() {
                         <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </Button>
+                    <Button
+                      variant="outline-primary"
+                      onClick={() => setShowPasteImportModal(true)}
+                      className="btn-primary-custom"
+                    >
+                      {language === 'uz' ? 'Import' : 'Импорт'}
+                    </Button>
                     <Dropdown align="end" className="admin-products-add-dropdown" popperConfig={{ strategy: 'fixed' }}>
                       <Dropdown.Toggle variant="dark" className="btn-primary-custom" id="admin-products-add-menu">
-                        {language === 'uz' ? "Qo'shish" : 'Добавить'}
+                        {language === 'uz' ? "+ Qo'shish" : '+ Добавить'}
                       </Dropdown.Toggle>
                       <Dropdown.Menu className="admin-products-add-dropdown-menu">
                         <Dropdown.Item onClick={() => openProductModal()}>
@@ -11856,9 +11945,6 @@ function AdminDashboard() {
                         </Dropdown.Item>
                         <Dropdown.Item onClick={openGlobalImportModal}>
                           {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
-                        </Dropdown.Item>
-                        <Dropdown.Item onClick={() => setShowPasteImportModal(true)}>
-                          {language === 'uz' ? "Buferdan qo'shish" : 'Добавить из буфера обмена'}
                         </Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown>
@@ -12009,58 +12095,6 @@ function AdminDashboard() {
                     >
                       Очистить
                     </Button>
-                  </Col>
-                  <Col lg={12}>
-                    <div className="d-flex flex-wrap gap-2 admin-products-filter-actions">
-                      <Button variant="outline-dark" className="btn-primary-custom" onClick={exportSystemCategories}>
-                        <span className="d-none d-md-inline">Категории системы</span>
-                        <span className="d-md-none">Категории</span>
-                      </Button>
-                      <Button variant="dark" className="btn-primary-custom" onClick={exportProducts}>
-                        <span className="d-none d-md-inline">{t('downloadExcel')}</span>
-                        <span className="d-md-none">Экспорт</span>
-                      </Button>
-                      <Button variant="dark" className="btn-primary-custom" onClick={() => setShowExcelModal(true)}>
-                        <span className="d-none d-md-inline">{t('importExcel')}</span>
-                        <span className="d-md-none">Импорт</span>
-                      </Button>
-                      {isVariantStockImportEnabled && (
-                        <Button
-                          variant="outline-info"
-                          className="btn-primary-custom"
-                          onClick={downloadVariantStockTemplate}
-                          title={language === 'uz' ? "Variant qoldiqlari shabloni" : 'Скачать шаблон остатков с вариантами'}
-                        >
-                          <span className="d-none d-md-inline">
-                            {language === 'uz' ? "Qoldiq shabloni" : 'Остатки: скачать шаблон'}
-                          </span>
-                          <span className="d-md-none">
-                            {language === 'uz' ? 'Qoldiq шаблон' : 'Остатки шаблон'}
-                          </span>
-                        </Button>
-                      )}
-                      {isVariantStockImportEnabled && (
-                        <Button
-                          variant="outline-warning"
-                          className="btn-primary-custom"
-                          onClick={() => {
-                            setStockExcelFile(null);
-                            setStockExcelPreview([]);
-                            setPreparedStockImportRows([]);
-                            setStockImportMode('replace');
-                            setShowStockExcelModal(true);
-                          }}
-                          title={language === 'uz' ? "Variant qoldiqlarini import qilish" : 'Импорт остатков по вариантам'}
-                        >
-                          <span className="d-none d-md-inline">
-                            {language === 'uz' ? "Qoldiq import" : 'Остатки: импорт'}
-                          </span>
-                          <span className="d-md-none">
-                            {language === 'uz' ? "Qoldiq import" : 'Остатки импорт'}
-                          </span>
-                        </Button>
-                      )}
-                    </div>
                   </Col>
                 </Row>
                 )}
@@ -18310,11 +18344,13 @@ function AdminDashboard() {
               <Form.Control
                 ref={pasteImportInputRef}
                 as="textarea"
-                readOnly
                 tabIndex={0}
-                rows={1}
+                rows={2}
                 aria-label={language === 'uz' ? 'Exceldan Ctrl+V' : 'Вставка из Excel Ctrl+V'}
-                className="sa-global-products-paste-textarea-hidden"
+                className="sa-global-products-paste-textarea"
+                placeholder={language === 'uz'
+                  ? "Excel jadvalidan nusxa olib shu yerga Ctrl+V qiling"
+                  : 'Скопируйте строки из Excel и вставьте сюда через Ctrl+V'}
                 onPaste={handleProductsPasteImport}
               />
             </div>

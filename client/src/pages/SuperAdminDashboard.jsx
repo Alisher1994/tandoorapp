@@ -1629,7 +1629,6 @@ function SuperAdminDashboard() {
   const [globalProductsPasteRows, setGlobalProductsPasteRows] = useState([]);
   const [globalProductsPasteError, setGlobalProductsPasteError] = useState('');
   const [showGlobalProductsImportReviewModal, setShowGlobalProductsImportReviewModal] = useState(false);
-  const [showGlobalProductsImportTemplateModal, setShowGlobalProductsImportTemplateModal] = useState(false);
   const [globalProductsImportRows, setGlobalProductsImportRows] = useState([]);
   const [globalProductsImportSourceFileName, setGlobalProductsImportSourceFileName] = useState('');
   const [globalProductsPage, setGlobalProductsPage] = useState(1);
@@ -7485,8 +7484,10 @@ function SuperAdminDashboard() {
     try {
       const XLSX = await loadXlsxModule();
       const headers = globalProductsImportTemplateColumns.map((item) => item.header);
-      const exampleRow = globalProductsImportTemplateColumns.map((item) => item.sample || '');
-      const templateSheet = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+      const templateRows = globalProductsImportTemplateDemoRows.map((row) => (
+        [...row, ...Array(Math.max(0, headers.length - row.length)).fill('')].slice(0, headers.length)
+      ));
+      const templateSheet = XLSX.utils.aoa_to_sheet([headers, ...templateRows]);
       const templateSheetRange = XLSX.utils.decode_range(templateSheet['!ref'] || 'A1');
       templateSheet['!autofilter'] = {
         ref: XLSX.utils.encode_range({
@@ -7498,32 +7499,76 @@ function SuperAdminDashboard() {
         wch: Math.max(18, String(item.header || '').length + 6)
       }));
 
-      const guideRows = globalProductsImportTemplateColumns.map((item) => ({
-        '№': item.index,
-        'Заголовок столбца': item.header,
-        'Что заполнять': item.description,
-        'Обязательно': item.required ? 'Да' : 'Нет',
-        'Пример': item.sample || ''
-      }));
-      guideRows.push({
-        '№': '',
-        'Заголовок столбца': 'Категория: приоритет',
-        'Что заполнять': 'Сначала ID, если его нет — путь, если и его нет — название',
-        'Обязательно': '',
-        'Пример': 'ID > Путь > Название'
+      let categoriesForTemplate = Array.isArray(categories) ? categories : [];
+      if (!categoriesForTemplate.length) {
+        const categoriesResponse = await axios.get(`${API_URL}/superadmin/categories`);
+        categoriesForTemplate = Array.isArray(categoriesResponse.data) ? categoriesResponse.data : [];
+        if (categoriesForTemplate.length > 0) {
+          setCategories(categoriesForTemplate);
+        }
+      }
+      const categoryById = new Map();
+      (categoriesForTemplate || []).forEach((category) => {
+        const categoryId = Number(category?.id);
+        if (Number.isFinite(categoryId)) {
+          categoryById.set(categoryId, category);
+        }
       });
-      const guideSheet = XLSX.utils.json_to_sheet(guideRows);
-      guideSheet['!cols'] = [
-        { wch: 6 },
-        { wch: 30 },
-        { wch: 70 },
+      const buildPathNames = (categoryId) => {
+        const normalizedId = Number.parseInt(categoryId, 10);
+        if (!Number.isFinite(normalizedId)) return [];
+        const path = [];
+        const visited = new Set();
+        let current = categoryById.get(normalizedId);
+        while (current && !visited.has(current.id)) {
+          path.unshift(String(current?.name_ru || current?.name_uz || '').trim());
+          visited.add(current.id);
+          if (!current.parent_id) break;
+          current = categoryById.get(Number(current.parent_id));
+        }
+        return path.filter(Boolean);
+      };
+      const categoriesReferenceRows = (categoriesForTemplate || [])
+        .map((category) => {
+          const pathNames = buildPathNames(category?.id);
+          const level1 = pathNames[0] || '';
+          const level2 = pathNames[1] || '';
+          const level3 = pathNames[2] || '';
+          return {
+            'Категория ID': category?.id ?? '',
+            'Категория 1': level1,
+            'Категория 2': level2,
+            'Категория 3': level3,
+            'Связка (1 | 2 | 3)': [level1, level2, level3].filter(Boolean).join(' | '),
+            'Полный путь (>)': pathNames.join(' > '),
+            'Можно назначать товар': category?.parent_id ? 'Да' : 'Нет'
+          };
+        })
+        .sort((left, right) => (
+          String(left['Полный путь (>)'] || '').localeCompare(String(right['Полный путь (>)'] || ''), 'ru')
+        ));
+      const categoriesSheet = XLSX.utils.json_to_sheet(categoriesReferenceRows.length ? categoriesReferenceRows : [{
+        'Категория ID': '',
+        'Категория 1': '',
+        'Категория 2': '',
+        'Категория 3': '',
+        'Связка (1 | 2 | 3)': '',
+        'Полный путь (>)': '',
+        'Можно назначать товар': ''
+      }]);
+      categoriesSheet['!cols'] = [
         { wch: 14 },
-        { wch: 28 }
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 24 },
+        { wch: 46 },
+        { wch: 56 },
+        { wch: 24 }
       ];
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, templateSheet, 'Шаблон');
-      XLSX.utils.book_append_sheet(workbook, guideSheet, 'Памятка');
+      XLSX.utils.book_append_sheet(workbook, categoriesSheet, 'Категории');
 
       const now = new Date();
       const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
@@ -13682,22 +13727,16 @@ function SuperAdminDashboard() {
                       <FilterIcon />
                     </Button>
                     <Button
-                      variant="outline-secondary"
-                      onClick={() => setShowGlobalProductsImportTemplateModal(true)}
-                    >
-                      {language === 'uz' ? 'Shablon' : 'Шаблон'}
-                    </Button>
-                    <Button
                       variant="outline-primary"
                       onClick={() => setShowGlobalProductsPasteModal(true)}
                       disabled={isImportingGlobalProductsExcel}
                     >
                       {isImportingGlobalProductsExcel
                         ? (language === 'uz' ? 'Import...' : 'Импорт...')
-                        : (language === 'uz' ? 'Import / Paste' : 'Импорт / Вставка')}
+                        : (language === 'uz' ? 'Import' : 'Импорт')}
                     </Button>
                     <Button className="btn-primary-custom" onClick={() => openGlobalProductModal()}>
-                      {language === 'uz' ? "Global mahsulot qo'shish" : 'Добавить глобальный товар'}
+                      {language === 'uz' ? "+ Qo'shish" : '+ Добавить'}
                     </Button>
                   </div>
                 </div>
@@ -19201,8 +19240,8 @@ function SuperAdminDashboard() {
           <div className="d-flex align-items-start justify-content-between gap-2 flex-wrap w-100 me-1">
             <Modal.Title className="sa-global-products-modal-title h6 mb-0">
               {language === 'uz'
-                ? 'Global mahsulotlar: import / paste'
-                : 'Глобальные товары: импорт / вставка'}
+                ? 'Global mahsulotlar importi'
+                : 'Импорт глобальных товаров'}
             </Modal.Title>
             <OverlayTrigger
               trigger="click"
@@ -19234,12 +19273,11 @@ function SuperAdminDashboard() {
           <div className="sa-global-products-paste-toolbar">
             <div className="sa-global-products-paste-toolbar-main d-flex flex-wrap align-items-center gap-2">
               <Button
-                variant="outline-secondary"
                 size="sm"
-                className="sa-global-products-btn"
-                onClick={() => setShowGlobalProductsImportTemplateModal(true)}
+                className="btn-primary-custom sa-global-products-btn"
+                onClick={handleDownloadGlobalProductsImportTemplate}
               >
-                {language === 'uz' ? "Ustunlar bo'yicha yo'riqnoma" : 'Памятка по колонкам'}
+                {language === 'uz' ? 'Shablonni yuklab olish (.xlsx)' : 'Скачать шаблон (.xlsx)'}
               </Button>
               <Button
                 size="sm"
@@ -19274,16 +19312,18 @@ function SuperAdminDashboard() {
                 ? 'Ctrl+V — ma’lumotlar jadvalga tushadi. Kursor bu yerga avtomatik yo‘naltiriladi.'
                 : 'Вставьте строки через Ctrl+V — они появятся в таблице ниже. Фокус в окне выставляется автоматически.'}
             </p>
-            <Form.Control
-              ref={globalProductsPasteInputRef}
-              as="textarea"
-              readOnly
-              tabIndex={0}
-              rows={1}
-              aria-label={language === 'uz' ? 'Exceldan Ctrl+V' : 'Вставка из Excel через Ctrl+V'}
-              className="sa-global-products-paste-textarea-hidden"
-              onPaste={handleGlobalProductsPaste}
-            />
+              <Form.Control
+                ref={globalProductsPasteInputRef}
+                as="textarea"
+                tabIndex={0}
+                rows={2}
+                aria-label={language === 'uz' ? 'Exceldan Ctrl+V' : 'Вставка из Excel через Ctrl+V'}
+                className="sa-global-products-paste-textarea"
+                placeholder={language === 'uz'
+                  ? 'Excel jadvalidan nusxa olib shu yerga Ctrl+V qiling'
+                  : 'Скопируйте строки из Excel и вставьте сюда через Ctrl+V'}
+                onPaste={handleGlobalProductsPaste}
+              />
           </div>
 
           {globalProductsPasteError && (
@@ -19359,72 +19399,6 @@ function SuperAdminDashboard() {
             {isImportingGlobalProductsExcel
               ? (language === 'uz' ? 'Tayyorlanmoqda...' : 'Подготовка...')
               : (language === 'uz' ? 'Keyingi: dublikatlarni tekshirish' : 'Далее: проверка дублей')}
-          </Button>
-        </Modal.Footer>
-      </Modal>
-
-      <Modal
-        show={showGlobalProductsImportTemplateModal}
-        onHide={() => setShowGlobalProductsImportTemplateModal(false)}
-        size="xl"
-        centered
-        className="sa-global-products-template-modal"
-        dialogClassName="sa-global-products-template-dialog"
-      >
-        <Modal.Header closeButton className="sa-global-products-template-header">
-          <Modal.Title className="sa-global-products-modal-title h6 mb-0">
-            {language === 'uz'
-              ? "Global mahsulotlar importi: ustunlar shabloni"
-              : 'Импорт глобальных товаров: структура колонок'}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="sa-global-products-template-body">
-          <Alert variant="info" className="sa-global-products-info-alert mb-0 d-flex gap-2 align-items-start">
-            <span className="sa-global-products-info-icon" aria-hidden>ⓘ</span>
-            <span>
-              {language === 'uz'
-                ? "Kategoriya uchun ustunlar ustuvorligi: avval ID, keyin yo'l, undan keyin nom."
-                : 'Для категории приоритет такой: сначала ID, затем путь, затем название.'}
-            </span>
-          </Alert>
-          <p className="small text-muted mb-0">
-            {language === 'uz'
-              ? 'Exceldagi kabi bir xil tartibda 3 ta namuna qator (boshidan oxirigacha):'
-              : 'Три примера строк в том же порядке, как в Excel (слева направо):'}
-          </p>
-          <div className="sa-global-products-template-table-wrap admin-thin-scrollbar">
-            <Table bordered hover size="sm" className="mb-0 sa-global-products-template-table sa-global-products-template-demo-table">
-              <thead className="table-light">
-                <tr>
-                  {globalProductsImportTemplateColumns.map((col) => (
-                    <th key={`global-template-demo-h-${col.index}`}>{col.header}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {globalProductsImportTemplateDemoRows.map((demoRow, rowIdx) => (
-                  <tr key={`global-template-demo-row-${rowIdx}`}>
-                    {demoRow.map((cell, cellIdx) => (
-                      <td key={`global-template-demo-cell-${rowIdx}-${cellIdx}`}>
-                        {cell ? String(cell) : '—'}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        </Modal.Body>
-        <Modal.Footer className="sa-global-products-modal-footer d-flex flex-wrap gap-2 justify-content-end">
-          <Button
-            variant="outline-secondary"
-            className="sa-global-products-btn"
-            onClick={() => setShowGlobalProductsImportTemplateModal(false)}
-          >
-            {language === 'uz' ? 'Yopish' : 'Закрыть'}
-          </Button>
-          <Button className="btn-primary-custom sa-global-products-btn" onClick={handleDownloadGlobalProductsImportTemplate}>
-            {language === 'uz' ? 'Excel shablonni yuklab olish' : 'Скачать Excel-шаблон'}
           </Button>
         </Modal.Footer>
       </Modal>
