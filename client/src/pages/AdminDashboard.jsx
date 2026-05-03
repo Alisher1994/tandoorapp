@@ -263,6 +263,11 @@ const normalizeMenuViewMode = (value, fallback = 'grid_categories') => {
   if (normalizedFallback === 'nested_categories') return 'nested_categories';
   return 'grid_categories';
 };
+const normalizeId = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
 const PRODUCT_PLACEHOLDER_IMAGE = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%23eef2f7'/%3E%3Cpath d='M18 28h28l-2 16a4 4 0 0 1-4 3H24a4 4 0 0 1-4-3l-2-16z' fill='%23c5ceda'/%3E%3Cpath d='M24 28a8 8 0 0 1 16 0' fill='none' stroke='%2390a0b4' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E";
 const PRODUCT_IMAGE_SLOTS_COUNT = 5;
 const VARIANT_IMAGE_SLOTS_COUNT = 5;
