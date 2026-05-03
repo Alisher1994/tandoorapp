@@ -2301,7 +2301,7 @@ function SuperAdminDashboard() {
 
   useEffect(() => {
     if (!canAccessCurrentSuperadminTab(activeTab, 'view')) return;
-    if (['restaurants', 'operators', 'customers', 'ads'].includes(activeTab) || isBillingTransactionsViewActive) {
+    if (['analytics', 'restaurants', 'operators', 'customers', 'ads'].includes(activeTab) || isBillingTransactionsViewActive) {
       loadInternalRestaurants({ preferCache: true });
     }
     if (activeTab === 'security') {
@@ -2931,6 +2931,7 @@ function SuperAdminDashboard() {
     const requestPromise = (async () => {
       try {
         const canLoadRestaurantsDirectory = canAccessCurrentSuperadminTab('restaurants', 'view')
+          || canAccessCurrentSuperadminTab('analytics', 'view')
           || canAccessCurrentSuperadminTab('customers', 'view')
           || canAccessCurrentSuperadminTab('ads', 'view')
           || canAccessCurrentSuperadminTab('founders', 'view');
