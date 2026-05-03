@@ -1981,6 +1981,7 @@ function AdminDashboard() {
   const [globalImportLeftSelectedIds, setGlobalImportLeftSelectedIds] = useState([]);
   const [globalImportRightSelectedIds, setGlobalImportRightSelectedIds] = useState([]);
   const [globalImportItems, setGlobalImportItems] = useState([]);
+  const [globalImportCategorySearchByItem, setGlobalImportCategorySearchByItem] = useState({});
   const [productForm, setProductForm] = useState({
     category_id: '',
     name_ru: '',
@@ -4783,6 +4784,7 @@ function AdminDashboard() {
     setGlobalImportLeftSelectedIds([]);
     setGlobalImportRightSelectedIds([]);
     setGlobalImportItems([]);
+    setGlobalImportCategorySearchByItem({});
     setGlobalCatalogLoading(false);
     setGlobalImportSaving(false);
   };
@@ -7341,6 +7343,9 @@ function AdminDashboard() {
       setUploadingImage(false);
     }
   };
+  const productImageUploadHintText = language === 'uz'
+    ? '⭐ - asosiy rasm, ✕ - o‘chirish, "Tanlash" tugmasi - fayl yuklash. Tavsiya: 1080×1080 px, 10 MB gacha.'
+    : '⭐ - главное фото, ✕ - удалить, кнопка "Выбрать" - загрузка файла. Рекомендуемый размер: 1080×1080 px, до 10 МБ.';
 
   const handleRestaurantLogoUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -16421,8 +16426,8 @@ function AdminDashboard() {
             </Modal.Title>
           </Modal.Header>
           <Modal.Body className="admin-global-import-modal-body">
-            <Row className="g-2 align-items-stretch">
-              <Col lg={5}>
+            <Row className="g-2 align-items-stretch admin-global-import-layout">
+              <Col className="admin-global-import-col admin-global-import-col-left">
                 <div className="admin-global-import-panel">
                   <div className="admin-global-import-panel-head">
                     <strong>{language === 'uz' ? "Global mahsulotlar" : 'Глобальные товары'}</strong>
@@ -16521,7 +16526,7 @@ function AdminDashboard() {
                 </div>
               </Col>
 
-              <Col lg={2} className="d-flex align-items-center justify-content-center py-1 admin-global-import-arrows-col">
+              <Col className="d-flex align-items-center justify-content-center py-1 admin-global-import-arrows-col">
                 <div className="admin-global-import-arrows">
                   <Button
                     type="button"
@@ -16542,7 +16547,7 @@ function AdminDashboard() {
                 </div>
               </Col>
 
-              <Col lg={5}>
+              <Col className="admin-global-import-col admin-global-import-col-right">
                 <div className="admin-global-import-panel">
                   <div className="admin-global-import-panel-head">
                     <strong>{language === 'uz' ? "Qo'shiladiganlar" : 'К добавлению'}</strong>
@@ -16562,6 +16567,13 @@ function AdminDashboard() {
                         const sourceImage = item.image_url ? toAbsoluteFileUrl(item.image_url) : PRODUCT_PLACEHOLDER_IMAGE;
                         const suggestedCategoryId = String(item.category_id || '');
                         const suggestedCategory = importCategoryById.get(suggestedCategoryId);
+                        const categorySearchValue = String(globalImportCategorySearchByItem?.[itemId] || '');
+                        const normalizedCategorySearch = categorySearchValue.trim().toLowerCase();
+                        const filteredCategoryOptions = normalizedCategorySearch
+                          ? importAssignableCategories.filter((categoryOption) => (
+                            String(categoryOption?.path || '').toLowerCase().includes(normalizedCategorySearch)
+                          ))
+                          : importAssignableCategories;
                         return (
                           <div
                             key={`global-import-item-${itemId}`}
@@ -16604,16 +16616,31 @@ function AdminDashboard() {
                                 />
                               </Col>
                               <Col md={7}>
+                                <Form.Control
+                                  className="admin-global-import-category-search"
+                                  value={categorySearchValue}
+                                  onChange={(e) => setGlobalImportCategorySearchByItem((prev) => ({
+                                    ...(prev || {}),
+                                    [itemId]: String(e.target.value || '').slice(0, 120)
+                                  }))}
+                                  placeholder={language === 'uz' ? 'Kategoriyani qidirish' : 'Поиск категории'}
+                                />
                                 <Form.Select
+                                  className="mt-1"
                                   value={item.category_id || ''}
                                   onChange={(e) => updateGlobalImportItem(itemId, 'category_id', e.target.value)}
                                 >
                                   <option value="">{language === 'uz' ? 'Kategoriya tanlanmagan' : 'Категория не выбрана'}</option>
-                                  {importAssignableCategories.map((categoryOption) => (
+                                  {filteredCategoryOptions.map((categoryOption) => (
                                     <option key={`global-import-category-${categoryOption.id}`} value={String(categoryOption.id)}>
                                       {categoryOption.path}
                                     </option>
                                   ))}
+                                  {filteredCategoryOptions.length === 0 && (
+                                    <option value="" disabled>
+                                      {language === 'uz' ? 'Kategoriyalar topilmadi' : 'Категории не найдены'}
+                                    </option>
+                                  )}
                                 </Form.Select>
                               </Col>
                             </Row>
@@ -17315,6 +17342,9 @@ function AdminDashboard() {
                           );
                         })()}
                       </div>
+                      <Form.Text className="text-muted admin-product-image-help">
+                        {productImageUploadHintText}
+                      </Form.Text>
                     </Form.Group>
                   </Col>
                 </Row>
@@ -17790,7 +17820,7 @@ function AdminDashboard() {
                         </div>
                       )}
                       <Form.Text className="text-muted admin-product-image-help">
-                        ⭐ - главное фото, ✕ - удалить, кнопка "Выбрать" - загрузка файла.
+                        {productImageUploadHintText}
                       </Form.Text>
                     </Form.Group>
                   </Col>

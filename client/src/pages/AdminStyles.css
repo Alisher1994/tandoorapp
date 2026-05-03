@@ -10577,7 +10577,14 @@ body::-webkit-scrollbar,
 }
 
 .admin-global-import-modal-dialog {
-    max-width: min(98vw, 1440px) !important;
+    width: min(99vw, 1660px);
+    max-width: min(99vw, 1660px) !important;
+    height: min(90vh, 980px);
+    margin: 2vh auto;
+}
+
+.admin-global-import-modal .modal-content {
+    height: 100%;
 }
 
 .admin-global-import-modal-header {
@@ -10587,6 +10594,21 @@ body::-webkit-scrollbar,
 
 .admin-global-import-modal-body {
     padding: 0.65rem 0.85rem 0.75rem;
+    overflow: hidden;
+}
+
+.admin-global-import-layout {
+    height: 100%;
+}
+
+.admin-global-import-col {
+    min-width: 0;
+}
+
+.admin-global-import-arrows-col {
+    flex: 0 0 68px;
+    max-width: 68px;
+    align-self: stretch;
 }
 
 .admin-global-import-modal-footer {
@@ -10622,9 +10644,9 @@ body::-webkit-scrollbar,
     border-radius: 12px;
     background: #f8fafc;
     padding: 0.45rem;
-    max-height: min(320px, 40vh);
+    max-height: min(560px, 66vh);
     flex: 1 1 auto;
-    min-height: 180px;
+    min-height: 260px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -10684,15 +10706,15 @@ body::-webkit-scrollbar,
     flex-shrink: 0;
 }
 
-.admin-global-import-arrows-col {
-    align-self: stretch;
-}
-
 .admin-global-import-arrows {
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
     justify-content: center;
+}
+
+.admin-global-import-category-search {
+    font-size: 0.9rem;
 }
 
 .admin-global-import-arrows .btn {
@@ -11959,6 +11981,22 @@ body::-webkit-scrollbar,
     .admin-global-import-arrows {
         flex-direction: row;
         justify-content: center;
+    }
+
+    .admin-global-import-layout {
+        height: auto;
+        row-gap: 0.45rem;
+    }
+
+    .admin-global-import-col,
+    .admin-global-import-arrows-col {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+
+    .admin-global-import-modal-dialog {
+        height: auto;
+        margin: 0.65rem auto;
     }
 
     .admin-product-main-fields-grid {
