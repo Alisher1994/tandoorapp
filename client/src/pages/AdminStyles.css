@@ -6661,6 +6661,26 @@ body::-webkit-scrollbar,
     min-height: auto;
 }
 
+.admin-category-images-top-switch {
+    margin-bottom: 0 !important;
+}
+
+.admin-category-images-top-switch .form-check-label {
+    font-size: 0.86rem;
+    color: #475569;
+    font-weight: 600;
+}
+
+.admin-category-image-pick-btn {
+    min-width: 110px;
+    height: 30px;
+    border-radius: 8px !important;
+    font-size: 0.78rem !important;
+    line-height: 1 !important;
+    padding: 0 10px !important;
+    white-space: nowrap;
+}
+
 .admin-category-image-editor-card {
     border: 1px solid var(--border-color) !important;
     background: #fff;

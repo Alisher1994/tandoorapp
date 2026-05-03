@@ -7614,22 +7614,6 @@ function AdminDashboard() {
     event.target.value = '';
   }, [categoryImageCategoriesById, categoryImageUploadTargetId, handleUploadOwnCategoryImage]);
 
-  const handleClearOwnCategoryImage = useCallback(async (category) => {
-    const categoryId = normalizeId(category?.id);
-    if (!categoryId) return;
-    const updated = await saveCategoryImageOverride({
-      categoryId,
-      useCustomImage: true,
-      imageUrl: null
-    });
-    if (updated) {
-      setAlertMessage({
-        type: 'success',
-        text: 'Собственное фото очищено. Показывается логотип магазина'
-      });
-    }
-  }, [saveCategoryImageOverride]);
-
   // Handle paste from clipboard (Ctrl+V)
   const handlePaste = async (e, setImageUrl, options = {}) => {
     const items = Array.from(e.clipboardData?.items || []);
@@ -14397,15 +14381,32 @@ function AdminDashboard() {
                                     : 'Здесь показываются только категории, которые реально используются в вашем магазине. Названия и иерархия менять нельзя.'}
                                 </div>
                               </div>
-                              <Button
-                                type="button"
-                                variant="outline-secondary"
-                                size="sm"
-                                onClick={loadCategoryImageCategories}
-                                disabled={loadingCategoryImageCategories}
-                              >
-                                {loadingCategoryImageCategories ? 'Обновление...' : 'Обновить список'}
-                              </Button>
+                              <div className="d-flex align-items-center gap-3 flex-wrap justify-content-lg-end">
+                                <Form.Check
+                                  type="switch"
+                                  id="category-images-top-switch"
+                                  className="admin-category-images-top-switch"
+                                  label={language === 'uz' ? 'Shaxsiy foto rejimi' : 'Собственное фото'}
+                                  checked={selectedCategoryImageCategory?.use_custom_image === true}
+                                  disabled={
+                                    !selectedCategoryImageCategory
+                                    || savingCategoryImageCategoryId === normalizeId(selectedCategoryImageCategory?.id)
+                                  }
+                                  onChange={(e) => {
+                                    if (!selectedCategoryImageCategory) return;
+                                    handleToggleCategoryOwnImage(selectedCategoryImageCategory, e.target.checked);
+                                  }}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline-secondary"
+                                  size="sm"
+                                  onClick={loadCategoryImageCategories}
+                                  disabled={loadingCategoryImageCategories}
+                                >
+                                  {loadingCategoryImageCategories ? 'Обновление...' : 'Обновить список'}
+                                </Button>
+                              </div>
                             </div>
 
                             {loadingCategoryImageCategories ? (
@@ -14471,6 +14472,9 @@ function AdminDashboard() {
                                           ) : (
                                             <div className="list-group list-group-flush category-level-list">
                                               {levelCategories.map((category) => {
+                                                const normalizedCategoryId = normalizeId(category?.id);
+                                                const isSaving = savingCategoryImageCategoryId === normalizedCategoryId;
+                                                const isUploading = categoryImageUploadTargetId === normalizedCategoryId && uploadingImage;
                                                 const effectiveImageUrl = toAbsoluteFileUrl(
                                                   category?.effective_image_url
                                                     || category?.custom_image_url
@@ -14508,10 +14512,27 @@ function AdminDashboard() {
                                                       </span>
                                                       <span className="text-truncate small fw-medium">{getLocalizedCategoryTitle(category)}</span>
                                                     </span>
-                                                    <span className="small text-muted flex-shrink-0 ms-2">
-                                                      {category?.use_custom_image
-                                                        ? (category?.custom_image_url ? 'Свое' : 'Лого')
-                                                        : 'Сист.'}
+                                                    <span className="d-flex align-items-center gap-2 flex-shrink-0 ms-2">
+                                                      <span className="small text-muted">
+                                                        {category?.use_custom_image
+                                                          ? (category?.custom_image_url ? 'Свое' : 'Лого')
+                                                          : 'Сист.'}
+                                                      </span>
+                                                      <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-outline-primary admin-category-image-pick-btn"
+                                                        disabled={isSaving || uploadingImage}
+                                                        onClick={(e) => {
+                                                          e.preventDefault();
+                                                          e.stopPropagation();
+                                                          setCategoryImageUploadTargetId(normalizedCategoryId);
+                                                          categoryImageFileInputRef.current?.click();
+                                                        }}
+                                                      >
+                                                        {isUploading
+                                                          ? 'Загрузка...'
+                                                          : (language === 'uz' ? 'Rasm tanlash' : 'Выбрать фото')}
+                                                      </button>
                                                     </span>
                                                   </button>
                                                 );
@@ -14524,130 +14545,17 @@ function AdminDashboard() {
                                   })}
                                 </div>
 
-                                <Card className="admin-category-image-editor-card border-0 rounded-4 mt-3">
-                                  <Card.Body>
-                                    {selectedCategoryImageCategory ? (
-                                      <div className="d-flex flex-column gap-3">
-                                        <div>
-                                          <div className="small fw-bold text-muted text-uppercase mb-2">
-                                            {language === 'uz' ? 'Tanlangan kategoriya' : 'Выбранная категория'}
-                                          </div>
-                                          <div className="d-flex align-items-center gap-3">
-                                            <div className="admin-category-image-preview-box">
-                                              {toAbsoluteFileUrl(
-                                                selectedCategoryImageCategory?.effective_image_url
-                                                  || selectedCategoryImageCategory?.custom_image_url
-                                                  || selectedCategoryImageCategory?.system_image_url
-                                                  || selectedCategoryImageCategory?.image_url
-                                                  || ''
-                                              ) ? (
-                                                <img
-                                                  src={toAbsoluteFileUrl(
-                                                    selectedCategoryImageCategory?.effective_image_url
-                                                      || selectedCategoryImageCategory?.custom_image_url
-                                                      || selectedCategoryImageCategory?.system_image_url
-                                                      || selectedCategoryImageCategory?.image_url
-                                                      || ''
-                                                  )}
-                                                  alt={getLocalizedCategoryTitle(selectedCategoryImageCategory)}
-                                                  className="admin-category-image-preview-img"
-                                                />
-                                              ) : activeRestaurantLogoUrl ? (
-                                                <img
-                                                  src={activeRestaurantLogoUrl}
-                                                  alt={restaurantSettings?.name || 'Store'}
-                                                  className="admin-category-image-preview-img is-logo"
-                                                />
-                                              ) : (
-                                                <div className="admin-category-image-preview-empty">🏪</div>
-                                              )}
-                                            </div>
-                                            <div className="flex-grow-1">
-                                              <div className="fw-semibold">{getLocalizedCategoryTitle(selectedCategoryImageCategory)}</div>
-                                              <div className="small text-muted">
-                                                ID: {selectedCategoryImageCategory.id}
-                                              </div>
-                                              <div className="small text-muted">
-                                                {selectedCategoryImageCategory?.use_custom_image
-                                                  ? (selectedCategoryImageCategory?.custom_image_url
-                                                    ? 'Источник: собственное фото'
-                                                    : 'Источник: логотип магазина (фото не загружено)')
-                                                  : 'Источник: системное фото суперадмина'}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <Row className="g-3">
-                                          <Col lg={7}>
-                                            <Form.Group>
-                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
-                                                {language === 'uz' ? 'Kategoriya nomi (faqat o‘qish)' : 'Название категории (только чтение)'}
-                                              </Form.Label>
-                                              <Form.Control
-                                                type="text"
-                                                className="form-control-custom admin-readonly-field"
-                                                value={getLocalizedCategoryTitle(selectedCategoryImageCategory)}
-                                                readOnly
-                                              />
-                                            </Form.Group>
-                                          </Col>
-                                          <Col lg={5}>
-                                            <Form.Group className="h-100 d-flex flex-column justify-content-end">
-                                              <Form.Check
-                                                type="switch"
-                                                id={`category-own-image-${selectedCategoryImageCategory.id}`}
-                                                label={language === 'uz' ? 'Shaxsiy kategoriya rasmi' : 'Собственное фото категории'}
-                                                checked={selectedCategoryImageCategory?.use_custom_image === true}
-                                                disabled={savingCategoryImageCategoryId === normalizeId(selectedCategoryImageCategory?.id)}
-                                                onChange={(e) => handleToggleCategoryOwnImage(selectedCategoryImageCategory, e.target.checked)}
-                                              />
-                                            </Form.Group>
-                                          </Col>
-                                        </Row>
-
-                                        {selectedCategoryImageCategory?.use_custom_image && (
-                                          <div className="d-flex flex-wrap gap-2">
-                                            <Button
-                                              type="button"
-                                              className="btn-primary-custom"
-                                              onClick={() => {
-                                                setCategoryImageUploadTargetId(normalizeId(selectedCategoryImageCategory?.id));
-                                                categoryImageFileInputRef.current?.click();
-                                              }}
-                                              disabled={
-                                                savingCategoryImageCategoryId === normalizeId(selectedCategoryImageCategory?.id)
-                                                || categoryImageUploadTargetId === normalizeId(selectedCategoryImageCategory?.id)
-                                                || uploadingImage
-                                              }
-                                            >
-                                              {categoryImageUploadTargetId === normalizeId(selectedCategoryImageCategory?.id) && uploadingImage
-                                                ? 'Загрузка...'
-                                                : 'Загрузить фото'}
-                                            </Button>
-                                            <Button
-                                              type="button"
-                                              variant="outline-danger"
-                                              onClick={() => handleClearOwnCategoryImage(selectedCategoryImageCategory)}
-                                              disabled={
-                                                savingCategoryImageCategoryId === normalizeId(selectedCategoryImageCategory?.id)
-                                                || !String(selectedCategoryImageCategory?.custom_image_url || '').trim()
-                                              }
-                                            >
-                                              Очистить фото
-                                            </Button>
-                                          </div>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <div className="text-muted small">
-                                        {language === 'uz'
-                                          ? 'Foto sozlamalarini ochish uchun chapdagi kategoriyadan birini tanlang.'
-                                          : 'Выберите категорию слева, чтобы настроить фото.'}
-                                      </div>
-                                    )}
-                                  </Card.Body>
-                                </Card>
+                                <div className="text-muted small mt-3">
+                                  {selectedCategoryImageCategory
+                                    ? (selectedCategoryImageCategory?.use_custom_image
+                                      ? (selectedCategoryImageCategory?.custom_image_url
+                                        ? `Источник для "${getLocalizedCategoryTitle(selectedCategoryImageCategory)}": собственное фото`
+                                        : `Источник для "${getLocalizedCategoryTitle(selectedCategoryImageCategory)}": логотип магазина`)
+                                      : `Источник для "${getLocalizedCategoryTitle(selectedCategoryImageCategory)}": системное фото`)
+                                    : (language === 'uz'
+                                      ? 'Kategoriyani tanlang va ro‘yxatning o‘zida rasmni tanlang.'
+                                      : 'Выберите категорию и загружайте фото прямо в списке.')}
+                                </div>
                               </div>
                             )}
                           </Card.Body>
