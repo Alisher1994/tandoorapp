@@ -501,12 +501,19 @@ async function startServer() {
       console.warn('⚠️  DATABASE_URL not set, skipping migrations');
     }
 
-    // EMERGENCY: Isolate unreachable bots immediately
-    try {
-      const migrateIsolateUnreachableBots = require('./database/migrate_isolate_unreachable_bots');
-      await migrateIsolateUnreachableBots();
-    } catch (error) {
-      console.error('⚠️ Error isolating bots:', error.message);
+    // EMERGENCY migration is dangerous: it nulls bot tokens for hardcoded shops.
+    // Run only when explicitly enabled.
+    const emergencyIsolationEnabled = String(process.env.ENABLE_EMERGENCY_BOT_ISOLATION || '').trim() === '1';
+    if (emergencyIsolationEnabled) {
+      try {
+        console.warn('🚨 ENABLE_EMERGENCY_BOT_ISOLATION=1 -> running emergency bot isolation migration');
+        const migrateIsolateUnreachableBots = require('./database/migrate_isolate_unreachable_bots');
+        await migrateIsolateUnreachableBots();
+      } catch (error) {
+        console.error('⚠️ Error isolating bots:', error.message);
+      }
+    } else {
+      console.log('ℹ️ Emergency bot isolation migration is disabled');
     }
 
     // Initialize legacy Telegram bot (fallback for old system)

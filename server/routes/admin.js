@@ -1934,9 +1934,10 @@ router.put('/restaurant', async (req, res) => {
       is_operator_delivery_later_enabled,
       receipt_logo_url, receipt_header_text, receipt_footer_text
     } = req.body;
-    const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
+    const normalizedBotTokenRaw = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
       : String(telegram_bot_token).trim();
+    const normalizedBotToken = normalizedBotTokenRaw === '' ? null : normalizedBotTokenRaw;
     const normalizedGroupId = telegram_group_id === undefined || telegram_group_id === null
       ? null
       : String(telegram_group_id).trim();

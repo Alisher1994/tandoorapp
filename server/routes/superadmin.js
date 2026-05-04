@@ -6280,9 +6280,10 @@ router.post('/restaurants', async (req, res) => {
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
       reservation_enabled
     } = req.body;
-    const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
+    const normalizedBotTokenRaw = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
       : String(telegram_bot_token).trim();
+    const normalizedBotToken = normalizedBotTokenRaw === '' ? null : normalizedBotTokenRaw;
     const normalizedGroupId = telegram_group_id === undefined || telegram_group_id === null
       ? null
       : String(telegram_group_id).trim();
@@ -6424,9 +6425,10 @@ router.put('/restaurants/:id', async (req, res) => {
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
       currency_code, reservation_enabled
     } = req.body;
-    const normalizedBotToken = telegram_bot_token === undefined || telegram_bot_token === null
+    const normalizedBotTokenRaw = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
       : String(telegram_bot_token).trim();
+    const normalizedBotToken = normalizedBotTokenRaw === '' ? null : normalizedBotTokenRaw;
     const normalizedGroupId = telegram_group_id === undefined || telegram_group_id === null
       ? null
       : String(telegram_group_id).trim();
