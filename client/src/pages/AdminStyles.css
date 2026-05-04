@@ -6220,8 +6220,11 @@ body::-webkit-scrollbar,
 }
 
 .admin-product-col-price {
-    width: 110px;
-    white-space: nowrap;
+    width: 132px;
+    white-space: normal;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .admin-product-col-unit {
