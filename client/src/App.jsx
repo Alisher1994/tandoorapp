@@ -11,6 +11,7 @@ import SuperAdminRoute from './components/SuperAdminRoute';
 import CatalogGate from './components/CatalogGate';
 import AppVersionWatcher from './components/AppVersionWatcher';
 import ClientRoutePersistence from './components/ClientRoutePersistence';
+import ServiceLockOverlay from './components/ServiceLockOverlay';
 import { PageSkeleton } from './components/SkeletonUI';
 
 const lazyWithRetry = (importer, chunkName) => lazy(async () => {
@@ -127,6 +128,7 @@ function App() {
             <ShowcaseProvider>
               <AppVersionWatcher />
               <ClientRoutePersistence />
+              <ServiceLockOverlay />
               <RoutePrefetcher />
               <Suspense fallback={(
                 <PageSkeleton fullscreen label="Загрузка приложения" cards={8} />

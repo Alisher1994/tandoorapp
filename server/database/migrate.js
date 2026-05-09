@@ -585,6 +585,36 @@ async function migrate() {
     `);
     console.log('✅ Activity_logs table ready');
 
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_controls (
+        service_key VARCHAR(80) PRIMARY KEY,
+        service_name VARCHAR(255) NOT NULL,
+        enabled BOOLEAN DEFAULT true,
+        title VARCHAR(255) DEFAULT 'Доступ временно ограничен',
+        message TEXT,
+        support_phone VARCHAR(50),
+        updated_by VARCHAR(100),
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query(`
+      INSERT INTO service_controls (service_key, service_name, enabled, message, support_phone)
+      VALUES (
+        COALESCE(NULLIF($1, ''), 'talablar'),
+        COALESCE(NULLIF($2, ''), 'Talablar'),
+        true,
+        'Доступ временно ограничен: серверные услуги Railway за текущий период не оплачены. Для восстановления работы оплатите задолженность за размещение сервиса.',
+        COALESCE(NULLIF($3, ''), '+998994067406')
+      )
+      ON CONFLICT (service_key) DO NOTHING
+    `, [
+      process.env.SERVICE_PRIMARY_KEY || 'talablar',
+      process.env.SERVICE_NAME || 'Talablar',
+      process.env.SERVICE_SUPPORT_PHONE || '+998994067406'
+    ]);
+    console.log('✅ Service control table ready');
+
     // =====================================================
     // Step 4.5: Create feedback table
     // =====================================================

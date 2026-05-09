@@ -3492,3 +3492,63 @@ h6 {
   border-color: rgba(15, 118, 110, 0.24);
   box-shadow: 0 14px 30px rgba(15, 118, 110, 0.16);
 }
+body:has(.service-lock-overlay) {
+  overflow: hidden;
+}
+
+body:has(.service-lock-overlay) #root > *:not(.service-lock-overlay) {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+.service-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(10, 14, 26, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.service-lock-modal {
+  width: min(540px, 100%);
+  border-radius: 14px;
+  padding: 22px;
+  color: #f8fafc;
+  background: #111827;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.55);
+  text-align: center;
+}
+
+.service-lock-badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.18);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.service-lock-modal h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.service-lock-modal p {
+  margin: 0;
+  color: #dbeafe;
+  line-height: 1.55;
+}
+
+.service-lock-phone {
+  margin-top: 14px;
+  color: #fde68a;
+  font-weight: 800;
+}

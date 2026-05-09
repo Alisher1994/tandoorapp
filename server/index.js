@@ -18,6 +18,8 @@ const uploadRoutes = require('./routes/upload');
 const deliveryRoutes = require('./routes/delivery');
 const addressRoutes = require('./routes/addresses');
 const paymeRoutes = require('./routes/payme');
+const serviceControlRoutes = require('./routes/serviceControl');
+const serviceLockMiddleware = require('./middleware/serviceLock');
 const { initBot, getBot } = require('./bot/bot');
 const { initMultiBots, processWebhook, getAllBots } = require('./bot/multiBotManager');
 const { initBroadcastWorker } = require('./services/broadcastWorker');
@@ -344,6 +346,9 @@ app.get('/api/health', async (req, res) => {
     res.json(response);
   }
 });
+
+app.use('/api/service-control', serviceControlRoutes);
+app.use(serviceLockMiddleware);
 
 // Telegram webhook route (must be before catch-all routes)
 app.post('/api/telegram/webhook', webhookLimiter, express.json(), (req, res) => {
