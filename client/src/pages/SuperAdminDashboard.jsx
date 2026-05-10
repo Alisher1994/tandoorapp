@@ -13467,7 +13467,21 @@ function SuperAdminDashboard() {
               {/* Restaurants Tab */}
               <Tab eventKey="restaurants" title={renderSuperAdminSidebarTabTitle('restaurants')}>
                 <div className="d-flex justify-content-between align-items-center mb-3">
-                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">{t('saManageRestaurants')}</h5>
+                  <div className="d-flex align-items-center gap-2 superadmin-mobile-hide-title">
+                    <h5 className="fw-bold mb-0">{t('saManageRestaurants')}</h5>
+                    <button
+                      type="button"
+                      className="sa-manage-restaurants-info-btn"
+                      title={
+                        language === 'uz'
+                          ? "Avto nofaol mezonlari:\n1) Do'kon nofaol (is_active=false)\n2) Telegram xatolari: 401/403/404/unauthorized/forbidden/not found/bot was blocked/deactivated\n3) Operator faolligi 30 kundan ortiq yo'q"
+                          : 'Критерии "Авто неактивные":\n1) Магазин неактивен (is_active=false)\n2) Ошибки Telegram: 401/403/404/unauthorized/forbidden/not found/bot was blocked/deactivated\n3) Нет активности операторов более 30 дней'
+                      }
+                      aria-label={language === 'uz' ? "Avto nofaol mezonlari" : 'Критерии авто-неактивных'}
+                    >
+                      <i className="bi bi-info-circle" aria-hidden="true" />
+                    </button>
+                  </div>
                   <div className="d-none d-lg-flex align-items-center gap-2">
                     <Button
                       type="button"
@@ -13704,7 +13718,14 @@ function SuperAdminDashboard() {
                                       onClick={() => openRestaurantModal(r)}
                                       title={language === 'uz' ? "Do'konni tahrirlash" : 'Редактировать магазин'}
                                     >
-                                      <strong className="sa-restaurant-name-main">{String(r.name || '').toUpperCase()}</strong>
+                                      <strong className="sa-restaurant-name-main">
+                                        <span
+                                          className={`sa-restaurant-active-dot ${r.is_active ? 'is-active' : 'is-inactive'}`}
+                                          aria-hidden="true"
+                                          title={r.is_active ? (language === 'uz' ? 'Faol' : 'Активный') : (language === 'uz' ? 'Nofaol' : 'Неактивный')}
+                                        />
+                                        <span>{String(r.name || '').toUpperCase()}</span>
+                                      </strong>
                                     </button>
                                     <div className="sa-restaurant-row-meta">
                                       <span className="sa-restaurant-row-meta-chip">

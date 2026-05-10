@@ -5724,8 +5724,27 @@ body::-webkit-scrollbar,
 }
 
 .sa-restaurant-name-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     color: #4f46e5;
     letter-spacing: 0.02em;
+}
+
+.sa-restaurant-active-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    border: 1px solid rgba(15, 23, 42, 0.15);
+}
+
+.sa-restaurant-active-dot.is-active {
+    background: #22c55e;
+}
+
+.sa-restaurant-active-dot.is-inactive {
+    background: #ef4444;
 }
 
 .sa-restaurant-name-link {
@@ -5744,6 +5763,28 @@ body::-webkit-scrollbar,
 .sa-restaurant-name-link:focus-visible .sa-restaurant-name-main {
     color: #4338ca;
     text-decoration: underline;
+}
+
+.sa-manage-restaurants-info-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    background: #fff;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+}
+
+.sa-manage-restaurants-info-btn:hover,
+.sa-manage-restaurants-info-btn:focus-visible {
+    color: #475569;
+    border-color: rgba(71, 85, 105, 0.45);
+    box-shadow: 0 0 0 0.2rem rgba(99, 102, 241, 0.14);
+    outline: none;
 }
 
 .sa-telegram-brand-icon {
