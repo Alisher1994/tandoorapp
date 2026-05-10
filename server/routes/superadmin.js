@@ -4112,14 +4112,14 @@ router.get('/restaurants', async (req, res) => {
     if (autoInactiveRequested) {
       where.push(`(
         r.is_active = false
-        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%401%'
-        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%403%'
-        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%404%'
-        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%unauthorized%'
-        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%forbidden%'
-        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%not found%'
-        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%bot was blocked%'
-        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%deactivated%'
+        OR LOWER(COALESCE(to_jsonb(r)->>'telegram_bot_meta_error', '')) LIKE '%401%'
+        OR LOWER(COALESCE(to_jsonb(r)->>'telegram_bot_meta_error', '')) LIKE '%403%'
+        OR LOWER(COALESCE(to_jsonb(r)->>'telegram_bot_meta_error', '')) LIKE '%404%'
+        OR LOWER(COALESCE(to_jsonb(r)->>'telegram_bot_meta_error', '')) LIKE '%unauthorized%'
+        OR LOWER(COALESCE(to_jsonb(r)->>'telegram_bot_meta_error', '')) LIKE '%forbidden%'
+        OR LOWER(COALESCE(to_jsonb(r)->>'telegram_bot_meta_error', '')) LIKE '%not found%'
+        OR LOWER(COALESCE(to_jsonb(r)->>'telegram_bot_meta_error', '')) LIKE '%bot was blocked%'
+        OR LOWER(COALESCE(to_jsonb(r)->>'telegram_bot_meta_error', '')) LIKE '%deactivated%'
         OR COALESCE((
           SELECT MAX(u.last_activity_at)
           FROM operator_restaurants opr
