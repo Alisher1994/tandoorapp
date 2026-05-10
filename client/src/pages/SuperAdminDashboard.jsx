@@ -1673,6 +1673,7 @@ function SuperAdminDashboard() {
   const foundersPasswordInputRef = useRef(null);
   const permanentDeletePasswordInputRef = useRef(null);
   const printFormBackgroundInputRef = useRef(null);
+  const catalogCopySubmitLockRef = useRef(false);
 
   // Modals
   const [showRestaurantModal, setShowRestaurantModal] = useState(false);
@@ -6548,12 +6549,23 @@ function SuperAdminDashboard() {
         name: String(product?.name_ru || product?.name_uz || `#${productId}`),
         unit: String(product?.unit || 'шт'),
         price: Number(product?.price || 0),
+        image: String(product?.thumb_url || product?.image_url || '').trim(),
         level1: path[0] || '-',
         level2: path[1] || '-',
         level3: path[2] || '-'
       };
     });
   }, [catalogCopyTree, catalogCopyCategoryPathById]);
+  const formatCatalogCopyPrice = useCallback((value) => {
+    const normalized = Number(value || 0);
+    if (!Number.isFinite(normalized)) return '0';
+    return normalized.toLocaleString('ru-RU');
+  }, []);
+  const isAllCatalogCopyRowsSelected = useMemo(() => {
+    if (!catalogCopyFlatProducts.length) return false;
+    const selectedSet = new Set((catalogCopySelectedProductIds || []).map((id) => Number(id)));
+    return catalogCopyFlatProducts.every((item) => selectedSet.has(Number(item.productId)));
+  }, [catalogCopyFlatProducts, catalogCopySelectedProductIds]);
   const catalogCopyEffectiveProductIds = useMemo(() => {
     const selectedCategorySet = new Set((catalogCopySelectedCategoryIds || []).map((id) => Number(id)));
     const explicitProductSet = new Set((catalogCopySelectedProductIds || []).map((id) => Number(id)));
@@ -8752,6 +8764,7 @@ function SuperAdminDashboard() {
   };
 
   const handleRunCatalogCopy = async () => {
+    if (catalogCopySubmitLockRef.current) return;
     const targetId = Number(catalogCopyTargetRestaurant?.id || 0);
     const sourceId = Number(catalogCopySourceRestaurantId || 0);
     if (!targetId || !sourceId) return;
@@ -8774,6 +8787,7 @@ function SuperAdminDashboard() {
 
     // Если дерево временно не загрузилось или пользователь ничего не отметил,
     // бэкенд выполнит fallback-копирование всего каталога источника.
+    catalogCopySubmitLockRef.current = true;
     setCatalogCopySubmitting(true);
     try {
       const response = await axios.post(`${API_URL}/superadmin/restaurants/${targetId}/copy-catalog`, {
@@ -8790,6 +8804,7 @@ function SuperAdminDashboard() {
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка копирования каталога');
     } finally {
+      catalogCopySubmitLockRef.current = false;
       setCatalogCopySubmitting(false);
     }
   };
@@ -20377,7 +20392,7 @@ function SuperAdminDashboard() {
         <Modal.Body>
           <Row className="g-3">
             <Col md={6}>
-              <Form.Group>
+              <Form.Group style={{ position: 'relative' }}>
                 <Form.Label>{language === 'uz' ? 'Manba do‘kon' : 'Магазин-источник'}</Form.Label>
                 <Form.Control
                   className="form-control-custom"
@@ -20402,7 +20417,7 @@ function SuperAdminDashboard() {
                   disabled={catalogCopySubmitting}
                 />
                 {catalogCopySourceSearchFocused && (
-                  <div className="mt-1 border rounded bg-white" style={{ maxHeight: 220, overflowY: 'auto' }}>
+                  <div className="border rounded bg-white" style={{ maxHeight: 220, overflowY: 'auto', position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 6, zIndex: 2200 }}>
                     {!filteredCatalogCopySourceOptions.length ? (
                       <div className="px-3 py-2 text-muted small">
                         {language === 'uz' ? "Do‘kon topilmadi" : 'Магазин не найден'}
@@ -20442,7 +20457,7 @@ function SuperAdminDashboard() {
             </Col>
           </Row>
 
-          <div className="mt-3 p-3 border rounded bg-light" style={{ maxHeight: 440, overflowY: 'auto' }}>
+          <div className="mt-3 p-3 border rounded bg-light" style={{ maxHeight: 560, overflowY: 'auto' }}>
             {catalogCopyTreeLoading && <div className="text-muted">{language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}</div>}
             {!catalogCopyTreeLoading && !catalogCopySourceRestaurantId && (
               <div className="text-muted">{language === 'uz' ? "Manba do‘konni tanlang" : 'Выберите магазин-источник'}</div>
@@ -20451,17 +20466,35 @@ function SuperAdminDashboard() {
               <div className="text-muted">{language === 'uz' ? "Manba do‘konda kategoriyalar topilmadi" : 'В источнике нет категорий'}</div>
             )}
             {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && catalogCopyFlatProducts.length > 0 && (
-              <Table hover size="sm" className="mb-0 align-middle">
+              <Table hover size="sm" className="mb-0 align-middle" style={{ fontSize: 13 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: 40 }} />
+                    <th style={{ width: 40 }}>
+                      <Form.Check
+                        type="checkbox"
+                        checked={isAllCatalogCopyRowsSelected}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          if (!checked) {
+                            setCatalogCopySelectedProductIds([]);
+                            return;
+                          }
+                          setCatalogCopySelectedProductIds(
+                            catalogCopyFlatProducts
+                              .map((item) => Number(item.productId))
+                              .filter((id) => Number.isFinite(id) && id > 0)
+                          );
+                        }}
+                      />
+                    </th>
                     <th style={{ width: 70 }}>№</th>
+                    <th style={{ width: 70 }}>{language === 'uz' ? 'Rasm' : 'Фото'}</th>
                     <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
                     <th style={{ width: 90 }}>{language === 'uz' ? "Birlik" : 'Ед.изм'}</th>
                     <th style={{ width: 120 }}>{language === 'uz' ? 'Narx' : 'Цена'}</th>
-                    <th>{language === 'uz' ? 'Kategoriya 1' : 'Категория 1'}</th>
-                    <th>{language === 'uz' ? 'Kategoriya 2' : 'Категория 2'}</th>
-                    <th>{language === 'uz' ? 'Kategoriya 3' : 'Категория 3'}</th>
+                    <th>{language === 'uz' ? 'Kat-1' : 'Кат-1'}</th>
+                    <th>{language === 'uz' ? 'Kat-2' : 'Кат-2'}</th>
+                    <th>{language === 'uz' ? 'Kat-3' : 'Кат-3'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -20483,9 +20516,20 @@ function SuperAdminDashboard() {
                           />
                         </td>
                         <td>{row.rowNo}</td>
+                        <td>
+                          {row.image ? (
+                            <img
+                              src={row.image.startsWith('http') ? row.image : `${API_URL.replace('/api', '')}${row.image}`}
+                              alt={row.name}
+                              style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, border: '1px solid #e5e7eb' }}
+                            />
+                          ) : (
+                            <div style={{ width: 36, height: 36, borderRadius: 6, background: '#f1f5f9', border: '1px solid #e5e7eb' }} />
+                          )}
+                        </td>
                         <td>{row.name}</td>
                         <td>{row.unit}</td>
-                        <td>{Number.isFinite(row.price) ? row.price : 0}</td>
+                        <td>{formatCatalogCopyPrice(row.price)}</td>
                         <td>{row.level1}</td>
                         <td>{row.level2}</td>
                         <td>{row.level3}</td>
