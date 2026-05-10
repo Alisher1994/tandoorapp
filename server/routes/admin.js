@@ -1890,15 +1890,29 @@ router.get('/restaurant/check-availability', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
+    const name = String(req.query?.name || '').trim();
+    const telegramBotToken = String(req.query?.telegram_bot_token || '').trim();
     const telegramGroupId = String(req.query?.telegram_group_id || '').trim();
     const availability = await checkRestaurantIdentityAvailability({
       client: pool,
+      name,
+      telegramBotToken,
       telegramGroupId,
       excludeRestaurantId: Number(restaurantId)
     });
 
     return res.json({
       ok: true,
+      name: {
+        value: name,
+        available: !availability.nameTaken,
+        conflict_restaurant_id: availability.nameConflictRestaurantId || null
+      },
+      telegram_bot_token: {
+        value: telegramBotToken,
+        available: !availability.tokenTaken,
+        conflict_restaurant_id: availability.tokenConflictRestaurantId || null
+      },
       telegram_group_id: {
         value: telegramGroupId,
         available: !availability.groupIdTaken,

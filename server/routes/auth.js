@@ -25,6 +25,7 @@ const {
   registerStoreViaWebApp,
   normalizeBotLanguage
 } = require('../services/storeRegistration');
+const { checkRestaurantIdentityAvailability } = require('../services/restaurantUniqueness');
 const { ensurePrintFormSettingsSchema } = require('../services/printFormSettings');
 const { generateStorePrintForm } = require('../services/printFormGenerator');
 
@@ -1493,6 +1494,45 @@ router.post('/telegram-webapp-store-registration/meta', loginRateLimiter, async 
   } catch (error) {
     console.error('telegram-webapp-store-registration/meta error:', error);
     return res.status(500).json({ error: 'Ошибка загрузки данных регистрации' });
+  }
+});
+
+router.post('/telegram-webapp-store-registration/check-availability', loginRateLimiter, async (req, res) => {
+  try {
+    const initData = String(req.body?.init_data || '').trim();
+    const launchToken = String(req.body?.launch_token || req.query?.launch_token || '').trim();
+    if (!initData && !launchToken) {
+      return res.status(400).json({ error: 'init_data или launch_token обязателен' });
+    }
+
+    const identity = await resolveStoreRegistrationIdentity({ initData, launchToken });
+    if (!identity.ok) {
+      if (identity.reason === 'central_bot_not_configured') {
+        return res.status(503).json({ error: 'Центральный бот не настроен' });
+      }
+      return res.status(401).json({ error: 'Недействительные данные Telegram', reason: identity.reason });
+    }
+
+    const storeName = String(req.body?.store_name || req.body?.storeName || '').trim();
+    const botToken = String(req.body?.bot_token || req.body?.botToken || '').trim();
+    const groupId = String(req.body?.group_id || req.body?.groupId || '').trim();
+
+    const availability = await checkRestaurantIdentityAvailability({
+      client: pool,
+      name: storeName,
+      telegramBotToken: botToken,
+      telegramGroupId: groupId
+    });
+
+    return res.json({
+      ok: true,
+      store_name: { value: storeName, available: !availability.nameTaken },
+      bot_token: { value: botToken, available: !availability.tokenTaken },
+      group_id: { value: groupId, available: !availability.groupIdTaken }
+    });
+  } catch (error) {
+    console.error('telegram-webapp-store-registration/check-availability error:', error);
+    return res.status(500).json({ error: 'Ошибка проверки доступности' });
   }
 });
 

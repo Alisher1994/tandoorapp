@@ -103,7 +103,10 @@ const i18n = {
     success: 'Регистрация завершена',
     successHint: 'Данные также отправлены вам в личный чат бота.',
     openSiteLabel: 'Открыть сайт магазина',
-    initDataMissing: 'Откройте форму через кнопку регистрации внутри Telegram-бота.'
+    initDataMissing: 'Откройте форму через кнопку регистрации внутри Telegram-бота.',
+    available: 'Доступно',
+    taken: 'Уже используется',
+    checking: 'Проверка...'
   },
   uz: {
     title: "Do'kon ro'yxatdan o'tkazish",
@@ -144,7 +147,10 @@ const i18n = {
     success: "Ro'yxatdan o'tish yakunlandi",
     successHint: "Ma'lumotlar botdagi shaxsiy chatga ham yuborildi.",
     openSiteLabel: 'Do‘kon saytini ochish',
-    initDataMissing: "Formani Telegram bot ichidagi ro'yxatdan o'tish tugmasi orqali oching."
+    initDataMissing: "Formani Telegram bot ichidagi ro'yxatdan o'tish tugmasi orqali oching.",
+    available: 'Mavjud',
+    taken: 'Band',
+    checking: 'Tekshirilmoqda...'
   }
 };
 
@@ -160,6 +166,12 @@ function TelegramStoreRegistration() {
   const [geoStatus, setGeoStatus] = useState('');
   const [logoUploading, setLogoUploading] = useState(false);
   const [successData, setSuccessData] = useState(null);
+  const [availability, setAvailability] = useState({
+    loading: false,
+    storeNameAvailable: true,
+    botTokenAvailable: true,
+    groupIdAvailable: true
+  });
   const logoFileInputRef = useRef(null);
   const [form, setForm] = useState({
     store_name: '',
@@ -268,6 +280,51 @@ function TelegramStoreRegistration() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  useEffect(() => {
+    const storeName = String(form.store_name || '').trim();
+    const botToken = String(form.bot_token || '').trim();
+    const groupId = String(form.group_id || '').trim();
+    if (!initData && !launchToken) return;
+    if (!storeName && !botToken && !groupId) {
+      setAvailability({
+        loading: false,
+        storeNameAvailable: true,
+        botTokenAvailable: true,
+        groupIdAvailable: true
+      });
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      setAvailability((prev) => ({ ...prev, loading: true }));
+      try {
+        const response = await axios.post(`${API_URL}/auth/telegram-webapp-store-registration/check-availability`, {
+          init_data: initData || undefined,
+          launch_token: launchToken || undefined,
+          store_name: storeName,
+          bot_token: botToken,
+          group_id: groupId
+        });
+        if (cancelled) return;
+        setAvailability({
+          loading: false,
+          storeNameAvailable: response?.data?.store_name?.available !== false,
+          botTokenAvailable: response?.data?.bot_token?.available !== false,
+          groupIdAvailable: response?.data?.group_id?.available !== false
+        });
+      } catch {
+        if (cancelled) return;
+        setAvailability((prev) => ({ ...prev, loading: false }));
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [initData, launchToken, form.store_name, form.bot_token, form.group_id]);
+
   const handleLogoUpload = async (file) => {
     if (!file) return;
     if (!String(file.type || '').startsWith('image/')) {
@@ -318,7 +375,11 @@ function TelegramStoreRegistration() {
     && form.phone.trim()
     && form.latitude.trim()
     && form.longitude.trim()
-  ), [initData, launchToken, form]);
+    && availability.storeNameAvailable
+    && (!form.bot_token.trim() || availability.botTokenAvailable)
+    && (!form.group_id.trim() || availability.groupIdAvailable)
+    && !availability.loading
+  ), [initData, launchToken, form, availability]);
 
   const sendWebAppCompletionSignal = () => {
     const tg = window.Telegram?.WebApp;
@@ -464,6 +525,11 @@ function TelegramStoreRegistration() {
             maxLength={255}
             required
           />
+          {!!String(form.store_name || '').trim() && (
+            <small className={availability.storeNameAvailable ? 'muted' : 'tg-error'}>
+              {availability.loading ? dict.checking : (availability.storeNameAvailable ? dict.available : dict.taken)}
+            </small>
+          )}
         </label>
 
         <label>
@@ -569,6 +635,11 @@ function TelegramStoreRegistration() {
             onChange={(e) => onFieldChange('bot_token', e.target.value)}
             maxLength={300}
           />
+          {!!String(form.bot_token || '').trim() && (
+            <small className={availability.botTokenAvailable ? 'muted' : 'tg-error'}>
+              {availability.loading ? dict.checking : (availability.botTokenAvailable ? dict.available : dict.taken)}
+            </small>
+          )}
         </label>
 
         <label>
@@ -578,6 +649,11 @@ function TelegramStoreRegistration() {
             onChange={(e) => onFieldChange('group_id', e.target.value)}
             maxLength={32}
           />
+          {!!String(form.group_id || '').trim() && (
+            <small className={availability.groupIdAvailable ? 'muted' : 'tg-error'}>
+              {availability.loading ? dict.checking : (availability.groupIdAvailable ? dict.available : dict.taken)}
+            </small>
+          )}
         </label>
 
         {error && <div className="tg-error">{error}</div>}
