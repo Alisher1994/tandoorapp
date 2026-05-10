@@ -8689,16 +8689,36 @@ function SuperAdminDashboard() {
     const targetId = Number(catalogCopyTargetRestaurant?.id || 0);
     const sourceId = Number(catalogCopySourceRestaurantId || 0);
     if (!targetId || !sourceId) return;
-    if (!catalogCopySelectedCategoryIds.length && !catalogCopySelectedProductIds.length) {
-      setError('Выберите хотя бы одну категорию или товар');
+    const treeCategories = Array.isArray(catalogCopyTree?.categories) ? catalogCopyTree.categories : [];
+    const treeProducts = Array.isArray(catalogCopyTree?.products) ? catalogCopyTree.products : [];
+    const uncategorizedProductIds = (catalogCopyProductsByCategory.get(0) || [])
+      .map((product) => Number(product?.id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    let categoryIdsToSend = Array.isArray(catalogCopySelectedCategoryIds) ? [...catalogCopySelectedCategoryIds] : [];
+    let productIdsToSend = Array.isArray(catalogCopySelectedProductIds) ? [...catalogCopySelectedProductIds] : [];
+
+    // Удобный дефолт: если ничего не выбрано вручную, копируем весь доступный каталог источника.
+    if (!categoryIdsToSend.length && !productIdsToSend.length) {
+      categoryIdsToSend = treeCategories
+        .map((category) => Number(category?.id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+      productIdsToSend = uncategorizedProductIds;
+    }
+
+    if (!categoryIdsToSend.length && !productIdsToSend.length) {
+      const hasAnySourceData = treeCategories.length > 0 || treeProducts.length > 0;
+      setError(hasAnySourceData
+        ? 'Нет доступных категорий/товаров для копирования'
+        : 'В источнике нет данных для копирования');
       return;
     }
     setCatalogCopySubmitting(true);
     try {
       const response = await axios.post(`${API_URL}/superadmin/restaurants/${targetId}/copy-catalog`, {
         source_restaurant_id: sourceId,
-        category_ids: catalogCopySelectedCategoryIds,
-        product_ids: catalogCopySelectedProductIds,
+        category_ids: categoryIdsToSend,
+        product_ids: productIdsToSend,
         include_all_products_in_categories: catalogCopyIncludeAllProducts
       }, {
         timeout: 180000
@@ -20345,7 +20365,17 @@ function SuperAdminDashboard() {
             {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && (
               (() => {
                 const uncategorizedProducts = catalogCopyProductsByCategory.get(0) || [];
-                if (!uncategorizedProducts.length) return null;
+                if (!uncategorizedProducts.length) {
+                  const hasRenderableCategories = (catalogCopyTree.categories || []).length > 0;
+                  if (hasRenderableCategories) return null;
+                  return (
+                    <div className="text-muted">
+                      {language === 'uz'
+                        ? "Manba do‘kondan ko‘chirish uchun kategoriya yoki mahsulot topilmadi"
+                        : 'В источнике не найдено категорий или товаров для копирования'}
+                    </div>
+                  );
+                }
                 return (
                   <div className="mb-2 p-2 border rounded bg-white">
                     <div className="fw-semibold mb-2">
