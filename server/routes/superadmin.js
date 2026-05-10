@@ -6843,7 +6843,7 @@ router.get('/restaurants/:id(\\d+)/catalog-copy-tree', async (req, res) => {
     }
 
     const productsResult = await pool.query(
-      `SELECT id, category_id, name_ru, name_uz, price, sort_order, in_stock
+      `SELECT id, category_id, name_ru, name_uz, price, unit, sort_order, in_stock, thumb_url, image_url, product_images
        FROM products
        WHERE restaurant_id = $1
        ORDER BY sort_order, id`,

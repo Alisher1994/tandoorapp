@@ -6542,6 +6542,8 @@ function SuperAdminDashboard() {
       const productId = Number(product?.id || 0);
       const categoryId = Number(product?.category_id || 0);
       const path = categoryId > 0 ? (catalogCopyCategoryPathById.get(categoryId) || []) : [];
+      const productImages = Array.isArray(product?.product_images) ? product.product_images : [];
+      const firstExtraImage = String(productImages.find((item) => typeof item === 'string' && item.trim()) || '').trim();
       return {
         rowNo: index + 1,
         productId,
@@ -6549,7 +6551,7 @@ function SuperAdminDashboard() {
         name: String(product?.name_ru || product?.name_uz || `#${productId}`),
         unit: String(product?.unit || 'шт'),
         price: Number(product?.price || 0),
-        image: String(product?.thumb_url || product?.image_url || '').trim(),
+        image: String(product?.thumb_url || product?.image_url || firstExtraImage || '').trim(),
         level1: path[0] || '-',
         level2: path[1] || '-',
         level3: path[2] || '-'
