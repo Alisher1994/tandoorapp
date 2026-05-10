@@ -1720,8 +1720,10 @@ function SuperAdminDashboard() {
     loading: false,
     nameAvailable: true,
     tokenAvailable: true,
+    groupAvailable: true,
     nameMessage: '',
-    tokenMessage: ''
+    tokenMessage: '',
+    groupMessage: ''
   });
   const [operatorForm, setOperatorForm] = useState({
     username: '',
@@ -8324,13 +8326,16 @@ function SuperAdminDashboard() {
     if (!showRestaurantModal) return;
     const rawName = String(restaurantForm?.name || '').trim();
     const rawToken = String(restaurantForm?.telegram_bot_token || '').trim();
-    if (!rawName && !rawToken) {
+    const rawGroupId = String(restaurantForm?.telegram_group_id || '').trim();
+    if (!rawName && !rawToken && !rawGroupId) {
       setRestaurantIdentityCheck({
         loading: false,
         nameAvailable: true,
         tokenAvailable: true,
+        groupAvailable: true,
         nameMessage: '',
-        tokenMessage: ''
+        tokenMessage: '',
+        groupMessage: ''
       });
       return;
     }
@@ -8343,6 +8348,7 @@ function SuperAdminDashboard() {
           params: {
             name: rawName,
             telegram_bot_token: rawToken,
+            telegram_group_id: rawGroupId,
             exclude_id: editingRestaurant?.id || ''
           },
           timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
@@ -8350,13 +8356,18 @@ function SuperAdminDashboard() {
         if (cancelled) return;
         const nameAvailable = response?.data?.name?.available !== false;
         const tokenAvailable = response?.data?.telegram_bot_token?.available !== false;
+        const groupAvailable = response?.data?.telegram_group_id?.available !== false;
         setRestaurantIdentityCheck({
           loading: false,
           nameAvailable,
           tokenAvailable,
+          groupAvailable,
           nameMessage: nameAvailable ? 'Название доступно' : 'Название уже занято',
           tokenMessage: rawToken
             ? (tokenAvailable ? 'Bot Token доступен' : 'Bot Token уже используется')
+            : '',
+          groupMessage: rawGroupId
+            ? (groupAvailable ? 'Group ID доступен' : 'Group ID уже используется')
             : ''
         });
       } catch {
@@ -8365,7 +8376,8 @@ function SuperAdminDashboard() {
           ...prev,
           loading: false,
           nameMessage: rawName ? '' : prev.nameMessage,
-          tokenMessage: rawToken ? '' : prev.tokenMessage
+          tokenMessage: rawToken ? '' : prev.tokenMessage,
+          groupMessage: rawGroupId ? '' : prev.groupMessage
         }));
       }
     }, 350);
@@ -8374,12 +8386,13 @@ function SuperAdminDashboard() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [showRestaurantModal, restaurantForm?.name, restaurantForm?.telegram_bot_token, editingRestaurant?.id]);
+  }, [showRestaurantModal, restaurantForm?.name, restaurantForm?.telegram_bot_token, restaurantForm?.telegram_group_id, editingRestaurant?.id]);
 
   const isRestaurantSaveBlocked = restaurantIdentityCheck.loading
     || !String(restaurantForm?.name || '').trim()
     || restaurantIdentityCheck.nameAvailable === false
-    || (String(restaurantForm?.telegram_bot_token || '').trim().length > 0 && restaurantIdentityCheck.tokenAvailable === false);
+    || (String(restaurantForm?.telegram_bot_token || '').trim().length > 0 && restaurantIdentityCheck.tokenAvailable === false)
+    || (String(restaurantForm?.telegram_group_id || '').trim().length > 0 && restaurantIdentityCheck.groupAvailable === false);
 
   const handleSaveRestaurant = async () => {
     if (isRestaurantSaveBlocked) {
@@ -20396,6 +20409,11 @@ function SuperAdminDashboard() {
                           onChange={(e) => setRestaurantForm({ ...restaurantForm, telegram_group_id: e.target.value })}
                           placeholder="-1001234567890"
                         />
+                        {!!String(restaurantForm.telegram_group_id || '').trim() && (
+                          <Form.Text className={restaurantIdentityCheck.groupAvailable ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
+                            {restaurantIdentityCheck.groupMessage || (restaurantIdentityCheck.groupAvailable ? 'Group ID доступен' : 'Group ID уже используется')}
+                          </Form.Text>
+                        )}
                         <Form.Text className="text-muted mt-2 d-block"><i className="bi bi-people"></i> ID группы или канала для получения заказов. Бот должен быть добавлен туда с правами администратора.</Form.Text>
                       </Form.Group>
                     </Col>

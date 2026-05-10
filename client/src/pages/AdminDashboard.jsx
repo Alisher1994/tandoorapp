@@ -2022,6 +2022,11 @@ function AdminDashboard() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
   const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
+  const [groupIdAvailability, setGroupIdAvailability] = useState({
+    loading: false,
+    available: true,
+    message: ''
+  });
   const restaurantLogoInputRef = useRef(null);
   const productModalBodyRef = useRef(null);
   const pendingProductModalScrollTopRef = useRef(null);
@@ -2792,7 +2797,43 @@ function AdminDashboard() {
   const isRestaurantSettingsDirty = Boolean(restaurantSettings)
     && currentRestaurantSettingsSignature !== restaurantSettingsBaselineSignature;
   const isTokenSaveLocked = isRestaurantBotTokenChanged && tokenSaveCountdown > 0;
-  const isRestaurantSettingsSaveDisabled = savingSettings || isTokenSaveLocked || !isRestaurantSettingsDirty;
+  const normalizedCurrentTelegramGroupId = String(restaurantSettings?.telegram_group_id || '').trim();
+  const isGroupIdTaken = normalizedCurrentTelegramGroupId.length > 0 && groupIdAvailability.available === false;
+  const isRestaurantSettingsSaveDisabled = savingSettings || isTokenSaveLocked || !isRestaurantSettingsDirty || groupIdAvailability.loading || isGroupIdTaken;
+
+  useEffect(() => {
+    const groupId = String(restaurantSettings?.telegram_group_id || '').trim();
+    if (!groupId) {
+      setGroupIdAvailability({ loading: false, available: true, message: '' });
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      setGroupIdAvailability((prev) => ({ ...prev, loading: true }));
+      try {
+        const response = await axios.get(`${API_URL}/admin/restaurant/check-availability`, {
+          params: { telegram_group_id: groupId },
+          timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+        });
+        if (cancelled) return;
+        const available = response?.data?.telegram_group_id?.available !== false;
+        setGroupIdAvailability({
+          loading: false,
+          available,
+          message: available ? 'Group ID доступен' : 'Group ID уже используется'
+        });
+      } catch {
+        if (cancelled) return;
+        setGroupIdAvailability({ loading: false, available: true, message: '' });
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [restaurantSettings?.telegram_group_id]);
   
   const fetchPrinters = useCallback(async () => {
     setLoadingPrinters(true);
@@ -5600,6 +5641,10 @@ function AdminDashboard() {
 
   const saveRestaurantSettings = async () => {
     if (isTokenSaveLocked) return;
+    if (isGroupIdTaken) {
+      setAlertMessage({ type: 'warning', text: 'Укажите свободный Group ID перед сохранением' });
+      return;
+    }
 
     setSavingSettings(true);
     try {
@@ -14610,6 +14655,11 @@ function AdminDashboard() {
                                     value={restaurantSettings.telegram_group_id || ''}
                                     onChange={e => setRestaurantSettings({ ...restaurantSettings, telegram_group_id: e.target.value })}
                                   />
+                                  {!!String(restaurantSettings.telegram_group_id || '').trim() && (
+                                    <Form.Text className={groupIdAvailability.available ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
+                                      {groupIdAvailability.loading ? 'Проверка...' : (groupIdAvailability.message || (groupIdAvailability.available ? 'Group ID доступен' : 'Group ID уже используется'))}
+                                    </Form.Text>
+                                  )}
                                 </Form.Group>
                               </Col>
                               <Col md={4}>

@@ -1885,6 +1885,32 @@ router.get('/restaurant/registration-qr', async (req, res) => {
 });
 
 // Обновить настройки текущего ресторана
+router.get('/restaurant/check-availability', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
+
+    const telegramGroupId = String(req.query?.telegram_group_id || '').trim();
+    const availability = await checkRestaurantIdentityAvailability({
+      client: pool,
+      telegramGroupId,
+      excludeRestaurantId: Number(restaurantId)
+    });
+
+    return res.json({
+      ok: true,
+      telegram_group_id: {
+        value: telegramGroupId,
+        available: !availability.groupIdTaken,
+        conflict_restaurant_id: availability.groupIdConflictRestaurantId || null
+      }
+    });
+  } catch (error) {
+    console.error('Check admin restaurant availability error:', error);
+    return res.status(500).json({ error: 'Ошибка проверки доступности' });
+  }
+});
+
 router.put('/restaurant', async (req, res) => {
   try {
     await ensureRestaurantCurrencySchema();
@@ -2027,6 +2053,7 @@ router.put('/restaurant', async (req, res) => {
       client: pool,
       name: nextNameForCheck,
       telegramBotToken: normalizedBotToken === null ? previousBotToken : normalizedBotToken,
+      telegramGroupId: normalizedGroupId === null ? String(previousRestaurant.telegram_group_id || '').trim() : normalizedGroupId,
       excludeRestaurantId: Number(restaurantId)
     });
     if (updateAvailability.nameTaken) {
@@ -2034,6 +2061,9 @@ router.put('/restaurant', async (req, res) => {
     }
     if (updateAvailability.tokenTaken) {
       return res.status(409).json({ error: 'Этот Bot Token уже используется в другом магазине' });
+    }
+    if (updateAvailability.groupIdTaken) {
+      return res.status(409).json({ error: 'Этот Group ID уже используется в другом магазине' });
     }
 
     let customerMigrationResult = null;

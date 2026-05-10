@@ -6303,13 +6303,17 @@ router.post('/restaurants', async (req, res) => {
     const createAvailability = await checkRestaurantIdentityAvailability({
       client: pool,
       name,
-      telegramBotToken: normalizedBotToken
+      telegramBotToken: normalizedBotToken,
+      telegramGroupId: normalizedGroupId
     });
     if (createAvailability.nameTaken) {
       return res.status(409).json({ error: 'Название магазина уже используется' });
     }
     if (createAvailability.tokenTaken) {
       return res.status(409).json({ error: 'Этот Bot Token уже используется в другом магазине' });
+    }
+    if (createAvailability.groupIdTaken) {
+      return res.status(409).json({ error: 'Этот Group ID уже используется в другом магазине' });
     }
 
     if (activityTypeId) {
@@ -6474,6 +6478,7 @@ router.put('/restaurants/:id', async (req, res) => {
       client: pool,
       name: nextNameForCheck,
       telegramBotToken: normalizedBotToken === null ? previousBotToken : normalizedBotToken,
+      telegramGroupId: normalizedGroupId === null ? String(oldValues.telegram_group_id || '').trim() : normalizedGroupId,
       excludeRestaurantId: Number(req.params.id)
     });
     if (updateAvailability.nameTaken) {
@@ -6481,6 +6486,9 @@ router.put('/restaurants/:id', async (req, res) => {
     }
     if (updateAvailability.tokenTaken) {
       return res.status(409).json({ error: 'Этот Bot Token уже используется в другом магазине' });
+    }
+    if (updateAvailability.groupIdTaken) {
+      return res.status(409).json({ error: 'Этот Group ID уже используется в другом магазине' });
     }
 
     let customerMigrationResult = null;
@@ -6723,12 +6731,14 @@ router.get('/restaurants/check-availability', async (req, res) => {
   try {
     const name = String(req.query?.name || '').trim();
     const telegramBotToken = String(req.query?.telegram_bot_token || '').trim();
+    const telegramGroupId = String(req.query?.telegram_group_id || '').trim();
     const excludeRestaurantId = Number.parseInt(req.query?.exclude_id, 10);
 
     const availability = await checkRestaurantIdentityAvailability({
       client: pool,
       name,
       telegramBotToken,
+      telegramGroupId,
       excludeRestaurantId: Number.isFinite(excludeRestaurantId) ? excludeRestaurantId : null
     });
 
@@ -6743,6 +6753,11 @@ router.get('/restaurants/check-availability', async (req, res) => {
         value: telegramBotToken,
         available: !availability.tokenTaken,
         conflict_restaurant_id: availability.tokenConflictRestaurantId || null
+      },
+      telegram_group_id: {
+        value: telegramGroupId,
+        available: !availability.groupIdTaken,
+        conflict_restaurant_id: availability.groupIdConflictRestaurantId || null
       }
     });
   } catch (error) {

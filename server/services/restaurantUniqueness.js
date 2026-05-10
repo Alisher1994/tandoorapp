@@ -1,26 +1,32 @@
 const normalizeRestaurantNameForCompare = (value) => String(value || '').trim().toLowerCase();
 
 const normalizeRestaurantTokenForCompare = (value) => String(value || '').trim();
+const normalizeRestaurantGroupIdForCompare = (value) => String(value || '').trim();
 
 const checkRestaurantIdentityAvailability = async ({
   client,
   name,
   telegramBotToken,
+  telegramGroupId,
   excludeRestaurantId = null
 }) => {
   const normalizedName = normalizeRestaurantNameForCompare(name);
   const normalizedToken = normalizeRestaurantTokenForCompare(telegramBotToken);
+  const normalizedGroupId = normalizeRestaurantGroupIdForCompare(telegramGroupId);
   const hasName = normalizedName.length > 0;
   const hasToken = normalizedToken.length > 0;
+  const hasGroupId = normalizedGroupId.length > 0;
 
   const result = {
     nameTaken: false,
     nameConflictRestaurantId: null,
     tokenTaken: false,
-    tokenConflictRestaurantId: null
+    tokenConflictRestaurantId: null,
+    groupIdTaken: false,
+    groupIdConflictRestaurantId: null
   };
 
-  if (!hasName && !hasToken) return result;
+  if (!hasName && !hasToken && !hasGroupId) return result;
 
   const params = [];
   let index = 1;
@@ -35,9 +41,13 @@ const checkRestaurantIdentityAvailability = async ({
     params.push(normalizedToken);
     whereParts.push(`BTRIM(COALESCE(telegram_bot_token, '')) = $${index++}`);
   }
+  if (hasGroupId) {
+    params.push(normalizedGroupId);
+    whereParts.push(`BTRIM(COALESCE(telegram_group_id, '')) = $${index++}`);
+  }
 
   let query = `
-    SELECT id, name, telegram_bot_token
+    SELECT id, name, telegram_bot_token, telegram_group_id
     FROM restaurants
     WHERE (${whereParts.join(' OR ')})
   `;
@@ -59,7 +69,12 @@ const checkRestaurantIdentityAvailability = async ({
       result.tokenTaken = true;
       result.tokenConflictRestaurantId = Number(row.id);
     }
-    if (result.nameTaken && result.tokenTaken) break;
+    const rowGroupId = normalizeRestaurantGroupIdForCompare(row.telegram_group_id);
+    if (!result.groupIdTaken && hasGroupId && rowGroupId === normalizedGroupId) {
+      result.groupIdTaken = true;
+      result.groupIdConflictRestaurantId = Number(row.id);
+    }
+    if (result.nameTaken && result.tokenTaken && result.groupIdTaken) break;
   }
 
   return result;
@@ -68,5 +83,6 @@ const checkRestaurantIdentityAvailability = async ({
 module.exports = {
   checkRestaurantIdentityAvailability,
   normalizeRestaurantNameForCompare,
-  normalizeRestaurantTokenForCompare
+  normalizeRestaurantTokenForCompare,
+  normalizeRestaurantGroupIdForCompare
 };

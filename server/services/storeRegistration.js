@@ -293,10 +293,12 @@ const registerStoreViaWebApp = async ({
     const createAvailability = await checkRestaurantIdentityAvailability({
       client,
       name: storeName,
-      telegramBotToken: botTokenRaw || null
+      telegramBotToken: botTokenRaw || null,
+      telegramGroupId: groupId || null
     });
     if (createAvailability.nameTaken) throw new Error('STORE_NAME_TAKEN');
     if (createAvailability.tokenTaken) throw new Error('BOT_TOKEN_TAKEN');
+    if (createAvailability.groupIdTaken) throw new Error('GROUP_ID_TAKEN');
 
     const restaurantResult = await client.query(`
       INSERT INTO restaurants (
