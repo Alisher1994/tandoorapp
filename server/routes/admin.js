@@ -42,6 +42,7 @@ const {
 const { ensurePrintFormSettingsSchema } = require('../services/printFormSettings');
 const { generateStorePrintForm } = require('../services/printFormGenerator');
 const printerManager = require('../services/printerManager');
+const { checkRestaurantIdentityAvailability } = require('../services/restaurantUniqueness');
 const superadminRoutes = require('./superadmin');
 
 const router = express.Router();
@@ -2020,6 +2021,20 @@ router.put('/restaurant', async (req, res) => {
       ? previousBotToken
       : normalizeRestaurantTokenForCompare(normalizedBotToken);
     const isTokenChanging = normalizedBotToken !== null && nextBotToken !== previousBotToken;
+    const nextNameForCheck = String(name ?? previousRestaurant.name ?? '').trim();
+
+    const updateAvailability = await checkRestaurantIdentityAvailability({
+      client: pool,
+      name: nextNameForCheck,
+      telegramBotToken: normalizedBotToken === null ? previousBotToken : normalizedBotToken,
+      excludeRestaurantId: Number(restaurantId)
+    });
+    if (updateAvailability.nameTaken) {
+      return res.status(409).json({ error: 'Название магазина уже используется' });
+    }
+    if (updateAvailability.tokenTaken) {
+      return res.status(409).json({ error: 'Этот Bot Token уже используется в другом магазине' });
+    }
 
     let customerMigrationResult = null;
     if (isTokenChanging && nextBotToken) {

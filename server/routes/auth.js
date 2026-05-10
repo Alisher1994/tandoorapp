@@ -363,7 +363,9 @@ const registrationErrorMap = {
   FULL_NAME_REQUIRED: { status: 400, error: 'ФИО оператора обязательно' },
   PHONE_INVALID: { status: 400, error: 'Некорректный номер телефона' },
   LOCATION_REQUIRED: { status: 400, error: 'Локация обязательна' },
-  INVALID_TELEGRAM_ID: { status: 400, error: 'Некорректный Telegram ID' }
+  INVALID_TELEGRAM_ID: { status: 400, error: 'Некорректный Telegram ID' },
+  STORE_NAME_TAKEN: { status: 409, error: 'Название магазина уже используется' },
+  BOT_TOKEN_TAKEN: { status: 409, error: 'Этот Bot Token уже используется в другом магазине' }
 };
 
 function mapStoreRegistrationError(error) {

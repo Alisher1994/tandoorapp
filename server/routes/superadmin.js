@@ -51,6 +51,9 @@ const {
   refreshSuperadminServerMonitoringSchedule,
   normalizeStatsInterval
 } = require('../services/superadminServerMonitoring');
+const {
+  checkRestaurantIdentityAvailability
+} = require('../services/restaurantUniqueness');
 
 // All routes require superadmin authentication
 router.use(authenticate);
@@ -6207,7 +6210,7 @@ router.patch('/restaurants/:id/quick-settings', async (req, res) => {
 
 
 // Получить один ресторан
-router.get('/restaurants/:id', async (req, res) => {
+router.get('/restaurants/:id(\\d+)', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
@@ -6295,6 +6298,18 @@ router.post('/restaurants', async (req, res) => {
 
     if (!name) {
       return res.status(400).json({ error: 'Название ресторана обязательно' });
+    }
+
+    const createAvailability = await checkRestaurantIdentityAvailability({
+      client: pool,
+      name,
+      telegramBotToken: normalizedBotToken
+    });
+    if (createAvailability.nameTaken) {
+      return res.status(409).json({ error: 'Название магазина уже используется' });
+    }
+    if (createAvailability.tokenTaken) {
+      return res.status(409).json({ error: 'Этот Bot Token уже используется в другом магазине' });
     }
 
     if (activityTypeId) {
@@ -6441,6 +6456,7 @@ router.put('/restaurants/:id', async (req, res) => {
       return res.status(404).json({ error: 'Ресторан не найден' });
     }
     const oldValues = oldResult.rows[0];
+    const nextNameForCheck = String(name ?? oldValues.name ?? '').trim();
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, oldValues.logo_display_mode || 'square');
     const normalizedUiTheme = normalizeUiTheme(ui_theme, oldValues.ui_theme || 'classic');
     const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(currency_code, oldValues.currency_code || 'uz');
@@ -6453,6 +6469,19 @@ router.put('/restaurants/:id', async (req, res) => {
       ? previousBotToken
       : normalizeRestaurantTokenForCompare(normalizedBotToken);
     const isTokenChanging = normalizedBotToken !== null && nextBotToken !== previousBotToken;
+
+    const updateAvailability = await checkRestaurantIdentityAvailability({
+      client: pool,
+      name: nextNameForCheck,
+      telegramBotToken: normalizedBotToken === null ? previousBotToken : normalizedBotToken,
+      excludeRestaurantId: Number(req.params.id)
+    });
+    if (updateAvailability.nameTaken) {
+      return res.status(409).json({ error: 'Название магазина уже используется' });
+    }
+    if (updateAvailability.tokenTaken) {
+      return res.status(409).json({ error: 'Этот Bot Token уже используется в другом магазине' });
+    }
 
     let customerMigrationResult = null;
     if (isTokenChanging && nextBotToken) {
@@ -6687,6 +6716,38 @@ router.put('/restaurants/:id', async (req, res) => {
   } catch (error) {
     console.error('Update restaurant error:', error);
     res.status(500).json({ error: 'Ошибка обновления ресторана' });
+  }
+});
+
+router.get('/restaurants/check-availability', async (req, res) => {
+  try {
+    const name = String(req.query?.name || '').trim();
+    const telegramBotToken = String(req.query?.telegram_bot_token || '').trim();
+    const excludeRestaurantId = Number.parseInt(req.query?.exclude_id, 10);
+
+    const availability = await checkRestaurantIdentityAvailability({
+      client: pool,
+      name,
+      telegramBotToken,
+      excludeRestaurantId: Number.isFinite(excludeRestaurantId) ? excludeRestaurantId : null
+    });
+
+    return res.json({
+      ok: true,
+      name: {
+        value: name,
+        available: !availability.nameTaken,
+        conflict_restaurant_id: availability.nameConflictRestaurantId || null
+      },
+      telegram_bot_token: {
+        value: telegramBotToken,
+        available: !availability.tokenTaken,
+        conflict_restaurant_id: availability.tokenConflictRestaurantId || null
+      }
+    });
+  } catch (error) {
+    console.error('Check restaurant availability error:', error);
+    return res.status(500).json({ error: 'Ошибка проверки доступности' });
   }
 });
 

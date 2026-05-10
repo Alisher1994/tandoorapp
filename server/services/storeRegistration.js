@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../database/connection');
 const { reloadMultiBots } = require('../bot/multiBotManager');
+const { checkRestaurantIdentityAvailability } = require('./restaurantUniqueness');
 
 const BOT_LANGUAGES = new Set(['ru', 'uz']);
 const WEB_APP_CACHE_VERSION = String(
@@ -288,6 +289,14 @@ const registerStoreViaWebApp = async ({
       'SELECT default_starting_balance, default_order_cost FROM billing_settings WHERE id = 1'
     );
     const settings = settingsResult.rows[0] || { default_starting_balance: 100000, default_order_cost: 1000 };
+
+    const createAvailability = await checkRestaurantIdentityAvailability({
+      client,
+      name: storeName,
+      telegramBotToken: botTokenRaw || null
+    });
+    if (createAvailability.nameTaken) throw new Error('STORE_NAME_TAKEN');
+    if (createAvailability.tokenTaken) throw new Error('BOT_TOKEN_TAKEN');
 
     const restaurantResult = await client.query(`
       INSERT INTO restaurants (

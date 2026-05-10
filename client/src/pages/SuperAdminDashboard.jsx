@@ -1716,6 +1716,13 @@ function SuperAdminDashboard() {
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
+  const [restaurantIdentityCheck, setRestaurantIdentityCheck] = useState({
+    loading: false,
+    nameAvailable: true,
+    tokenAvailable: true,
+    nameMessage: '',
+    tokenMessage: ''
+  });
   const [operatorForm, setOperatorForm] = useState({
     username: '',
     password: '',
@@ -8313,7 +8320,72 @@ function SuperAdminDashboard() {
     setShowRestaurantModal(true);
   };
 
+  useEffect(() => {
+    if (!showRestaurantModal) return;
+    const rawName = String(restaurantForm?.name || '').trim();
+    const rawToken = String(restaurantForm?.telegram_bot_token || '').trim();
+    if (!rawName && !rawToken) {
+      setRestaurantIdentityCheck({
+        loading: false,
+        nameAvailable: true,
+        tokenAvailable: true,
+        nameMessage: '',
+        tokenMessage: ''
+      });
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      setRestaurantIdentityCheck((prev) => ({ ...prev, loading: true }));
+      try {
+        const response = await axios.get(`${API_URL}/superadmin/restaurants/check-availability`, {
+          params: {
+            name: rawName,
+            telegram_bot_token: rawToken,
+            exclude_id: editingRestaurant?.id || ''
+          },
+          timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+        });
+        if (cancelled) return;
+        const nameAvailable = response?.data?.name?.available !== false;
+        const tokenAvailable = response?.data?.telegram_bot_token?.available !== false;
+        setRestaurantIdentityCheck({
+          loading: false,
+          nameAvailable,
+          tokenAvailable,
+          nameMessage: nameAvailable ? 'Название доступно' : 'Название уже занято',
+          tokenMessage: rawToken
+            ? (tokenAvailable ? 'Bot Token доступен' : 'Bot Token уже используется')
+            : ''
+        });
+      } catch {
+        if (cancelled) return;
+        setRestaurantIdentityCheck((prev) => ({
+          ...prev,
+          loading: false,
+          nameMessage: rawName ? '' : prev.nameMessage,
+          tokenMessage: rawToken ? '' : prev.tokenMessage
+        }));
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [showRestaurantModal, restaurantForm?.name, restaurantForm?.telegram_bot_token, editingRestaurant?.id]);
+
+  const isRestaurantSaveBlocked = restaurantIdentityCheck.loading
+    || !String(restaurantForm?.name || '').trim()
+    || restaurantIdentityCheck.nameAvailable === false
+    || (String(restaurantForm?.telegram_bot_token || '').trim().length > 0 && restaurantIdentityCheck.tokenAvailable === false);
+
   const handleSaveRestaurant = async () => {
+    if (isRestaurantSaveBlocked) {
+      setError('Исправьте занятые поля перед сохранением');
+      return;
+    }
     try {
       if (editingRestaurant) {
         await axios.put(`${API_URL}/superadmin/restaurants/${editingRestaurant.id}`, restaurantForm);
@@ -20134,6 +20206,11 @@ function SuperAdminDashboard() {
                           onChange={(e) => setRestaurantForm({ ...restaurantForm, name: e.target.value })}
                           placeholder="Название магазина"
                         />
+                        {!!String(restaurantForm.name || '').trim() && (
+                          <Form.Text className={restaurantIdentityCheck.nameAvailable ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
+                            {restaurantIdentityCheck.nameMessage || (restaurantIdentityCheck.nameAvailable ? 'Название доступно' : 'Название уже занято')}
+                          </Form.Text>
+                        )}
                       </Form.Group>
                     </Col>
                     <Col md={6}>
@@ -20302,6 +20379,11 @@ function SuperAdminDashboard() {
                       onChange={(e) => setRestaurantForm({ ...restaurantForm, telegram_bot_token: e.target.value })}
                       placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
                     />
+                    {!!String(restaurantForm.telegram_bot_token || '').trim() && (
+                      <Form.Text className={restaurantIdentityCheck.tokenAvailable ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
+                        {restaurantIdentityCheck.tokenMessage || (restaurantIdentityCheck.tokenAvailable ? 'Bot Token доступен' : 'Bot Token уже используется')}
+                      </Form.Text>
+                    )}
                     <Form.Text className="text-muted mt-2 d-block"><i className="bi bi-robot"></i> Токен вашего бота, выданный @BotFather</Form.Text>
                   </Form.Group>
 
@@ -20555,7 +20637,9 @@ function SuperAdminDashboard() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowRestaurantModal(false)}>{t('saCancel')}</Button>
-          <Button variant="primary" onClick={handleSaveRestaurant}>{t('saSave')}</Button>
+          <Button variant="primary" onClick={handleSaveRestaurant} disabled={isRestaurantSaveBlocked}>
+            {restaurantIdentityCheck.loading ? 'Проверка...' : t('saSave')}
+          </Button>
         </Modal.Footer>
       </Modal>
 
