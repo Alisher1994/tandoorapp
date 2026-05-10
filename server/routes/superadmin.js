@@ -6842,22 +6842,45 @@ router.get('/restaurants/:id(\\d+)/catalog-copy-tree', async (req, res) => {
       return res.status(404).json({ error: 'Магазин-источник не найден' });
     }
 
-    const [categoriesResult, productsResult] = await Promise.all([
-      pool.query(
-        `SELECT id, parent_id, name_ru, name_uz, sort_order
-         FROM categories
-         WHERE restaurant_id = $1
-         ORDER BY sort_order, id`,
-        [sourceRestaurantId]
+    const productsResult = await pool.query(
+      `SELECT id, category_id, name_ru, name_uz, price, sort_order, in_stock
+       FROM products
+       WHERE restaurant_id = $1
+       ORDER BY sort_order, id`,
+      [sourceRestaurantId]
+    );
+    const sourceProductCategoryIds = Array.from(new Set(
+      (productsResult.rows || [])
+        .map((item) => Number.parseInt(item?.category_id, 10))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    ));
+
+    const categoriesResult = await pool.query(
+      `
+      WITH RECURSIVE product_category_tree AS (
+        SELECT c.id, c.parent_id, c.name_ru, c.name_uz, c.sort_order
+        FROM categories c
+        WHERE c.id = ANY($1::int[])
+        UNION
+        SELECT parent.id, parent.parent_id, parent.name_ru, parent.name_uz, parent.sort_order
+        FROM categories parent
+        INNER JOIN product_category_tree pct ON pct.parent_id = parent.id
       ),
-      pool.query(
-        `SELECT id, category_id, name_ru, name_uz, price, sort_order, in_stock
-         FROM products
-         WHERE restaurant_id = $1
-         ORDER BY sort_order, id`,
-        [sourceRestaurantId]
+      source_owned_categories AS (
+        SELECT id, parent_id, name_ru, name_uz, sort_order
+        FROM categories
+        WHERE restaurant_id = $2
       )
-    ]);
+      SELECT DISTINCT id, parent_id, name_ru, name_uz, sort_order
+      FROM (
+        SELECT * FROM product_category_tree
+        UNION ALL
+        SELECT * FROM source_owned_categories
+      ) merged
+      ORDER BY sort_order, id
+      `,
+      [sourceProductCategoryIds, sourceRestaurantId]
+    );
 
     return res.json({
       source_restaurant: sourceRestaurantResult.rows[0],
@@ -6910,15 +6933,6 @@ router.post('/restaurants/:id(\\d+)/copy-catalog', async (req, res) => {
       return res.status(404).json({ error: 'Целевой магазин не найден' });
     }
 
-    const sourceCategoriesResult = await client.query(
-      `SELECT id, parent_id, name_ru, name_uz, image_url, sort_order, is_active
-       FROM categories
-       WHERE restaurant_id = $1`,
-      [sourceRestaurantId]
-    );
-    const sourceCategories = sourceCategoriesResult.rows;
-    const categoryById = new Map(sourceCategories.map((item) => [Number(item.id), item]));
-
     const sourceProductsResult = await client.query(
       `SELECT id, category_id, name_ru, name_uz, description_ru, description_uz,
               image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order,
@@ -6929,6 +6943,39 @@ router.post('/restaurants/:id(\\d+)/copy-catalog', async (req, res) => {
       [sourceRestaurantId]
     );
     const allProducts = sourceProductsResult.rows;
+    const sourceProductCategoryIds = Array.from(new Set(
+      allProducts
+        .map((item) => Number.parseInt(item?.category_id, 10))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    ));
+
+    const sourceCategoriesResult = await client.query(
+      `
+      WITH RECURSIVE product_category_tree AS (
+        SELECT c.id, c.parent_id, c.name_ru, c.name_uz, c.image_url, c.sort_order, c.is_active
+        FROM categories c
+        WHERE c.id = ANY($1::int[])
+        UNION
+        SELECT parent.id, parent.parent_id, parent.name_ru, parent.name_uz, parent.image_url, parent.sort_order, parent.is_active
+        FROM categories parent
+        INNER JOIN product_category_tree pct ON pct.parent_id = parent.id
+      ),
+      source_owned_categories AS (
+        SELECT id, parent_id, name_ru, name_uz, image_url, sort_order, is_active
+        FROM categories
+        WHERE restaurant_id = $2
+      )
+      SELECT DISTINCT id, parent_id, name_ru, name_uz, image_url, sort_order, is_active
+      FROM (
+        SELECT * FROM product_category_tree
+        UNION ALL
+        SELECT * FROM source_owned_categories
+      ) merged
+      `,
+      [sourceProductCategoryIds, sourceRestaurantId]
+    );
+    const sourceCategories = sourceCategoriesResult.rows;
+    const categoryById = new Map(sourceCategories.map((item) => [Number(item.id), item]));
 
     const noManualSelection = selectedCategoryIds.length === 0 && selectedProductIds.length === 0;
     const categoryIdsToCopy = new Set(selectedCategoryIds);
