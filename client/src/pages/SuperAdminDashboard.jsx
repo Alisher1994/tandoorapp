@@ -6427,14 +6427,17 @@ function SuperAdminDashboard() {
   ), [restaurantWorkflowTabs]);
   const restaurantWorkflowCounts = useMemo(() => {
     const counts = { all: 0 };
-    (restaurants?.restaurants || []).forEach((restaurant) => {
+    const source = (Array.isArray(allRestaurants) && allRestaurants.length > 0)
+      ? allRestaurants
+      : (restaurants?.restaurants || []);
+    source.forEach((restaurant) => {
       const workflowMeta = deriveRestaurantWorkflowMeta(restaurant);
       const effectiveStatus = normalizeRestaurantWorkflowStatusValue(workflowMeta.effective, 'new');
       counts.all += 1;
       counts[effectiveStatus] = (counts[effectiveStatus] || 0) + 1;
     });
     return counts;
-  }, [restaurants]);
+  }, [restaurants, allRestaurants]);
 
   const filteredRestaurants = useMemo(() => {
     const source = restaurants?.restaurants || [];
