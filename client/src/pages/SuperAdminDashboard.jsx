@@ -1680,6 +1680,7 @@ function SuperAdminDashboard() {
   const [editingOperator, setEditingOperator] = useState(null);
   const [catalogCopyTargetRestaurant, setCatalogCopyTargetRestaurant] = useState(null);
   const [catalogCopySourceRestaurantId, setCatalogCopySourceRestaurantId] = useState('');
+  const [catalogCopySourceRestaurantSearch, setCatalogCopySourceRestaurantSearch] = useState('');
   const [catalogCopyTreeLoading, setCatalogCopyTreeLoading] = useState(false);
   const [catalogCopySubmitting, setCatalogCopySubmitting] = useState(false);
   const [catalogCopyTree, setCatalogCopyTree] = useState({ categories: [], products: [] });
@@ -6505,6 +6506,25 @@ function SuperAdminDashboard() {
     });
     return map;
   }, [catalogCopyTree]);
+  const catalogCopySourceOptions = useMemo(() => {
+    const targetId = Number(catalogCopyTargetRestaurant?.id || 0);
+    const baseSource = Array.isArray(allRestaurants) && allRestaurants.length
+      ? allRestaurants
+      : (Array.isArray(restaurants?.restaurants) ? restaurants.restaurants : []);
+    return baseSource
+      .filter((item) => Number(item?.id) !== targetId)
+      .map((item) => ({
+        value: String(item.id),
+        label: `${item.name} (ID ${item.id})`,
+        search: `${item.name || ''} ${item.id || ''}`.toLowerCase()
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+  }, [allRestaurants, restaurants, catalogCopyTargetRestaurant?.id]);
+  const filteredCatalogCopySourceOptions = useMemo(() => {
+    const query = String(catalogCopySourceRestaurantSearch || '').trim().toLowerCase();
+    if (!query) return catalogCopySourceOptions;
+    return catalogCopySourceOptions.filter((item) => item.search.includes(query));
+  }, [catalogCopySourceOptions, catalogCopySourceRestaurantSearch]);
 
   useEffect(() => {
     const visibleIds = new Set((paginatedRestaurants || []).map((item) => Number(item?.id)).filter((id) => Number.isFinite(id) && id > 0));
@@ -8619,6 +8639,7 @@ function SuperAdminDashboard() {
   const openCatalogCopyModal = (restaurant) => {
     setCatalogCopyTargetRestaurant(restaurant || null);
     setCatalogCopySourceRestaurantId('');
+    setCatalogCopySourceRestaurantSearch('');
     setCatalogCopyTree({ categories: [], products: [] });
     setCatalogCopySelectedCategoryIds([]);
     setCatalogCopySelectedProductIds([]);
@@ -20271,24 +20292,28 @@ function SuperAdminDashboard() {
             <Col md={6}>
               <Form.Group>
                 <Form.Label>{language === 'uz' ? 'Manba do‘kon' : 'Магазин-источник'}</Form.Label>
-                <Form.Select
+                <CustomSelectDropdown
                   value={catalogCopySourceRestaurantId}
-                  onChange={(e) => {
-                    const next = e.target.value;
+                  onChange={(next) => {
                     setCatalogCopySourceRestaurantId(next);
-                    if (next) loadCatalogCopyTree(next);
+                    if (next) {
+                      loadCatalogCopyTree(next);
+                    } else {
+                      setCatalogCopyTree({ categories: [], products: [] });
+                      setCatalogCopySelectedCategoryIds([]);
+                      setCatalogCopySelectedProductIds([]);
+                      setCatalogCopyReport(null);
+                    }
                   }}
+                  options={filteredCatalogCopySourceOptions}
+                  placeholder={language === 'uz' ? 'Tanlang' : 'Выберите'}
+                  searchable
+                  searchValue={catalogCopySourceRestaurantSearch}
+                  onSearchChange={setCatalogCopySourceRestaurantSearch}
+                  searchPlaceholder={language === 'uz' ? 'Qidirish...' : 'Поиск...'}
+                  noDataLabel={language === 'uz' ? "Do‘kon topilmadi" : 'Магазин не найден'}
                   disabled={catalogCopySubmitting}
-                >
-                  <option value="">{language === 'uz' ? "Tanlang" : 'Выберите'}</option>
-                  {(Array.isArray(filteredRestaurants) ? filteredRestaurants : [])
-                    .filter((item) => Number(item?.id) !== Number(catalogCopyTargetRestaurant?.id))
-                    .map((item) => (
-                      <option key={`catalog-copy-source-${item.id}`} value={String(item.id)}>
-                        {item.name} (ID {item.id})
-                      </option>
-                    ))}
-                </Form.Select>
+                />
               </Form.Group>
             </Col>
             <Col md={6} className="d-flex align-items-end">
@@ -20308,8 +20333,42 @@ function SuperAdminDashboard() {
             {!catalogCopyTreeLoading && !catalogCopySourceRestaurantId && (
               <div className="text-muted">{language === 'uz' ? "Manba do‘konni tanlang" : 'Выберите магазин-источник'}</div>
             )}
-            {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && (catalogCopyTree.categories || []).length === 0 && (
+            {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && (catalogCopyTree.categories || []).length === 0 && (catalogCopyTree.products || []).length === 0 && (
               <div className="text-muted">{language === 'uz' ? "Manba do‘konda kategoriyalar topilmadi" : 'В источнике нет категорий'}</div>
+            )}
+            {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && (
+              (() => {
+                const uncategorizedProducts = catalogCopyProductsByCategory.get(0) || [];
+                if (!uncategorizedProducts.length) return null;
+                return (
+                  <div className="mb-2 p-2 border rounded bg-white">
+                    <div className="fw-semibold mb-2">
+                      {language === 'uz' ? "Kategoriyasiz mahsulotlar" : 'Товары без категории'} ({uncategorizedProducts.length})
+                    </div>
+                    <div className="d-flex flex-column gap-1">
+                      {uncategorizedProducts.map((product) => {
+                        const productId = Number(product.id);
+                        const productChecked = catalogCopySelectedProductIds.includes(productId);
+                        return (
+                          <Form.Check
+                            key={`catalog-copy-product-no-category-check-${productId}`}
+                            type="checkbox"
+                            id={`catalog-copy-product-no-category-check-${productId}`}
+                            checked={productChecked}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setCatalogCopySelectedProductIds((prev) => (
+                                checked ? Array.from(new Set([...prev, productId])) : prev.filter((id) => id !== productId)
+                              ));
+                            }}
+                            label={`${product.name_ru || product.name_uz || `#${productId}`} — ${product.price || 0}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()
             )}
             {!catalogCopyTreeLoading && (catalogCopyTree.categories || []).map((category) => {
               const categoryId = Number(category.id);
