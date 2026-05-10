@@ -6509,6 +6509,70 @@ function SuperAdminDashboard() {
     });
     return map;
   }, [catalogCopyTree]);
+  const catalogCopyCategoryPathById = useMemo(() => {
+    const result = new Map();
+    const categories = Array.isArray(catalogCopyTree?.categories) ? catalogCopyTree.categories : [];
+    const byId = new Map();
+    categories.forEach((category) => {
+      const id = Number(category?.id);
+      if (Number.isFinite(id) && id > 0) byId.set(id, category);
+    });
+    const buildPath = (categoryId) => {
+      const path = [];
+      const guard = new Set();
+      let cursor = Number(categoryId || 0);
+      while (Number.isFinite(cursor) && cursor > 0 && !guard.has(cursor)) {
+        guard.add(cursor);
+        const row = byId.get(cursor);
+        if (!row) break;
+        path.unshift(String(row.name_ru || row.name_uz || `#${cursor}`));
+        cursor = Number(row.parent_id || 0);
+      }
+      return path;
+    };
+    byId.forEach((_, id) => {
+      result.set(id, buildPath(id));
+    });
+    return result;
+  }, [catalogCopyTree]);
+  const catalogCopyFlatProducts = useMemo(() => {
+    const products = Array.isArray(catalogCopyTree?.products) ? catalogCopyTree.products : [];
+    return products.map((product, index) => {
+      const productId = Number(product?.id || 0);
+      const categoryId = Number(product?.category_id || 0);
+      const path = categoryId > 0 ? (catalogCopyCategoryPathById.get(categoryId) || []) : [];
+      return {
+        rowNo: index + 1,
+        productId,
+        categoryId,
+        name: String(product?.name_ru || product?.name_uz || `#${productId}`),
+        unit: String(product?.unit || 'шт'),
+        price: Number(product?.price || 0),
+        level1: path[0] || '-',
+        level2: path[1] || '-',
+        level3: path[2] || '-'
+      };
+    });
+  }, [catalogCopyTree, catalogCopyCategoryPathById]);
+  const catalogCopyEffectiveProductIds = useMemo(() => {
+    const selectedCategorySet = new Set((catalogCopySelectedCategoryIds || []).map((id) => Number(id)));
+    const explicitProductSet = new Set((catalogCopySelectedProductIds || []).map((id) => Number(id)));
+    if (!selectedCategorySet.size && !explicitProductSet.size) {
+      return new Set(catalogCopyFlatProducts.map((item) => Number(item.productId)).filter((id) => Number.isFinite(id) && id > 0));
+    }
+    const effective = new Set(explicitProductSet);
+    if (catalogCopyIncludeAllProducts) {
+      catalogCopyFlatProducts.forEach((item) => {
+        if (selectedCategorySet.has(Number(item.categoryId))) effective.add(Number(item.productId));
+      });
+    }
+    return effective;
+  }, [
+    catalogCopySelectedCategoryIds,
+    catalogCopySelectedProductIds,
+    catalogCopyFlatProducts,
+    catalogCopyIncludeAllProducts
+  ]);
   const catalogCopySourceOptions = useMemo(() => {
     const targetId = Number(catalogCopyTargetRestaurant?.id || 0);
     const baseSource = Array.isArray(allRestaurants) && allRestaurants.length
@@ -20386,95 +20450,70 @@ function SuperAdminDashboard() {
             {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && (catalogCopyTree.categories || []).length === 0 && (catalogCopyTree.products || []).length === 0 && (
               <div className="text-muted">{language === 'uz' ? "Manba do‘konda kategoriyalar topilmadi" : 'В источнике нет категорий'}</div>
             )}
-            {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && (
-              (() => {
-                const uncategorizedProducts = catalogCopyProductsByCategory.get(0) || [];
-                if (!uncategorizedProducts.length) {
-                  const hasRenderableCategories = (catalogCopyTree.categories || []).length > 0;
-                  if (hasRenderableCategories) return null;
-                  return (
-                    <div className="text-muted">
-                      {language === 'uz'
-                        ? "Manba do‘kondan ko‘chirish uchun kategoriya yoki mahsulot topilmadi"
-                        : 'В источнике не найдено категорий или товаров для копирования'}
-                    </div>
-                  );
-                }
-                return (
-                  <div className="mb-2 p-2 border rounded bg-white">
-                    <div className="fw-semibold mb-2">
-                      {language === 'uz' ? "Kategoriyasiz mahsulotlar" : 'Товары без категории'} ({uncategorizedProducts.length})
-                    </div>
-                    <div className="d-flex flex-column gap-1">
-                      {uncategorizedProducts.map((product) => {
-                        const productId = Number(product.id);
-                        const productChecked = catalogCopySelectedProductIds.includes(productId);
-                        return (
+            {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && catalogCopyFlatProducts.length > 0 && (
+              <Table hover size="sm" className="mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th style={{ width: 40 }} />
+                    <th style={{ width: 70 }}>№</th>
+                    <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
+                    <th style={{ width: 90 }}>{language === 'uz' ? "Birlik" : 'Ед.изм'}</th>
+                    <th style={{ width: 120 }}>{language === 'uz' ? 'Narx' : 'Цена'}</th>
+                    <th>{language === 'uz' ? 'Kategoriya 1' : 'Категория 1'}</th>
+                    <th>{language === 'uz' ? 'Kategoriya 2' : 'Категория 2'}</th>
+                    <th>{language === 'uz' ? 'Kategoriya 3' : 'Категория 3'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalogCopyFlatProducts.map((row) => {
+                    const checked = catalogCopySelectedProductIds.includes(Number(row.productId));
+                    return (
+                      <tr key={`catalog-copy-table-row-${row.productId}`}>
+                        <td>
                           <Form.Check
-                            key={`catalog-copy-product-no-category-check-${productId}`}
                             type="checkbox"
-                            id={`catalog-copy-product-no-category-check-${productId}`}
-                            checked={productChecked}
+                            checked={checked}
                             onChange={(e) => {
-                              const checked = e.target.checked;
+                              const nextChecked = e.target.checked;
+                              const id = Number(row.productId);
                               setCatalogCopySelectedProductIds((prev) => (
-                                checked ? Array.from(new Set([...prev, productId])) : prev.filter((id) => id !== productId)
+                                nextChecked ? Array.from(new Set([...prev, id])) : prev.filter((item) => item !== id)
                               ));
                             }}
-                            label={`${product.name_ru || product.name_uz || `#${productId}`} — ${product.price || 0}`}
                           />
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()
+                        </td>
+                        <td>{row.rowNo}</td>
+                        <td>{row.name}</td>
+                        <td>{row.unit}</td>
+                        <td>{Number.isFinite(row.price) ? row.price : 0}</td>
+                        <td>{row.level1}</td>
+                        <td>{row.level2}</td>
+                        <td>{row.level3}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
             )}
-            {!catalogCopyTreeLoading && (catalogCopyTree.categories || []).map((category) => {
-              const categoryId = Number(category.id);
-              const products = catalogCopyProductsByCategory.get(categoryId) || [];
-              const categoryChecked = catalogCopySelectedCategoryIds.includes(categoryId);
-              return (
-                <div key={`catalog-copy-category-${categoryId}`} className="mb-2 p-2 border rounded bg-white">
-                  <Form.Check
-                    type="checkbox"
-                    id={`catalog-copy-category-check-${categoryId}`}
-                    checked={categoryChecked}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setCatalogCopySelectedCategoryIds((prev) => (
-                        checked ? Array.from(new Set([...prev, categoryId])) : prev.filter((id) => id !== categoryId)
-                      ));
-                    }}
-                    label={`${category.name_ru || category.name_uz || `#${categoryId}`} (${products.length})`}
-                  />
-                  {products.length > 0 && (
-                    <div className="ms-4 mt-2 d-flex flex-column gap-1">
-                      {products.map((product) => {
-                        const productId = Number(product.id);
-                        const productChecked = catalogCopySelectedProductIds.includes(productId);
-                        return (
-                          <Form.Check
-                            key={`catalog-copy-product-check-${productId}`}
-                            type="checkbox"
-                            id={`catalog-copy-product-check-${productId}`}
-                            checked={productChecked}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setCatalogCopySelectedProductIds((prev) => (
-                                checked ? Array.from(new Set([...prev, productId])) : prev.filter((id) => id !== productId)
-                              ));
-                            }}
-                            label={`${product.name_ru || product.name_uz || `#${productId}`} — ${product.price || 0}`}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && !catalogCopyFlatProducts.length && (
+              <div className="text-muted">
+                {language === 'uz'
+                  ? "Manba do‘kondan ko‘chirish uchun mahsulot topilmadi"
+                  : 'В источнике не найдено товаров для копирования'}
+              </div>
+            )}
           </div>
+
+          {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && (
+            <div className="mt-2 small text-muted d-flex flex-column gap-1">
+              <div>
+                {language === 'uz' ? "Jami qo‘shiladi tovarlar" : 'Итого добавляется товаров'}: {catalogCopyEffectiveProductIds.size} {language === 'uz' ? 'шт' : 'шт'}
+              </div>
+              <div>
+                {language === 'uz' ? "Do‘konlardan" : 'Из магазинов'}: {catalogCopySourceRestaurantId ? 1 : 0} {language === 'uz' ? 'шт' : 'шт'}
+              </div>
+            </div>
+          )}
 
           {catalogCopyReport && (
             <Alert variant={Number(catalogCopyReport?.failed?.products || 0) > 0 ? 'warning' : 'success'} className="mt-3 mb-0">
