@@ -296,6 +296,32 @@ const deriveRestaurantWorkflowMeta = (restaurant) => {
     reasons: mergedReasons
   };
 };
+const getRestaurantInactiveReasonLabel = (reason, language = 'ru') => {
+  const normalized = String(reason || '').trim().toLowerCase();
+  const uz = language === 'uz';
+  if (normalized === 'disabled_by_admin') {
+    return uz ? "Do'kon qo'lda nofaol qilingan" : 'Магазин отключен вручную';
+  }
+  if (normalized === 'bot_blocked_or_deleted') {
+    return uz ? 'Telegram bot bloklangan yoki o‘chirilgan' : 'Telegram-бот заблокирован или удалён';
+  }
+  if (normalized === 'operator_inactive_30d') {
+    return uz ? 'Operator 30+ kun faol emas' : 'Нет активности оператора более 30 дней';
+  }
+  return normalized || (uz ? "Noma'lum sabab" : 'Неизвестная причина');
+};
+const getRestaurantActiveDotTooltip = (restaurant, workflowMeta, language = 'ru') => {
+  const uz = language === 'uz';
+  if (restaurant?.is_active) {
+    return uz ? 'Faol do‘kon' : 'Активный магазин';
+  }
+  const reasons = Array.isArray(workflowMeta?.reasons) ? workflowMeta.reasons : [];
+  if (!reasons.length) {
+    return uz ? 'Nofaol do‘kon' : 'Неактивный магазин';
+  }
+  const reasonLines = reasons.map((reason) => `• ${getRestaurantInactiveReasonLabel(reason, language)}`);
+  return `${uz ? 'Nofaol do‘kon sabablari:' : 'Причины неактивности:'}\n${reasonLines.join('\n')}`;
+};
 const getRestaurantWorkflowStatusColor = (status) => {
   const normalized = String(status || '').trim().toLowerCase();
   return RESTAURANT_WORKFLOW_STATUS_COLORS[normalized] || RESTAURANT_WORKFLOW_STATUS_COLORS.all;
@@ -13722,7 +13748,7 @@ function SuperAdminDashboard() {
                                         <span
                                           className={`sa-restaurant-active-dot ${r.is_active ? 'is-active' : 'is-inactive'}`}
                                           aria-hidden="true"
-                                          title={r.is_active ? (language === 'uz' ? 'Faol' : 'Активный') : (language === 'uz' ? 'Nofaol' : 'Неактивный')}
+                                          title={getRestaurantActiveDotTooltip(r, workflowMeta, language)}
                                         />
                                         <span>{String(r.name || '').toUpperCase()}</span>
                                       </strong>
