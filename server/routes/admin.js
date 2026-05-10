@@ -43,6 +43,10 @@ const { ensurePrintFormSettingsSchema } = require('../services/printFormSettings
 const { generateStorePrintForm } = require('../services/printFormGenerator');
 const printerManager = require('../services/printerManager');
 const { checkRestaurantIdentityAvailability } = require('../services/restaurantUniqueness');
+const {
+  validateRestaurantName,
+  normalizeRestaurantNameForStorage
+} = require('../services/restaurantNamePolicy');
 const superadminRoutes = require('./superadmin');
 
 const router = express.Router();
@@ -1891,11 +1895,14 @@ router.get('/restaurant/check-availability', async (req, res) => {
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
     const name = String(req.query?.name || '').trim();
+    const nameValidation = name
+      ? validateRestaurantName(name)
+      : { ok: true, code: 'OK', message: '', normalized: '', invalidChar: '' };
     const telegramBotToken = String(req.query?.telegram_bot_token || '').trim();
     const telegramGroupId = String(req.query?.telegram_group_id || '').trim();
     const availability = await checkRestaurantIdentityAvailability({
       client: pool,
-      name,
+      name: nameValidation.ok ? nameValidation.normalized : '',
       telegramBotToken,
       telegramGroupId,
       excludeRestaurantId: Number(restaurantId)
@@ -1904,9 +1911,15 @@ router.get('/restaurant/check-availability', async (req, res) => {
     return res.json({
       ok: true,
       name: {
-        value: name,
-        available: !availability.nameTaken,
-        conflict_restaurant_id: availability.nameConflictRestaurantId || null
+        value: nameValidation.normalized || '',
+        available: nameValidation.ok ? !availability.nameTaken : false,
+        conflict_restaurant_id: nameValidation.ok ? (availability.nameConflictRestaurantId || null) : null,
+        validation: {
+          ok: nameValidation.ok,
+          code: nameValidation.code,
+          message: nameValidation.message,
+          invalid_symbol: nameValidation.invalidChar || null
+        }
       },
       telegram_bot_token: {
         value: telegramBotToken,
@@ -2061,7 +2074,15 @@ router.put('/restaurant', async (req, res) => {
       ? previousBotToken
       : normalizeRestaurantTokenForCompare(normalizedBotToken);
     const isTokenChanging = normalizedBotToken !== null && nextBotToken !== previousBotToken;
-    const nextNameForCheck = String(name ?? previousRestaurant.name ?? '').trim();
+    const nextNameValidation = validateRestaurantName(name ?? previousRestaurant.name ?? '');
+    if (!nextNameValidation.ok) {
+      return res.status(400).json({
+        error: nextNameValidation.message,
+        code: nextNameValidation.code,
+        invalid_symbol: nextNameValidation.invalidChar || null
+      });
+    }
+    const nextNameForCheck = normalizeRestaurantNameForStorage(nextNameValidation.normalized);
 
     const updateAvailability = await checkRestaurantIdentityAvailability({
       client: pool,
@@ -2084,7 +2105,7 @@ router.put('/restaurant', async (req, res) => {
     if (isTokenChanging && nextBotToken) {
       customerMigrationResult = await notifyCustomersAboutRestaurantBotMigration({
         restaurantId,
-        restaurantName: name || previousRestaurant.name || 'Ваш магазин',
+        restaurantName: nextNameForCheck || previousRestaurant.name || 'Ваш магазин',
         oldToken: previousRestaurant.telegram_bot_token,
         newToken: nextBotToken
       });
@@ -2168,7 +2189,7 @@ router.put('/restaurant', async (req, res) => {
       WHERE id = $62
       RETURNING *
     `, [
-      name, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
+      nextNameForCheck, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
       start_time, end_time, click_url, payme_url, uzum_url, xazna_url,
       normalizedCashEnabled,
       card_payment_title || null,

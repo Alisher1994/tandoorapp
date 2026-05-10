@@ -1,4 +1,4 @@
-const normalizeRestaurantNameForCompare = (value) => String(value || '').trim().toLowerCase();
+const { normalizeRestaurantNameForCompare } = require('./restaurantNamePolicy');
 
 const normalizeRestaurantTokenForCompare = (value) => String(value || '').trim();
 const normalizeRestaurantGroupIdForCompare = (value) => String(value || '').trim();

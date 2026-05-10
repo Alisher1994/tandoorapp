@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../database/connection');
 const { reloadMultiBots } = require('../bot/multiBotManager');
 const { checkRestaurantIdentityAvailability } = require('./restaurantUniqueness');
+const { validateRestaurantName, normalizeRestaurantNameForStorage } = require('./restaurantNamePolicy');
 
 const BOT_LANGUAGES = new Set(['ru', 'uz']);
 const WEB_APP_CACHE_VERSION = String(
@@ -267,7 +268,9 @@ const registerStoreViaWebApp = async ({
   const groupId = parseTelegramGroupId(payload.group_id || payload.groupId);
   const preferredLang = normalizeBotLanguage(payload.lang || telegramUser?.language_code);
 
-  if (!storeName) throw new Error('STORE_NAME_REQUIRED');
+  const storeNameValidation = validateRestaurantName(storeName);
+  if (!storeNameValidation.ok) throw new Error(storeNameValidation.code || 'STORE_NAME_REQUIRED');
+  const normalizedStoreName = normalizeRestaurantNameForStorage(storeNameValidation.normalized);
   if (!Number.isFinite(activityTypeId) || activityTypeId <= 0) throw new Error('ACTIVITY_TYPE_REQUIRED');
   if (!fullNameInput) throw new Error('FULL_NAME_REQUIRED');
   if (!normalizedPhone || normalizePhoneDigits(normalizedPhone).length < 7) throw new Error('PHONE_INVALID');
@@ -292,7 +295,7 @@ const registerStoreViaWebApp = async ({
 
     const createAvailability = await checkRestaurantIdentityAvailability({
       client,
-      name: storeName,
+      name: normalizedStoreName,
       telegramBotToken: botTokenRaw || null,
       telegramGroupId: groupId || null
     });
@@ -311,7 +314,7 @@ const registerStoreViaWebApp = async ({
                 latitude, longitude, start_time, end_time, delivery_base_radius,
                 is_delivery_enabled, balance, order_cost, service_fee, is_active, created_at, activity_type_id
     `, [
-      storeName,
+      normalizedStoreName,
       normalizedPhone,
       logoUrlRaw || null,
       botTokenRaw || null,

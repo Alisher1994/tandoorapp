@@ -2026,7 +2026,8 @@ function AdminDashboard() {
     loading: false,
     nameAvailable: true,
     tokenAvailable: true,
-    groupAvailable: true
+    groupAvailable: true,
+    nameMessage: ''
   });
   const restaurantLogoInputRef = useRef(null);
   const productModalBodyRef = useRef(null);
@@ -2815,7 +2816,8 @@ function AdminDashboard() {
         loading: false,
         nameAvailable: true,
         tokenAvailable: true,
-        groupAvailable: true
+        groupAvailable: true,
+        nameMessage: ''
       });
       return;
     }
@@ -2829,11 +2831,15 @@ function AdminDashboard() {
           timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
         });
         if (cancelled) return;
+        const nameValidation = response?.data?.name?.validation || null;
         setRestaurantIdentityAvailability({
           loading: false,
           nameAvailable: response?.data?.name?.available !== false,
           tokenAvailable: response?.data?.telegram_bot_token?.available !== false,
-          groupAvailable: response?.data?.telegram_group_id?.available !== false
+          groupAvailable: response?.data?.telegram_group_id?.available !== false,
+          nameMessage: nameValidation?.ok === false
+            ? (nameValidation?.message || 'Недопустимое название')
+            : ''
         });
       } catch {
         if (cancelled) return;
@@ -13628,11 +13634,13 @@ function AdminDashboard() {
                                                 type="text"
                                                 className="form-control-custom"
                                                 value={restaurantSettings.name}
-                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, name: e.target.value })}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, name: String(e.target.value || '').toUpperCase() })}
                                               />
                                               {!!String(restaurantSettings.name || '').trim() && (
                                                 <Form.Text className={restaurantIdentityAvailability.nameAvailable ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
-                                                  {restaurantIdentityAvailability.loading ? 'Проверка...' : (restaurantIdentityAvailability.nameAvailable ? 'Название доступно' : 'Название уже используется')}
+                                                  {restaurantIdentityAvailability.loading
+                                                    ? 'Проверка...'
+                                                    : (restaurantIdentityAvailability.nameMessage || (restaurantIdentityAvailability.nameAvailable ? 'Название доступно' : 'Название уже используется'))}
                                                 </Form.Text>
                                               )}
                                             </Form.Group>

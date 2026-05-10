@@ -359,6 +359,10 @@ async function resolveStoreRegistrationIdentity({ initData, launchToken }) {
 
 const registrationErrorMap = {
   STORE_NAME_REQUIRED: { status: 400, error: 'Название магазина обязательно' },
+  NAME_INVALID_CHAR: { status: 400, error: 'Название содержит недопустимый символ' },
+  NAME_TOO_LONG: { status: 400, error: 'Название слишком длинное' },
+  NAME_TOO_SHORT: { status: 400, error: 'Название слишком короткое' },
+  NAME_PHONE_DETECTED: { status: 400, error: 'В названии не допускаются номера телефонов' },
   ACTIVITY_TYPE_REQUIRED: { status: 400, error: 'Выберите вид деятельности' },
   ACTIVITY_TYPE_INVALID: { status: 400, error: 'Выбран неверный вид деятельности' },
   FULL_NAME_REQUIRED: { status: 400, error: 'ФИО оператора обязательно' },

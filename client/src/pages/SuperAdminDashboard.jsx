@@ -209,6 +209,7 @@ const RESTAURANT_WORKFLOW_STATUSES = [
   { value: 'token', icon: '🔑', ru: 'Токен', uz: 'Token' },
   { value: 'store_settings', icon: '⚙️', ru: 'Настройки магазина', uz: "Do'kon sozlamalari" },
   { value: 'products', icon: '📦', ru: 'Товары', uz: 'Mahsulotlar' },
+  { value: 'homonym', icon: '🧩', ru: 'Одноименные', uz: 'Bir xil nomli' },
   { value: 'active', icon: '✅', ru: 'Активные', uz: 'Faol' },
   { value: 'inactive', icon: '⛔', ru: 'Не активные', uz: 'Nofaol' }
 ];
@@ -220,6 +221,7 @@ const RESTAURANT_WORKFLOW_STATUS_COLORS = {
   token: '#7c3aed',
   store_settings: '#475569',
   products: '#65a30d',
+  homonym: '#dc2626',
   active: '#16a34a',
   inactive: '#475569'
 };
@@ -8485,12 +8487,16 @@ function SuperAdminDashboard() {
         const nameAvailable = response?.data?.name?.available !== false;
         const tokenAvailable = response?.data?.telegram_bot_token?.available !== false;
         const groupAvailable = response?.data?.telegram_group_id?.available !== false;
+        const nameValidation = response?.data?.name?.validation || null;
+        const nameValidationMessage = nameValidation?.ok === false
+          ? (nameValidation?.message || 'Недопустимое название')
+          : '';
         setRestaurantIdentityCheck({
           loading: false,
           nameAvailable,
           tokenAvailable,
           groupAvailable,
-          nameMessage: nameAvailable ? 'Название доступно' : 'Название уже занято',
+          nameMessage: nameValidationMessage || (nameAvailable ? 'Название доступно' : 'Название уже занято'),
           tokenMessage: rawToken
             ? (tokenAvailable ? 'Bot Token доступен' : 'Bot Token уже используется')
             : '',
@@ -20655,7 +20661,7 @@ function SuperAdminDashboard() {
                         <Form.Label className="fw-medium text-secondary">Название магазина *</Form.Label>
                         <Form.Control
                           value={restaurantForm.name}
-                          onChange={(e) => setRestaurantForm({ ...restaurantForm, name: e.target.value })}
+                          onChange={(e) => setRestaurantForm({ ...restaurantForm, name: String(e.target.value || '').toUpperCase() })}
                           placeholder="Название магазина"
                         />
                         {!!String(restaurantForm.name || '').trim() && (
