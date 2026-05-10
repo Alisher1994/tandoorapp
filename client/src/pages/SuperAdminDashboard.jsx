@@ -1683,6 +1683,7 @@ function SuperAdminDashboard() {
   const [catalogCopyTargetRestaurant, setCatalogCopyTargetRestaurant] = useState(null);
   const [catalogCopySourceRestaurantId, setCatalogCopySourceRestaurantId] = useState('');
   const [catalogCopySourceRestaurantSearch, setCatalogCopySourceRestaurantSearch] = useState('');
+  const [catalogCopySourceSearchFocused, setCatalogCopySourceSearchFocused] = useState(false);
   const [catalogCopyTreeLoading, setCatalogCopyTreeLoading] = useState(false);
   const [catalogCopySubmitting, setCatalogCopySubmitting] = useState(false);
   const [catalogCopyTree, setCatalogCopyTree] = useState({ categories: [], products: [] });
@@ -8646,6 +8647,7 @@ function SuperAdminDashboard() {
     setCatalogCopyTargetRestaurant(restaurant || null);
     setCatalogCopySourceRestaurantId('');
     setCatalogCopySourceRestaurantSearch('');
+    setCatalogCopySourceSearchFocused(false);
     setCatalogCopyTree({ categories: [], products: [] });
     setCatalogCopySelectedCategoryIds([]);
     setCatalogCopySelectedProductIds([]);
@@ -20313,28 +20315,55 @@ function SuperAdminDashboard() {
             <Col md={6}>
               <Form.Group>
                 <Form.Label>{language === 'uz' ? 'Manba do‘kon' : 'Магазин-источник'}</Form.Label>
-                <CustomSelectDropdown
-                  value={catalogCopySourceRestaurantId}
-                  onChange={(next) => {
-                    setCatalogCopySourceRestaurantId(next);
-                    if (next) {
-                      loadCatalogCopyTree(next);
-                    } else {
+                <Form.Control
+                  className="form-control-custom"
+                  type="text"
+                  value={catalogCopySourceRestaurantSearch}
+                  placeholder={language === 'uz' ? 'Qidirish: nomi yoki ID' : 'Поиск: название или ID'}
+                  onFocus={() => setCatalogCopySourceSearchFocused(true)}
+                  onBlur={() => {
+                    window.setTimeout(() => setCatalogCopySourceSearchFocused(false), 120);
+                  }}
+                  onChange={(e) => {
+                    const nextText = e.target.value;
+                    setCatalogCopySourceRestaurantSearch(nextText);
+                    if (catalogCopySourceRestaurantId) {
+                      setCatalogCopySourceRestaurantId('');
                       setCatalogCopyTree({ categories: [], products: [] });
                       setCatalogCopySelectedCategoryIds([]);
                       setCatalogCopySelectedProductIds([]);
                       setCatalogCopyReport(null);
                     }
                   }}
-                  options={filteredCatalogCopySourceOptions}
-                  placeholder={language === 'uz' ? 'Tanlang' : 'Выберите'}
-                  searchable
-                  searchValue={catalogCopySourceRestaurantSearch}
-                  onSearchChange={setCatalogCopySourceRestaurantSearch}
-                  searchPlaceholder={language === 'uz' ? 'Qidirish...' : 'Поиск...'}
-                  noDataLabel={language === 'uz' ? "Do‘kon topilmadi" : 'Магазин не найден'}
                   disabled={catalogCopySubmitting}
                 />
+                {catalogCopySourceSearchFocused && (
+                  <div className="mt-1 border rounded bg-white" style={{ maxHeight: 220, overflowY: 'auto' }}>
+                    {!filteredCatalogCopySourceOptions.length ? (
+                      <div className="px-3 py-2 text-muted small">
+                        {language === 'uz' ? "Do‘kon topilmadi" : 'Магазин не найден'}
+                      </div>
+                    ) : (
+                      filteredCatalogCopySourceOptions.map((item) => (
+                        <button
+                          key={`catalog-copy-source-suggest-${item.value}`}
+                          type="button"
+                          className="w-100 text-start border-0 bg-transparent px-3 py-2"
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => {
+                            setCatalogCopySourceRestaurantId(String(item.value));
+                            setCatalogCopySourceRestaurantSearch(String(item.label));
+                            setCatalogCopySourceSearchFocused(false);
+                            loadCatalogCopyTree(String(item.value));
+                          }}
+                          disabled={catalogCopySubmitting}
+                        >
+                          {item.label}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </Form.Group>
             </Col>
             <Col md={6} className="d-flex align-items-end">
