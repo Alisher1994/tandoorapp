@@ -217,6 +217,63 @@ const uploadsDir = process.env.UPLOADS_DIR
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+const uploadPublicPrefix = '/uploads/';
+const copyLocalUploadAssetIfPossible = async (rawUrl) => {
+  const normalized = String(rawUrl || '').trim();
+  if (!normalized || !normalized.startsWith(uploadPublicPrefix)) return normalized;
+  const sourceRelative = normalized.slice(uploadPublicPrefix.length);
+  if (!sourceRelative || sourceRelative.includes('..')) return normalized;
+  const sourcePath = path.resolve(uploadsDir, sourceRelative);
+  if (!sourcePath.startsWith(path.resolve(uploadsDir))) return normalized;
+  try {
+    await fs.promises.access(sourcePath);
+  } catch {
+    return normalized;
+  }
+  const ext = path.extname(sourcePath) || '.bin';
+  const nextName = `copy-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+  const targetPath = path.resolve(uploadsDir, nextName);
+  await fs.promises.copyFile(sourcePath, targetPath);
+  return `${uploadPublicPrefix}${nextName}`;
+};
+
+const copyProductImageBundle = async (productRow) => {
+  const nextImageUrl = await copyLocalUploadAssetIfPossible(productRow.image_url);
+  const nextThumbUrl = await copyLocalUploadAssetIfPossible(productRow.thumb_url);
+  const sourceImages = Array.isArray(productRow.product_images) ? productRow.product_images : [];
+  const nextProductImages = [];
+  for (const sourceImage of sourceImages) {
+    const copied = await copyLocalUploadAssetIfPossible(sourceImage);
+    if (copied) nextProductImages.push(copied);
+  }
+
+  const sourceSizeOptions = Array.isArray(productRow.size_options) ? productRow.size_options : [];
+  const nextSizeOptions = [];
+  for (const variant of sourceSizeOptions) {
+    const nextVariant = (variant && typeof variant === 'object') ? { ...variant } : variant;
+    if (nextVariant && typeof nextVariant === 'object') {
+      if (nextVariant.image_url) {
+        nextVariant.image_url = await copyLocalUploadAssetIfPossible(nextVariant.image_url);
+      }
+      if (Array.isArray(nextVariant.product_images)) {
+        const variantImages = [];
+        for (const variantImage of nextVariant.product_images) {
+          const copied = await copyLocalUploadAssetIfPossible(variantImage);
+          if (copied) variantImages.push(copied);
+        }
+        nextVariant.product_images = variantImages;
+      }
+    }
+    nextSizeOptions.push(nextVariant);
+  }
+
+  return {
+    image_url: nextImageUrl || null,
+    thumb_url: nextThumbUrl || null,
+    product_images: nextProductImages,
+    size_options: nextSizeOptions
+  };
+};
 
 const DEFAULT_ACTIVITY_TYPES = [
   'Ресторан',
@@ -6763,6 +6820,267 @@ router.get('/restaurants/check-availability', async (req, res) => {
   } catch (error) {
     console.error('Check restaurant availability error:', error);
     return res.status(500).json({ error: 'Ошибка проверки доступности' });
+  }
+});
+
+router.get('/restaurants/:id(\\d+)/catalog-copy-tree', async (req, res) => {
+  try {
+    const targetRestaurantId = Number.parseInt(req.params.id, 10);
+    const sourceRestaurantId = Number.parseInt(req.query?.source_restaurant_id, 10);
+    if (!Number.isFinite(targetRestaurantId) || targetRestaurantId <= 0) {
+      return res.status(400).json({ error: 'Некорректный целевой магазин' });
+    }
+    if (!Number.isFinite(sourceRestaurantId) || sourceRestaurantId <= 0) {
+      return res.status(400).json({ error: 'Некорректный магазин-источник' });
+    }
+
+    const sourceRestaurantResult = await pool.query(
+      'SELECT id, name FROM restaurants WHERE id = $1 LIMIT 1',
+      [sourceRestaurantId]
+    );
+    if (!sourceRestaurantResult.rows.length) {
+      return res.status(404).json({ error: 'Магазин-источник не найден' });
+    }
+
+    const [categoriesResult, productsResult] = await Promise.all([
+      pool.query(
+        `SELECT id, parent_id, name_ru, name_uz, sort_order
+         FROM categories
+         WHERE restaurant_id = $1
+         ORDER BY sort_order, id`,
+        [sourceRestaurantId]
+      ),
+      pool.query(
+        `SELECT id, category_id, name_ru, name_uz, price, sort_order, in_stock
+         FROM products
+         WHERE restaurant_id = $1
+         ORDER BY sort_order, id`,
+        [sourceRestaurantId]
+      )
+    ]);
+
+    return res.json({
+      source_restaurant: sourceRestaurantResult.rows[0],
+      categories: categoriesResult.rows,
+      products: productsResult.rows
+    });
+  } catch (error) {
+    console.error('Get catalog copy tree error:', error);
+    return res.status(500).json({ error: 'Ошибка загрузки структуры каталога' });
+  }
+});
+
+router.post('/restaurants/:id(\\d+)/copy-catalog', async (req, res) => {
+  const startedAt = Date.now();
+  const client = await pool.connect();
+  try {
+    const targetRestaurantId = Number.parseInt(req.params.id, 10);
+    const sourceRestaurantId = Number.parseInt(req.body?.source_restaurant_id, 10);
+    const selectedCategoryIdsRaw = Array.isArray(req.body?.category_ids) ? req.body.category_ids : [];
+    const selectedProductIdsRaw = Array.isArray(req.body?.product_ids) ? req.body.product_ids : [];
+    const includeAllProductsInCategories = req.body?.include_all_products_in_categories !== false;
+
+    if (!Number.isFinite(targetRestaurantId) || targetRestaurantId <= 0) {
+      return res.status(400).json({ error: 'Некорректный целевой магазин' });
+    }
+    if (!Number.isFinite(sourceRestaurantId) || sourceRestaurantId <= 0) {
+      return res.status(400).json({ error: 'Некорректный магазин-источник' });
+    }
+    if (targetRestaurantId === sourceRestaurantId) {
+      return res.status(400).json({ error: 'Источник и получатель не должны совпадать' });
+    }
+
+    const selectedCategoryIds = Array.from(new Set(
+      selectedCategoryIdsRaw.map((value) => Number.parseInt(value, 10)).filter((value) => Number.isFinite(value) && value > 0)
+    ));
+    const selectedProductIds = Array.from(new Set(
+      selectedProductIdsRaw.map((value) => Number.parseInt(value, 10)).filter((value) => Number.isFinite(value) && value > 0)
+    ));
+
+    if (!selectedCategoryIds.length && !selectedProductIds.length) {
+      return res.status(400).json({ error: 'Выберите хотя бы одну категорию или товар для копирования' });
+    }
+
+    await client.query('BEGIN');
+
+    const sourceRestaurantResult = await client.query('SELECT id, name FROM restaurants WHERE id = $1 LIMIT 1', [sourceRestaurantId]);
+    const targetRestaurantResult = await client.query('SELECT id, name FROM restaurants WHERE id = $1 LIMIT 1', [targetRestaurantId]);
+    if (!sourceRestaurantResult.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Магазин-источник не найден' });
+    }
+    if (!targetRestaurantResult.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Целевой магазин не найден' });
+    }
+
+    const sourceCategoriesResult = await client.query(
+      `SELECT id, parent_id, name_ru, name_uz, image_url, sort_order, is_active
+       FROM categories
+       WHERE restaurant_id = $1`,
+      [sourceRestaurantId]
+    );
+    const sourceCategories = sourceCategoriesResult.rows;
+    const categoryById = new Map(sourceCategories.map((item) => [Number(item.id), item]));
+
+    const sourceProductsResult = await client.query(
+      `SELECT id, category_id, name_ru, name_uz, description_ru, description_uz,
+              image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order,
+              container_id, container_norm, season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
+              discount_enabled, discount_price, stock_quantity
+       FROM products
+       WHERE restaurant_id = $1`,
+      [sourceRestaurantId]
+    );
+    const allProducts = sourceProductsResult.rows;
+
+    const categoryIdsToCopy = new Set(selectedCategoryIds);
+    const productsToCopy = [];
+    for (const product of allProducts) {
+      const productId = Number(product.id);
+      const productCategoryId = Number(product.category_id);
+      const categorySelected = Number.isFinite(productCategoryId) && categoryIdsToCopy.has(productCategoryId);
+      const productSelected = selectedProductIds.includes(productId);
+      const shouldCopy = productSelected || (includeAllProductsInCategories && categorySelected);
+      if (!shouldCopy) continue;
+      productsToCopy.push(product);
+      if (Number.isFinite(productCategoryId) && productCategoryId > 0) {
+        categoryIdsToCopy.add(productCategoryId);
+      }
+    }
+
+    const ensureParentChain = (categoryId) => {
+      let cursor = Number(categoryId);
+      const guard = new Set();
+      while (Number.isFinite(cursor) && cursor > 0 && !guard.has(cursor)) {
+        guard.add(cursor);
+        const row = categoryById.get(cursor);
+        if (!row) break;
+        categoryIdsToCopy.add(cursor);
+        cursor = Number(row.parent_id || 0);
+      }
+    };
+    for (const id of Array.from(categoryIdsToCopy)) ensureParentChain(id);
+
+    const categoriesToCopy = sourceCategories
+      .filter((item) => categoryIdsToCopy.has(Number(item.id)))
+      .sort((a, b) => {
+        const ap = Number(a.parent_id || 0);
+        const bp = Number(b.parent_id || 0);
+        if (ap === bp) return Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id) - Number(b.id);
+        if (ap === 0) return -1;
+        if (bp === 0) return 1;
+        return Number(a.id) - Number(b.id);
+      });
+
+    const categoryIdMap = new Map();
+    let categoriesCopied = 0;
+    for (const sourceCategory of categoriesToCopy) {
+      const sourceCategoryId = Number(sourceCategory.id);
+      const sourceParentId = Number(sourceCategory.parent_id || 0);
+      const mappedParentId = sourceParentId > 0 ? (categoryIdMap.get(sourceParentId) || null) : null;
+      const copiedCategoryImageUrl = await copyLocalUploadAssetIfPossible(sourceCategory.image_url);
+      const insertCategoryResult = await client.query(
+        `INSERT INTO categories (restaurant_id, parent_id, name_ru, name_uz, image_url, sort_order, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id`,
+        [
+          targetRestaurantId,
+          mappedParentId,
+          sourceCategory.name_ru || null,
+          sourceCategory.name_uz || null,
+          copiedCategoryImageUrl || null,
+          Number(sourceCategory.sort_order || 0),
+          sourceCategory.is_active !== false
+        ]
+      );
+      categoryIdMap.set(sourceCategoryId, Number(insertCategoryResult.rows[0].id));
+      categoriesCopied += 1;
+    }
+
+    let productsCopied = 0;
+    let productsFailed = 0;
+    const failures = [];
+    for (const sourceProduct of productsToCopy) {
+      try {
+        const sourceCategoryId = Number(sourceProduct.category_id || 0);
+        const mappedCategoryId = sourceCategoryId > 0 ? (categoryIdMap.get(sourceCategoryId) || null) : null;
+        const copiedMedia = await copyProductImageBundle(sourceProduct);
+        await client.query(
+          `INSERT INTO products (
+             restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
+             image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order,
+             container_id, container_norm, season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
+             discount_enabled, discount_price, stock_quantity
+           )
+           VALUES (
+             $1, $2, $3, $4, $5, $6,
+             $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16,
+             $17, $18, $19, $20, $21, $22::jsonb, $23,
+             $24, $25, $26
+           )`,
+          [
+            targetRestaurantId,
+            mappedCategoryId,
+            sourceProduct.name_ru || null,
+            sourceProduct.name_uz || null,
+            sourceProduct.description_ru || null,
+            sourceProduct.description_uz || null,
+            copiedMedia.image_url || null,
+            copiedMedia.thumb_url || null,
+            JSON.stringify(Array.isArray(copiedMedia.product_images) ? copiedMedia.product_images : []),
+            sourceProduct.price,
+            sourceProduct.unit || 'шт',
+            sourceProduct.order_step || null,
+            sourceProduct.barcode || null,
+            sourceProduct.ikpu || null,
+            sourceProduct.in_stock !== false,
+            Number(sourceProduct.sort_order || 0),
+            sourceProduct.container_id || null,
+            sourceProduct.container_norm || null,
+            sourceProduct.season_scope || 'all',
+            sourceProduct.is_hidden_catalog === true,
+            sourceProduct.size_enabled === true,
+            JSON.stringify(Array.isArray(copiedMedia.size_options) ? copiedMedia.size_options : []),
+            sourceProduct.printer_id || null,
+            sourceProduct.discount_enabled === true,
+            sourceProduct.discount_price || null,
+            sourceProduct.stock_quantity || 0
+          ]
+        );
+        productsCopied += 1;
+      } catch (copyErr) {
+        productsFailed += 1;
+        failures.push({
+          product_id: Number(sourceProduct.id),
+          product_name: sourceProduct.name_ru || sourceProduct.name_uz || `#${sourceProduct.id}`,
+          error: String(copyErr?.message || 'copy_error').slice(0, 300)
+        });
+      }
+    }
+
+    await client.query('COMMIT');
+    const durationMs = Date.now() - startedAt;
+    return res.json({
+      success: true,
+      source_restaurant: sourceRestaurantResult.rows[0],
+      target_restaurant: targetRestaurantResult.rows[0],
+      copied: {
+        categories: categoriesCopied,
+        products: productsCopied
+      },
+      failed: {
+        products: productsFailed,
+        items: failures
+      },
+      duration_ms: durationMs
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Copy catalog error:', error);
+    return res.status(500).json({ error: 'Ошибка копирования каталога' });
+  } finally {
+    client.release();
   }
 });
 

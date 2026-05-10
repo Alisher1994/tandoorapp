@@ -1517,12 +1517,12 @@ async function initBot() {
         INSERT INTO restaurants (
           name, phone, logo_url, telegram_bot_token, telegram_group_id,
           latitude, longitude, start_time, end_time, delivery_base_radius, is_delivery_enabled,
-          balance, order_cost, is_active, activity_type_id
+          balance, order_cost, service_fee, is_active, activity_type_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, '07:00', '23:59', 3, true, $8, $9, true, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, '07:00', '23:59', 3, true, $8, $9, $10, true, $11)
         RETURNING id, name, phone, logo_url, telegram_bot_token, telegram_group_id,
                   latitude, longitude, start_time, end_time, delivery_base_radius,
-                  is_delivery_enabled, balance, order_cost, is_active, created_at, activity_type_id
+                  is_delivery_enabled, balance, order_cost, service_fee, is_active, created_at, activity_type_id
       `, [
         state.store_name,
         normalizedPhone || null,
@@ -1532,6 +1532,7 @@ async function initBot() {
         state.location?.latitude || null,
         state.location?.longitude || null,
         settings.default_starting_balance,
+        settings.default_order_cost,
         settings.default_order_cost,
         state.activity_type_id || null
       ]);

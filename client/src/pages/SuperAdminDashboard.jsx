@@ -1675,8 +1675,18 @@ function SuperAdminDashboard() {
   // Modals
   const [showRestaurantModal, setShowRestaurantModal] = useState(false);
   const [showOperatorModal, setShowOperatorModal] = useState(false);
+  const [showCatalogCopyModal, setShowCatalogCopyModal] = useState(false);
   const [editingRestaurant, setEditingRestaurant] = useState(null);
   const [editingOperator, setEditingOperator] = useState(null);
+  const [catalogCopyTargetRestaurant, setCatalogCopyTargetRestaurant] = useState(null);
+  const [catalogCopySourceRestaurantId, setCatalogCopySourceRestaurantId] = useState('');
+  const [catalogCopyTreeLoading, setCatalogCopyTreeLoading] = useState(false);
+  const [catalogCopySubmitting, setCatalogCopySubmitting] = useState(false);
+  const [catalogCopyTree, setCatalogCopyTree] = useState({ categories: [], products: [] });
+  const [catalogCopySelectedCategoryIds, setCatalogCopySelectedCategoryIds] = useState([]);
+  const [catalogCopySelectedProductIds, setCatalogCopySelectedProductIds] = useState([]);
+  const [catalogCopyIncludeAllProducts, setCatalogCopyIncludeAllProducts] = useState(true);
+  const [catalogCopyReport, setCatalogCopyReport] = useState(null);
 
   // Forms
   const [restaurantForm, setRestaurantForm] = useState({
@@ -4906,7 +4916,8 @@ function SuperAdminDashboard() {
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
           print_form_caption_ru: String(response.data.print_form_caption_ru || 'Сканируй и заказывай'),
           print_form_caption_uz: String(response.data.print_form_caption_uz || 'Skanerlang va buyurtma bering'),
-          default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
+          default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance),
+          default_order_cost: normalizeMoneyFieldValue(response.data.default_order_cost)
         }));
       }
     } catch (err) {
@@ -4927,7 +4938,8 @@ function SuperAdminDashboard() {
         print_form_qr_position: String(billingSettings.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
         print_form_caption_ru: String(billingSettings.print_form_caption_ru || '').trim(),
         print_form_caption_uz: String(billingSettings.print_form_caption_uz || '').trim(),
-        default_starting_balance: String(billingSettings.default_starting_balance || '').replace(/\D/g, '')
+        default_starting_balance: String(billingSettings.default_starting_balance || '').replace(/\D/g, ''),
+        default_order_cost: String(billingSettings.default_order_cost || '').replace(/\D/g, '')
       };
       const response = await axios.put(`${API_URL}/superadmin/billing/settings`, payload);
       if (response.data) {
@@ -4943,7 +4955,8 @@ function SuperAdminDashboard() {
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
           print_form_caption_ru: String(response.data.print_form_caption_ru || 'Сканируй и заказывай'),
           print_form_caption_uz: String(response.data.print_form_caption_uz || 'Skanerlang va buyurtma bering'),
-          default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
+          default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance),
+          default_order_cost: normalizeMoneyFieldValue(response.data.default_order_cost)
         }));
       }
       setSuccess('Настройки биллинга сохранены');
@@ -6482,6 +6495,16 @@ function SuperAdminDashboard() {
   ]);
 
   const paginatedRestaurants = useMemo(() => filteredRestaurants, [filteredRestaurants]);
+  const catalogCopyProductsByCategory = useMemo(() => {
+    const map = new Map();
+    const products = Array.isArray(catalogCopyTree?.products) ? catalogCopyTree.products : [];
+    products.forEach((product) => {
+      const categoryId = Number(product?.category_id || 0);
+      if (!map.has(categoryId)) map.set(categoryId, []);
+      map.get(categoryId).push(product);
+    });
+    return map;
+  }, [catalogCopyTree]);
 
   useEffect(() => {
     const visibleIds = new Set((paginatedRestaurants || []).map((item) => Number(item?.id)).filter((id) => Number.isFinite(id) && id > 0));
@@ -8591,6 +8614,76 @@ function SuperAdminDashboard() {
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  const openCatalogCopyModal = (restaurant) => {
+    setCatalogCopyTargetRestaurant(restaurant || null);
+    setCatalogCopySourceRestaurantId('');
+    setCatalogCopyTree({ categories: [], products: [] });
+    setCatalogCopySelectedCategoryIds([]);
+    setCatalogCopySelectedProductIds([]);
+    setCatalogCopyIncludeAllProducts(true);
+    setCatalogCopyReport(null);
+    setShowCatalogCopyModal(true);
+  };
+
+  const closeCatalogCopyModal = () => {
+    if (catalogCopySubmitting) return;
+    setShowCatalogCopyModal(false);
+  };
+
+  const loadCatalogCopyTree = async (sourceRestaurantId) => {
+    const targetId = Number(catalogCopyTargetRestaurant?.id || 0);
+    const sourceId = Number(sourceRestaurantId || 0);
+    if (!targetId || !sourceId) return;
+    setCatalogCopyTreeLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/restaurants/${targetId}/catalog-copy-tree`, {
+        params: { source_restaurant_id: sourceId },
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+      });
+      const payload = response.data || {};
+      setCatalogCopyTree({
+        categories: Array.isArray(payload.categories) ? payload.categories : [],
+        products: Array.isArray(payload.products) ? payload.products : []
+      });
+      setCatalogCopySelectedCategoryIds([]);
+      setCatalogCopySelectedProductIds([]);
+      setCatalogCopyReport(null);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Ошибка загрузки дерева товаров');
+      setCatalogCopyTree({ categories: [], products: [] });
+    } finally {
+      setCatalogCopyTreeLoading(false);
+    }
+  };
+
+  const handleRunCatalogCopy = async () => {
+    const targetId = Number(catalogCopyTargetRestaurant?.id || 0);
+    const sourceId = Number(catalogCopySourceRestaurantId || 0);
+    if (!targetId || !sourceId) return;
+    if (!catalogCopySelectedCategoryIds.length && !catalogCopySelectedProductIds.length) {
+      setError('Выберите хотя бы одну категорию или товар');
+      return;
+    }
+    setCatalogCopySubmitting(true);
+    try {
+      const response = await axios.post(`${API_URL}/superadmin/restaurants/${targetId}/copy-catalog`, {
+        source_restaurant_id: sourceId,
+        category_ids: catalogCopySelectedCategoryIds,
+        product_ids: catalogCopySelectedProductIds,
+        include_all_products_in_categories: catalogCopyIncludeAllProducts
+      }, {
+        timeout: 180000
+      });
+      setCatalogCopyReport(response.data || null);
+      setSuccess('Копирование завершено');
+      loadRestaurants({ silent: true });
+    } catch (err) {
+      setError(err.response?.data?.error || 'Ошибка копирования каталога');
+    } finally {
+      setCatalogCopySubmitting(false);
+    }
   };
 
   const isRestaurantRowInteractiveTarget = (eventTarget) => {
@@ -13752,6 +13845,14 @@ function SuperAdminDashboard() {
                                               <Button
                                                 variant="light"
                                                 className="action-btn sa-action-btn-theme"
+                                                onClick={() => openCatalogCopyModal(r)}
+                                                title={language === 'uz' ? 'Boshqa do‘kondan mahsulot ko‘chirish' : 'Копировать товары из другого магазина'}
+                                              >
+                                                <i className="bi bi-copy action-btn-icon" aria-hidden="true" />
+                                              </Button>
+                                              <Button
+                                                variant="light"
+                                                className="action-btn sa-action-btn-theme"
                                                 onClick={() => openMessagesModal(r)}
                                                 title={language === 'uz' ? 'Xabar shablonlari' : 'Шаблоны сообщений'}
                                               >
@@ -17291,6 +17392,22 @@ function SuperAdminDashboard() {
                               Бонус при создании нового заведения
                             </Form.Text>
                           </Form.Group>
+                          <Form.Group className="mt-4 mb-0">
+                            <Form.Label className="small fw-bold text-muted text-uppercase d-block mb-2">Дефолтная стоимость одного чека (сум)</Form.Label>
+                            <Form.Control
+                              type="text"
+                              inputMode="numeric"
+                              className="form-control-custom"
+                              value={formatThousands(billingSettings.default_order_cost)}
+                              onChange={e => setBillingSettings({
+                                ...billingSettings,
+                                default_order_cost: String(e.target.value || '').replace(/\D/g, '')
+                              })}
+                            />
+                            <Form.Text className="text-muted small">
+                              По умолчанию ставится в поле 🛎 «Стоимость одного чека» для новых магазинов.
+                            </Form.Text>
+                          </Form.Group>
                         </Card.Body>
                       </Card>
                     </Col>
@@ -20142,6 +20259,124 @@ function SuperAdminDashboard() {
       </Modal>
 
       {/* Restaurant Modal */}
+      <Modal show={showCatalogCopyModal} onHide={closeCatalogCopyModal} size="xl">
+        <Modal.Header closeButton={!catalogCopySubmitting}>
+          <Modal.Title>
+            {language === 'uz' ? "Do‘konga mahsulot ko‘chirish" : 'Копирование товаров в магазин'}
+            {catalogCopyTargetRestaurant?.name ? `: ${catalogCopyTargetRestaurant.name}` : ''}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Row className="g-3">
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>{language === 'uz' ? 'Manba do‘kon' : 'Магазин-источник'}</Form.Label>
+                <Form.Select
+                  value={catalogCopySourceRestaurantId}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setCatalogCopySourceRestaurantId(next);
+                    if (next) loadCatalogCopyTree(next);
+                  }}
+                  disabled={catalogCopySubmitting}
+                >
+                  <option value="">{language === 'uz' ? "Tanlang" : 'Выберите'}</option>
+                  {(Array.isArray(filteredRestaurants) ? filteredRestaurants : [])
+                    .filter((item) => Number(item?.id) !== Number(catalogCopyTargetRestaurant?.id))
+                    .map((item) => (
+                      <option key={`catalog-copy-source-${item.id}`} value={String(item.id)}>
+                        {item.name} (ID {item.id})
+                      </option>
+                    ))}
+                </Form.Select>
+              </Form.Group>
+            </Col>
+            <Col md={6} className="d-flex align-items-end">
+              <Form.Check
+                type="switch"
+                id="catalog-copy-include-all-products"
+                label={language === 'uz' ? "Tanlangan kategoriyalardagi barcha mahsulotlarni ham ko‘chirish" : 'Копировать все товары в выбранных категориях'}
+                checked={catalogCopyIncludeAllProducts}
+                onChange={(e) => setCatalogCopyIncludeAllProducts(e.target.checked)}
+                disabled={catalogCopySubmitting}
+              />
+            </Col>
+          </Row>
+
+          <div className="mt-3 p-3 border rounded bg-light" style={{ maxHeight: 440, overflowY: 'auto' }}>
+            {catalogCopyTreeLoading && <div className="text-muted">{language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}</div>}
+            {!catalogCopyTreeLoading && !catalogCopySourceRestaurantId && (
+              <div className="text-muted">{language === 'uz' ? "Manba do‘konni tanlang" : 'Выберите магазин-источник'}</div>
+            )}
+            {!catalogCopyTreeLoading && catalogCopySourceRestaurantId && (catalogCopyTree.categories || []).length === 0 && (
+              <div className="text-muted">{language === 'uz' ? "Manba do‘konda kategoriyalar topilmadi" : 'В источнике нет категорий'}</div>
+            )}
+            {!catalogCopyTreeLoading && (catalogCopyTree.categories || []).map((category) => {
+              const categoryId = Number(category.id);
+              const products = catalogCopyProductsByCategory.get(categoryId) || [];
+              const categoryChecked = catalogCopySelectedCategoryIds.includes(categoryId);
+              return (
+                <div key={`catalog-copy-category-${categoryId}`} className="mb-2 p-2 border rounded bg-white">
+                  <Form.Check
+                    type="checkbox"
+                    id={`catalog-copy-category-check-${categoryId}`}
+                    checked={categoryChecked}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setCatalogCopySelectedCategoryIds((prev) => (
+                        checked ? Array.from(new Set([...prev, categoryId])) : prev.filter((id) => id !== categoryId)
+                      ));
+                    }}
+                    label={`${category.name_ru || category.name_uz || `#${categoryId}`} (${products.length})`}
+                  />
+                  {products.length > 0 && (
+                    <div className="ms-4 mt-2 d-flex flex-column gap-1">
+                      {products.map((product) => {
+                        const productId = Number(product.id);
+                        const productChecked = catalogCopySelectedProductIds.includes(productId);
+                        return (
+                          <Form.Check
+                            key={`catalog-copy-product-check-${productId}`}
+                            type="checkbox"
+                            id={`catalog-copy-product-check-${productId}`}
+                            checked={productChecked}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setCatalogCopySelectedProductIds((prev) => (
+                                checked ? Array.from(new Set([...prev, productId])) : prev.filter((id) => id !== productId)
+                              ));
+                            }}
+                            label={`${product.name_ru || product.name_uz || `#${productId}`} — ${product.price || 0}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {catalogCopyReport && (
+            <Alert variant={Number(catalogCopyReport?.failed?.products || 0) > 0 ? 'warning' : 'success'} className="mt-3 mb-0">
+              <div><strong>{language === 'uz' ? 'Natija' : 'Результат'}:</strong></div>
+              <div>{language === 'uz' ? 'Kategoriyalar ko‘chirildi' : 'Скопировано категорий'}: {Number(catalogCopyReport?.copied?.categories || 0)}</div>
+              <div>{language === 'uz' ? 'Mahsulotlar ko‘chirildi' : 'Скопировано товаров'}: {Number(catalogCopyReport?.copied?.products || 0)}</div>
+              <div>{language === 'uz' ? 'Xatolar' : 'Ошибок'}: {Number(catalogCopyReport?.failed?.products || 0)}</div>
+              <div>{language === 'uz' ? 'Vaqt' : 'Время'}: {Math.max(0, Math.round(Number(catalogCopyReport?.duration_ms || 0) / 1000))}s</div>
+            </Alert>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={closeCatalogCopyModal} disabled={catalogCopySubmitting}>
+            {t('saCancel')}
+          </Button>
+          <Button variant="primary" onClick={handleRunCatalogCopy} disabled={catalogCopySubmitting || !catalogCopySourceRestaurantId}>
+            {catalogCopySubmitting ? (language === 'uz' ? "Ko‘chirilmoqda..." : 'Копирование...') : (language === 'uz' ? "Ko‘chirish" : 'Копировать')}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       <Modal show={showRestaurantModal} onHide={() => setShowRestaurantModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>{editingRestaurant ? t('saModalEditRestaurant') : t('saModalNewRestaurant')}</Modal.Title>
