@@ -211,7 +211,8 @@ const RESTAURANT_WORKFLOW_STATUSES = [
   { value: 'products', icon: '📦', ru: 'Товары', uz: 'Mahsulotlar' },
   { value: 'homonym', icon: '🧩', ru: 'Одноименные', uz: 'Bir xil nomli' },
   { value: 'active', icon: '✅', ru: 'Активные', uz: 'Faol' },
-  { value: 'inactive', icon: '⛔', ru: 'Не активные', uz: 'Nofaol' }
+  { value: 'inactive', icon: '⛔', ru: 'Не активные', uz: 'Nofaol' },
+  { value: 'auto_inactive', icon: '🤖', ru: 'Авто неактивные', uz: 'Avto nofaol' }
 ];
 const RESTAURANT_WORKFLOW_STATUS_COLORS = {
   all: '#64748b',
@@ -223,9 +224,14 @@ const RESTAURANT_WORKFLOW_STATUS_COLORS = {
   products: '#65a30d',
   homonym: '#dc2626',
   active: '#16a34a',
-  inactive: '#475569'
+  inactive: '#475569',
+  auto_inactive: '#b45309'
 };
-const RESTAURANT_WORKFLOW_STATUS_SET = new Set(RESTAURANT_WORKFLOW_STATUSES.map((item) => item.value).filter((value) => value !== 'all'));
+const RESTAURANT_WORKFLOW_STATUS_SET = new Set(
+  RESTAURANT_WORKFLOW_STATUSES
+    .map((item) => item.value)
+    .filter((value) => value !== 'all' && value !== 'auto_inactive')
+);
 const RESTAURANT_AUTO_INACTIVE_DAYS = 30;
 const normalizeRestaurantWorkflowStatusValue = (value, fallback = 'new') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -2923,6 +2929,7 @@ function SuperAdminDashboard() {
       const workflowStatusFilter = RESTAURANT_WORKFLOW_STATUS_SET.has(normalizedStatusFilter)
         ? normalizedStatusFilter
         : undefined;
+      const autoInactiveFilter = normalizedStatusFilter === 'auto_inactive' ? 1 : undefined;
       const searchFilter = String(restaurantsNameFilter || '').trim() || String(restaurantsSelectFilter || '').trim() || undefined;
       const response = await axios.get(`${API_URL}/superadmin/restaurants`, {
         params: {
@@ -2931,6 +2938,7 @@ function SuperAdminDashboard() {
           search: searchFilter,
           status: undefined,
           workflow_status: workflowStatusFilter,
+          auto_inactive: autoInactiveFilter,
           activity_type_id: restaurantsActivityTypeFilter || undefined,
           created_from: restaurantsCreatedFromFilter || undefined,
           created_to: restaurantsCreatedToFilter || undefined,
@@ -6434,6 +6442,9 @@ function SuperAdminDashboard() {
       const effectiveStatus = normalizeRestaurantWorkflowStatusValue(workflowMeta.effective, 'new');
       counts.all += 1;
       counts[effectiveStatus] = (counts[effectiveStatus] || 0) + 1;
+      if (workflowMeta.autoInactive) {
+        counts.auto_inactive = (counts.auto_inactive || 0) + 1;
+      }
     });
     return counts;
   }, [restaurants, allRestaurants]);
@@ -6447,7 +6458,12 @@ function SuperAdminDashboard() {
       const selectedMatch = !restaurantsSelectFilter || String(restaurant.id) === String(restaurantsSelectFilter);
       const workflowMeta = deriveRestaurantWorkflowMeta(restaurant);
       const effectiveStatus = normalizeRestaurantWorkflowStatusValue(workflowMeta.effective, 'new');
-      const statusMatch = !restaurantsStatusFilter || effectiveStatus === restaurantsStatusFilter;
+      const statusMatch = !restaurantsStatusFilter
+        || (restaurantsStatusFilter === 'inactive'
+          ? workflowMeta.manual === 'inactive'
+          : restaurantsStatusFilter === 'auto_inactive'
+            ? workflowMeta.autoInactive === true
+            : effectiveStatus === restaurantsStatusFilter);
       const restaurantActivityId = Number.parseInt(restaurant?.activity_type_id, 10);
       const activityTypeMatch = !restaurantsActivityTypeFilter || (
         restaurantsActivityTypeFilter === 'none'

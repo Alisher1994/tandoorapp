@@ -4108,6 +4108,27 @@ router.get('/restaurants', async (req, res) => {
       params.push(workflowStatus);
       where.push(`r.workflow_status = $${params.length}`);
     }
+    const autoInactiveRequested = ['1', 'true', 'yes'].includes(String(req.query.auto_inactive || '').trim().toLowerCase());
+    if (autoInactiveRequested) {
+      where.push(`(
+        r.is_active = false
+        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%401%'
+        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%403%'
+        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%404%'
+        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%unauthorized%'
+        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%forbidden%'
+        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%not found%'
+        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%bot was blocked%'
+        OR LOWER(COALESCE(r.telegram_bot_meta_error, '')) LIKE '%deactivated%'
+        OR COALESCE((
+          SELECT MAX(u.last_activity_at)
+          FROM operator_restaurants opr
+          INNER JOIN users u ON u.id = opr.user_id
+          WHERE opr.restaurant_id = r.id
+            AND u.role = 'operator'
+        ), r.created_at) <= (CURRENT_TIMESTAMP - INTERVAL '30 days')
+      )`);
+    }
 
     const createdFrom = String(req.query.created_from || '').trim();
     if (/^\d{4}-\d{2}-\d{2}$/.test(createdFrom)) {
