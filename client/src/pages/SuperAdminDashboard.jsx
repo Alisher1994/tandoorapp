@@ -8706,13 +8706,8 @@ function SuperAdminDashboard() {
       productIdsToSend = uncategorizedProductIds;
     }
 
-    if (!categoryIdsToSend.length && !productIdsToSend.length) {
-      const hasAnySourceData = treeCategories.length > 0 || treeProducts.length > 0;
-      setError(hasAnySourceData
-        ? 'Нет доступных категорий/товаров для копирования'
-        : 'В источнике нет данных для копирования');
-      return;
-    }
+    // Если дерево временно не загрузилось или пользователь ничего не отметил,
+    // бэкенд выполнит fallback-копирование всего каталога источника.
     setCatalogCopySubmitting(true);
     try {
       const response = await axios.post(`${API_URL}/superadmin/restaurants/${targetId}/copy-catalog`, {

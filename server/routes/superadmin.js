@@ -6897,10 +6897,6 @@ router.post('/restaurants/:id(\\d+)/copy-catalog', async (req, res) => {
       selectedProductIdsRaw.map((value) => Number.parseInt(value, 10)).filter((value) => Number.isFinite(value) && value > 0)
     ));
 
-    if (!selectedCategoryIds.length && !selectedProductIds.length) {
-      return res.status(400).json({ error: 'Выберите хотя бы одну категорию или товар для копирования' });
-    }
-
     await client.query('BEGIN');
 
     const sourceRestaurantResult = await client.query('SELECT id, name FROM restaurants WHERE id = $1 LIMIT 1', [sourceRestaurantId]);
@@ -6934,6 +6930,7 @@ router.post('/restaurants/:id(\\d+)/copy-catalog', async (req, res) => {
     );
     const allProducts = sourceProductsResult.rows;
 
+    const noManualSelection = selectedCategoryIds.length === 0 && selectedProductIds.length === 0;
     const categoryIdsToCopy = new Set(selectedCategoryIds);
     const productsToCopy = [];
     for (const product of allProducts) {
@@ -6941,12 +6938,19 @@ router.post('/restaurants/:id(\\d+)/copy-catalog', async (req, res) => {
       const productCategoryId = Number(product.category_id);
       const categorySelected = Number.isFinite(productCategoryId) && categoryIdsToCopy.has(productCategoryId);
       const productSelected = selectedProductIds.includes(productId);
-      const shouldCopy = productSelected || (includeAllProductsInCategories && categorySelected);
+      const shouldCopy = noManualSelection || productSelected || (includeAllProductsInCategories && categorySelected);
       if (!shouldCopy) continue;
       productsToCopy.push(product);
       if (Number.isFinite(productCategoryId) && productCategoryId > 0) {
         categoryIdsToCopy.add(productCategoryId);
       }
+    }
+
+    if (noManualSelection) {
+      sourceCategories.forEach((item) => {
+        const id = Number(item.id);
+        if (Number.isFinite(id) && id > 0) categoryIdsToCopy.add(id);
+      });
     }
 
     const ensureParentChain = (categoryId) => {
