@@ -2920,7 +2920,6 @@ function SuperAdminDashboard() {
     }
     try {
       const normalizedStatusFilter = String(restaurantsStatusFilter || '').trim().toLowerCase();
-      const isActiveFlagFilter = normalizedStatusFilter === 'active' || normalizedStatusFilter === 'inactive';
       const workflowStatusFilter = RESTAURANT_WORKFLOW_STATUS_SET.has(normalizedStatusFilter)
         ? normalizedStatusFilter
         : undefined;
@@ -2930,7 +2929,7 @@ function SuperAdminDashboard() {
           page: restaurantsPage,
           limit: restaurantsLimit,
           search: searchFilter,
-          status: isActiveFlagFilter ? normalizedStatusFilter : undefined,
+          status: undefined,
           workflow_status: workflowStatusFilter,
           activity_type_id: restaurantsActivityTypeFilter || undefined,
           created_from: restaurantsCreatedFromFilter || undefined,
