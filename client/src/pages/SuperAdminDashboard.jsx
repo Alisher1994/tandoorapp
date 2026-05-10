@@ -165,6 +165,8 @@ const SPREADSHEET_IMPORT_MIME_TYPES = new Set([
   'application/csv',
   'text/plain'
 ]);
+const CATALOG_COPY_SOURCE_DEFAULT_LIMIT = 40;
+const CATALOG_COPY_SOURCE_SEARCH_LIMIT = 120;
 const MAX_RESTAURANT_ADMIN_COMMENT_LENGTH = 2000;
 const RESTAURANT_COMMENT_CHECKLIST_OPTIONS = [
   {
@@ -6522,8 +6524,12 @@ function SuperAdminDashboard() {
   }, [allRestaurants, restaurants, catalogCopyTargetRestaurant?.id]);
   const filteredCatalogCopySourceOptions = useMemo(() => {
     const query = String(catalogCopySourceRestaurantSearch || '').trim().toLowerCase();
-    if (!query) return catalogCopySourceOptions;
-    return catalogCopySourceOptions.filter((item) => item.search.includes(query));
+    if (!query) {
+      return catalogCopySourceOptions.slice(0, CATALOG_COPY_SOURCE_DEFAULT_LIMIT);
+    }
+    return catalogCopySourceOptions
+      .filter((item) => item.search.includes(query))
+      .slice(0, CATALOG_COPY_SOURCE_SEARCH_LIMIT);
   }, [catalogCopySourceOptions, catalogCopySourceRestaurantSearch]);
 
   useEffect(() => {
