@@ -11,6 +11,7 @@ const {
 } = require('../bot/notifications');
 const printerManager = require('../services/printerManager');
 const { isPaymeConfigured } = require('../services/payme');
+const { applyPromoForOrder, validatePromo } = require('../services/promoCodes');
 const {
   ensureInventorySchema,
   isInventoryTrackingEnabled,
@@ -311,6 +312,9 @@ router.get('/operator-preview', async (req, res) => {
           <div class="items">
             <h3>Товары</h3>
             ${itemsHtml || '<div class="muted">Нет данных по товарам</div>'}
+            ${Number(order.promo_discount_amount) > 0
+              ? `<div class="total" style="color:#9c4221"><span>Промокод${order.promo_code ? ` ${escapeHtml(order.promo_code)}` : ''}</span><span>−${fmt(order.promo_discount_amount)} сум</span></div>`
+              : ''}
             <div class="total"><span>Итого</span><span>${fmt(order.total_amount)} сум</span></div>
           </div>
         </div>
@@ -493,6 +497,51 @@ router.get('/:id', authenticate, async (req, res) => {
   }
 });
 
+// Promo-code validator for the cart's "Apply" button. Read-only, never increments used_count.
+// Server is the source of truth — UI is not allowed to trust the discount.
+router.post('/promo/validate', authenticate, async (req, res) => {
+  try {
+    const restaurantId = Number(req.body?.restaurant_id);
+    const code = String(req.body?.code || '').trim();
+    const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ valid: false, reason: 'BAD_RESTAURANT' });
+    }
+    if (!code) return res.status(400).json({ valid: false, reason: 'EMPTY' });
+
+    const flagResult = await pool.query(
+      `SELECT promo_codes_enabled FROM restaurants WHERE id = $1`,
+      [restaurantId]
+    );
+    if (flagResult.rows[0]?.promo_codes_enabled !== true) {
+      return res.status(400).json({ valid: false, reason: 'DISABLED' });
+    }
+
+    // Items use the same line-total semantics as order creation (product + container, already
+    // multiplied by quantity), so the discount preview matches what will be applied at checkout.
+    const items = rawItems
+      .map((row) => ({
+        product_id: Number(row?.product_id) || null,
+        total: Number(row?.total) || 0
+      }))
+      .filter((row) => row.total > 0);
+
+    const result = await validatePromo({ restaurantId, code, items });
+    if (!result.valid) {
+      return res.json({ valid: false, reason: result.reason });
+    }
+    res.json({
+      valid: true,
+      promo: result.promo,
+      eligible_subtotal: result.eligibleSubtotal,
+      discount_amount: result.discountAmount
+    });
+  } catch (error) {
+    console.error('Promo validate error:', error);
+    res.status(500).json({ valid: false, reason: 'SERVER_ERROR' });
+  }
+});
+
 // Create order
 router.post('/', authenticate, async (req, res) => {
   console.log('📦 ========== CREATE ORDER REQUEST ==========');
@@ -522,7 +571,8 @@ router.post('/', authenticate, async (req, res) => {
       service_fee,
       delivery_cost,
       delivery_distance_km,
-      fulfillment_type
+      fulfillment_type,
+      promo_code: rawPromoCode
     } = req.body;
     
     console.log('📦 Parsed data:', {
@@ -795,7 +845,48 @@ router.post('/', authenticate, async (req, res) => {
         deliveryCost = Math.round(computedCost / 500) * 500;
       }
     }
-    const totalAmount = itemsTotal + serviceFee + deliveryCost;
+    // Apply promo code (atomic — re-validates and increments used_count inside the txn).
+    // We pass per-line totals so the service can compute "applies to selected products" correctly.
+    let promoCodeApplied = null;
+    let promoDiscountAmount = 0;
+    const trimmedPromoCode = typeof rawPromoCode === 'string' ? rawPromoCode.trim() : '';
+    if (trimmedPromoCode && finalRestaurantId) {
+      const restaurantPromoFlag = await client.query(
+        `SELECT promo_codes_enabled FROM restaurants WHERE id = $1`,
+        [finalRestaurantId]
+      );
+      const promoEnabled = restaurantPromoFlag.rows[0]?.promo_codes_enabled === true;
+      if (promoEnabled) {
+        const itemsForPromo = normalizedItems.map((item) => {
+          const qty = toNumeric(item.quantity, 0);
+          const linePrice = toNumeric(item.price, 0) * qty;
+          const containerUnits = resolveContainerUnits(qty, item.container_norm);
+          const containerLine = toNumeric(item.container_price, 0) * containerUnits;
+          return {
+            product_id: Number(item.product_id) || null,
+            total: linePrice + containerLine
+          };
+        });
+        const promoResult = await applyPromoForOrder({
+          client,
+          restaurantId: finalRestaurantId,
+          code: trimmedPromoCode,
+          items: itemsForPromo
+        });
+        if (!promoResult.applied) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            error: 'Промокод недействителен',
+            code: 'PROMO_INVALID',
+            reason: promoResult.reason
+          });
+        }
+        promoCodeApplied = promoResult.code;
+        promoDiscountAmount = Number(promoResult.discountAmount) || 0;
+      }
+    }
+
+    const totalAmount = Math.max(0, itemsTotal + serviceFee + deliveryCost - promoDiscountAmount);
     const normalizedPaymentMethod = String(payment_method || 'cash').trim().toLowerCase() || 'cash';
     const isCashEnabled = restaurantSettings?.cash_enabled === undefined || restaurantSettings?.cash_enabled === null
       ? true
@@ -837,6 +928,8 @@ router.post('/', authenticate, async (req, res) => {
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_cost DECIMAL(15, 2) DEFAULT 0');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_distance_km DECIMAL(10, 2) DEFAULT 0');
       await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS inventory_reserved BOOLEAN DEFAULT false');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code VARCHAR(64)');
+      await client.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_discount_amount DECIMAL(15, 2) DEFAULT 0');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_name VARCHAR(255)');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_price DECIMAL(15, 2) DEFAULT 0');
       await client.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS container_norm DECIMAL(10, 2) DEFAULT 1');
@@ -857,17 +950,19 @@ router.post('/', authenticate, async (req, res) => {
     // Create order
     const orderResult = await client.query(
       `INSERT INTO orders (
-        restaurant_id, user_id, order_number, total_amount, delivery_address, 
-        delivery_coordinates, customer_name, customer_phone, 
+        restaurant_id, user_id, order_number, total_amount, delivery_address,
+        delivery_coordinates, customer_name, customer_phone,
         payment_method, payment_status, comment, delivery_date, delivery_time, status, service_fee,
-        delivery_cost, delivery_distance_km, inventory_reserved
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        delivery_cost, delivery_distance_km, inventory_reserved,
+        promo_code, promo_discount_amount
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *`,
       [
         finalRestaurantId, req.user.id, orderNumber, totalAmount, normalizedDeliveryAddress,
         normalizedDeliveryCoordinates, customer_name || req.user.full_name || 'Клиент', customer_phone,
         normalizedPaymentMethod, initialPaymentStatus, comment, delivery_date, dbDeliveryTime, 'new', serviceFee,
-        deliveryCost, deliveryDistanceKm, inventoryReserved
+        deliveryCost, deliveryDistanceKm, inventoryReserved,
+        promoCodeApplied, promoDiscountAmount
       ]
     );
     

@@ -664,7 +664,9 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
   const serviceFee = parseNumericValue(order.service_fee) || 0;
   const deliveryCost = parseNumericValue(order.delivery_cost) || 0;
   const deliveryDistanceKm = parseNumericValue(order.delivery_distance_km) || 0;
-  const calculatedTotal = itemsBaseTotal + containerTotal + serviceFee + deliveryCost;
+  const promoDiscountAmount = parseNumericValue(order.promo_discount_amount) || 0;
+  const promoCodeApplied = order.promo_code ? String(order.promo_code) : '';
+  const calculatedTotal = Math.max(0, itemsBaseTotal + containerTotal + serviceFee + deliveryCost - promoDiscountAmount);
   const totalAmountRaw = parseNumericValue(order.total_amount);
   const orderTotal = Number.isFinite(totalAmountRaw) ? totalAmountRaw : calculatedTotal;
   const hasDeliveryAddress = Boolean(order?.delivery_address) && order.delivery_address !== 'Самовывоз';
@@ -687,6 +689,10 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     }
     deliveryLine += '\n';
   }
+
+  const promoLine = promoDiscountAmount > 0
+    ? `🎟 Промокод${promoCodeApplied ? ` ${escapeHtml(promoCodeApplied)}` : ''}: −${formatPrice(promoDiscountAmount)} ${currencyLabel}\n`
+    : '';
 
   const hiddenHint = statusKey === 'new' && !revealSensitive
     ? '🔒 Данные клиента будут показаны после нажатия «Принять».\n\n'
@@ -714,6 +720,7 @@ function buildGroupOrderNotificationPayload(order, items, options = {}) {
     containerLine +
     serviceLine +
     deliveryLine +
+    promoLine +
     `<b>Итого: ${formatPrice(orderTotal)} ${currencyLabel}</b>` +
     `\n\n` +
     (safeComment ? `💬 Комментарий: ${escapeHtml(safeComment)}` : '💬 Комментарий: —') +
@@ -956,6 +963,8 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
       const fallbackServiceFee = parseNumericValue(order?.service_fee) || 0;
       const fallbackDeliveryCost = parseNumericValue(order?.delivery_cost) || 0;
       const fallbackDistanceKm = parseNumericValue(order?.delivery_distance_km) || 0;
+      const fallbackPromoDiscount = parseNumericValue(order?.promo_discount_amount) || 0;
+      const fallbackPromoCode = order?.promo_code ? String(order.promo_code) : '';
       const fallbackPickupOrder = isPickupOrder(order);
       const fallbackHasDeliveryAddress = Boolean(order?.delivery_address) && order.delivery_address !== 'Самовывоз';
       const fallbackHasDeliveryCoordinates = Boolean(order?.delivery_coordinates);
@@ -970,6 +979,9 @@ async function sendOrderNotification(order, items, chatId = null, botToken = nul
           ? 'Самовывоз\n'
           : fallbackShouldShowDelivery
           ? `Доставка: ${formatPrice(fallbackDeliveryCost)} ${currencyLabel}${fallbackDistanceKm > 0 ? ` (${fallbackDistanceKm} км)` : ''}\n`
+          : '') +
+        (fallbackPromoDiscount > 0
+          ? `Промокод${fallbackPromoCode ? ` ${fallbackPromoCode}` : ''}: −${formatPrice(fallbackPromoDiscount)} ${currencyLabel}\n`
           : '') +
         `${fallbackItems || 'Товары: —'}${omittedCount > 0 ? `\n… и ещё ${omittedCount} позиций` : ''}`;
 

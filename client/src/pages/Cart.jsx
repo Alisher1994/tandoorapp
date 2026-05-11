@@ -83,6 +83,10 @@ function Cart() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoApplying, setPromoApplying] = useState(false);
   const [orderItems, setOrderItems] = useState([]);
   const [deliveryCost, setDeliveryCost] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState(0);
@@ -500,6 +504,91 @@ function Cart() {
     [restaurant?.minimum_order_amount]
   );
   const meetsMinimumOrder = minimumOrderAmount <= 0 || productTotal + 1e-6 >= minimumOrderAmount;
+  const isPromoEnabled = !!(restaurant?.promo_codes_enabled);
+  const promoDiscountAmount = appliedPromo ? Number(appliedPromo.discount_amount || 0) : 0;
+  // Items as the server expects them: line totals = (price * qty) + (container_price * units).
+  // Used both for the validator call and as the source of truth for "applies to selected products".
+  const promoItemsPayload = useMemo(() => (
+    cart.map((item) => {
+      const qty = Number(item.quantity) || 0;
+      const linePrice = (Number(item.price) || 0) * qty;
+      const containerNorm = Number(item.container_norm) || 1;
+      const containerUnits = containerNorm > 0 ? Math.ceil(qty / containerNorm) : 0;
+      const containerLine = (Number(item.container_price) || 0) * containerUnits;
+      return {
+        product_id: Number(item.id) || null,
+        total: linePrice + containerLine
+      };
+    })
+  ), [cart]);
+
+  // If the cart changes after applying, drop the discount — its eligibility may have moved
+  // (different products, different total). Forces the user to re-apply, mirroring server logic.
+  useEffect(() => {
+    if (appliedPromo) {
+      setAppliedPromo(null);
+      setPromoError('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(promoItemsPayload)]);
+
+  const handleApplyPromo = useCallback(async () => {
+    setPromoError('');
+    const code = String(promoInput || '').trim();
+    if (!code) {
+      setPromoError(language === 'uz' ? 'Promokod kiriting' : 'Введите промокод');
+      return;
+    }
+    const restaurantIdForPromo = cart[0]?.restaurant_id || user?.active_restaurant_id;
+    if (!restaurantIdForPromo) {
+      setPromoError(language === 'uz' ? "Do'kon aniqlanmadi" : 'Магазин не определён');
+      return;
+    }
+    setPromoApplying(true);
+    try {
+      const response = await axios.post(`${API_URL}/orders/promo/validate`, {
+        restaurant_id: restaurantIdForPromo,
+        code,
+        items: promoItemsPayload
+      });
+      if (response.data?.valid) {
+        setAppliedPromo({
+          code: response.data.promo?.code || code.toUpperCase(),
+          discount_amount: Number(response.data.discount_amount) || 0,
+          type: response.data.promo?.type || 'fixed',
+          value: Number(response.data.promo?.value) || 0
+        });
+        setPromoError('');
+      } else {
+        setAppliedPromo(null);
+        const reasonMap = {
+          NOT_FOUND: language === 'uz' ? "Promokod topilmadi" : 'Промокод не найден',
+          INACTIVE: language === 'uz' ? 'Promokod faol emas' : 'Промокод неактивен',
+          NOT_STARTED: language === 'uz' ? "Promokod hali ishlamaydi" : 'Промокод ещё не действует',
+          EXPIRED: language === 'uz' ? 'Promokod muddati tugadi' : 'Срок действия промокода истёк',
+          MAX_USES_REACHED: language === 'uz' ? 'Promokod ishlatilib bo\'lindi' : 'Лимит использований исчерпан',
+          NO_ELIGIBLE_ITEMS: language === 'uz' ? 'Savatda mos tovarlar yo\'q' : 'В корзине нет товаров, на которые действует промокод',
+          ZERO_DISCOUNT: language === 'uz' ? "Chegirma nolga teng" : 'Скидка равна нулю',
+          DISABLED: language === 'uz' ? "Promokodlar o'chirilgan" : 'Промокоды отключены',
+          EMPTY: language === 'uz' ? 'Promokod kiriting' : 'Введите промокод',
+          BAD_RESTAURANT: language === 'uz' ? "Do'kon aniqlanmadi" : 'Магазин не определён'
+        };
+        setPromoError(reasonMap[response.data?.reason] || (language === 'uz' ? 'Promokod yaroqsiz' : 'Промокод недействителен'));
+      }
+    } catch (err) {
+      console.error('Apply promo error:', err);
+      setAppliedPromo(null);
+      setPromoError(err?.response?.data?.error || (language === 'uz' ? 'Xatolik yuz berdi' : 'Ошибка проверки промокода'));
+    } finally {
+      setPromoApplying(false);
+    }
+  }, [promoInput, cart, user?.active_restaurant_id, promoItemsPayload, language]);
+
+  const handleRemovePromo = useCallback(() => {
+    setAppliedPromo(null);
+    setPromoError('');
+    setPromoInput('');
+  }, []);
 
   useEffect(() => {
     if (!isDeliveryEnabled) {
@@ -851,7 +940,8 @@ function Cart() {
         delivery_address: deliveryAddress,
         delivery_coordinates: isDeliverySelected ? formData.delivery_coordinates : '',
         customer_name: formData.customer_name || user?.full_name || 'Клиент',
-        delivery_date: formData.delivery_date || new Date().toISOString().split('T')[0]
+        delivery_date: formData.delivery_date || new Date().toISOString().split('T')[0],
+        promo_code: appliedPromo?.code || null
       };
 
       console.log('📦 Sending order:', JSON.stringify(orderData, null, 2));
@@ -1691,11 +1781,61 @@ function Cart() {
               </>
             )}
 
-            {step === 3 && (
-              <div className="d-flex justify-content-between align-items-center mb-3 pt-2 border-top">
-                <span className="text-muted fw-bold">{t('total')}:</span>
-                <span className="fs-4 fw-bold" style={themePrimaryTextStyle}>{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
+            {step === 3 && isPromoEnabled && (
+              <div className="mb-3 p-2 rounded-3 border bg-light">
+                <div className="small fw-semibold mb-1">
+                  🎟 {language === 'uz' ? 'Promokod' : 'Промокод'}
+                </div>
+                {appliedPromo ? (
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div className="small">
+                      <span className="badge bg-success me-2">{appliedPromo.code}</span>
+                      <span className="text-success">−{formatPrice(promoDiscountAmount)} {t('sum')}</span>
+                    </div>
+                    <Button variant="outline-secondary" size="sm" onClick={handleRemovePromo}>
+                      {language === 'uz' ? "O'chirish" : 'Убрать'}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="d-flex gap-2">
+                    <Form.Control
+                      type="text"
+                      size="sm"
+                      placeholder={language === 'uz' ? 'Promokodni kiriting' : 'Введите промокод'}
+                      value={promoInput}
+                      onChange={(e) => setPromoInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyPromo(); } }}
+                      disabled={promoApplying}
+                      maxLength={64}
+                    />
+                    <Button variant="primary" size="sm" onClick={handleApplyPromo} disabled={promoApplying || !promoInput.trim()}>
+                      {promoApplying
+                        ? (language === 'uz' ? 'Tekshirilmoqda...' : 'Проверяем...')
+                        : (language === 'uz' ? 'Qollash' : 'Применить')}
+                    </Button>
+                  </div>
+                )}
+                {promoError ? <div className="small text-danger mt-1">{promoError}</div> : null}
               </div>
+            )}
+
+            {step === 3 && (
+              <>
+                {appliedPromo && promoDiscountAmount > 0 ? (
+                  <div className="d-flex justify-content-between align-items-center mb-1">
+                    <span className="text-muted small">
+                      {language === 'uz' ? 'Promokod' : 'Промокод'} {appliedPromo.code}:
+                    </span>
+                    <span className="small text-danger fw-semibold">−{formatPrice(promoDiscountAmount)} {t('sum')}</span>
+                  </div>
+                ) : null}
+                <div className="d-flex justify-content-between align-items-center mb-3 pt-2 border-top">
+                  <span className="text-muted fw-bold">{t('total')}:</span>
+                  <span className="fs-4 fw-bold" style={themePrimaryTextStyle}>
+                    {formatPrice(Math.max(0, cartTotal + serviceFee + effectiveDeliveryCost - promoDiscountAmount))} {t('sum')}
+                  </span>
+                </div>
+              </>
             )}
 
             {step === 1 && (
@@ -2017,10 +2157,18 @@ function Cart() {
                   <span>{formatPrice(effectiveDeliveryCost)} {t('sum')}</span>
                 </div>
               )}
+              {appliedPromo && promoDiscountAmount > 0 ? (
+                <div className="d-flex justify-content-between text-danger">
+                  <span>🎟 {language === 'uz' ? 'Promokod' : 'Промокод'} {appliedPromo.code}:</span>
+                  <span>−{formatPrice(promoDiscountAmount)} {t('sum')}</span>
+                </div>
+              ) : null}
               <hr />
               <div className="d-flex justify-content-between fw-bold">
                 <span>{t('total')}:</span>
-                <span style={themePrimaryTextStyle}>{formatPrice(cartTotal + serviceFee + effectiveDeliveryCost)} {t('sum')}</span>
+                <span style={themePrimaryTextStyle}>
+                  {formatPrice(Math.max(0, cartTotal + serviceFee + effectiveDeliveryCost - promoDiscountAmount))} {t('sum')}
+                </span>
               </div>
             </div>
 

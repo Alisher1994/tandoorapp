@@ -29,6 +29,7 @@ const { ensureBotFunnelSchema } = require('../services/botFunnel');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureBroadcastSchema } = require('../services/broadcastSchema');
 const { ensureActivityTypesSchema } = require('../services/storeRegistration');
+const { normalizeCode: normalizePromoCode, PROMO_TYPES } = require('../services/promoCodes');
 const {
   ensureInventorySchema,
   normalizeInventoryQuantity,
@@ -2244,6 +2245,18 @@ router.put('/restaurant', async (req, res) => {
         [normalizedOperatorDeliveryLaterEnabled, restaurantId]
       );
       result.rows[0].is_operator_delivery_later_enabled = deliveryLaterResult.rows[0]?.is_operator_delivery_later_enabled === true;
+    }
+
+    if (req.body?.promo_codes_enabled !== undefined) {
+      const promoFlag = req.body.promo_codes_enabled === true || req.body.promo_codes_enabled === 'true';
+      const promoUpdate = await pool.query(
+        `UPDATE restaurants
+           SET promo_codes_enabled = $1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2
+           RETURNING promo_codes_enabled`,
+        [promoFlag, restaurantId]
+      );
+      result.rows[0].promo_codes_enabled = promoUpdate.rows[0]?.promo_codes_enabled === true;
     }
 
     const cardModeUpdateResult = await pool.query(
@@ -6486,6 +6499,284 @@ router.delete('/printer-agents/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete printer agent error:', error);
     return res.status(500).json({ error: 'Ошибка удаления агента' });
+  }
+});
+
+// ============================================================
+// Promo codes — admin CRUD scoped to the operator's active restaurant.
+// Toggle for the feature lives on `restaurants.promo_codes_enabled` and is
+// edited via the existing PUT /restaurant settings endpoint.
+// ============================================================
+function resolvePromoRestaurantId(req) {
+  const rid = Number(req.user?.active_restaurant_id);
+  return Number.isFinite(rid) && rid > 0 ? rid : null;
+}
+
+async function loadPromoForResponse(promoId, restaurantId) {
+  const main = await pool.query(
+    `SELECT id, restaurant_id, code, type, value, max_discount_amount, applies_to_all,
+            valid_from, valid_to, max_uses, used_count, is_active, created_at, updated_at
+       FROM promo_codes
+       WHERE id = $1 AND restaurant_id = $2`,
+    [Number(promoId), Number(restaurantId)]
+  );
+  const promo = main.rows[0];
+  if (!promo) return null;
+  const products = await pool.query(
+    `SELECT product_id FROM promo_code_products WHERE promo_code_id = $1`,
+    [promo.id]
+  );
+  promo.product_ids = products.rows.map((r) => Number(r.product_id));
+  return promo;
+}
+
+router.get('/promo-codes', authenticate, requireOperator, async (req, res) => {
+  try {
+    const restaurantId = resolvePromoRestaurantId(req);
+    if (!restaurantId) return res.status(400).json({ error: 'Магазин не выбран' });
+    const result = await pool.query(
+      `SELECT p.id, p.code, p.type, p.value, p.max_discount_amount, p.applies_to_all,
+              p.valid_from, p.valid_to, p.max_uses, p.used_count, p.is_active,
+              p.created_at, p.updated_at,
+              COALESCE(json_agg(pcp.product_id) FILTER (WHERE pcp.product_id IS NOT NULL), '[]'::json) AS product_ids
+         FROM promo_codes p
+         LEFT JOIN promo_code_products pcp ON pcp.promo_code_id = p.id
+         WHERE p.restaurant_id = $1
+         GROUP BY p.id
+         ORDER BY p.is_active DESC, p.created_at DESC`,
+      [restaurantId]
+    );
+    res.json({ success: true, items: result.rows });
+  } catch (error) {
+    console.error('List promo codes error:', error);
+    res.status(500).json({ error: 'Не удалось загрузить промокоды' });
+  }
+});
+
+router.post('/promo-codes', authenticate, requireOperator, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const restaurantId = resolvePromoRestaurantId(req);
+    if (!restaurantId) return res.status(400).json({ error: 'Магазин не выбран' });
+
+    const code = normalizePromoCode(req.body?.code);
+    if (!code || code.length < 3) return res.status(400).json({ error: 'Код слишком короткий' });
+
+    const type = String(req.body?.type || 'fixed').toLowerCase();
+    if (!PROMO_TYPES.has(type)) return res.status(400).json({ error: 'Неверный тип скидки' });
+
+    const value = Number(req.body?.value);
+    if (!Number.isFinite(value) || value <= 0) return res.status(400).json({ error: 'Сумма/процент должны быть > 0' });
+    if (type === 'percent' && value > 100) return res.status(400).json({ error: 'Процент не может быть больше 100' });
+
+    const maxDiscount = req.body?.max_discount_amount != null && req.body.max_discount_amount !== ''
+      ? Number(req.body.max_discount_amount)
+      : null;
+    if (maxDiscount != null && !(Number.isFinite(maxDiscount) && maxDiscount >= 0)) {
+      return res.status(400).json({ error: 'Неверный потолок скидки' });
+    }
+
+    const appliesToAll = req.body?.applies_to_all !== false;
+    const productIds = Array.isArray(req.body?.product_ids)
+      ? Array.from(new Set(req.body.product_ids.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0)))
+      : [];
+    if (!appliesToAll && productIds.length === 0) {
+      return res.status(400).json({ error: 'Выберите хотя бы один товар' });
+    }
+
+    const validFrom = req.body?.valid_from ? new Date(req.body.valid_from) : null;
+    const validTo = req.body?.valid_to ? new Date(req.body.valid_to) : null;
+    if (validFrom && Number.isNaN(validFrom.getTime())) return res.status(400).json({ error: 'Неверная дата начала' });
+    if (validTo && Number.isNaN(validTo.getTime())) return res.status(400).json({ error: 'Неверная дата окончания' });
+    if (validFrom && validTo && validFrom.getTime() > validTo.getTime()) {
+      return res.status(400).json({ error: 'Дата начала позже даты окончания' });
+    }
+
+    const maxUses = req.body?.max_uses != null && req.body.max_uses !== ''
+      ? Number(req.body.max_uses) : null;
+    if (maxUses != null && !(Number.isInteger(maxUses) && maxUses > 0)) {
+      return res.status(400).json({ error: 'Лимит применений должен быть целым > 0' });
+    }
+
+    const isActive = req.body?.is_active !== false;
+
+    await client.query('BEGIN');
+    const dup = await client.query(
+      `SELECT 1 FROM promo_codes WHERE restaurant_id = $1 AND UPPER(code) = $2 LIMIT 1`,
+      [restaurantId, code]
+    );
+    if (dup.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Такой код уже существует' });
+    }
+
+    const insertResult = await client.query(
+      `INSERT INTO promo_codes
+        (restaurant_id, code, type, value, max_discount_amount, applies_to_all,
+         valid_from, valid_to, max_uses, is_active, created_by_user_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       RETURNING id`,
+      [
+        restaurantId, code, type, value,
+        maxDiscount, appliesToAll,
+        validFrom, validTo, maxUses, isActive,
+        req.user?.id || null
+      ]
+    );
+    const promoId = insertResult.rows[0].id;
+
+    if (!appliesToAll && productIds.length) {
+      // Only allow products that belong to this restaurant.
+      const checked = await client.query(
+        `SELECT id FROM products WHERE id = ANY($1::int[]) AND restaurant_id = $2`,
+        [productIds, restaurantId]
+      );
+      const validIds = checked.rows.map((r) => r.id);
+      if (validIds.length > 0) {
+        const values = validIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+        await client.query(
+          `INSERT INTO promo_code_products(promo_code_id, product_id) VALUES ${values}
+           ON CONFLICT DO NOTHING`,
+          [promoId, ...validIds]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    const promo = await loadPromoForResponse(promoId, restaurantId);
+    res.json({ success: true, promo });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Create promo code error:', error);
+    res.status(500).json({ error: 'Не удалось создать промокод' });
+  } finally {
+    client.release();
+  }
+});
+
+router.put('/promo-codes/:id', authenticate, requireOperator, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const restaurantId = resolvePromoRestaurantId(req);
+    if (!restaurantId) return res.status(400).json({ error: 'Магазин не выбран' });
+    const promoId = Number(req.params.id);
+    if (!Number.isFinite(promoId)) return res.status(400).json({ error: 'Неверный id' });
+
+    await client.query('BEGIN');
+    const existing = await client.query(
+      `SELECT id FROM promo_codes WHERE id = $1 AND restaurant_id = $2 FOR UPDATE`,
+      [promoId, restaurantId]
+    );
+    if (existing.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Промокод не найден' });
+    }
+
+    const updates = [];
+    const params = [];
+    let idx = 1;
+    const push = (col, value) => { updates.push(`${col} = $${idx++}`); params.push(value); };
+
+    if (req.body?.code != null) {
+      const code = normalizePromoCode(req.body.code);
+      if (!code || code.length < 3) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Код слишком короткий' }); }
+      // Check duplicate (excluding self).
+      const dup = await client.query(
+        `SELECT 1 FROM promo_codes WHERE restaurant_id = $1 AND UPPER(code) = $2 AND id <> $3 LIMIT 1`,
+        [restaurantId, code, promoId]
+      );
+      if (dup.rows.length) { await client.query('ROLLBACK'); return res.status(409).json({ error: 'Такой код уже существует' }); }
+      push('code', code);
+    }
+    if (req.body?.type != null) {
+      const type = String(req.body.type).toLowerCase();
+      if (!PROMO_TYPES.has(type)) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Неверный тип скидки' }); }
+      push('type', type);
+    }
+    if (req.body?.value != null) {
+      const value = Number(req.body.value);
+      if (!Number.isFinite(value) || value <= 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Значение должно быть > 0' }); }
+      push('value', value);
+    }
+    if (req.body?.max_discount_amount !== undefined) {
+      const v = req.body.max_discount_amount;
+      if (v == null || v === '') push('max_discount_amount', null);
+      else {
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Неверный потолок' }); }
+        push('max_discount_amount', n);
+      }
+    }
+    if (req.body?.applies_to_all !== undefined) push('applies_to_all', req.body.applies_to_all !== false);
+    if (req.body?.valid_from !== undefined) push('valid_from', req.body.valid_from ? new Date(req.body.valid_from) : null);
+    if (req.body?.valid_to !== undefined) push('valid_to', req.body.valid_to ? new Date(req.body.valid_to) : null);
+    if (req.body?.max_uses !== undefined) {
+      const v = req.body.max_uses;
+      if (v == null || v === '') push('max_uses', null);
+      else {
+        const n = Number(v);
+        if (!Number.isInteger(n) || n <= 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Неверный лимит' }); }
+        push('max_uses', n);
+      }
+    }
+    if (req.body?.is_active !== undefined) push('is_active', req.body.is_active !== false);
+
+    if (updates.length) {
+      params.push(promoId, restaurantId);
+      await client.query(
+        `UPDATE promo_codes SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $${idx++} AND restaurant_id = $${idx++}`,
+        params
+      );
+    }
+
+    if (Array.isArray(req.body?.product_ids)) {
+      const ids = Array.from(new Set(req.body.product_ids.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0)));
+      await client.query(`DELETE FROM promo_code_products WHERE promo_code_id = $1`, [promoId]);
+      if (ids.length) {
+        const checked = await client.query(
+          `SELECT id FROM products WHERE id = ANY($1::int[]) AND restaurant_id = $2`,
+          [ids, restaurantId]
+        );
+        const validIds = checked.rows.map((r) => r.id);
+        if (validIds.length) {
+          const values = validIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+          await client.query(
+            `INSERT INTO promo_code_products(promo_code_id, product_id) VALUES ${values}
+              ON CONFLICT DO NOTHING`,
+            [promoId, ...validIds]
+          );
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    const promo = await loadPromoForResponse(promoId, restaurantId);
+    res.json({ success: true, promo });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Update promo code error:', error);
+    res.status(500).json({ error: 'Не удалось обновить промокод' });
+  } finally {
+    client.release();
+  }
+});
+
+router.delete('/promo-codes/:id', authenticate, requireOperator, async (req, res) => {
+  try {
+    const restaurantId = resolvePromoRestaurantId(req);
+    if (!restaurantId) return res.status(400).json({ error: 'Магазин не выбран' });
+    const promoId = Number(req.params.id);
+    if (!Number.isFinite(promoId)) return res.status(400).json({ error: 'Неверный id' });
+    const result = await pool.query(
+      `DELETE FROM promo_codes WHERE id = $1 AND restaurant_id = $2 RETURNING id`,
+      [promoId, restaurantId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Промокод не найден' });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete promo code error:', error);
+    res.status(500).json({ error: 'Не удалось удалить промокод' });
   }
 });
 

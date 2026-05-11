@@ -2204,6 +2204,16 @@ function AdminDashboard() {
   const [showDeliveryZoneModal, setShowDeliveryZoneModal] = useState(false);
   const [initialRestaurantBotToken, setInitialRestaurantBotToken] = useState('');
   const [restaurantSettingsBaselineSignature, setRestaurantSettingsBaselineSignature] = useState('');
+
+  // Promo codes (per-restaurant)
+  const [promoCodes, setPromoCodes] = useState([]);
+  const [promoCodesLoading, setPromoCodesLoading] = useState(false);
+  const [promoCodesError, setPromoCodesError] = useState('');
+  const [showPromoEditor, setShowPromoEditor] = useState(false);
+  const [promoEditorForm, setPromoEditorForm] = useState(null);
+  const [promoEditorSaving, setPromoEditorSaving] = useState(false);
+  const [promoEditorError, setPromoEditorError] = useState('');
+  const [promoProductSearch, setPromoProductSearch] = useState('');
   const [registrationQrPreviewMeta, setRegistrationQrPreviewMeta] = useState(null);
   const [loadingRegistrationQrPreview, setLoadingRegistrationQrPreview] = useState(false);
   const [registrationQrPreviewError, setRegistrationQrPreviewError] = useState('');
@@ -5640,6 +5650,7 @@ function AdminDashboard() {
           ? Number(response.data?.inventory_min_threshold)
           : 0,
         is_operator_delivery_later_enabled: response.data?.is_operator_delivery_later_enabled === true,
+        promo_codes_enabled: response.data?.promo_codes_enabled === true,
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
       setRestaurantSettings(settings);
@@ -5874,6 +5885,130 @@ function AdminDashboard() {
       console.error('Fetch operators error:', error);
     }
   };
+
+  const fetchPromoCodes = useCallback(async () => {
+    setPromoCodesLoading(true);
+    setPromoCodesError('');
+    try {
+      const response = await axios.get(`${API_URL}/admin/promo-codes`, {
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+      });
+      setPromoCodes(Array.isArray(response.data?.items) ? response.data.items : []);
+    } catch (error) {
+      console.error('Fetch promo codes error:', error);
+      setPromoCodesError(error?.response?.data?.error || 'Не удалось загрузить промокоды');
+    } finally {
+      setPromoCodesLoading(false);
+    }
+  }, []);
+
+  const openPromoEditor = useCallback((promo = null) => {
+    setPromoEditorError('');
+    setPromoProductSearch('');
+    if (promo) {
+      setPromoEditorForm({
+        id: promo.id,
+        code: promo.code || '',
+        type: promo.type === 'percent' ? 'percent' : 'fixed',
+        value: promo.value != null ? String(promo.value) : '',
+        max_discount_amount: promo.max_discount_amount != null ? String(promo.max_discount_amount) : '',
+        applies_to_all: promo.applies_to_all !== false,
+        product_ids: Array.isArray(promo.product_ids) ? promo.product_ids.map(Number) : [],
+        valid_from: promo.valid_from ? new Date(promo.valid_from).toISOString().slice(0, 16) : '',
+        valid_to: promo.valid_to ? new Date(promo.valid_to).toISOString().slice(0, 16) : '',
+        max_uses: promo.max_uses != null ? String(promo.max_uses) : '',
+        is_active: promo.is_active !== false,
+        used_count: promo.used_count || 0
+      });
+    } else {
+      setPromoEditorForm({
+        id: null,
+        code: '',
+        type: 'fixed',
+        value: '',
+        max_discount_amount: '',
+        applies_to_all: true,
+        product_ids: [],
+        valid_from: '',
+        valid_to: '',
+        max_uses: '',
+        is_active: true,
+        used_count: 0
+      });
+    }
+    setShowPromoEditor(true);
+  }, []);
+
+  const closePromoEditor = useCallback(() => {
+    setShowPromoEditor(false);
+    setPromoEditorForm(null);
+    setPromoEditorError('');
+  }, []);
+
+  const handlePromoFormChange = useCallback((field, value) => {
+    setPromoEditorForm((prev) => prev ? { ...prev, [field]: value } : prev);
+  }, []);
+
+  const togglePromoProductSelected = useCallback((productId) => {
+    setPromoEditorForm((prev) => {
+      if (!prev) return prev;
+      const id = Number(productId);
+      const current = new Set(prev.product_ids || []);
+      if (current.has(id)) current.delete(id); else current.add(id);
+      return { ...prev, product_ids: Array.from(current) };
+    });
+  }, []);
+
+  const handleSavePromo = useCallback(async () => {
+    if (!promoEditorForm) return;
+    setPromoEditorError('');
+    setPromoEditorSaving(true);
+    try {
+      const payload = {
+        code: String(promoEditorForm.code || '').trim().toUpperCase(),
+        type: promoEditorForm.type === 'percent' ? 'percent' : 'fixed',
+        value: Number(promoEditorForm.value),
+        max_discount_amount: promoEditorForm.max_discount_amount === ''
+          ? null
+          : Number(promoEditorForm.max_discount_amount),
+        applies_to_all: promoEditorForm.applies_to_all !== false,
+        product_ids: promoEditorForm.applies_to_all !== false ? [] : (promoEditorForm.product_ids || []),
+        valid_from: promoEditorForm.valid_from || null,
+        valid_to: promoEditorForm.valid_to || null,
+        max_uses: promoEditorForm.max_uses === '' ? null : Number(promoEditorForm.max_uses),
+        is_active: promoEditorForm.is_active !== false
+      };
+      if (promoEditorForm.id) {
+        await axios.put(`${API_URL}/admin/promo-codes/${promoEditorForm.id}`, payload);
+      } else {
+        await axios.post(`${API_URL}/admin/promo-codes`, payload);
+      }
+      await fetchPromoCodes();
+      closePromoEditor();
+    } catch (error) {
+      console.error('Save promo error:', error);
+      setPromoEditorError(error?.response?.data?.error || 'Не удалось сохранить промокод');
+    } finally {
+      setPromoEditorSaving(false);
+    }
+  }, [promoEditorForm, fetchPromoCodes, closePromoEditor]);
+
+  const handleDeletePromo = useCallback(async (promoId) => {
+    if (!window.confirm(language === 'uz' ? "Promokodni o'chirish?" : 'Удалить промокод?')) return;
+    try {
+      await axios.delete(`${API_URL}/admin/promo-codes/${promoId}`);
+      await fetchPromoCodes();
+    } catch (error) {
+      console.error('Delete promo error:', error);
+    }
+  }, [fetchPromoCodes, language]);
+
+  // Auto-fetch promo list when entering the promo tab.
+  useEffect(() => {
+    if (settingsTab === 'promo_codes' && restaurantSettings?.promo_codes_enabled) {
+      fetchPromoCodes();
+    }
+  }, [settingsTab, restaurantSettings?.promo_codes_enabled, fetchPromoCodes]);
 
   const fetchHelpInstructions = async () => {
     setLoadingHelpInstructions(true);
@@ -13481,6 +13616,7 @@ function AdminDashboard() {
                       { key: 'telegram', icon: '✈️', label: 'Telegram' },
                       { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
                       { key: 'delivery', icon: '🚚', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
+                      { key: 'promo_codes', icon: '🎟', label: language === 'uz' ? 'Promokodlar' : 'Промокоды' },
                       { key: 'reports', icon: '📊', label: language === 'uz' ? 'Hisobotlar' : 'Отчёты' },
                       { key: 'operators', icon: '👨‍💻', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
                     ].map((tab) => {
@@ -15519,6 +15655,121 @@ function AdminDashboard() {
                         </Card>
                       )}
 
+
+                      {settingsTab === 'promo_codes' && (
+                        <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                              <div>
+                                <h5 className="fw-bold mb-1">🎟 {language === 'uz' ? 'Promokodlar' : 'Промокоды'}</h5>
+                                <div className="text-muted small">
+                                  {language === 'uz'
+                                    ? "Mijoz savatda kiritadigan chegirma kodlari. Faqat shu do'kon uchun amal qiladi."
+                                    : 'Скидочные коды, которые клиент вводит в корзине. Действуют только для вашего магазина.'}
+                                </div>
+                              </div>
+                              <Form.Check
+                                type="switch"
+                                id="admin-promo-toggle"
+                                checked={!!restaurantSettings.promo_codes_enabled}
+                                onChange={(e) => setRestaurantSettings({ ...restaurantSettings, promo_codes_enabled: e.target.checked })}
+                                label={language === 'uz' ? 'Yoqish' : 'Включить'}
+                              />
+                            </div>
+
+                            {!restaurantSettings.promo_codes_enabled ? (
+                              <Alert variant="warning" className="mb-0">
+                                {language === 'uz'
+                                  ? "Promokodlar o'chirilgan. Faollashtiring va o'zgarishlarni saqlang."
+                                  : 'Промокоды выключены. Включите и сохраните настройки магазина, чтобы создавать коды.'}
+                                <div className="mt-2">
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={saveRestaurantSettings}
+                                    disabled={savingSettings}
+                                  >
+                                    {savingSettings ? '...' : (language === 'uz' ? "Sozlamalarni saqlash" : 'Сохранить настройки')}
+                                  </Button>
+                                </div>
+                              </Alert>
+                            ) : (
+                              <>
+                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                  <div className="small text-muted">
+                                    {language === 'uz'
+                                      ? `Jami: ${promoCodes.length}`
+                                      : `Всего: ${promoCodes.length}`}
+                                  </div>
+                                  <Button variant="primary" onClick={() => openPromoEditor(null)}>
+                                    + {language === 'uz' ? 'Yangi promokod' : 'Новый промокод'}
+                                  </Button>
+                                </div>
+                                {promoCodesError ? <Alert variant="danger">{promoCodesError}</Alert> : null}
+                                {promoCodesLoading ? (
+                                  <div className="text-center py-4 text-muted">
+                                    <Spinner animation="border" size="sm" className="me-2" />
+                                    {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+                                  </div>
+                                ) : promoCodes.length === 0 ? (
+                                  <div className="text-center py-4 text-muted">
+                                    {language === 'uz' ? "Hozircha promokodlar yo'q" : 'Промокодов пока нет'}
+                                  </div>
+                                ) : (
+                                  <Table responsive hover size="sm" className="align-middle">
+                                    <thead>
+                                      <tr>
+                                        <th>{language === 'uz' ? 'Kod' : 'Код'}</th>
+                                        <th>{language === 'uz' ? 'Tip' : 'Тип'}</th>
+                                        <th className="text-end">{language === 'uz' ? "Qiymat" : 'Значение'}</th>
+                                        <th>{language === 'uz' ? 'Amal qiladi' : 'Действует'}</th>
+                                        <th>{language === 'uz' ? 'Tovarlar' : 'Товары'}</th>
+                                        <th className="text-end">{language === 'uz' ? 'Ishlatilgan' : 'Использовано'}</th>
+                                        <th>{language === 'uz' ? 'Holat' : 'Статус'}</th>
+                                        <th></th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {promoCodes.map((p) => {
+                                        const valueLabel = p.type === 'percent'
+                                          ? `${Number(p.value).toLocaleString('ru-RU')}%`
+                                          : `${Number(p.value).toLocaleString('ru-RU')}`;
+                                        const fromLabel = p.valid_from ? new Date(p.valid_from).toLocaleString('ru-RU') : '—';
+                                        const toLabel = p.valid_to ? new Date(p.valid_to).toLocaleString('ru-RU') : '∞';
+                                        return (
+                                          <tr key={`promo-${p.id}`}>
+                                            <td className="fw-semibold">{p.code}</td>
+                                            <td>{p.type === 'percent' ? (language === 'uz' ? 'Foiz' : 'Процент') : (language === 'uz' ? 'Summa' : 'Сумма')}</td>
+                                            <td className="text-end">{valueLabel}</td>
+                                            <td className="small text-nowrap">{fromLabel} → {toLabel}</td>
+                                            <td className="small">
+                                              {p.applies_to_all
+                                                ? (language === 'uz' ? 'Hammasi' : 'Все')
+                                                : `${(Array.isArray(p.product_ids) ? p.product_ids.length : 0)} ${language === 'uz' ? 'tanlangan' : 'выбрано'}`}
+                                            </td>
+                                            <td className="text-end">{Number(p.used_count || 0)}{p.max_uses ? ` / ${p.max_uses}` : ''}</td>
+                                            <td>{p.is_active
+                                              ? <Badge bg="success">{language === 'uz' ? 'Faol' : 'Активен'}</Badge>
+                                              : <Badge bg="secondary">{language === 'uz' ? "O'chirilgan" : 'Выключен'}</Badge>}</td>
+                                            <td className="text-end">
+                                              <Button variant="outline-secondary" size="sm" onClick={() => openPromoEditor(p)} className="me-2">
+                                                {language === 'uz' ? 'Tahrirlash' : 'Изм.'}
+                                              </Button>
+                                              <Button variant="outline-danger" size="sm" onClick={() => handleDeletePromo(p.id)}>
+                                                {language === 'uz' ? "O'chirish" : 'Удал.'}
+                                              </Button>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </Table>
+                                )}
+                              </>
+                            )}
+                          </Card.Body>
+                        </Card>
+                      )}
 
                       {settingsTab === 'operators' && (
                         <>
@@ -19564,6 +19815,201 @@ function AdminDashboard() {
             </Button>
           </Modal.Footer>
         </Modal>
+        {/* Promo code editor */}
+        <Modal show={showPromoEditor && !!promoEditorForm} onHide={closePromoEditor} centered size="lg" scrollable>
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {promoEditorForm?.id
+                ? (language === 'uz' ? 'Promokodni tahrirlash' : 'Изменить промокод')
+                : (language === 'uz' ? 'Yangi promokod' : 'Новый промокод')}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {promoEditorForm ? (
+              <Form>
+                {promoEditorError ? <Alert variant="danger">{promoEditorError}</Alert> : null}
+                <Row className="g-3">
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label className="small fw-semibold">{language === 'uz' ? 'Kod' : 'Код'}</Form.Label>
+                      <Form.Control
+                        type="text"
+                        value={promoEditorForm.code || ''}
+                        onChange={(e) => handlePromoFormChange('code', e.target.value.toUpperCase())}
+                        maxLength={64}
+                        placeholder="SALE10"
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={3}>
+                    <Form.Group>
+                      <Form.Label className="small fw-semibold">{language === 'uz' ? 'Tip' : 'Тип'}</Form.Label>
+                      <Form.Select
+                        value={promoEditorForm.type}
+                        onChange={(e) => handlePromoFormChange('type', e.target.value)}
+                      >
+                        <option value="fixed">{language === 'uz' ? 'Summa' : 'Сумма'}</option>
+                        <option value="percent">{language === 'uz' ? 'Foiz' : 'Процент'}</option>
+                      </Form.Select>
+                    </Form.Group>
+                  </Col>
+                  <Col md={3}>
+                    <Form.Group>
+                      <Form.Label className="small fw-semibold">
+                        {promoEditorForm.type === 'percent'
+                          ? (language === 'uz' ? 'Foiz (%)' : 'Процент (%)')
+                          : (language === 'uz' ? 'Summa' : 'Сумма')}
+                      </Form.Label>
+                      <Form.Control
+                        type="number"
+                        min={0}
+                        step={promoEditorForm.type === 'percent' ? '1' : '100'}
+                        value={promoEditorForm.value}
+                        onChange={(e) => handlePromoFormChange('value', e.target.value)}
+                      />
+                    </Form.Group>
+                  </Col>
+                  {promoEditorForm.type === 'percent' && (
+                    <Col md={6}>
+                      <Form.Group>
+                        <Form.Label className="small fw-semibold">
+                          {language === 'uz' ? "Maksimal chegirma (ixtiyoriy)" : 'Максимальная скидка (необязательно)'}
+                        </Form.Label>
+                        <Form.Control
+                          type="number"
+                          min={0}
+                          step="500"
+                          value={promoEditorForm.max_discount_amount}
+                          onChange={(e) => handlePromoFormChange('max_discount_amount', e.target.value)}
+                          placeholder={language === 'uz' ? "Masalan 100000" : 'Напр. 100000'}
+                        />
+                      </Form.Group>
+                    </Col>
+                  )}
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label className="small fw-semibold">{language === 'uz' ? 'Amal qila boshlaydi' : 'Действует с'}</Form.Label>
+                      <Form.Control
+                        type="datetime-local"
+                        value={promoEditorForm.valid_from}
+                        onChange={(e) => handlePromoFormChange('valid_from', e.target.value)}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label className="small fw-semibold">{language === 'uz' ? 'Amal qilish muddati' : 'Действует до'}</Form.Label>
+                      <Form.Control
+                        type="datetime-local"
+                        value={promoEditorForm.valid_to}
+                        onChange={(e) => handlePromoFormChange('valid_to', e.target.value)}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label className="small fw-semibold">{language === 'uz' ? 'Maksimal ishlatish' : 'Лимит применений'}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min={1}
+                        step="1"
+                        value={promoEditorForm.max_uses}
+                        onChange={(e) => handlePromoFormChange('max_uses', e.target.value)}
+                        placeholder={language === 'uz' ? "Cheklanmagan" : 'Без лимита'}
+                      />
+                      <Form.Text className="text-muted">
+                        {language === 'uz'
+                          ? "Bo'sh qoldirsa cheklanmagan. Ishlatilgan:"
+                          : 'Пусто — без лимита. Использовано:'}{' '}
+                        {promoEditorForm.used_count || 0}
+                      </Form.Text>
+                    </Form.Group>
+                  </Col>
+                  <Col md={6} className="d-flex align-items-center">
+                    <Form.Check
+                      type="switch"
+                      id="promo-is-active"
+                      label={language === 'uz' ? 'Faol' : 'Активен'}
+                      checked={promoEditorForm.is_active !== false}
+                      onChange={(e) => handlePromoFormChange('is_active', e.target.checked)}
+                    />
+                  </Col>
+                  <Col md={12}>
+                    <hr />
+                    <div className="mb-2 d-flex gap-3 flex-wrap align-items-center">
+                      <Form.Check
+                        type="radio"
+                        id="promo-scope-all"
+                        name="promo-scope"
+                        label={language === 'uz' ? "Butun buyurtma" : 'На весь заказ'}
+                        checked={promoEditorForm.applies_to_all !== false}
+                        onChange={() => handlePromoFormChange('applies_to_all', true)}
+                      />
+                      <Form.Check
+                        type="radio"
+                        id="promo-scope-products"
+                        name="promo-scope"
+                        label={language === 'uz' ? 'Tanlangan tovarlar' : 'Выбранные товары'}
+                        checked={promoEditorForm.applies_to_all === false}
+                        onChange={() => handlePromoFormChange('applies_to_all', false)}
+                      />
+                    </div>
+                    {promoEditorForm.applies_to_all === false && (
+                      <div className="border rounded-3 p-2" style={{ maxHeight: 260, overflowY: 'auto' }}>
+                        <Form.Control
+                          type="text"
+                          size="sm"
+                          placeholder={language === 'uz' ? "Tovarni qidirish..." : 'Поиск товара...'}
+                          value={promoProductSearch}
+                          onChange={(e) => setPromoProductSearch(e.target.value)}
+                          className="mb-2"
+                        />
+                        {(() => {
+                          const q = String(promoProductSearch || '').trim().toLowerCase();
+                          const list = (products || [])
+                            .filter((p) => {
+                              if (!q) return true;
+                              const name = String(p.name_ru || p.name || '').toLowerCase();
+                              return name.includes(q);
+                            })
+                            .slice(0, 200);
+                          if (!list.length) {
+                            return <div className="text-muted small">{language === 'uz' ? "Hech narsa topilmadi" : 'Ничего не найдено'}</div>;
+                          }
+                          const selected = new Set((promoEditorForm.product_ids || []).map(Number));
+                          return list.map((p) => (
+                            <Form.Check
+                              key={`promo-prod-${p.id}`}
+                              type="checkbox"
+                              id={`promo-prod-${p.id}`}
+                              label={`${p.name_ru || p.name || `#${p.id}`}${p.price ? ` — ${Number(p.price).toLocaleString('ru-RU')}` : ''}`}
+                              checked={selected.has(Number(p.id))}
+                              onChange={() => togglePromoProductSelected(p.id)}
+                            />
+                          ));
+                        })()}
+                        <div className="small text-muted mt-2">
+                          {language === 'uz' ? 'Tanlangan' : 'Выбрано'}: {(promoEditorForm.product_ids || []).length}
+                        </div>
+                      </div>
+                    )}
+                  </Col>
+                </Row>
+              </Form>
+            ) : null}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={closePromoEditor} disabled={promoEditorSaving}>
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+            </Button>
+            <Button variant="primary" onClick={handleSavePromo} disabled={promoEditorSaving}>
+              {promoEditorSaving
+                ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохраняем...')
+                : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
         {/* Operator Modal */}
         <Modal show={showOperatorModal} onHide={() => setShowOperatorModal(false)} centered>
           <Form onSubmit={saveOperator}>

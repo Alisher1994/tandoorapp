@@ -106,7 +106,8 @@ async function migrate() {
       'scheduled_delivery_max_days INTEGER DEFAULT 7',
       'is_asap_delivery_enabled BOOLEAN DEFAULT true',
       'is_scheduled_time_delivery_enabled BOOLEAN DEFAULT true',
-      'is_operator_delivery_later_enabled BOOLEAN DEFAULT false'
+      'is_operator_delivery_later_enabled BOOLEAN DEFAULT false',
+      'promo_codes_enabled BOOLEAN DEFAULT false'
     ];
 
     for (const col of restaurantColumns) {
@@ -615,6 +616,52 @@ async function migrate() {
         ON superadmin_sessions(user_id, revoked_at, expires_at)
     `);
     console.log('✅ Superadmin sessions table ready');
+
+    // =====================================================
+    // Step 4.2: promo_codes — per-restaurant discount codes.
+    // type=fixed|percent, optional max_discount_amount for percent codes,
+    // applies_to_all=false uses promo_code_products linking table.
+    // used_count is incremented atomically inside the order create transaction.
+    // =====================================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS promo_codes (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        code VARCHAR(64) NOT NULL,
+        type VARCHAR(16) NOT NULL DEFAULT 'fixed',
+        value DECIMAL(15, 2) NOT NULL DEFAULT 0,
+        max_discount_amount DECIMAL(15, 2) NULL,
+        applies_to_all BOOLEAN NOT NULL DEFAULT true,
+        valid_from TIMESTAMP NULL,
+        valid_to TIMESTAMP NULL,
+        max_uses INTEGER NULL,
+        used_count INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_by_user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_promo_codes_restaurant_code
+        ON promo_codes(restaurant_id, UPPER(code))
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_promo_codes_active_window
+        ON promo_codes(restaurant_id, is_active, valid_from, valid_to)
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS promo_code_products (
+        promo_code_id INTEGER NOT NULL REFERENCES promo_codes(id) ON DELETE CASCADE,
+        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        PRIMARY KEY (promo_code_id, product_id)
+      )
+    `);
+    console.log('✅ Promo codes tables ready');
+
+    // Persist applied promo on the order so the receipt can re-render exactly what was paid.
+    await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code VARCHAR(64) NULL`).catch(() => {});
+    await client.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_discount_amount DECIMAL(15, 2) NOT NULL DEFAULT 0`).catch(() => {});
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS service_controls (
