@@ -1380,18 +1380,31 @@ router.post('/switch-restaurant', async (req, res) => {
       return res.status(403).json({ error: 'Магазин деактивирован' });
     }
     const nextRestaurantId = Number.parseInt(restaurant_id, 10);
-    const nextToken = jwt.sign(
-      {
-        userId: req.user.id,
-        username: req.user.username,
-        role: req.user.role,
-        ...(Number.isFinite(nextRestaurantId) && nextRestaurantId > 0
-          ? { restaurantId: nextRestaurantId }
-          : {})
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
+    // Superadmin tokens must carry the same jti that authenticate() resolved on this request,
+    // otherwise the next call fails the server-side session check ("Сессия устарела"). Keeping
+    // the original jti also avoids polluting the active-sessions list with a duplicate row.
+    const tokenPayload = {
+      userId: req.user.id,
+      username: req.user.username,
+      role: req.user.role,
+      ...(Number.isFinite(nextRestaurantId) && nextRestaurantId > 0
+        ? { restaurantId: nextRestaurantId }
+        : {}),
+      ...(req.user.role === 'superadmin' && req.user.session_jti
+        ? { jti: req.user.session_jti }
+        : {})
+    };
+    // For superadmins, align JWT exp to the session row's expires_at so the two never drift
+    // (e.g. switching restaurants on day 6 shouldn't push JWT exp beyond DB exp).
+    const tokenSignOptions = (() => {
+      if (req.user.role === 'superadmin' && req.user.session_expires_at) {
+        const expiresAtMs = new Date(req.user.session_expires_at).getTime();
+        const secondsLeft = Math.max(60, Math.floor((expiresAtMs - Date.now()) / 1000));
+        return { expiresIn: secondsLeft };
+      }
+      return { expiresIn: process.env.JWT_EXPIRES_IN || '7d' };
+    })();
+    const nextToken = jwt.sign(tokenPayload, process.env.JWT_SECRET, tokenSignOptions);
 
     res.json({
       message: 'Ресторан переключен',

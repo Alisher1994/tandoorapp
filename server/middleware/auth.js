@@ -312,6 +312,7 @@ const authenticate = async (req, res, next) => {
       }
       user.session_id = session.id;
       user.session_jti = tokenJti;
+      user.session_expires_at = session.expires_at;
     }
     if (user.role === 'moderator') {
       user.moderator_permissions = normalizeModeratorPermissions(user.moderator_permissions);
