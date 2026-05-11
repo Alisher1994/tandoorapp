@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../database/connection');
+const { findActiveSession } = require('../services/superadminSessions');
 const UI_THEME_VALUES = new Set([
   'classic',
   'modern',
@@ -290,13 +291,27 @@ const authenticate = async (req, res, next) => {
     // For operators this list is already resolved above with active-only filtering.
     if (user.role === 'superadmin') {
       const restaurantsResult = await pool.query(`
-        SELECT r.id, r.name 
+        SELECT r.id, r.name
         FROM restaurants r
         INNER JOIN operator_restaurants opr ON r.id = opr.restaurant_id
         WHERE opr.user_id = $1 AND r.is_active = true
         ORDER BY r.name
       `, [user.id]);
       user.restaurants = restaurantsResult.rows;
+
+      // Server-side session check: superadmin JWTs MUST carry a jti that resolves to a
+      // non-revoked, non-expired row in superadmin_sessions. Tokens issued before this
+      // feature shipped have no jti and are rejected -> superadmins re-login once.
+      const tokenJti = typeof decoded?.jti === 'string' ? decoded.jti : null;
+      if (!tokenJti) {
+        return res.status(401).json({ error: 'Сессия устарела, войдите заново', code: 'SESSION_MISSING' });
+      }
+      const session = await findActiveSession(tokenJti, user.id);
+      if (!session) {
+        return res.status(401).json({ error: 'Сессия завершена, войдите заново', code: 'SESSION_REVOKED' });
+      }
+      user.session_id = session.id;
+      user.session_jti = tokenJti;
     }
     if (user.role === 'moderator') {
       user.moderator_permissions = normalizeModeratorPermissions(user.moderator_permissions);

@@ -585,6 +585,37 @@ async function migrate() {
     `);
     console.log('✅ Activity_logs table ready');
 
+    // =====================================================
+    // Step 4.1: superadmin_sessions — server-side revocation for superadmin JWTs.
+    // Token carries a jti claim; row stores hash + metadata. Setting revoked_at
+    // invalidates the session even though the JWT itself is still valid until expiry.
+    // =====================================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS superadmin_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        jti TEXT NOT NULL UNIQUE,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        device_label VARCHAR(160),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        revoked_at TIMESTAMP NULL,
+        revoked_by_user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+        revoke_reason VARCHAR(120) NULL
+      )
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_superadmin_sessions_user_id
+        ON superadmin_sessions(user_id)
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_superadmin_sessions_active
+        ON superadmin_sessions(user_id, revoked_at, expires_at)
+    `);
+    console.log('✅ Superadmin sessions table ready');
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS service_controls (
         service_key VARCHAR(80) PRIMARY KEY,

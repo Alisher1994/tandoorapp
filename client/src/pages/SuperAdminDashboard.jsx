@@ -2062,6 +2062,19 @@ function SuperAdminDashboard() {
   const toggleOverviewMapFullscreen = useCallback(() => {
     setIsOverviewMapFullscreen((prev) => !prev);
   }, []);
+
+  // Active superadmin sessions
+  const [showSessionsModal, setShowSessionsModal] = useState(false);
+  const [sessionsActiveTab, setSessionsActiveTab] = useState('active');
+  const [activeSessions, setActiveSessions] = useState([]);
+  const [activeSessionsCount, setActiveSessionsCount] = useState(0);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState('');
+  const [loginAttempts, setLoginAttempts] = useState([]);
+  const [loginAttemptsLoading, setLoginAttemptsLoading] = useState(false);
+  const [selectedSessionIds, setSelectedSessionIds] = useState(() => new Set());
+  const [sessionsRevoking, setSessionsRevoking] = useState(false);
+
   const overviewAnalyticsTabOpenedRef = useRef(false);
   const [overviewAnalyticsLoading, setOverviewAnalyticsLoading] = useState(false);
   const [overviewAnalyticsData, setOverviewAnalyticsData] = useState(null);
@@ -2710,6 +2723,124 @@ function SuperAdminDashboard() {
       console.error('Load stats error:', err);
     }
   };
+
+  const loadActiveSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    setSessionsError('');
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/sessions/active`, {
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+      });
+      const rows = Array.isArray(response.data?.sessions) ? response.data.sessions : [];
+      setActiveSessions(rows);
+      setActiveSessionsCount(Number(response.data?.count || rows.length));
+      // Drop selections that no longer exist after refresh.
+      setSelectedSessionIds((prev) => {
+        const next = new Set();
+        const present = new Set(rows.map((r) => r.id));
+        prev.forEach((id) => { if (present.has(id)) next.add(id); });
+        return next;
+      });
+    } catch (err) {
+      console.error('Load superadmin sessions error:', err);
+      setSessionsError(err?.response?.data?.error || 'Не удалось загрузить сессии');
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, []);
+
+  const loadLoginAttempts = useCallback(async () => {
+    setLoginAttemptsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/sessions/login-attempts?limit=100`, {
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+      });
+      const rows = Array.isArray(response.data?.attempts) ? response.data.attempts : [];
+      setLoginAttempts(rows);
+    } catch (err) {
+      console.error('Load superadmin login attempts error:', err);
+    } finally {
+      setLoginAttemptsLoading(false);
+    }
+  }, []);
+
+  const openSessionsModal = useCallback(() => {
+    setShowSessionsModal(true);
+    setSessionsActiveTab('active');
+    setSelectedSessionIds(new Set());
+    loadActiveSessions();
+    loadLoginAttempts();
+  }, [loadActiveSessions, loadLoginAttempts]);
+
+  const closeSessionsModal = useCallback(() => {
+    setShowSessionsModal(false);
+    setSelectedSessionIds(new Set());
+    setSessionsError('');
+  }, []);
+
+  const toggleSessionSelected = useCallback((sessionId, allowed) => {
+    if (!allowed) return;
+    setSelectedSessionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
+  }, []);
+
+  const toggleAllSessionsSelected = useCallback(() => {
+    setSelectedSessionIds((prev) => {
+      const revocable = activeSessions.filter((s) => s.is_revocable);
+      if (prev.size === revocable.length && revocable.length > 0) return new Set();
+      return new Set(revocable.map((s) => s.id));
+    });
+  }, [activeSessions]);
+
+  const handleRevokeSelectedSessions = useCallback(async () => {
+    if (!selectedSessionIds.size) return;
+    const ids = Array.from(selectedSessionIds);
+    const confirmMessage = language === 'uz'
+      ? `${ids.length} ta sessiyani yakunlash uchun rozimisiz?`
+      : `Завершить ${ids.length} выбранных сессий?`;
+    if (!window.confirm(confirmMessage)) return;
+    setSessionsRevoking(true);
+    setSessionsError('');
+    try {
+      await axios.post(`${API_URL}/superadmin/sessions/revoke`, { session_ids: ids }, {
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+      });
+      await loadActiveSessions();
+    } catch (err) {
+      console.error('Revoke sessions error:', err);
+      setSessionsError(err?.response?.data?.error || 'Не удалось завершить сессии');
+    } finally {
+      setSessionsRevoking(false);
+    }
+  }, [selectedSessionIds, loadActiveSessions, language]);
+
+  // Background fetch of just the count, so the badge in the dropdown is fresh without
+  // hitting the heavier list endpoint until the modal opens. Refreshed once a minute.
+  useEffect(() => {
+    let cancelled = false;
+    let timerId = null;
+    const tick = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/superadmin/sessions/active`, {
+          timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+        });
+        if (cancelled) return;
+        setActiveSessionsCount(Number(response.data?.count || 0));
+      } catch (_) {
+        // Silently ignore — count is best-effort.
+      }
+    };
+    tick();
+    timerId = setInterval(tick, 60_000);
+    return () => {
+      cancelled = true;
+      if (timerId) clearInterval(timerId);
+    };
+  }, []);
 
   const buildOverviewAnalyticsParams = (restaurantId = overviewAnalyticsRestaurantId) => {
     const params = {
@@ -12051,6 +12182,19 @@ function SuperAdminDashboard() {
             <span>{language === 'uz' ? 'Kabinetni almashtirish' : 'Сменить кабинет'}</span>
           </Dropdown.Item>
 
+          <Dropdown.Item onClick={openSessionsModal} className="d-flex align-items-center gap-2 py-2 rounded-3">
+            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="14" rx="2" />
+              <path d="M3 9h18" />
+              <path d="M8 14h.01" />
+              <path d="M12 14h.01" />
+              <path d="M16 14h.01" />
+            </svg>
+            <span>{language === 'uz' ? 'Faol sessiyalar' : 'Активные сессии'}</span>
+            {activeSessionsCount > 0 ? (
+              <Badge bg="primary" pill className="ms-auto">{activeSessionsCount}</Badge>
+            ) : null}
+          </Dropdown.Item>
           <Dropdown.Divider className="mx-2" />
           <Dropdown.Item onClick={handleLogout} className="text-danger d-flex align-items-center gap-2 py-2 rounded-3">
             <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -13177,6 +13321,159 @@ function SuperAdminDashboard() {
           </Navbar.Collapse>
         </Container>
       </Navbar>
+
+      <Modal
+        show={showSessionsModal}
+        onHide={closeSessionsModal}
+        size="lg"
+        centered
+        scrollable
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {language === 'uz' ? 'Faol sessiyalar' : 'Активные сессии'}
+            {activeSessions.length ? <Badge bg="primary" pill className="ms-2">{activeSessions.length}</Badge> : null}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Tabs activeKey={sessionsActiveTab} onSelect={(k) => setSessionsActiveTab(k || 'active')} className="mb-3">
+            <Tab eventKey="active" title={language === 'uz' ? 'Faol' : 'Активные'}>
+              {sessionsError ? <Alert variant="danger">{sessionsError}</Alert> : null}
+              <div className="d-flex justify-content-between align-items-center mb-2">
+                <Form.Check
+                  type="checkbox"
+                  id="sa-sessions-select-all"
+                  label={language === 'uz' ? 'Hammasini tanlash' : 'Выбрать всё'}
+                  checked={
+                    activeSessions.filter((s) => s.is_revocable).length > 0
+                    && selectedSessionIds.size === activeSessions.filter((s) => s.is_revocable).length
+                  }
+                  onChange={toggleAllSessionsSelected}
+                  disabled={sessionsLoading || sessionsRevoking}
+                />
+                <Button
+                  variant="outline-danger"
+                  size="sm"
+                  onClick={handleRevokeSelectedSessions}
+                  disabled={!selectedSessionIds.size || sessionsRevoking}
+                >
+                  {sessionsRevoking
+                    ? (language === 'uz' ? 'Yakunlanmoqda...' : 'Завершаем...')
+                    : (language === 'uz'
+                      ? `Tanlanganlarni yakunlash (${selectedSessionIds.size})`
+                      : `Завершить выбранные (${selectedSessionIds.size})`)}
+                </Button>
+              </div>
+              {sessionsLoading ? (
+                <div className="text-center py-4 text-muted">
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+                </div>
+              ) : activeSessions.length === 0 ? (
+                <div className="text-center py-4 text-muted">
+                  {language === 'uz' ? 'Faol sessiyalar yo\'q' : 'Активных сессий нет'}
+                </div>
+              ) : (
+                <Table responsive hover size="sm" className="align-middle">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '36px' }}></th>
+                      <th>{language === 'uz' ? 'Foydalanuvchi' : 'Пользователь'}</th>
+                      <th>{language === 'uz' ? 'Qurilma' : 'Устройство'}</th>
+                      <th>IP</th>
+                      <th>{language === 'uz' ? "Oxirgi faollik" : 'Последняя активность'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeSessions.map((s) => (
+                      <tr key={`sa-session-${s.id}`} className={s.is_current ? 'table-info' : undefined}>
+                        <td>
+                          <Form.Check
+                            type="checkbox"
+                            id={`sa-session-check-${s.id}`}
+                            checked={selectedSessionIds.has(s.id)}
+                            onChange={() => toggleSessionSelected(s.id, s.is_revocable)}
+                            disabled={!s.is_revocable || sessionsRevoking}
+                          />
+                        </td>
+                        <td>
+                          <div className="fw-semibold">{s.full_name || s.username}</div>
+                          <div className="text-muted small">@{s.username}{s.is_current ? ' · ' + (language === 'uz' ? 'siz' : 'вы') : ''}</div>
+                        </td>
+                        <td className="small">
+                          {s.device_label || '—'}
+                          <div className="text-muted text-truncate" style={{ maxWidth: '220px' }} title={s.user_agent || ''}>
+                            {s.user_agent ? s.user_agent.slice(0, 60) : ''}
+                          </div>
+                        </td>
+                        <td className="small text-nowrap">{s.ip_address || '—'}</td>
+                        <td className="small text-nowrap">
+                          {s.last_seen_at ? new Date(s.last_seen_at).toLocaleString('ru-RU') : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
+            </Tab>
+            <Tab eventKey="attempts" title={language === 'uz' ? 'Kirish urunishlari' : 'Попытки входа'}>
+              {loginAttemptsLoading ? (
+                <div className="text-center py-4 text-muted">
+                  <Spinner animation="border" size="sm" className="me-2" />
+                  {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+                </div>
+              ) : loginAttempts.length === 0 ? (
+                <div className="text-center py-4 text-muted">
+                  {language === 'uz' ? 'Tarix bo\'sh' : 'История пуста'}
+                </div>
+              ) : (
+                <Table responsive hover size="sm" className="align-middle">
+                  <thead>
+                    <tr>
+                      <th>{language === 'uz' ? 'Vaqt' : 'Время'}</th>
+                      <th>{language === 'uz' ? 'Foydalanuvchi' : 'Пользователь'}</th>
+                      <th>{language === 'uz' ? 'Hodisa' : 'Событие'}</th>
+                      <th>IP</th>
+                      <th>{language === 'uz' ? 'Qurilma' : 'Устройство'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loginAttempts.map((a) => {
+                      const eventLabel = a.action_type === 'LOGIN'
+                        ? (language === 'uz' ? 'Kirish' : 'Вход')
+                        : a.action_type === 'LOGIN_FAILED'
+                          ? (language === 'uz' ? 'Muvaffaqiyatsiz' : 'Неудачный вход')
+                          : a.action_type === 'LOGOUT'
+                            ? (language === 'uz' ? 'Chiqish' : 'Выход')
+                            : a.action_type;
+                      const eventColor = a.action_type === 'LOGIN_FAILED' ? 'danger' : a.action_type === 'LOGIN' ? 'success' : 'secondary';
+                      return (
+                        <tr key={`sa-login-attempt-${a.id}`}>
+                          <td className="small text-nowrap">{new Date(a.created_at).toLocaleString('ru-RU')}</td>
+                          <td className="small">{a.full_name || a.username || '—'}</td>
+                          <td><Badge bg={eventColor}>{eventLabel}</Badge></td>
+                          <td className="small text-nowrap">{a.ip_address || '—'}</td>
+                          <td className="small text-muted text-truncate" style={{ maxWidth: '260px' }} title={a.user_agent || ''}>
+                            {a.user_agent ? a.user_agent.slice(0, 80) : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              )}
+            </Tab>
+          </Tabs>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="outline-secondary" size="sm" onClick={loadActiveSessions} disabled={sessionsLoading}>
+            {language === 'uz' ? 'Yangilash' : 'Обновить'}
+          </Button>
+          <Button variant="secondary" onClick={closeSessionsModal}>
+            {language === 'uz' ? 'Yopish' : 'Закрыть'}
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       <Modal
         show={showScamPrankModal && isDavronSuperadmin}

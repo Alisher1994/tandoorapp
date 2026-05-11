@@ -28,8 +28,52 @@ const {
 const { checkRestaurantIdentityAvailability } = require('../services/restaurantUniqueness');
 const { ensurePrintFormSettingsSchema } = require('../services/printFormSettings');
 const { generateStorePrintForm } = require('../services/printFormGenerator');
+const { generateJti, createSession } = require('../services/superadminSessions');
 
 const router = express.Router();
+
+const JWT_DEFAULT_EXPIRES_IN = '7d';
+// Convert the same expiresIn config used by jwt.sign into a concrete Date so we can
+// store it alongside the session row. Only handles the formats we actually use ('7d', '12h', seconds).
+function resolveJwtExpiryDate(expiresIn) {
+  const raw = String(expiresIn || JWT_DEFAULT_EXPIRES_IN).trim();
+  const match = /^(\d+)\s*([smhdw]?)$/i.exec(raw);
+  let ms;
+  if (match) {
+    const n = Number(match[1]);
+    const unit = (match[2] || 's').toLowerCase();
+    const mult = unit === 'w' ? 7 * 86400000
+      : unit === 'd' ? 86400000
+      : unit === 'h' ? 3600000
+      : unit === 'm' ? 60000
+      : 1000;
+    ms = n * mult;
+  } else if (Number.isFinite(Number(raw))) {
+    ms = Number(raw) * 1000;
+  } else {
+    ms = 7 * 86400000;
+  }
+  return new Date(Date.now() + ms);
+}
+
+// For superadmin logins, embed a jti in the JWT and persist a matching session row.
+// Returns the signed token. For all other roles, falls back to plain jwt.sign() with no jti.
+async function signTokenWithSession({ payload, role, userId, req }) {
+  const expiresIn = process.env.JWT_EXPIRES_IN || JWT_DEFAULT_EXPIRES_IN;
+  if (role !== 'superadmin') {
+    return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
+  }
+  const jti = generateJti();
+  const expiresAt = resolveJwtExpiryDate(expiresIn);
+  await createSession({
+    userId,
+    jti,
+    ipAddress: getIpFromRequest(req),
+    userAgent: getUserAgentFromRequest(req),
+    expiresAt
+  });
+  return jwt.sign({ ...payload, jti }, process.env.JWT_SECRET, { expiresIn });
+}
 const maskIdentifierForLogs = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -1151,8 +1195,11 @@ router.post('/login', loginRateLimiter, async (req, res) => {
         : {})
     };
 
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    const token = await signTokenWithSession({
+      payload: tokenPayload,
+      role: user.role,
+      userId: user.id,
+      req
     });
 
     // Log login activity
@@ -1398,8 +1445,11 @@ router.post('/telegram-webapp-login', async (req, res) => {
       restaurantId: Number(restaurantId)
     };
 
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    const token = await signTokenWithSession({
+      payload: tokenPayload,
+      role: user.role,
+      userId: user.id,
+      req
     });
 
     let restaurants = [];
@@ -1705,8 +1755,11 @@ router.post('/forgot-password/verify', loginRateLimiter, async (req, res) => {
       username: user.username,
       role: user.role
     };
-    const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    const token = await signTokenWithSession({
+      payload: tokenPayload,
+      role: user.role,
+      userId: user.id,
+      req
     });
 
     return res.json({

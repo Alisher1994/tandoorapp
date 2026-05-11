@@ -33,6 +33,7 @@ const {
   deleteHelpInstruction
 } = require('../services/helpInstructions');
 const { ensureBotFunnelSchema } = require('../services/botFunnel');
+const { listSessionsForUsers, revokeSessions } = require('../services/superadminSessions');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/orderRatings');
 const {
@@ -12325,6 +12326,121 @@ router.delete('/help-instructions/:id', async (req, res) => {
       return res.status(400).json({ error: 'Системные инструкции удалять нельзя' });
     }
     res.status(500).json({ error: 'Ошибка удаления инструкции' });
+  }
+});
+
+// ============================================================
+// Superadmin sessions — list active fellow-superadmin sessions and bulk-revoke them.
+// Scope is intentionally narrow: we only return rows for users with role='superadmin',
+// matching the agreed "Only fellow superadmins" answer in the design Q&A.
+// ============================================================
+async function getSuperadminUserIds() {
+  const result = await pool.query(`SELECT id FROM users WHERE role = 'superadmin'`);
+  return result.rows.map((row) => Number(row.id));
+}
+
+router.get('/sessions/active', async (req, res) => {
+  try {
+    const superadminIds = await getSuperadminUserIds();
+    const sessions = await listSessionsForUsers(superadminIds);
+    const currentJti = req.user?.session_jti || null;
+    const rows = sessions.map((row) => ({
+      id: row.id,
+      user_id: row.user_id,
+      username: row.username,
+      full_name: row.full_name,
+      ip_address: row.ip_address,
+      user_agent: row.user_agent,
+      device_label: row.device_label,
+      created_at: row.created_at,
+      last_seen_at: row.last_seen_at,
+      expires_at: row.expires_at,
+      is_current: row.jti === currentJti,
+      // Каждый суперадмин может выкинуть любую сессию суперадмина, кроме своей текущей —
+      // защита от случайного «отвалюсь сам».
+      is_revocable: row.jti !== currentJti
+    }));
+    res.json({
+      success: true,
+      count: rows.length,
+      sessions: rows
+    });
+  } catch (error) {
+    console.error('List superadmin sessions error:', error);
+    res.status(500).json({ error: 'Не удалось загрузить активные сессии' });
+  }
+});
+
+router.post('/sessions/revoke', async (req, res) => {
+  try {
+    const rawIds = Array.isArray(req.body?.session_ids) ? req.body.session_ids : [];
+    const ids = rawIds.map((v) => Number(v)).filter(Number.isFinite);
+    if (!ids.length) {
+      return res.status(400).json({ error: 'session_ids обязательно' });
+    }
+    const reason = req.body?.reason ? String(req.body.reason).slice(0, 120) : null;
+    const superadminIds = await getSuperadminUserIds();
+    // Prevent suicide: never let the caller revoke its own active session.
+    const currentJti = req.user?.session_jti || null;
+    let toRevoke = ids;
+    if (currentJti) {
+      const currentResult = await pool.query(
+        `SELECT id FROM superadmin_sessions WHERE jti = $1 LIMIT 1`,
+        [currentJti]
+      );
+      const currentSessionId = currentResult.rows[0]?.id || null;
+      if (currentSessionId) toRevoke = ids.filter((id) => id !== currentSessionId);
+    }
+    const revoked = await revokeSessions({
+      sessionIds: toRevoke,
+      revokedByUserId: req.user?.id || null,
+      reason,
+      allowedUserIds: superadminIds
+    });
+    await logActivity({
+      userId: req.user?.id || null,
+      restaurantId: null,
+      actionType: ACTION_TYPES.UPDATE || 'UPDATE',
+      entityType: 'SUPERADMIN_SESSION',
+      entityId: null,
+      entityName: `revoked ${revoked} session(s)`,
+      ipAddress: getIpFromRequest(req),
+      userAgent: getUserAgentFromRequest(req),
+      newValues: { revoked_ids: toRevoke, reason }
+    }).catch(() => {});
+    res.json({ success: true, revoked });
+  } catch (error) {
+    console.error('Revoke superadmin sessions error:', error);
+    res.status(500).json({ error: 'Не удалось завершить сессии' });
+  }
+});
+
+// Read-only login activity (logins + failed attempts) for fellow superadmins.
+// Surfaces existing activity_logs rows; no schema changes here.
+router.get('/sessions/login-attempts', async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number.parseInt(req.query?.limit, 10) || 50));
+    const result = await pool.query(
+      `SELECT a.id,
+              a.user_id,
+              u.username,
+              u.full_name,
+              a.action_type,
+              a.ip_address,
+              a.user_agent,
+              a.created_at
+         FROM activity_logs a
+         INNER JOIN users u ON u.id = a.user_id
+         WHERE u.role = 'superadmin'
+           AND a.action_type IN ('LOGIN', 'LOGIN_FAILED', 'LOGOUT')
+         ORDER BY a.created_at DESC
+         LIMIT $1`,
+      [limit]
+    );
+    res.json({ success: true, attempts: result.rows });
+  } catch (error) {
+    console.error('List superadmin login attempts error:', error);
+    res.status(500).json({ error: 'Не удалось загрузить попытки входа' });
   }
 });
 
