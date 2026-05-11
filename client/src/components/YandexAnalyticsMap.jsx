@@ -195,6 +195,42 @@ function YandexAnalyticsMap({
     };
   }, [onLoadError]);
 
+  // Re-fit the Yandex viewport whenever the container resizes (fullscreen toggle, sidebar
+  // collapse, window resize). Without fitToViewport(), the map keeps the old tile area and
+  // appears clipped after the container grows.
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return undefined;
+    let rafId = null;
+    const observer = new ResizeObserver(() => {
+      const map = mapRef.current;
+      if (!map) return;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        try {
+          map.container.fitToViewport();
+        } catch (_) {
+          // ignore — fires before map fully initialized
+        }
+        const geoCollection = geoCollectionRef.current;
+        if (!geoCollection) return;
+        try {
+          const bounds = geoCollection.getBounds();
+          if (bounds) {
+            map.setBounds(bounds, { checkZoomRange: true, zoomMargin: [32, 32, 32, 32] });
+          }
+        } catch (_) {
+          // ignore
+        }
+      });
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, []);
+
   useEffect(() => {
     const map = mapRef.current;
     const ymaps = typeof window !== 'undefined' ? window.ymaps : null;

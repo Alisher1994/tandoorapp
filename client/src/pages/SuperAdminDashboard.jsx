@@ -2051,6 +2051,17 @@ function SuperAdminDashboard() {
   const showOverviewShopsOnMap = overviewMapViewMode === 'shops';
   const [selectedOverviewOrderLocation, setSelectedOverviewOrderLocation] = useState(null);
   const [overviewMapSelectionLocked, setOverviewMapSelectionLocked] = useState(false);
+  const [isOverviewMapFullscreen, setIsOverviewMapFullscreen] = useState(false);
+  // Switch view mode AND release the selection-lock so the map doesn't auto-recenter on a
+  // stale selection from the previous mode (e.g. switching shops -> clients should fit-bounds,
+  // not jump back to the previously clicked client marker).
+  const handleOverviewMapViewModeChange = useCallback((nextMode) => {
+    setOverviewMapViewMode(nextMode);
+    setOverviewMapSelectionLocked(false);
+  }, []);
+  const toggleOverviewMapFullscreen = useCallback(() => {
+    setIsOverviewMapFullscreen((prev) => !prev);
+  }, []);
   const overviewAnalyticsTabOpenedRef = useRef(false);
   const [overviewAnalyticsLoading, setOverviewAnalyticsLoading] = useState(false);
   const [overviewAnalyticsData, setOverviewAnalyticsData] = useState(null);
@@ -9621,6 +9632,27 @@ function SuperAdminDashboard() {
     }
   }, [overviewAnalyticsOrderLocations, selectedOverviewOrderLocation]);
 
+  // Fullscreen overlay: ESC to close, lock body scroll, auto-exit if user leaves analytics tab.
+  useEffect(() => {
+    if (!isOverviewMapFullscreen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setIsOverviewMapFullscreen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOverviewMapFullscreen]);
+
+  useEffect(() => {
+    if (activeTab !== 'analytics' && isOverviewMapFullscreen) {
+      setIsOverviewMapFullscreen(false);
+    }
+  }, [activeTab, isOverviewMapFullscreen]);
+
   useEffect(() => {
     if (activeTab !== 'analytics') {
       overviewAnalyticsTabOpenedRef.current = false;
@@ -10501,7 +10533,9 @@ function SuperAdminDashboard() {
 
             <Row className="g-4 mb-4">
               <Col xs={12}>
-                <Card className="border-0 shadow-sm admin-analytics-surface-card admin-analytics-map-card">
+                <Card
+                  className={`border-0 shadow-sm admin-analytics-surface-card admin-analytics-map-card${isOverviewMapFullscreen ? ' is-fullscreen' : ''}`}
+                >
                   <Card.Header className="bg-white border-0 d-flex align-items-center justify-content-between admin-analytics-card-header">
                     <h6 className="mb-0 admin-analytics-card-title">
                       <span className="admin-analytics-card-title-icon" style={{ color: '#ef4444', background: '#fff1f2' }}>🗺️</span>
@@ -10529,7 +10563,7 @@ function SuperAdminDashboard() {
                         <button
                           type="button"
                           className={`admin-analytics-period-btn admin-analytics-map-view-btn${showOverviewClientsOnMap ? ' is-active' : ''}`}
-                          onClick={() => setOverviewMapViewMode('clients')}
+                          onClick={() => handleOverviewMapViewModeChange('clients')}
                           aria-pressed={showOverviewClientsOnMap}
                         >
                           {language === 'uz' ? 'Mijozlar' : 'Клиенты'}
@@ -10537,21 +10571,38 @@ function SuperAdminDashboard() {
                         <button
                           type="button"
                           className={`admin-analytics-period-btn admin-analytics-map-view-btn${showOverviewShopsOnMap ? ' is-active' : ''}`}
-                          onClick={() => setOverviewMapViewMode('shops')}
+                          onClick={() => handleOverviewMapViewModeChange('shops')}
                           aria-pressed={showOverviewShopsOnMap}
                         >
                           {language === 'uz' ? "Do'konlar" : 'Магазины'}
                         </button>
                       </div>
+                      <button
+                        type="button"
+                        className="admin-analytics-map-fullscreen-btn"
+                        onClick={toggleOverviewMapFullscreen}
+                        aria-pressed={isOverviewMapFullscreen}
+                        aria-label={
+                          isOverviewMapFullscreen
+                            ? (language === 'uz' ? "To'liq ekrandan chiqish" : 'Выйти из полноэкранного режима')
+                            : (language === 'uz' ? "To'liq ekran" : 'Открыть на весь экран')
+                        }
+                        title={
+                          isOverviewMapFullscreen
+                            ? (language === 'uz' ? "To'liq ekrandan chiqish (Esc)" : 'Выйти из полноэкранного режима (Esc)')
+                            : (language === 'uz' ? "To'liq ekran" : 'Открыть на весь экран')
+                        }
+                      >
+                        <span aria-hidden="true">{isOverviewMapFullscreen ? '⤫' : '⛶'}</span>
+                      </button>
                     </div>
                   </Card.Header>
                   <Card.Body className="p-0">
-                    <Row className="g-0">
-                      <Col lg={8} xl={9}>
+                    <Row className="g-0 admin-analytics-map-body-row">
+                      <Col lg={8} xl={9} className="admin-analytics-map-body-map-col">
                         <div
+                          className="admin-analytics-map-canvas"
                           style={{
-                            height: '390px',
-                            width: '100%',
                             background: 'radial-gradient(circle at 16% 12%, #dbeafe 0%, #f8fafc 62%, #e2e8f0 100%)'
                           }}
                         >
@@ -10609,8 +10660,8 @@ function SuperAdminDashboard() {
                           )}
                         </div>
                       </Col>
-                      <Col lg={4} xl={3} className="border-start bg-white">
-                        <div className="p-3 h-100 admin-custom-scrollbar" style={{ maxHeight: '390px', overflowY: 'auto' }}>
+                      <Col lg={4} xl={3} className="border-start bg-white admin-analytics-map-body-side-col">
+                        <div className="p-3 h-100 admin-custom-scrollbar admin-analytics-map-side-scroll">
                           {showOverviewClientsOnMap ? (
                             <>
                               <div className="small text-uppercase text-muted fw-semibold mb-2">
