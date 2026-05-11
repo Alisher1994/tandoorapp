@@ -22,6 +22,8 @@ const { ensureOrderRatingsSchema, normalizeOrderRating } = require('../services/
 // Store all bots: Map<botToken, { bot, restaurantId, restaurantName }>
 const restaurantBots = new Map();
 const disabledBotTokens = new Set();
+// Per-bot polling resilience state: Map<botToken, PollingState>
+const botPollingState = new Map();
 
 // Store for registration states: Map<`${botToken}_${telegramUserId}`, state>
 const registrationStates = new Map();
@@ -75,6 +77,37 @@ const TELEGRAM_DISABLE_REVOKED_BOT_ON_401 = String(
 const TELEGRAM_CLEAR_TOKEN_ON_401 = String(
   process.env.TELEGRAM_CLEAR_TOKEN_ON_401 ?? '0'
 ).trim() === '1';
+const TELEGRAM_DISABLE_POLLING_FALLBACK_IN_PROD = String(
+  process.env.TELEGRAM_DISABLE_POLLING_FALLBACK_IN_PROD ?? '1'
+).trim() !== '0';
+const TELEGRAM_POLLING_BACKOFF_BASE_MS = Math.max(
+  500,
+  Number.parseInt(process.env.TELEGRAM_POLLING_BACKOFF_BASE_MS, 10) || 2000
+);
+const TELEGRAM_POLLING_BACKOFF_MAX_MS = Math.max(
+  5000,
+  Number.parseInt(process.env.TELEGRAM_POLLING_BACKOFF_MAX_MS, 10) || 60000
+);
+const TELEGRAM_POLLING_CONFLICT_DELAY_MS = Math.max(
+  5000,
+  Number.parseInt(process.env.TELEGRAM_POLLING_CONFLICT_DELAY_MS, 10) || 30000
+);
+const TELEGRAM_POLLING_MAX_CONSECUTIVE_FAILURES = Math.max(
+  5,
+  Number.parseInt(process.env.TELEGRAM_POLLING_MAX_CONSECUTIVE_FAILURES, 10) || 40
+);
+const TELEGRAM_POLLING_RESET_WINDOW_MS = Math.max(
+  60_000,
+  Number.parseInt(process.env.TELEGRAM_POLLING_RESET_WINDOW_MS, 10) || 5 * 60_000
+);
+const TELEGRAM_WEBHOOK_SET_RETRIES = Math.max(
+  1,
+  Number.parseInt(process.env.TELEGRAM_WEBHOOK_SET_RETRIES, 10) || 3
+);
+const TELEGRAM_WEBHOOK_SET_RETRY_BASE_MS = Math.max(
+  200,
+  Number.parseInt(process.env.TELEGRAM_WEBHOOK_SET_RETRY_BASE_MS, 10) || 800
+);
 let warnedPersistRestaurantBotStatusSchemaMissing = false;
 
 function isWebAppChatMenuButtonEnabledForRestaurant(restaurantId) {
@@ -290,6 +323,79 @@ function buildOperatorProductWebAppUrl(appUrl, token, restaurantId = null) {
 }
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function getOrCreatePollingState(botToken) {
+  let state = botPollingState.get(botToken);
+  if (!state) {
+    state = {
+      consecutiveFailures: 0,
+      conflictAttempts: 0,
+      currentBackoffMs: TELEGRAM_POLLING_BACKOFF_BASE_MS,
+      restartTimer: null,
+      lastErrorAt: 0,
+      lastErrorCode: null,
+      stopped: false
+    };
+    botPollingState.set(botToken, state);
+  }
+  return state;
+}
+
+function clearPollingRestartTimer(botToken) {
+  const state = botPollingState.get(botToken);
+  if (state && state.restartTimer) {
+    clearTimeout(state.restartTimer);
+    state.restartTimer = null;
+  }
+}
+
+function scheduleBotPollingRestart(bot, botToken, restaurantName, baseDelayMs) {
+  const state = getOrCreatePollingState(botToken);
+  if (state.stopped || state.restartTimer) return;
+  const safeBase = Math.max(TELEGRAM_POLLING_BACKOFF_BASE_MS, Math.min(baseDelayMs, TELEGRAM_POLLING_BACKOFF_MAX_MS));
+  const jitter = Math.floor(Math.random() * Math.min(5000, Math.ceil(safeBase / 4)));
+  const wait = safeBase + jitter;
+  state.restartTimer = setTimeout(async () => {
+    state.restartTimer = null;
+    if (state.stopped || disabledBotTokens.has(botToken)) return;
+    const current = restaurantBots.get(botToken);
+    if (!current || current.bot !== bot) return;
+    try {
+      try { await bot.stopPolling({ cancel: true }); } catch (_) {}
+      await delay(500);
+      await bot.startPolling({ restart: true });
+      console.log(`🔁 ${restaurantName}: polling restarted after backoff (${wait}ms)`);
+    } catch (error) {
+      state.currentBackoffMs = Math.min(state.currentBackoffMs * 2, TELEGRAM_POLLING_BACKOFF_MAX_MS);
+      console.error(`❌ ${restaurantName}: polling restart failed: ${error.message}; next retry in ${state.currentBackoffMs}ms`);
+      scheduleBotPollingRestart(bot, botToken, restaurantName, state.currentBackoffMs);
+    }
+  }, wait);
+  if (typeof state.restartTimer.unref === 'function') state.restartTimer.unref();
+}
+
+async function trySetTelegramWebhook(bot, webhookUrl, secretToken, label) {
+  let lastError;
+  for (let attempt = 1; attempt <= TELEGRAM_WEBHOOK_SET_RETRIES; attempt++) {
+    try {
+      const options = secretToken ? { secret_token: secretToken } : undefined;
+      await bot.setWebHook(webhookUrl, options);
+      return true;
+    } catch (error) {
+      lastError = error;
+      const errorCode = Number(error?.response?.body?.error_code || 0);
+      // 401 = bad token, 404 = bad bot id: retrying won't help.
+      if (errorCode === 401 || errorCode === 404) throw error;
+      if (attempt < TELEGRAM_WEBHOOK_SET_RETRIES) {
+        const jitter = Math.floor(Math.random() * 400);
+        const wait = TELEGRAM_WEBHOOK_SET_RETRY_BASE_MS * Math.pow(2, attempt - 1) + jitter;
+        console.warn(`⏳ ${label}: setWebHook attempt ${attempt}/${TELEGRAM_WEBHOOK_SET_RETRIES} failed (${error.message}); retrying in ${wait}ms`);
+        await delay(wait);
+      }
+    }
+  }
+  throw lastError;
+}
 
 async function getKnownPrivateChatIdsForRestaurant(restaurantId) {
   const result = await pool.query(
@@ -3483,12 +3589,23 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
     }
   });
 
-  // Error handling
+  // Error handling — resilient: backoff, recovery, conflict retry, hard-cap before giving up.
   bot.on('polling_error', (error) => {
     const errorCode = Number(error?.response?.body?.error_code || 0);
-    if (errorCode === 409) {
-      console.warn(`⚠️  Bot conflict for ${restaurantName}: Another instance running`);
-    } else if (errorCode === 401) {
+    const message = error?.message || String(error);
+    const state = getOrCreatePollingState(botToken);
+
+    // Reset counters after a long quiet window — treats transient hiccups separately.
+    if (state.lastErrorAt && Date.now() - state.lastErrorAt > TELEGRAM_POLLING_RESET_WINDOW_MS) {
+      state.consecutiveFailures = 0;
+      state.conflictAttempts = 0;
+      state.currentBackoffMs = TELEGRAM_POLLING_BACKOFF_BASE_MS;
+    }
+    state.lastErrorAt = Date.now();
+    state.lastErrorCode = errorCode;
+    state.consecutiveFailures += 1;
+
+    if (errorCode === 401) {
       if (disabledBotTokens.has(botToken)) return;
       disabledBotTokens.add(botToken);
       console.error(`🛑 ${restaurantName}: TELEGRAM 401 Unauthorized. Disabling bot polling until token is fixed.`);
@@ -3500,13 +3617,44 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           { clearToken: TELEGRAM_CLEAR_TOKEN_ON_401 }
         );
       }
+      state.stopped = true;
+      clearPollingRestartTimer(botToken);
       Promise.resolve()
         .then(() => bot.stopPolling())
         .catch(() => {});
       bot.removeAllListeners('polling_error');
-    } else {
-      console.error(`Telegram polling error for ${restaurantName}:`, error.message);
+      return;
     }
+
+    if (errorCode === 409) {
+      state.conflictAttempts += 1;
+      // Throttle log spam: first hit + every 20th repeat.
+      if (state.conflictAttempts === 1 || state.conflictAttempts % 20 === 0) {
+        console.warn(`⚠️  Bot conflict for ${restaurantName}: another instance polling (#${state.conflictAttempts})`);
+      }
+      if (state.conflictAttempts > TELEGRAM_POLLING_MAX_CONSECUTIVE_FAILURES) {
+        console.error(`🛑 ${restaurantName}: persistent 409 conflict, suspending polling`);
+        state.stopped = true;
+        clearPollingRestartTimer(botToken);
+        Promise.resolve().then(() => bot.stopPolling()).catch(() => {});
+        return;
+      }
+      // Long delay so the other instance has time to release getUpdates.
+      scheduleBotPollingRestart(bot, botToken, restaurantName, TELEGRAM_POLLING_CONFLICT_DELAY_MS);
+      return;
+    }
+
+    // Network/transport errors: EFATAL, EADDRNOTAVAIL, ETIMEDOUT, ECONNRESET, EAI_AGAIN, 5xx, etc.
+    if (state.consecutiveFailures === 1 || state.consecutiveFailures % 25 === 0) {
+      console.error(`Telegram polling error for ${restaurantName} (#${state.consecutiveFailures}):`, message);
+    }
+    if (state.consecutiveFailures > TELEGRAM_POLLING_MAX_CONSECUTIVE_FAILURES) {
+      console.error(`🛑 ${restaurantName}: ${state.consecutiveFailures} consecutive polling errors, long backoff`);
+      state.currentBackoffMs = TELEGRAM_POLLING_BACKOFF_MAX_MS;
+    } else {
+      state.currentBackoffMs = Math.min(state.currentBackoffMs * 2, TELEGRAM_POLLING_BACKOFF_MAX_MS);
+    }
+    scheduleBotPollingRestart(bot, botToken, restaurantName, state.currentBackoffMs);
   });
 }
 
@@ -3573,12 +3721,15 @@ async function initMultiBots() {
           bot = new TelegramBot(restaurant.telegram_bot_token);
 
           try {
-            const webhookOptions = webhookSecretToken ? { secret_token: webhookSecretToken } : undefined;
-            await bot.setWebHook(webhookUrl, webhookOptions);
+            await trySetTelegramWebhook(bot, webhookUrl, webhookSecretToken, restaurant.name);
             console.log(`✅ ${restaurant.name}: Webhook set to ${webhookUrl}`);
           } catch (webhookError) {
             console.error(`❌ Webhook error for ${restaurant.name}:`, webhookError.message);
-            // Fallback to polling
+            if (TELEGRAM_DISABLE_POLLING_FALLBACK_IN_PROD) {
+              console.log(`⛔ ${restaurant.name}: polling fallback disabled in production, skipping bot init`);
+              continue;
+            }
+            // Optional fallback for emergency/manual override only.
             bot = new TelegramBot(restaurant.telegram_bot_token, { polling: true });
             console.log(`⚠️  ${restaurant.name}: Falling back to polling`);
           }
@@ -3652,6 +3803,15 @@ async function initMultiBots() {
 }
 
 async function stopMultiBots() {
+  // Mark every polling state as stopped first so no scheduled restart fires mid-teardown.
+  for (const [token, state] of botPollingState) {
+    state.stopped = true;
+    if (state.restartTimer) {
+      clearTimeout(state.restartTimer);
+      state.restartTimer = null;
+    }
+  }
+
   for (const [, data] of restaurantBots) {
     const currentBot = data?.bot;
     if (!currentBot) continue;
@@ -3663,7 +3823,7 @@ async function stopMultiBots() {
     }
 
     try {
-      await currentBot.stopPolling();
+      await currentBot.stopPolling({ cancel: true });
     } catch (e) {
       // ignore: bot can be in webhook mode
     }
@@ -3676,6 +3836,7 @@ async function stopMultiBots() {
   }
 
   restaurantBots.clear();
+  botPollingState.clear();
 }
 
 async function reloadMultiBots() {
@@ -3718,6 +3879,7 @@ function processWebhook(restaurantId, update) {
 module.exports = {
   initMultiBots,
   reloadMultiBots,
+  stopMultiBots,
   getBotByToken,
   getBotByRestaurantId,
   getAllBots,

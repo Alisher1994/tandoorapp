@@ -40,6 +40,106 @@ const SUPERADMIN_EXTRA_TELEGRAM_IDS = new Set(
     .map((value) => String(value || '').trim())
     .filter(Boolean)
 );
+const TELEGRAM_DISABLE_POLLING_FALLBACK_IN_PROD = String(
+  process.env.TELEGRAM_DISABLE_POLLING_FALLBACK_IN_PROD ?? '1'
+).trim() !== '0';
+const TELEGRAM_POLLING_BACKOFF_BASE_MS = Math.max(
+  500,
+  Number.parseInt(process.env.TELEGRAM_POLLING_BACKOFF_BASE_MS, 10) || 2000
+);
+const TELEGRAM_POLLING_BACKOFF_MAX_MS = Math.max(
+  5000,
+  Number.parseInt(process.env.TELEGRAM_POLLING_BACKOFF_MAX_MS, 10) || 60000
+);
+const TELEGRAM_POLLING_CONFLICT_DELAY_MS = Math.max(
+  5000,
+  Number.parseInt(process.env.TELEGRAM_POLLING_CONFLICT_DELAY_MS, 10) || 30000
+);
+const TELEGRAM_POLLING_MAX_CONSECUTIVE_FAILURES = Math.max(
+  5,
+  Number.parseInt(process.env.TELEGRAM_POLLING_MAX_CONSECUTIVE_FAILURES, 10) || 40
+);
+const TELEGRAM_POLLING_RESET_WINDOW_MS = Math.max(
+  60_000,
+  Number.parseInt(process.env.TELEGRAM_POLLING_RESET_WINDOW_MS, 10) || 5 * 60_000
+);
+const TELEGRAM_WEBHOOK_SET_RETRIES = Math.max(
+  1,
+  Number.parseInt(process.env.TELEGRAM_WEBHOOK_SET_RETRIES, 10) || 3
+);
+const TELEGRAM_WEBHOOK_SET_RETRY_BASE_MS = Math.max(
+  200,
+  Number.parseInt(process.env.TELEGRAM_WEBHOOK_SET_RETRY_BASE_MS, 10) || 800
+);
+
+// Superadmin bot polling resilience state (single instance).
+const superadminPollingState = {
+  consecutiveFailures: 0,
+  conflictAttempts: 0,
+  currentBackoffMs: TELEGRAM_POLLING_BACKOFF_BASE_MS,
+  restartTimer: null,
+  lastErrorAt: 0,
+  stopped: false
+};
+const superadminDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function resetSuperadminPollingState() {
+  superadminPollingState.consecutiveFailures = 0;
+  superadminPollingState.conflictAttempts = 0;
+  superadminPollingState.currentBackoffMs = TELEGRAM_POLLING_BACKOFF_BASE_MS;
+  superadminPollingState.lastErrorAt = 0;
+  superadminPollingState.stopped = false;
+  if (superadminPollingState.restartTimer) {
+    clearTimeout(superadminPollingState.restartTimer);
+    superadminPollingState.restartTimer = null;
+  }
+}
+
+function scheduleSuperadminPollingRestart(targetBot, baseDelayMs) {
+  if (superadminPollingState.stopped || superadminPollingState.restartTimer) return;
+  const safeBase = Math.max(TELEGRAM_POLLING_BACKOFF_BASE_MS, Math.min(baseDelayMs, TELEGRAM_POLLING_BACKOFF_MAX_MS));
+  const jitter = Math.floor(Math.random() * Math.min(5000, Math.ceil(safeBase / 4)));
+  const wait = safeBase + jitter;
+  superadminPollingState.restartTimer = setTimeout(async () => {
+    superadminPollingState.restartTimer = null;
+    if (superadminPollingState.stopped || targetBot !== bot) return;
+    try {
+      try { await targetBot.stopPolling({ cancel: true }); } catch (_) {}
+      await superadminDelay(500);
+      await targetBot.startPolling({ restart: true });
+      console.log(`🔁 Superadmin bot: polling restarted after backoff (${wait}ms)`);
+    } catch (error) {
+      superadminPollingState.currentBackoffMs = Math.min(superadminPollingState.currentBackoffMs * 2, TELEGRAM_POLLING_BACKOFF_MAX_MS);
+      console.error(`❌ Superadmin bot polling restart failed: ${error.message}; next retry in ${superadminPollingState.currentBackoffMs}ms`);
+      scheduleSuperadminPollingRestart(targetBot, superadminPollingState.currentBackoffMs);
+    }
+  }, wait);
+  if (typeof superadminPollingState.restartTimer.unref === 'function') {
+    superadminPollingState.restartTimer.unref();
+  }
+}
+
+async function trySetSuperadminWebhook(targetBot, webhookUrl, secretToken) {
+  let lastError;
+  for (let attempt = 1; attempt <= TELEGRAM_WEBHOOK_SET_RETRIES; attempt++) {
+    try {
+      const options = secretToken ? { secret_token: secretToken } : undefined;
+      await targetBot.setWebHook(webhookUrl, options);
+      return true;
+    } catch (error) {
+      lastError = error;
+      const errorCode = Number(error?.response?.body?.error_code || 0);
+      if (errorCode === 401 || errorCode === 404) throw error;
+      if (attempt < TELEGRAM_WEBHOOK_SET_RETRIES) {
+        const jitter = Math.floor(Math.random() * 400);
+        const wait = TELEGRAM_WEBHOOK_SET_RETRY_BASE_MS * Math.pow(2, attempt - 1) + jitter;
+        console.warn(`⏳ Superadmin bot: setWebHook attempt ${attempt}/${TELEGRAM_WEBHOOK_SET_RETRIES} failed (${error.message}); retrying in ${wait}ms`);
+        await superadminDelay(wait);
+      }
+    }
+  }
+  throw lastError;
+}
 
 function getTelegramWebhookSecretToken() {
   const secret = String(process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
@@ -969,18 +1069,23 @@ async function initBot() {
   const webAppUrl = process.env.TELEGRAM_WEB_APP_URL || process.env.FRONTEND_URL;
   const webhookBaseUrl = process.env.TELEGRAM_WEBHOOK_URL || process.env.BACKEND_URL || process.env.FRONTEND_URL || webAppUrl;
   
+  resetSuperadminPollingState();
+
   if (isProduction && webhookBaseUrl) {
     const webhookPath = '/api/telegram/webhook';
     const webhookUrl = `${webhookBaseUrl}${webhookPath}`;
     const webhookSecretToken = getTelegramWebhookSecretToken();
-    
+
     bot = new TelegramBot(token);
-    
-    const webhookOptions = webhookSecretToken ? { secret_token: webhookSecretToken } : undefined;
-    bot.setWebHook(webhookUrl, webhookOptions).then(() => {
+
+    trySetSuperadminWebhook(bot, webhookUrl, webhookSecretToken).then(() => {
       console.log(`🤖 Telegram bot initialized with webhook: ${webhookUrl}`);
     }).catch((error) => {
-      console.error('❌ Error setting webhook:', error);
+      console.error('❌ Error setting webhook:', error.message);
+      if (TELEGRAM_DISABLE_POLLING_FALLBACK_IN_PROD) {
+        console.log('⛔ Polling fallback disabled in production, superadmin bot remains webhook-only');
+        return;
+      }
       console.log('⚠️  Falling back to polling mode');
       bot = new TelegramBot(token, { polling: true });
     });
@@ -3230,11 +3335,45 @@ async function initBot() {
 
   // Error handling
   bot.on('polling_error', (error) => {
-    if (error.response?.body?.error_code === 409) {
-      console.warn('⚠️  Telegram bot conflict: Another instance is running');
-    } else {
-      console.error('Telegram polling error:', error.message);
+    const errorCode = Number(error?.response?.body?.error_code || 0);
+    const message = error?.message || String(error);
+    const state = superadminPollingState;
+    const targetBot = bot;
+
+    if (state.lastErrorAt && Date.now() - state.lastErrorAt > TELEGRAM_POLLING_RESET_WINDOW_MS) {
+      state.consecutiveFailures = 0;
+      state.conflictAttempts = 0;
+      state.currentBackoffMs = TELEGRAM_POLLING_BACKOFF_BASE_MS;
     }
+    state.lastErrorAt = Date.now();
+    state.consecutiveFailures += 1;
+
+    if (errorCode === 409) {
+      state.conflictAttempts += 1;
+      if (state.conflictAttempts === 1 || state.conflictAttempts % 20 === 0) {
+        console.warn(`⚠️  Superadmin bot conflict: another instance polling (#${state.conflictAttempts})`);
+      }
+      if (state.conflictAttempts > TELEGRAM_POLLING_MAX_CONSECUTIVE_FAILURES) {
+        console.error('🛑 Superadmin bot: persistent 409 conflict, suspending polling');
+        state.stopped = true;
+        if (state.restartTimer) { clearTimeout(state.restartTimer); state.restartTimer = null; }
+        Promise.resolve().then(() => targetBot.stopPolling()).catch(() => {});
+        return;
+      }
+      scheduleSuperadminPollingRestart(targetBot, TELEGRAM_POLLING_CONFLICT_DELAY_MS);
+      return;
+    }
+
+    if (state.consecutiveFailures === 1 || state.consecutiveFailures % 25 === 0) {
+      console.error(`Superadmin bot polling error (#${state.consecutiveFailures}):`, message);
+    }
+    if (state.consecutiveFailures > TELEGRAM_POLLING_MAX_CONSECUTIVE_FAILURES) {
+      console.error(`🛑 Superadmin bot: ${state.consecutiveFailures} consecutive polling errors, long backoff`);
+      state.currentBackoffMs = TELEGRAM_POLLING_BACKOFF_MAX_MS;
+    } else {
+      state.currentBackoffMs = Math.min(state.currentBackoffMs * 2, TELEGRAM_POLLING_BACKOFF_MAX_MS);
+    }
+    scheduleSuperadminPollingRestart(targetBot, state.currentBackoffMs);
   });
   
   bot.on('webhook_error', (error) => {
@@ -3275,6 +3414,12 @@ function getActiveSuperadminBotToken() {
 async function stopBot() {
   if (!bot) return;
 
+  superadminPollingState.stopped = true;
+  if (superadminPollingState.restartTimer) {
+    clearTimeout(superadminPollingState.restartTimer);
+    superadminPollingState.restartTimer = null;
+  }
+
   try {
     bot.removeAllListeners();
   } catch (e) {
@@ -3282,7 +3427,7 @@ async function stopBot() {
   }
 
   try {
-    await bot.stopPolling();
+    await bot.stopPolling({ cancel: true });
   } catch (e) {
     // no-op: bot may be in webhook mode
   }
@@ -3302,4 +3447,4 @@ async function reloadBot() {
   initSuperadminServerMonitoring({ bot });
 }
 
-module.exports = { initBot, getBot, reloadBot, getActiveSuperadminBotToken };
+module.exports = { initBot, getBot, reloadBot, stopBot, getActiveSuperadminBotToken };

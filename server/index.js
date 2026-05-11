@@ -20,8 +20,8 @@ const addressRoutes = require('./routes/addresses');
 const paymeRoutes = require('./routes/payme');
 const serviceControlRoutes = require('./routes/serviceControl');
 const serviceLockMiddleware = require('./middleware/serviceLock');
-const { initBot, getBot } = require('./bot/bot');
-const { initMultiBots, processWebhook, getAllBots } = require('./bot/multiBotManager');
+const { initBot, getBot, stopBot } = require('./bot/bot');
+const { initMultiBots, processWebhook, getAllBots, stopMultiBots } = require('./bot/multiBotManager');
 const { initBroadcastWorker } = require('./services/broadcastWorker');
 const { initStoreCloseReportWorker } = require('./services/storeCloseReportWorker');
 const { initScheduledDeliveryReminderWorker } = require('./services/scheduledDeliveryReminderWorker');
@@ -540,6 +540,36 @@ async function startServer() {
 }
 
 startServer();
+
+// Graceful shutdown — release Telegram polling/webhooks so the next deploy doesn't hit
+// 409 Conflict from a stale getUpdates session held by this dying instance.
+let shuttingDown = false;
+async function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`👋 Received ${signal}, releasing Telegram bots...`);
+  const deadline = setTimeout(() => {
+    console.warn('⏱️  Graceful shutdown deadline reached, exiting');
+    process.exit(0);
+  }, 12_000);
+  if (typeof deadline.unref === 'function') deadline.unref();
+  try {
+    await Promise.race([
+      Promise.allSettled([
+        Promise.resolve().then(() => stopMultiBots()).catch((e) => console.warn('stopMultiBots warning:', e.message)),
+        Promise.resolve().then(() => stopBot()).catch((e) => console.warn('stopBot warning:', e.message))
+      ]),
+      new Promise((resolve) => setTimeout(resolve, 10_000))
+    ]);
+  } catch (e) {
+    console.warn('Graceful shutdown warning:', e?.message || e);
+  } finally {
+    clearTimeout(deadline);
+    process.exit(0);
+  }
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 module.exports = app;
 
