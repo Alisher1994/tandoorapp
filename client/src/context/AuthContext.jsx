@@ -4,7 +4,11 @@ import axios from 'axios';
 const AuthContext = createContext();
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
-const AUTH_REQUEST_TIMEOUT_MS = 8000;
+const AUTH_REQUEST_TIMEOUT_MS = 12000;
+// One retry covers the common case (mobile network blip during /auth/me) without
+// making the worst case feel like a hang. Two timeouts back-to-back would mean
+// 24s of staring at a skeleton — past the user's patience threshold.
+const AUTH_INIT_RETRY_DELAYS_MS = [400];
 const TELEGRAM_INIT_DATA_ATTEMPTS = 10;
 const TELEGRAM_INIT_DATA_DELAY_MS = 140;
 const TELEGRAM_AUTO_LOGIN_ATTEMPTS = 2;
@@ -157,6 +161,26 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Retry fetchUser on transient failures (network blips, slow mobile, 5xx).
+  // Without this, a single hiccup during /auth/me on the catalog?token=... path
+  // wipes the in-memory session and bounces the user back to /login despite a
+  // perfectly valid token sitting in localStorage. Only "temporary" errors are
+  // retried — auth (401), blocked (403), and success short-circuit immediately.
+  const fetchUserWithRetry = async ({
+    timeoutMs = AUTH_REQUEST_TIMEOUT_MS,
+    retries = AUTH_INIT_RETRY_DELAYS_MS.length
+  } = {}) => {
+    let result = await fetchUser({ manageLoading: false, timeoutMs });
+    let attempt = 0;
+    while (result?.temporary && attempt < retries) {
+      const delay = AUTH_INIT_RETRY_DELAYS_MS[attempt] ?? AUTH_INIT_RETRY_DELAYS_MS[AUTH_INIT_RETRY_DELAYS_MS.length - 1];
+      await sleep(delay);
+      attempt += 1;
+      result = await fetchUser({ manageLoading: false, timeoutMs });
+    }
+    return result;
+  };
+
   useEffect(() => {
     initializeAuth();
   }, []);
@@ -189,7 +213,7 @@ export function AuthProvider({ children }) {
         const nextUrl = `${window.location.pathname}${remainingQuery ? `?${remainingQuery}` : ''}`;
         window.history.replaceState({}, document.title, nextUrl);
 
-        const authResult = await fetchUser({ manageLoading: false, timeoutMs: AUTH_REQUEST_TIMEOUT_MS });
+        const authResult = await fetchUserWithRetry();
         if (authResult?.unauthorized) {
           const loggedInByTelegram = await tryTelegramWebAppAutoLogin(effectiveRestaurantId);
           if (loggedInByTelegram) {
@@ -228,7 +252,7 @@ export function AuthProvider({ children }) {
       const token = localStorage.getItem('token');
       if (token) {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        const authResult = await fetchUser({ manageLoading: false, timeoutMs: AUTH_REQUEST_TIMEOUT_MS });
+        const authResult = await fetchUserWithRetry();
         if (authResult?.unauthorized) {
           const loggedInByTelegram = await tryTelegramWebAppAutoLogin(restaurantIdFromUrl);
           if (loggedInByTelegram) {
