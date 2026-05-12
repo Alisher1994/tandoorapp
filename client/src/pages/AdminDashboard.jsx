@@ -4081,8 +4081,15 @@ function AdminDashboard() {
     runFetchByTab();
 
     let interval = null;
+    // Background polling only for the live "Orders" tab. While any modal/form is
+    // open, skip the tick so an in-flight GET cannot overwrite the user's edits.
+    // The Analytics ("dashboard") tab no longer auto-polls — it caused visible
+    // page jumps and could race with concurrent form saves on other tabs.
     if (mainTab === 'orders') {
       interval = setInterval(() => {
+        if (typeof document !== 'undefined' && document.body?.classList?.contains('modal-open')) {
+          return;
+        }
         fetchData({
           includeOrders: true,
           includeAllOrders: false,
@@ -4092,17 +4099,6 @@ function AdminDashboard() {
           includeFeedbackStats: false
         });
       }, 12000);
-    } else if (mainTab === 'dashboard') {
-      interval = setInterval(() => {
-        fetchData({
-          includeOrders: true,
-          includeAllOrders: true,
-          includeProducts: false,
-          includeCategories: false,
-          includeContainers: false,
-          includeFeedbackStats: true
-        });
-      }, 30000);
     }
 
     return () => {
