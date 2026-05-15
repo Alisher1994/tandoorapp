@@ -19,6 +19,19 @@ import ClientEmptyState from '../components/ClientEmptyState';
 import ClientTopBar from '../components/ClientTopBar';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const PROMO_STORAGE_KEY = 'cart_applied_promo';
+
+function loadStoredPromo() {
+  try {
+    const raw = localStorage.getItem(PROMO_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !parsed.applied) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 const toNumber = (value, fallback = 0) => {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -83,10 +96,15 @@ function Cart() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [createdOrder, setCreatedOrder] = useState(null);
-  const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState(null);
+  const initialPromoRef = useRef(loadStoredPromo());
+  const [promoInput, setPromoInput] = useState(() => initialPromoRef.current?.input || '');
+  const [appliedPromo, setAppliedPromo] = useState(() => initialPromoRef.current?.applied || null);
   const [promoError, setPromoError] = useState('');
   const [promoApplying, setPromoApplying] = useState(false);
+  // Signature of `promoItemsPayload` at the moment the promo was applied. The cart-change
+  // effect compares against this so a page refresh that restores the same cart keeps the
+  // promo, while any real cart change still drops it (matching server-side re-validation).
+  const lastAppliedSignatureRef = useRef(initialPromoRef.current?.signature || null);
   const [orderItems, setOrderItems] = useState([]);
   const [deliveryCost, setDeliveryCost] = useState(0);
   const [deliveryDistance, setDeliveryDistance] = useState(0);
@@ -524,13 +542,33 @@ function Cart() {
 
   // If the cart changes after applying, drop the discount — its eligibility may have moved
   // (different products, different total). Forces the user to re-apply, mirroring server logic.
+  // The signature ref lets a page-refresh restore keep the promo when the cart is identical.
   useEffect(() => {
-    if (appliedPromo) {
-      setAppliedPromo(null);
-      setPromoError('');
-    }
+    if (!appliedPromo) return;
+    const currentSignature = JSON.stringify(promoItemsPayload);
+    if (lastAppliedSignatureRef.current === currentSignature) return;
+    setAppliedPromo(null);
+    setPromoError('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(promoItemsPayload)]);
+
+  // Persist applied promo to localStorage so it survives page refresh. Cleared automatically
+  // when appliedPromo becomes null (remove button, cart change, etc.).
+  useEffect(() => {
+    try {
+      if (appliedPromo && lastAppliedSignatureRef.current) {
+        localStorage.setItem(PROMO_STORAGE_KEY, JSON.stringify({
+          applied: appliedPromo,
+          input: promoInput,
+          signature: lastAppliedSignatureRef.current
+        }));
+      } else {
+        localStorage.removeItem(PROMO_STORAGE_KEY);
+      }
+    } catch {
+      /* storage unavailable — non-fatal */
+    }
+  }, [appliedPromo, promoInput]);
 
   const handleApplyPromo = useCallback(async () => {
     setPromoError('');
@@ -552,6 +590,7 @@ function Cart() {
         items: promoItemsPayload
       });
       if (response.data?.valid) {
+        lastAppliedSignatureRef.current = JSON.stringify(promoItemsPayload);
         setAppliedPromo({
           code: response.data.promo?.code || code.toUpperCase(),
           discount_amount: Number(response.data.discount_amount) || 0,
@@ -585,6 +624,7 @@ function Cart() {
   }, [promoInput, cart, user?.active_restaurant_id, promoItemsPayload, language]);
 
   const handleRemovePromo = useCallback(() => {
+    lastAppliedSignatureRef.current = null;
     setAppliedPromo(null);
     setPromoError('');
     setPromoInput('');
