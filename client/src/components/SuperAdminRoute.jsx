@@ -10,7 +10,7 @@ function SuperAdminRoute({ children }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login?portal=superadmin" replace />;
   }
 
   // Allow superadmin and moderator
