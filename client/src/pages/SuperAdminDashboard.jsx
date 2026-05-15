@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
-import './SuperAdminModern.css';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import {
@@ -13223,7 +13222,7 @@ function SuperAdminDashboard() {
   );
 
   return (
-    <div className={`min-vh-100 bg-light superadmin-modern ${actionButtonsVisible ? '' : 'action-buttons-hidden'}`}>
+    <div className={`min-vh-100 bg-light ${actionButtonsVisible ? '' : 'action-buttons-hidden'}`}>
       {/* Header */}
       <Navbar expand="lg" className="admin-navbar admin-navbar-shell py-3 mb-4 shadow-sm">
         <HeaderGlowBackground />
