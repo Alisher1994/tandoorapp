@@ -188,27 +188,76 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName, c
             })}
           </div>
 
-          {/* Total */}
-          <div style={{
-            padding: '16px 20px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <span style={{ 
-              fontSize: '14px',
-              fontWeight: 'bold',
-              textTransform: 'uppercase'
-            }}>
-              Итого
-            </span>
-            <span style={{ 
-              fontSize: '22px', 
-              fontWeight: 'bold'
-            }}>
-              {formatPrice(order?.total_amount)} {t('sum')}
-            </span>
-          </div>
+          {/* Breakdown + total */}
+          {(() => {
+            const itemsSubtotal = (items || []).reduce((sum, item) => {
+              const qty = Number.parseFloat(item.quantity) || 0;
+              const price = Number.parseFloat(item.price) || 0;
+              const containerUnits = resolveContainerUnits(item.quantity, item.container_norm);
+              const containerPrice = Number.parseFloat(item.container_price) || 0;
+              return sum + (qty * price) + (containerUnits * containerPrice);
+            }, 0);
+            const serviceFee = Number.parseFloat(order?.service_fee) || 0;
+            const deliveryCost = Number.parseFloat(order?.delivery_cost) || 0;
+            const promoDiscount = Number.parseFloat(order?.promo_discount_amount) || 0;
+            const totalAmount = Number.parseFloat(order?.total_amount) || 0;
+            const promoCode = String(order?.promo_code || '').trim();
+            const rowStyle = {
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: '12px',
+              color: '#555',
+              marginBottom: '4px'
+            };
+            return (
+              <div style={{ padding: '12px 20px 4px' }}>
+                <div style={rowStyle}>
+                  <span>Подытог</span>
+                  <span>{formatPrice(itemsSubtotal)} {t('sum')}</span>
+                </div>
+                {serviceFee > 0 && (
+                  <div style={rowStyle}>
+                    <span>Сервисный сбор</span>
+                    <span>{formatPrice(serviceFee)} {t('sum')}</span>
+                  </div>
+                )}
+                {deliveryCost > 0 && (
+                  <div style={rowStyle}>
+                    <span>Доставка</span>
+                    <span>{formatPrice(deliveryCost)} {t('sum')}</span>
+                  </div>
+                )}
+                {promoDiscount > 0 && (
+                  <div style={{ ...rowStyle, color: '#9c4221', fontWeight: 600 }}>
+                    <span>🎟 Промокод{promoCode ? ` ${promoCode}` : ''}</span>
+                    <span>−{formatPrice(promoDiscount)} {t('sum')}</span>
+                  </div>
+                )}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '8px',
+                  paddingTop: '8px',
+                  borderTop: '1px dashed var(--border-color)'
+                }}>
+                  <span style={{
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    textTransform: 'uppercase'
+                  }}>
+                    Итого
+                  </span>
+                  <span style={{
+                    fontSize: '22px',
+                    fontWeight: 'bold'
+                  }}>
+                    {formatPrice(totalAmount)} {t('sum')}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Payment method */}
           <div style={{
