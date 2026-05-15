@@ -36,9 +36,31 @@
 /* ---------- Background canvas ---------- */
 .superadmin-modern.min-vh-100 {
     background:
-        radial-gradient(1100px 540px at -10% -10%, rgba(79, 70, 229, 0.07), transparent 60%),
-        radial-gradient(900px 480px at 110% -8%, rgba(14, 165, 233, 0.07), transparent 60%),
-        linear-gradient(180deg, #fafbff 0%, var(--sam-bg) 100%);
+        radial-gradient(1200px 600px at -10% -10%, rgba(79, 70, 229, 0.18), transparent 55%),
+        radial-gradient(1000px 540px at 110% -8%, rgba(14, 165, 233, 0.18), transparent 55%),
+        radial-gradient(900px 600px at 50% 110%, rgba(99, 102, 241, 0.10), transparent 60%),
+        linear-gradient(180deg, #eef1fb 0%, #e8ecf7 60%, #eef2fa 100%) !important;
+    position: relative;
+}
+
+.superadmin-modern.min-vh-100::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(15, 23, 42, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(15, 23, 42, 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -1px -1px;
+    pointer-events: none;
+    z-index: 0;
+    mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+}
+
+.superadmin-modern > * {
+    position: relative;
+    z-index: 1;
 }
 
 /* ---------- Top navbar ---------- */
@@ -110,12 +132,23 @@
 
 /* ---------- Sidebar ---------- */
 .superadmin-modern .admin-sidebar-column {
-    background: var(--sam-surface);
-    border: 1px solid var(--sam-border);
-    border-radius: var(--sam-radius-lg);
-    box-shadow: var(--sam-shadow-sm);
-    padding: 12px 10px 14px;
+    background: var(--sam-surface) !important;
+    border: 1px solid var(--sam-border) !important;
+    border-radius: var(--sam-radius-xl) !important;
+    box-shadow: var(--sam-shadow-md) !important;
+    padding: 14px 12px 16px !important;
     overflow: hidden;
+    position: relative;
+}
+
+.superadmin-modern .admin-sidebar-column::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 80px;
+    background: linear-gradient(180deg, transparent 0%, rgba(79, 70, 229, 0.04) 100%);
+    pointer-events: none;
+    z-index: 0;
 }
 
 .superadmin-modern .admin-sidebar-column .admin-tabs.admin-tabs-sidebar {
@@ -199,21 +232,93 @@
 
 /* ---------- Workspace card ---------- */
 .superadmin-modern .admin-workspace-main {
-    background: var(--sam-surface);
+    background: var(--sam-surface) !important;
     border: 1px solid var(--sam-border) !important;
-    border-radius: var(--sam-radius-lg) !important;
-    box-shadow: var(--sam-shadow-md) !important;
+    border-radius: var(--sam-radius-xl) !important;
+    box-shadow: var(--sam-shadow-lg) !important;
+    overflow: hidden;
+    position: relative;
+}
+
+.superadmin-modern .admin-workspace-main::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 4px;
+    background: linear-gradient(90deg, #4f46e5 0%, #6366f1 35%, #0ea5e9 70%, #06b6d4 100%);
+    z-index: 1;
+    pointer-events: none;
 }
 
 .superadmin-modern .admin-workspace-main > .card-body {
-    padding: clamp(16px, 1.8vw, 28px) !important;
+    padding: clamp(20px, 2vw, 32px) !important;
 }
 
 /* ---------- Section titles ---------- */
 .superadmin-modern h5.fw-bold,
-.superadmin-modern h4.fw-bold {
-    color: var(--sam-text);
-    letter-spacing: -0.01em;
+.superadmin-modern h4.fw-bold,
+.superadmin-modern h6.fw-bold {
+    color: var(--sam-text) !important;
+    letter-spacing: -0.015em !important;
+    font-weight: 700 !important;
+}
+
+.superadmin-modern h5.fw-bold {
+    font-size: 1.32rem !important;
+}
+
+/* ---------- Generic cards inside workspace ---------- */
+.superadmin-modern .admin-workspace-main .card,
+.superadmin-modern .admin-workspace-main .admin-card {
+    background: var(--sam-surface) !important;
+    border: 1px solid var(--sam-border) !important;
+    border-radius: var(--sam-radius-md) !important;
+    box-shadow: var(--sam-shadow-xs) !important;
+    transition: box-shadow 0.22s ease, transform 0.22s ease;
+}
+
+.superadmin-modern .admin-workspace-main .card:hover {
+    box-shadow: var(--sam-shadow-sm) !important;
+}
+
+.superadmin-modern .admin-workspace-main .card-header,
+.superadmin-modern .admin-card-header {
+    background: transparent !important;
+    border-bottom: 1px solid var(--sam-border) !important;
+    font-weight: 600 !important;
+    color: var(--sam-text) !important;
+    padding: 14px 18px !important;
+}
+
+/* ---------- All admin-tables inside the superadmin shell ---------- */
+.superadmin-modern .admin-table-container {
+    background: var(--sam-surface) !important;
+    border: 1px solid var(--sam-border) !important;
+    border-radius: var(--sam-radius-lg) !important;
+    box-shadow: var(--sam-shadow-sm) !important;
+    overflow: hidden !important;
+}
+
+.superadmin-modern .admin-table thead th {
+    background: linear-gradient(180deg, #f8fafc 0%, #f3f5fb 100%) !important;
+    color: var(--sam-text-muted) !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    padding: 14px 18px !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--sam-border) !important;
+}
+
+.superadmin-modern .admin-table tbody td {
+    border-bottom: 1px solid var(--sam-border) !important;
+    color: var(--sam-text) !important;
+    padding: 16px 18px !important;
+}
+
+.superadmin-modern .admin-table tbody tr:hover {
+    background: linear-gradient(90deg, rgba(79, 70, 229, 0.05) 0%, rgba(14, 165, 233, 0.04) 100%) !important;
 }
 
 /* ============================================================
@@ -229,12 +334,12 @@
 .superadmin-modern .stat-card {
     background: var(--sam-surface) !important;
     border: 1px solid var(--sam-border) !important;
-    border-radius: var(--sam-radius-lg) !important;
-    box-shadow: var(--sam-shadow-sm) !important;
-    padding: 18px 20px !important;
+    border-radius: var(--sam-radius-xl) !important;
+    box-shadow: var(--sam-shadow-md) !important;
+    padding: 22px 24px !important;
     position: relative;
     overflow: hidden;
-    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease, border-color 0.22s ease;
 }
 
 .superadmin-modern .superadmin-stat-card::before,
@@ -242,10 +347,28 @@
     content: "";
     position: absolute;
     inset: 0 auto 0 0;
-    width: 4px;
+    width: 5px;
     background: linear-gradient(180deg, var(--sam-accent) 0%, var(--sam-accent-2) 100%);
-    border-radius: 4px 0 0 4px;
-    opacity: 0.85;
+    border-radius: 5px 0 0 5px;
+}
+
+.superadmin-modern .superadmin-stat-card::after,
+.superadmin-modern .stat-card::after {
+    content: "";
+    position: absolute;
+    inset: -40% -30% auto auto;
+    width: 220px;
+    height: 220px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(79, 70, 229, 0.12), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.superadmin-modern .superadmin-stat-card > *,
+.superadmin-modern .stat-card > * {
+    position: relative;
+    z-index: 1;
 }
 
 .superadmin-modern .superadmin-stat-card:hover,
@@ -282,18 +405,22 @@
 .superadmin-modern .superadmin-stat-card .stat-value,
 .superadmin-modern .stat-card .stat-value {
     color: var(--sam-text) !important;
-    font-weight: 700 !important;
-    font-size: 1.55rem !important;
-    letter-spacing: -0.01em;
+    font-weight: 800 !important;
+    font-size: 1.8rem !important;
+    letter-spacing: -0.025em !important;
     margin-bottom: 0 !important;
+    line-height: 1.1 !important;
 }
 
 /* Subtle accent variants for differentiating cards by position */
 .superadmin-modern .superadmin-stats-grid > [class*="col-"]:nth-child(2) .superadmin-stat-card::before { background: linear-gradient(180deg, #0ea5e9 0%, #38bdf8 100%); }
+.superadmin-modern .superadmin-stats-grid > [class*="col-"]:nth-child(2) .superadmin-stat-card::after { background: radial-gradient(circle, rgba(14, 165, 233, 0.14), transparent 70%); }
 .superadmin-modern .superadmin-stats-grid > [class*="col-"]:nth-child(2) .superadmin-stat-card .stat-icon { background: #e0f2fe !important; color: #0284c7 !important; }
 .superadmin-modern .superadmin-stats-grid > [class*="col-"]:nth-child(3) .superadmin-stat-card::before { background: linear-gradient(180deg, #10b981 0%, #34d399 100%); }
+.superadmin-modern .superadmin-stats-grid > [class*="col-"]:nth-child(3) .superadmin-stat-card::after { background: radial-gradient(circle, rgba(16, 185, 129, 0.14), transparent 70%); }
 .superadmin-modern .superadmin-stats-grid > [class*="col-"]:nth-child(3) .superadmin-stat-card .stat-icon { background: #d1fae5 !important; color: #047857 !important; }
 .superadmin-modern .superadmin-stats-grid > [class*="col-"]:nth-child(4) .superadmin-stat-card::before { background: linear-gradient(180deg, #f59e0b 0%, #fbbf24 100%); }
+.superadmin-modern .superadmin-stats-grid > [class*="col-"]:nth-child(4) .superadmin-stat-card::after { background: radial-gradient(circle, rgba(245, 158, 11, 0.14), transparent 70%); }
 .superadmin-modern .superadmin-stats-grid > [class*="col-"]:nth-child(4) .superadmin-stat-card .stat-icon { background: #fef3c7 !important; color: #b45309 !important; }
 
 /* Analytics chart cards / generic .card inside analytics */
