@@ -450,6 +450,20 @@ const toLocalDateKey = (rawDate) => {
   return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
 };
 const getTodayDateKey = () => toLocalDateKey(new Date());
+
+// `<input type="datetime-local">` always reads/writes local time but the DB stores UTC.
+// These two convert between the wire format (ISO/UTC) and the input's local format.
+const toLocalDatetimeInputValue = (rawDate) => {
+  if (!rawDate) return '';
+  const date = rawDate instanceof Date ? rawDate : new Date(rawDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}T${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}`;
+};
+const fromLocalDatetimeInputValue = (localValue) => {
+  if (!localValue) return null;
+  const date = new Date(localValue);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+};
 const shiftDateKeyByDays = (dateKey, offsetDays = 0) => {
   const [year, month, day] = String(dateKey || '').split('-').map((part) => Number.parseInt(part, 10));
   if (!year || !month || !day) return '';
@@ -5910,10 +5924,9 @@ function AdminDashboard() {
         max_discount_amount: promo.max_discount_amount != null ? String(promo.max_discount_amount) : '',
         applies_to_all: promo.applies_to_all !== false,
         product_ids: Array.isArray(promo.product_ids) ? promo.product_ids.map(Number) : [],
-        valid_from: promo.valid_from ? new Date(promo.valid_from).toISOString().slice(0, 16) : '',
-        valid_to: promo.valid_to ? new Date(promo.valid_to).toISOString().slice(0, 16) : '',
+        valid_from: toLocalDatetimeInputValue(promo.valid_from),
+        valid_to: toLocalDatetimeInputValue(promo.valid_to),
         max_uses: promo.max_uses != null ? String(promo.max_uses) : '',
-        is_active: promo.is_active !== false,
         used_count: promo.used_count || 0
       });
     } else {
@@ -5928,7 +5941,6 @@ function AdminDashboard() {
         valid_from: '',
         valid_to: '',
         max_uses: '',
-        is_active: true,
         used_count: 0
       });
     }
@@ -5969,10 +5981,10 @@ function AdminDashboard() {
           : Number(promoEditorForm.max_discount_amount),
         applies_to_all: promoEditorForm.applies_to_all !== false,
         product_ids: promoEditorForm.applies_to_all !== false ? [] : (promoEditorForm.product_ids || []),
-        valid_from: promoEditorForm.valid_from || null,
-        valid_to: promoEditorForm.valid_to || null,
+        valid_from: fromLocalDatetimeInputValue(promoEditorForm.valid_from),
+        valid_to: fromLocalDatetimeInputValue(promoEditorForm.valid_to),
         max_uses: promoEditorForm.max_uses === '' ? null : Number(promoEditorForm.max_uses),
-        is_active: promoEditorForm.is_active !== false
+        is_active: true
       };
       if (promoEditorForm.id) {
         await axios.put(`${API_URL}/admin/promo-codes/${promoEditorForm.id}`, payload);
@@ -15742,6 +15754,21 @@ function AdminDashboard() {
                                           : `${Number(p.value).toLocaleString('ru-RU')}`;
                                         const fromLabel = p.valid_from ? new Date(p.valid_from).toLocaleString('ru-RU') : '—';
                                         const toLabel = p.valid_to ? new Date(p.valid_to).toLocaleString('ru-RU') : '∞';
+                                        const nowMs = Date.now();
+                                        const fromMs = p.valid_from ? new Date(p.valid_from).getTime() : null;
+                                        const toMs = p.valid_to ? new Date(p.valid_to).getTime() : null;
+                                        const usedCount = Number(p.used_count) || 0;
+                                        const maxUses = p.max_uses != null ? Number(p.max_uses) : null;
+                                        let statusBadge;
+                                        if (fromMs && fromMs > nowMs) {
+                                          statusBadge = <Badge bg="warning" text="dark">{language === 'uz' ? "Hali boshlanmadi" : 'Ещё не действует'}</Badge>;
+                                        } else if (toMs && toMs < nowMs) {
+                                          statusBadge = <Badge bg="secondary">{language === 'uz' ? 'Muddati tugadi' : 'Истёк'}</Badge>;
+                                        } else if (maxUses != null && usedCount >= maxUses) {
+                                          statusBadge = <Badge bg="secondary">{language === 'uz' ? 'Tugadi' : 'Исчерпан'}</Badge>;
+                                        } else {
+                                          statusBadge = <Badge bg="success">{language === 'uz' ? 'Faol' : 'Активен'}</Badge>;
+                                        }
                                         return (
                                           <tr key={`promo-${p.id}`}>
                                             <td className="fw-semibold">{p.code}</td>
@@ -15754,9 +15781,7 @@ function AdminDashboard() {
                                                 : `${(Array.isArray(p.product_ids) ? p.product_ids.length : 0)} ${language === 'uz' ? 'tanlangan' : 'выбрано'}`}
                                             </td>
                                             <td className="text-end">{Number(p.used_count || 0)}{p.max_uses ? ` / ${p.max_uses}` : ''}</td>
-                                            <td>{p.is_active
-                                              ? <Badge bg="success">{language === 'uz' ? 'Faol' : 'Активен'}</Badge>
-                                              : <Badge bg="secondary">{language === 'uz' ? "O'chirilgan" : 'Выключен'}</Badge>}</td>
+                                            <td>{statusBadge}</td>
                                             <td className="text-end">
                                               <Button variant="outline-secondary" size="sm" onClick={() => openPromoEditor(p)} className="me-2">
                                                 {language === 'uz' ? 'Tahrirlash' : 'Изм.'}
@@ -19930,15 +19955,6 @@ function AdminDashboard() {
                         {promoEditorForm.used_count || 0}
                       </Form.Text>
                     </Form.Group>
-                  </Col>
-                  <Col md={6} className="d-flex align-items-center">
-                    <Form.Check
-                      type="switch"
-                      id="promo-is-active"
-                      label={language === 'uz' ? 'Faol' : 'Активен'}
-                      checked={promoEditorForm.is_active !== false}
-                      onChange={(e) => handlePromoFormChange('is_active', e.target.checked)}
-                    />
                   </Col>
                   <Col md={12}>
                     <hr />

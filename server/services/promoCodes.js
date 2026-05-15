@@ -79,7 +79,6 @@ function computeEligibleSubtotal({ promo, items }) {
 async function validatePromo({ restaurantId, code, items, now = new Date() }) {
   const promo = await loadPromoForRestaurant({ restaurantId, code });
   if (!promo) return { valid: false, reason: 'NOT_FOUND' };
-  if (!promo.is_active) return { valid: false, reason: 'INACTIVE' };
   if (!PROMO_TYPES.has(promo.type)) return { valid: false, reason: 'INVALID_TYPE' };
   const nowDate = now instanceof Date ? now : new Date(now);
   if (promo.valid_from && new Date(promo.valid_from).getTime() > nowDate.getTime()) {
@@ -130,7 +129,6 @@ async function applyPromoForOrder({ client, restaurantId, code, items }) {
   );
   const promo = locked.rows[0];
   if (!promo) return { applied: false, reason: 'NOT_FOUND' };
-  if (!promo.is_active) return { applied: false, reason: 'INACTIVE' };
   const now = new Date();
   if (promo.valid_from && new Date(promo.valid_from).getTime() > now.getTime()) {
     return { applied: false, reason: 'NOT_STARTED' };
