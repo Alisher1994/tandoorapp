@@ -963,6 +963,12 @@ async function executePrintSequence(printer, device, data, config) {
     if (data.financials.deliveryCost > 0) {
       printer.text(tx(`Доставка: ${data.financials.deliveryCost.toLocaleString('ru-RU')} сум`));
     }
+    if (data.financials.promoDiscount > 0) {
+      const promoLabel = data.financials.promoCode
+        ? `Промокод ${data.financials.promoCode}`
+        : 'Промокод';
+      printer.text(tx(`${promoLabel}: -${data.financials.promoDiscount.toLocaleString('ru-RU')} сум`));
+    }
     printer.feed(1).style('b').size(1, 1).text(tx(`ИТОГО: ${data.financials.totalAmount?.toLocaleString('ru-RU')} сум`));
     printer.style('n').size(0, 0).text(tx(`Способ оплаты: ${resolvePaymentMethodLabel(data.paymentMethod)}`));
 

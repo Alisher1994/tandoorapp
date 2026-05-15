@@ -449,6 +449,8 @@ class PrinterManager {
           serviceFee: parseFloat(order.service_fee || 0),
           deliveryCost: parseFloat(order.delivery_cost || 0),
           fasovkaTotal: containersTotal,
+          promoDiscount: parseFloat(order.promo_discount_amount || 0),
+          promoCode: order.promo_code ? String(order.promo_code) : '',
           totalAmount: parseFloat(order.total_amount || 0)
         },
         items: items.map(i => ({
