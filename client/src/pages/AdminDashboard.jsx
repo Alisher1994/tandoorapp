@@ -15664,13 +15664,23 @@ function AdminDashboard() {
                                     : 'Скидочные коды, которые клиент вводит в корзине. Действуют только для вашего магазина.'}
                                 </div>
                               </div>
-                              <Form.Check
-                                type="switch"
-                                id="admin-promo-toggle"
-                                checked={!!restaurantSettings.promo_codes_enabled}
-                                onChange={(e) => setRestaurantSettings({ ...restaurantSettings, promo_codes_enabled: e.target.checked })}
-                                label={language === 'uz' ? 'Yoqish' : 'Включить'}
-                              />
+                              <div className="d-flex align-items-center gap-3 flex-wrap">
+                                <Form.Check
+                                  type="switch"
+                                  id="admin-promo-toggle"
+                                  checked={!!restaurantSettings.promo_codes_enabled}
+                                  onChange={(e) => setRestaurantSettings({ ...restaurantSettings, promo_codes_enabled: e.target.checked })}
+                                  label={language === 'uz' ? 'Yoqish' : 'Включить'}
+                                />
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={saveRestaurantSettings}
+                                  disabled={savingSettings}
+                                >
+                                  {savingSettings ? '...' : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+                                </Button>
+                              </div>
                             </div>
 
                             {!restaurantSettings.promo_codes_enabled ? (
