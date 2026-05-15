@@ -9,7 +9,6 @@ import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
 import deliveryTruckVideo from '../assets/animations/delivery-truck.mp4';
-import './SuperAdminModern.css';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -186,60 +185,47 @@ function Login() {
     }
   };
 
-  const isSuperadminPortal = loginPortal === 'superadmin';
-  const shellClassName = isSuperadminPortal
-    ? 'd-flex justify-content-center align-items-center login-shell superadmin-modern-login'
-    : 'd-flex justify-content-center align-items-center login-shell';
-
   return (
-    <Container className={shellClassName} style={{ minHeight: '100vh' }}>
-      <Card style={{ width: '100%', maxWidth: '440px' }} className="shadow login-card">
+    <Container className="d-flex justify-content-center align-items-center login-shell" style={{ minHeight: '100vh' }}>
+      <Card style={{ width: '100%', maxWidth: '420px' }} className="shadow login-card">
         <Card.Body className="p-4">
           <div className="text-center mb-4">
             {(loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'moderator' || loginPortal === 'superadmin' || loginPortal === 'customer') && (
               <div className="mb-3">
                 <span className="login-context-chip">
-                  {isSuperadminPortal
-                    ? 'Super Admin'
-                    : loginPortal === 'customer' ? 'Client Portal' : 'Admin Portal'}
+                  {loginPortal === 'customer' ? 'Client Portal' : 'Admin Portal'}
                 </span>
               </div>
             )}
-            {isSuperadminPortal ? (
-              <div className="sam-login-brand" aria-hidden="true">T</div>
-            ) : (
-              <div
-                className="mx-auto mb-3"
+            <div
+              className="mx-auto mb-3"
+              style={{
+                width: '100%',
+                maxWidth: '180px',
+                borderRadius: '14px',
+                overflow: 'hidden',
+                background: '#ffffff'
+              }}
+            >
+              <video
+                src={deliveryTruckVideo}
+                autoPlay
+                loop
+                muted
+                playsInline
                 style={{
                   width: '100%',
-                  maxWidth: '180px',
-                  borderRadius: '14px',
-                  overflow: 'hidden',
-                  background: '#ffffff'
+                  display: 'block',
+                  maxHeight: '120px',
+                  objectFit: 'cover'
                 }}
-              >
-                <video
-                  src={deliveryTruckVideo}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  style={{
-                    width: '100%',
-                    display: 'block',
-                    maxHeight: '120px',
-                    objectFit: 'cover'
-                  }}
-                />
-              </div>
-            )}
+              />
+            </div>
             <h2>{portalTitles[loginPortal] || 'Вход в систему'}</h2>
             <p className="text-muted">
-              {isSuperadminPortal
-                ? 'Защищённый вход в панель управления'
-                : (loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'moderator'
-                    ? 'Введите данные администратора'
-                    : 'Введите ваши данные для входа')}
+              {loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'moderator' || loginPortal === 'superadmin'
+                ? 'Введите данные администратора'
+                : 'Введите ваши данные для входа'}
             </p>
           </div>
 
