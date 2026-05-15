@@ -128,7 +128,7 @@ const normalizeModeratorPermissions = (value) => {
   }
   return normalized;
 };
-const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
+const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us']);
 const RESTAURANT_WORKFLOW_STATUS_VALUES = new Set([
   'new',
   'negotiation',
@@ -3523,7 +3523,7 @@ const ensureRestaurantCurrencySchema = async () => {
       SET currency_code = 'uz'
       WHERE currency_code IS NULL
          OR BTRIM(currency_code) = ''
-         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
+         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us')
     `).catch(() => {});
     restaurantCurrencySchemaReady = true;
   })();

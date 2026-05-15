@@ -485,7 +485,7 @@ const normalizeDeliveryPricingMode = (value, fallback = 'dynamic') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return DELIVERY_PRICING_MODES.has(normalizedFallback) ? normalizedFallback : 'dynamic';
 };
-const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
+const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us']);
 const normalizeRestaurantCurrencyCode = (value, fallback = 'uz') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (RESTAURANT_CURRENCY_CODES.has(normalized)) return normalized;
@@ -515,7 +515,7 @@ const ensureRestaurantCurrencySchema = async () => {
       SET currency_code = 'uz'
       WHERE currency_code IS NULL
          OR BTRIM(currency_code) = ''
-         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
+         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us')
     `).catch(() => {});
     await pool.query(`
       UPDATE restaurants

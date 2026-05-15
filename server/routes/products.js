@@ -27,7 +27,7 @@ const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
 };
-const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
+const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us']);
 const normalizeRestaurantCurrencyCode = (value, fallback = 'uz') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (RESTAURANT_CURRENCY_CODES.has(normalized)) return normalized;
@@ -395,7 +395,7 @@ const ensureRestaurantCurrencySchema = async () => {
       SET currency_code = 'uz'
       WHERE currency_code IS NULL
          OR BTRIM(currency_code) = ''
-         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru')
+         OR LOWER(currency_code) NOT IN ('uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us')
     `).catch(() => {});
     await pool.query(`UPDATE restaurants SET menu_liquid_glass_enabled = false WHERE menu_liquid_glass_enabled IS NULL`).catch(() => {});
     await pool.query(`UPDATE restaurants SET menu_height_lock_enabled = false WHERE menu_height_lock_enabled IS NULL`).catch(() => {});

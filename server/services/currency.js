@@ -1,4 +1,4 @@
-const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru']);
+const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us']);
 
 const CURRENCY_LABELS = {
   uz: { ru: 'сум', uz: "so'm" },
@@ -7,7 +7,8 @@ const CURRENCY_LABELS = {
   tj: { ru: 'сомони', uz: 'somoni' },
   kg: { ru: 'сом', uz: 'som' },
   af: { ru: 'афгани', uz: "afg'oni" },
-  ru: { ru: 'руб', uz: 'rubl' }
+  ru: { ru: 'руб', uz: 'rubl' },
+  us: { ru: 'доллар', uz: 'dollar' }
 };
 
 const DEFAULT_CURRENCY_CODE = 'uz';
