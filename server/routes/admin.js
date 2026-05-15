@@ -6300,16 +6300,24 @@ pl.id,
 // PRINTERS MANAGEMENT
 // =====================================================
 
-// Download printer agent executable
+// Download printer agent executable. Railway can't host the 116MB EXE inside the git repo,
+// so in prod we set PRINTER_AGENT_DOWNLOAD_URL to a public GitHub Release asset and just
+// redirect there. The local-file path stays as a fallback for dev machines.
 router.get('/printer-agent/download', async (req, res) => {
   try {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
+    const externalUrl = String(process.env.PRINTER_AGENT_DOWNLOAD_URL || '').trim();
+    if (externalUrl) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.redirect(302, externalUrl);
+    }
+
     const exePath = resolvePrinterAgentExePath();
     if (!exePath) {
       return res.status(404).json({
-        error: 'Файл TalablarPrinter.exe не найден на сервере. Поместите его в printer-agent/dist или задайте PRINTER_AGENT_EXE_PATH.'
+        error: 'Файл TalablarPrinter.exe не найден. Задайте PRINTER_AGENT_DOWNLOAD_URL или положите EXE в printer-agent/dist.'
       });
     }
 
