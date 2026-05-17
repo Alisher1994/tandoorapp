@@ -13799,7 +13799,7 @@ function AdminDashboard() {
                                                   rel="noopener noreferrer"
                                                   className="admin-general-qr-bot-link"
                                                 >
-                                                  @{botUsername}
+                                                  {botHref}
                                                 </a>
                                               </div>
                                             );
