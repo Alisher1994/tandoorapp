@@ -13770,11 +13770,27 @@ function AdminDashboard() {
                                                 <span>Подготовка превью QR...</span>
                                               </div>
                                             ) : registrationQrPreviewMeta?.qr_url_full ? (
-                                              <img
-                                                src={registrationQrPreviewMeta.qr_url_full}
-                                                alt="QR-код магазина"
-                                                className="admin-general-qr-image"
-                                              />
+                                              <>
+                                                <img
+                                                  src={registrationQrPreviewMeta.qr_url_full}
+                                                  alt="QR-код магазина"
+                                                  className="admin-general-qr-image"
+                                                />
+                                                {(() => {
+                                                  const botUsername = String(
+                                                    registrationQrPreviewMeta?.bot_username
+                                                    || testedBotInfo?.username
+                                                    || ''
+                                                  ).trim().replace(/^@/, '');
+                                                  const botHref = getTelegramBotHref(botUsername);
+                                                  if (!botHref) return null;
+                                                  return (
+                                                    <div className="admin-general-qr-link-overlay">
+                                                      {botHref}
+                                                    </div>
+                                                  );
+                                                })()}
+                                              </>
                                             ) : (
                                               <div className="admin-general-qr-placeholder">
                                                 <i className="bi bi-qr-code" aria-hidden="true" />
@@ -13801,6 +13817,15 @@ function AdminDashboard() {
                                                 >
                                                   {botHref}
                                                 </a>
+                                                <button
+                                                  type="button"
+                                                  className="admin-general-qr-copy-btn"
+                                                  onClick={() => copyTelegramMetaField(botHref, 'qr_bot_link')}
+                                                  aria-label="Скопировать ссылку на бота"
+                                                  title="Скопировать ссылку"
+                                                >
+                                                  {copiedTelegramField === 'qr_bot_link' ? <i className="bi bi-check2" /> : <CopyIcon />}
+                                                </button>
                                               </div>
                                             );
                                           })()}

@@ -5051,7 +5051,12 @@ function Catalog() {
 
                   <div className="d-flex align-items-start justify-content-between gap-2 flex-wrap mb-2">
                     <div className="min-w-0">
-                      <h4 className="mb-1 text-truncate">{activeProductName}</h4>
+                      <h4
+                        className="mb-1"
+                        style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', whiteSpace: 'normal' }}
+                      >
+                        {activeProductName}
+                      </h4>
                       {!shouldShowActiveProductStockLine && (
                         <div className="small text-muted">{activeProductUnitLabel}</div>
                       )}

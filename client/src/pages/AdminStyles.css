@@ -9607,6 +9607,7 @@ body::-webkit-scrollbar,
     justify-content: center;
     overflow: hidden;
     padding: 0.55rem;
+    position: relative;
 }
 
 .admin-general-qr-image {
@@ -9639,7 +9640,7 @@ body::-webkit-scrollbar,
 .admin-general-qr-link-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 0.65rem;
     border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 10px;
@@ -9652,11 +9653,51 @@ body::-webkit-scrollbar,
     text-decoration: none;
     font-weight: 600;
     word-break: break-all;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .admin-general-qr-bot-link:hover {
     color: #4338ca;
     text-decoration: underline;
+}
+
+.admin-general-qr-copy-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(148, 163, 184, 0.38);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex: 0 0 auto;
+}
+
+.admin-general-qr-copy-btn:hover {
+    border-color: rgba(79, 70, 229, 0.55);
+    color: #4338ca;
+    background: #eef2ff;
+}
+
+.admin-general-qr-link-overlay {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 8px;
+    padding: 0.28rem 0.45rem;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    color: #334155;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .admin-menu-mode-preview-grid {
