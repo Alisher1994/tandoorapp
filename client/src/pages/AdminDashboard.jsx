@@ -13755,6 +13755,29 @@ function AdminDashboard() {
                                               </div>
                                             )}
                                           </div>
+                                          {registrationQrPreviewMeta?.bot_link && (
+                                            <div className="admin-general-qr-link">
+                                              <div className="small fw-bold text-muted text-uppercase mb-1">Ссылка на бота</div>
+                                              <div className="admin-input-action-field">
+                                                <Form.Control
+                                                  type="text"
+                                                  readOnly
+                                                  className="form-control-custom admin-input-action-control"
+                                                  value={registrationQrPreviewMeta.bot_link}
+                                                  onFocus={(event) => event.target.select()}
+                                                />
+                                                <button
+                                                  type="button"
+                                                  className="admin-input-action-btn"
+                                                  onClick={() => copyTelegramMetaField(registrationQrPreviewMeta.bot_link, 'qr_bot_link')}
+                                                  title="Копировать ссылку на бота"
+                                                  aria-label="Копировать ссылку на бота"
+                                                >
+                                                  {copiedTelegramField === 'qr_bot_link' ? <i className="bi bi-check2" /> : <CopyIcon />}
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
                                           <Button
                                             variant="outline-primary"
                                             className="w-100"

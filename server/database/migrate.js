@@ -51,7 +51,7 @@ async function migrate() {
       `logo_display_mode VARCHAR(20) DEFAULT 'square'`,
       `ui_theme VARCHAR(20) DEFAULT 'classic'`,
       `ui_font_family VARCHAR(32) DEFAULT 'sans'`,
-      `menu_view_mode VARCHAR(24) DEFAULT 'grid_categories'`,
+      `menu_view_mode VARCHAR(24) DEFAULT 'single_list'`,
       `telegram_bot_status VARCHAR(16) DEFAULT 'active'`,
       'telegram_bot_disabled_at TIMESTAMP',
       'telegram_bot_disable_reason VARCHAR(120)',
@@ -168,6 +168,19 @@ async function migrate() {
         OR BTRIM(COALESCE(menu_view_mode, '')) = ''
         OR menu_view_mode NOT IN ('grid_categories', 'single_list', 'nested_categories')
     `).catch(() => {});
+    // New-store appearance defaults. SET DEFAULT only affects future INSERTs
+    // that omit the column; existing rows keep whatever they already have.
+    await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS catalog_card_mode VARCHAR(16) DEFAULT 'portrait'`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_opacity INTEGER DEFAULT 34`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_blur INTEGER DEFAULT 16`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ALTER COLUMN menu_view_mode SET DEFAULT 'single_list'`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ALTER COLUMN catalog_card_mode SET DEFAULT 'portrait'`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ALTER COLUMN menu_liquid_glass_enabled SET DEFAULT true`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ALTER COLUMN menu_height_lock_enabled SET DEFAULT true`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ALTER COLUMN menu_liquid_glass_opacity SET DEFAULT 34`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ALTER COLUMN menu_liquid_glass_blur SET DEFAULT 16`).catch(() => {});
     await client.query(`
       UPDATE restaurants
       SET payment_placeholders = '{}'::jsonb
