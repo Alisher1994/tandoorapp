@@ -8798,6 +8798,11 @@ function AdminDashboard() {
     const normalizedDigits = digits.length === 9 ? `998${digits}` : digits;
     return `https://t.me/+${normalizedDigits}`;
   };
+  const getTelegramBotHref = (rawUsername) => {
+    const normalized = String(rawUsername || '').trim().replace(/^@/, '');
+    if (!normalized) return '';
+    return `https://t.me/${encodeURIComponent(normalized)}`;
+  };
   const renderCustomerPhoneLink = (rawPhone) => {
     const phoneValue = String(rawPhone || '').trim();
     const formattedPhone = formatCustomerPhone(phoneValue);
@@ -13755,6 +13760,28 @@ function AdminDashboard() {
                                               </div>
                                             )}
                                           </div>
+                                          {(() => {
+                                            const botUsername = String(
+                                              registrationQrPreviewMeta?.bot_username
+                                              || testedBotInfo?.username
+                                              || ''
+                                            ).trim().replace(/^@/, '');
+                                            const botHref = getTelegramBotHref(botUsername);
+                                            if (!botHref) return null;
+                                            return (
+                                              <div className="admin-general-qr-link-row">
+                                                <span className="small text-muted">Ссылка на бот:</span>
+                                                <a
+                                                  href={botHref}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="admin-general-qr-bot-link"
+                                                >
+                                                  @{botUsername}
+                                                </a>
+                                              </div>
+                                            );
+                                          })()}
                                           <Button
                                             variant="outline-primary"
                                             className="w-100"
