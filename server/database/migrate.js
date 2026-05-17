@@ -67,8 +67,8 @@ async function migrate() {
       `payme_account_key VARCHAR(64) DEFAULT 'order_id'`,
       'payme_test_mode BOOLEAN DEFAULT false',
       `payme_callback_timeout_ms INTEGER DEFAULT 2000`,
-      'send_balance_after_confirm BOOLEAN DEFAULT false',
-      'send_daily_close_report BOOLEAN DEFAULT false',
+      'send_balance_after_confirm BOOLEAN DEFAULT true',
+      'send_daily_close_report BOOLEAN DEFAULT true',
       'inventory_tracking_enabled BOOLEAN DEFAULT false',
       'inventory_min_threshold DECIMAL(10, 3) DEFAULT 0',
       'close_report_last_sent_at TIMESTAMP',
@@ -192,6 +192,14 @@ async function migrate() {
       UPDATE restaurants
       SET send_daily_close_report = false
       WHERE send_daily_close_report IS NULL
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      ALTER COLUMN send_balance_after_confirm SET DEFAULT true
+    `).catch(() => {});
+    await client.query(`
+      ALTER TABLE restaurants
+      ALTER COLUMN send_daily_close_report SET DEFAULT true
     `).catch(() => {});
     await client.query(`
       UPDATE restaurants

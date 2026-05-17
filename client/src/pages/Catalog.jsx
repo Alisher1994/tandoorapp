@@ -4571,6 +4571,54 @@ function Catalog() {
                         <h6 className="mb-0 fw-bold text-dark">{getCategoryName(selectedLevel2Category)}</h6>
                       </div>
                     )}
+                    {!isSingleListMode && level3Categories.length > 0 && (
+                      <section className="mb-4">
+                        <h6 className="mb-3 text-muted fw-bold">
+                          {language === 'uz' ? "Bo'limlar" : 'Подкатегории'}
+                        </h6>
+                        <Row className="g-2 g-lg-3">
+                          {level3Categories.map((category) => {
+                            const isActive = catalogSectionTabKey(activeSubcategoryTab) === catalogSectionTabKey(category.id);
+                            return (
+                              <Col key={`level3-folder-${category.id}`} xs={6} lg={3}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCatalogTabClick(category.id)}
+                                  className="w-100 border-0 text-start"
+                                  style={{
+                                    borderRadius: 12,
+                                    minHeight: 64,
+                                    padding: '10px 12px',
+                                    background: isActive ? 'rgba(59, 130, 246, 0.12)' : '#ffffff',
+                                    border: isActive ? '1px solid rgba(37, 99, 235, 0.35)' : '1px solid rgba(148, 163, 184, 0.24)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8
+                                  }}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    style={{ fontSize: '1.05rem', lineHeight: 1 }}
+                                  >
+                                    📁
+                                  </span>
+                                  <span
+                                    style={{
+                                      color: '#0f172a',
+                                      fontWeight: isActive ? 700 : 600,
+                                      fontSize: '0.84rem',
+                                      lineHeight: 1.2
+                                    }}
+                                  >
+                                    {getCategoryName(category)}
+                                  </span>
+                                </button>
+                              </Col>
+                            );
+                          })}
+                        </Row>
+                      </section>
+                    )}
                     {visibleProductSections.map((section) => (
                       <section
                         key={section.id}
