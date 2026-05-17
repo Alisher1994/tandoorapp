@@ -102,6 +102,21 @@ const buildQrBackgroundSvg = ({ x, y, size }) => `
 </svg>
 `;
 
+const buildQrBotLinkSvg = ({ linkText, y }) => `
+<svg width="${A5_WIDTH_PX_300_DPI}" height="${A5_HEIGHT_PX_300_DPI}" viewBox="0 0 ${A5_WIDTH_PX_300_DPI} ${A5_HEIGHT_PX_300_DPI}" xmlns="http://www.w3.org/2000/svg">
+  <text
+    x="50%"
+    y="${y}"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
+    font-size="34"
+    font-weight="700"
+    fill="#1f2937"
+  >${escapeSvgText(linkText)}</text>
+</svg>
+`;
+
 const createBaseCanvas = async (backgroundBuffer) => {
   if (!backgroundBuffer) {
     return sharp({
@@ -149,6 +164,15 @@ const normalizeBotUsernameForPrint = (botUsername, botLink) => {
   return '';
 };
 
+const normalizeBotLinkForPrint = (botUsername, botLink) => {
+  const normalizedUsername = normalizeBotUsernameForPrint(botUsername, botLink).replace(/^@+/, '').trim();
+  if (normalizedUsername) {
+    return `https://t.me/${normalizedUsername}`;
+  }
+  const rawLink = String(botLink || '').trim();
+  return rawLink || '';
+};
+
 const createPdfFromPng = async (pngBuffer) => {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([A5_WIDTH_PT, A5_HEIGHT_PT]);
@@ -186,6 +210,7 @@ const generateStorePrintForm = async ({
     : Math.round(A5_HEIGHT_PX_300_DPI * 0.45);
   const qrX = Math.round(centerX - qrSize / 2);
   const qrY = Math.round(centerY - qrSize / 2);
+  const qrLinkY = Math.min(qrY + qrSize + 26, A5_HEIGHT_PX_300_DPI - 120);
   const usernameY = Math.max(qrY - 92, 90);
   const captionY = Math.min(qrY + qrSize + 120, A5_HEIGHT_PX_300_DPI - 86);
 
@@ -215,11 +240,16 @@ const generateStorePrintForm = async ({
     usernameY,
     captionY
   });
+  const qrBotLinkSvg = buildQrBotLinkSvg({
+    linkText: normalizeBotLinkForPrint(botUsername, botLink),
+    y: qrLinkY
+  });
 
   const compositedPng = await sharp(baseCanvasBuffer)
     .composite([
       { input: Buffer.from(qrBackgroundSvg), top: 0, left: 0 },
       { input: qrBuffer, top: qrY, left: qrX },
+      { input: Buffer.from(qrBotLinkSvg), top: 0, left: 0 },
       { input: Buffer.from(textSvg), top: 0, left: 0 }
     ])
     .withMetadata({ density: 300 })
