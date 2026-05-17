@@ -505,11 +505,11 @@ const ensureRestaurantCurrencySchema = async () => {
     await ensureInventorySchema(pool);
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ui_font_family VARCHAR(32) DEFAULT 'sans'`).catch(() => {});
-    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_enabled BOOLEAN DEFAULT false`).catch(() => {});
-    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_opacity INTEGER DEFAULT 34`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_blur INTEGER DEFAULT 16`).catch(() => {});
-    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS catalog_card_mode VARCHAR(16) DEFAULT 'wide'`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS catalog_card_mode VARCHAR(16) DEFAULT 'portrait'`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET currency_code = 'uz'

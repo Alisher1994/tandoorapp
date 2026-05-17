@@ -40,7 +40,7 @@ const DEFAULT_GRID_LIMITS = Object.freeze({
 const DEFAULT_CATEGORY_STYLE_SETTINGS = Object.freeze({
   hideCategoryTitleBackground: false,
   categoryTitleBackgroundTransparent: false,
-  categoryTitleOutsideImage: false
+  categoryTitleOutsideImage: true
 });
 
 const normalizeCategoryId = (value) => {

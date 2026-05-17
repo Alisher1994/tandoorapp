@@ -385,11 +385,11 @@ const ensureRestaurantCurrencySchema = async () => {
   restaurantCurrencySchemaPromise = (async () => {
     await ensureRestaurantMinimumOrderSchema();
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS currency_code VARCHAR(8) DEFAULT 'uz'`).catch(() => {});
-    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_enabled BOOLEAN DEFAULT false`).catch(() => {});
-    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_enabled BOOLEAN DEFAULT true`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_height_lock_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_opacity INTEGER DEFAULT 34`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS menu_liquid_glass_blur INTEGER DEFAULT 16`).catch(() => {});
-    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS catalog_card_mode VARCHAR(16) DEFAULT 'wide'`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS catalog_card_mode VARCHAR(16) DEFAULT 'portrait'`).catch(() => {});
     await pool.query(`
       UPDATE restaurants
       SET currency_code = 'uz'
@@ -2051,7 +2051,7 @@ function inferCategoryStyleSettingsFromBlocks(blocks = []) {
     return {
       hideCategoryTitleBackground: false,
       categoryTitleBackgroundTransparent: false,
-      categoryTitleOutsideImage: false
+      categoryTitleOutsideImage: true
     };
   }
 
@@ -2064,7 +2064,7 @@ function inferCategoryStyleSettingsFromBlocks(blocks = []) {
     return {
       hideCategoryTitleBackground: false,
       categoryTitleBackgroundTransparent: false,
-      categoryTitleOutsideImage: false
+      categoryTitleOutsideImage: true
     };
   }
 
