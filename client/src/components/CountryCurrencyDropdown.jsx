@@ -6,6 +6,7 @@ function CountryCurrencyDropdown({
   options = [],
   onChange,
   className = '',
+  layout = 'dropdown',
   readOnly = false,
   disabled = false
 }) {
@@ -44,6 +45,27 @@ function CountryCurrencyDropdown({
       : (option?.nameRu || option?.nameUz || '')
   );
 
+  const getCurrencyName = (option) => (
+    language === 'uz'
+      ? (option?.currencyUz || option?.currencyRu || '')
+      : (option?.currencyRu || option?.currencyUz || '')
+  );
+
+  const resolveCurrencyCode = (option) => {
+    const code = String(option?.code || '').trim().toLowerCase();
+    const map = {
+      uz: 'UZS',
+      kz: 'KZT',
+      tm: 'TMT',
+      tj: 'TJS',
+      kg: 'KGS',
+      af: 'AFN',
+      ru: 'RUB',
+      us: 'USD'
+    };
+    return map[code] || code.toUpperCase();
+  };
+
   const handleSelect = (code) => {
     if (!isInteractive) return;
     if (typeof onChange === 'function') {
@@ -51,6 +73,36 @@ function CountryCurrencyDropdown({
     }
     setIsOpen(false);
   };
+
+  if (layout === 'cards') {
+    return (
+      <div ref={rootRef} className={`country-currency-cards ${className}`.trim()}>
+        {safeOptions.map((option) => {
+          const isActive = currentOption?.code === option.code;
+          return (
+            <button
+              key={option.code}
+              type="button"
+              role="option"
+              aria-selected={isActive}
+              className={`country-currency-card ${isActive ? 'is-active' : ''} ${!isInteractive ? 'is-disabled' : ''}`}
+              onClick={() => handleSelect(option.code)}
+              disabled={!isInteractive}
+            >
+              <img src={option.flag} alt={option.code.toUpperCase()} className="country-currency-flag" />
+              <span className="country-currency-meta">
+                <span className="country-currency-country">{getCountryName(option)}</span>
+                <span className="country-currency-code">
+                  {getCurrencyName(option)} ({resolveCurrencyCode(option)})
+                </span>
+              </span>
+              {isActive && <span className="country-currency-check">✓</span>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className={`country-currency-dropdown ${className}`.trim()}>
@@ -71,7 +123,9 @@ function CountryCurrencyDropdown({
             <img src={currentOption.flag} alt={currentOption.code.toUpperCase()} className="country-currency-flag" />
             <span className="country-currency-meta">
               <span className="country-currency-country">{getCountryName(currentOption)}</span>
-              <span className="country-currency-code">{currentOption.currencyRu || currentOption.currencyUz}</span>
+              <span className="country-currency-code">
+                {getCurrencyName(currentOption)} ({resolveCurrencyCode(currentOption)})
+              </span>
             </span>
           </>
         ) : (
@@ -100,7 +154,9 @@ function CountryCurrencyDropdown({
                 <img src={option.flag} alt={option.code.toUpperCase()} className="country-currency-flag" />
                 <span className="country-currency-meta">
                   <span className="country-currency-country">{getCountryName(option)}</span>
-                  <span className="country-currency-code">{option.currencyRu || option.currencyUz}</span>
+                  <span className="country-currency-code">
+                    {getCurrencyName(option)} ({resolveCurrencyCode(option)})
+                  </span>
                 </span>
                 {isActive && <span className="country-currency-check">✓</span>}
               </button>

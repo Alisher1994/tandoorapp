@@ -13879,6 +13879,7 @@ function AdminDashboard() {
                                               </Form.Label>
                                               <CountryCurrencyDropdown
                                                 language={language}
+                                                layout="cards"
                                                 selectedOption={selectedRestaurantCurrencyOption}
                                                 options={countryCurrencyOptions}
                                                 readOnly={!canEditStoreCurrency}

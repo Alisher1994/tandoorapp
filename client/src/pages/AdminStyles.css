@@ -577,6 +577,42 @@ body::-webkit-scrollbar,
     width: 100%;
 }
 
+.country-currency-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+}
+
+.country-currency-card {
+    width: 100%;
+    border: 1px solid #d7dee8;
+    background: #ffffff;
+    border-radius: 12px;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    text-align: left;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.country-currency-card:hover {
+    border-color: rgba(71, 85, 105, 0.44);
+    box-shadow: 0 0 0 2px rgba(71, 85, 105, 0.1);
+}
+
+.country-currency-card.is-active {
+    background: #eef2f7;
+    border-color: rgba(71, 85, 105, 0.45);
+}
+
+.country-currency-card.is-disabled {
+    background: #f8fafc;
+    opacity: 0.75;
+    cursor: default;
+}
+
 .country-currency-trigger {
     width: 100%;
     border: 1px solid #d7dee8;
