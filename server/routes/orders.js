@@ -1004,7 +1004,9 @@ router.post('/', authenticate, async (req, res) => {
     if (shouldNotifyImmediately && finalRestaurantId) {
       const restaurantResult = await pool.query(
         `SELECT telegram_bot_token, telegram_group_id, click_url, payme_url, uzum_url, xazna_url,
-                card_payment_title, card_payment_number, card_payment_holder, card_receipt_target, support_username
+                card_payment_title, card_payment_number, card_payment_holder,
+                card_bank_name, card_bank_inn, card_bank_mfo, card_bank_legal_address, card_bank_oked, card_bank_okonx,
+                card_receipt_target, support_username
          FROM restaurants
          WHERE id = $1`,
         [finalRestaurantId]
@@ -1044,6 +1046,12 @@ router.post('/', authenticate, async (req, res) => {
           card_payment_title: restaurant?.card_payment_title,
           card_payment_number: restaurant?.card_payment_number,
           card_payment_holder: restaurant?.card_payment_holder,
+          card_bank_name: restaurant?.card_bank_name,
+          card_bank_inn: restaurant?.card_bank_inn,
+          card_bank_mfo: restaurant?.card_bank_mfo,
+          card_bank_legal_address: restaurant?.card_bank_legal_address,
+          card_bank_oked: restaurant?.card_bank_oked,
+          card_bank_okonx: restaurant?.card_bank_okonx,
           card_receipt_target: restaurant?.card_receipt_target,
           support_username: restaurant?.support_username
         };

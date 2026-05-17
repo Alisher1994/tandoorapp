@@ -1357,6 +1357,12 @@ async function sendOrderUpdateToUser(
         const cardTitle = String(restaurantPaymentUrls.card_payment_title || '').trim() || 'Банковская карта';
         const cardNumber = String(restaurantPaymentUrls.card_payment_number || '').replace(/\D/g, '').slice(0, 19);
         const cardHolder = String(restaurantPaymentUrls.card_payment_holder || '').trim();
+        const cardBankName = String(restaurantPaymentUrls.card_bank_name || '').trim();
+        const cardBankInn = String(restaurantPaymentUrls.card_bank_inn || '').trim();
+        const cardBankMfo = String(restaurantPaymentUrls.card_bank_mfo || '').trim();
+        const cardBankLegalAddress = String(restaurantPaymentUrls.card_bank_legal_address || '').trim();
+        const cardBankOked = String(restaurantPaymentUrls.card_bank_oked || '').trim();
+        const cardBankOkonx = String(restaurantPaymentUrls.card_bank_okonx || '').trim();
         const receiptTarget = normalizeCardReceiptTarget(restaurantPaymentUrls.card_receipt_target, 'bot');
         const supportUsernameRaw = String(restaurantPaymentUrls.support_username || '').trim();
         const supportUsername = supportUsernameRaw.replace(/^@/, '');
@@ -1364,7 +1370,13 @@ async function sendOrderUpdateToUser(
         const cardDetails = [
           cardTitle ? `\nКарта: <b>${escapeHtml(cardTitle)}</b>` : '',
           cardNumber ? `\nНомер: <code>${escapeHtml(cardNumber)}</code>` : '',
-          cardHolder ? `\nВладелец: <b>${escapeHtml(cardHolder)}</b>` : ''
+          cardHolder ? `\nВладелец: <b>${escapeHtml(cardHolder)}</b>` : '',
+          cardBankName ? `\nБанк: <b>${escapeHtml(cardBankName)}</b>` : '',
+          cardBankInn ? `\nИНН: <code>${escapeHtml(cardBankInn)}</code>` : '',
+          cardBankMfo ? `\nМФО: <code>${escapeHtml(cardBankMfo)}</code>` : '',
+          cardBankLegalAddress ? `\nЮр. адрес: <b>${escapeHtml(cardBankLegalAddress)}</b>` : '',
+          cardBankOked ? `\nОКЭД: <code>${escapeHtml(cardBankOked)}</code>` : '',
+          cardBankOkonx ? `\nОКОНХ: <code>${escapeHtml(cardBankOkonx)}</code>` : ''
         ].join('');
 
         paymentLine = `${cardDetails}\n\nПосле оплаты отправьте чек.`;

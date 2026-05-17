@@ -1053,6 +1053,12 @@ router.get('/restaurant/:id', async (req, res) => {
     const cardNumber = String(r.card_payment_number || '').replace(/\D/g, '').slice(0, 19);
     const cardTitle = String(r.card_payment_title || '').trim();
     const cardHolder = String(r.card_payment_holder || '').trim();
+    const cardBankName = String(r.card_bank_name || '').trim();
+    const cardBankInn = String(r.card_bank_inn || '').trim();
+    const cardBankMfo = String(r.card_bank_mfo || '').trim();
+    const cardBankLegalAddress = String(r.card_bank_legal_address || '').trim();
+    const cardBankOked = String(r.card_bank_oked || '').trim();
+    const cardBankOkonx = String(r.card_bank_okonx || '').trim();
     const cardPaymentEnabled = Boolean(cardTitle && cardNumber && cardHolder);
     const cardReceiptTarget = String(r.card_receipt_target || '').trim().toLowerCase() === 'admin' ? 'admin' : 'bot';
     const cashEnabled = r.cash_enabled === undefined || r.cash_enabled === null
@@ -1097,6 +1103,12 @@ router.get('/restaurant/:id', async (req, res) => {
       card_payment_title: cardPaymentEnabled ? cardTitle : '',
       card_payment_number: cardPaymentEnabled ? cardNumber : '',
       card_payment_holder: cardPaymentEnabled ? cardHolder : '',
+      card_bank_name: cardPaymentEnabled ? cardBankName : '',
+      card_bank_inn: cardPaymentEnabled ? cardBankInn : '',
+      card_bank_mfo: cardPaymentEnabled ? cardBankMfo : '',
+      card_bank_legal_address: cardPaymentEnabled ? cardBankLegalAddress : '',
+      card_bank_oked: cardPaymentEnabled ? cardBankOked : '',
+      card_bank_okonx: cardPaymentEnabled ? cardBankOkonx : '',
       card_receipt_target: cardReceiptTarget,
       support_username: r.support_username || '',
       owner_username: ownerUsername || String(r.support_username || '').trim().replace(/^@+/, ''),

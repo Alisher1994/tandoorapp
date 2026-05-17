@@ -1136,6 +1136,12 @@ function Cart() {
           title: restaurant?.card_payment_title || '',
           number: restaurant?.card_payment_number || '',
           holder: restaurant?.card_payment_holder || '',
+          bankName: restaurant?.card_bank_name || '',
+          inn: restaurant?.card_bank_inn || '',
+          mfo: restaurant?.card_bank_mfo || '',
+          legalAddress: restaurant?.card_bank_legal_address || '',
+          oked: restaurant?.card_bank_oked || '',
+          okonx: restaurant?.card_bank_okonx || '',
           receiptTarget: createdOrder?.card_receipt_target || restaurant?.card_receipt_target || 'bot',
           receiptUrl: createdOrder?.card_receipt_url || '',
           supportUsername: restaurant?.support_username || ''
@@ -1758,6 +1764,24 @@ function Cart() {
                       </div>
                     )}
                     <div>{restaurant.card_payment_holder || '—'}</div>
+                    {restaurant.card_bank_name && (
+                      <div className="small text-muted">{language === 'uz' ? 'Bank nomi' : 'Название банка'}: {restaurant.card_bank_name}</div>
+                    )}
+                    {restaurant.card_bank_inn && (
+                      <div className="small text-muted">ИНН: {restaurant.card_bank_inn}</div>
+                    )}
+                    {restaurant.card_bank_mfo && (
+                      <div className="small text-muted">МФО: {restaurant.card_bank_mfo}</div>
+                    )}
+                    {restaurant.card_bank_legal_address && (
+                      <div className="small text-muted">{language === 'uz' ? 'Yur. manzil' : 'Юр. адрес'}: {restaurant.card_bank_legal_address}</div>
+                    )}
+                    {restaurant.card_bank_oked && (
+                      <div className="small text-muted">ОКЭД: {restaurant.card_bank_oked}</div>
+                    )}
+                    {restaurant.card_bank_okonx && (
+                      <div className="small text-muted">ОКОНХ: {restaurant.card_bank_okonx}</div>
+                    )}
                     <div className={`small text-danger mt-2 cart-receipt-attention ${receiptInstructionBlink ? 'is-blinking' : ''}`}>
                       {typedReceiptInstruction}
                     </div>

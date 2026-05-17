@@ -823,6 +823,12 @@ const buildRestaurantSettingsSignature = (settings) => {
     card_payment_title: normalizeSettingsText(settings.card_payment_title),
     card_payment_number: normalizeSettingsText(settings.card_payment_number),
     card_payment_holder: normalizeSettingsText(settings.card_payment_holder),
+    card_bank_name: normalizeSettingsText(settings.card_bank_name),
+    card_bank_inn: normalizeSettingsText(settings.card_bank_inn),
+    card_bank_mfo: normalizeSettingsText(settings.card_bank_mfo),
+    card_bank_legal_address: normalizeSettingsText(settings.card_bank_legal_address),
+    card_bank_oked: normalizeSettingsText(settings.card_bank_oked),
+    card_bank_okonx: normalizeSettingsText(settings.card_bank_okonx),
     card_receipt_target: String(settings.card_receipt_target || '').trim().toLowerCase() === 'admin' ? 'admin' : 'bot',
     payme_enabled: normalizeSettingsBoolean(settings.payme_enabled, false),
     payme_merchant_id: normalizeSettingsText(settings.payme_merchant_id),
@@ -8825,6 +8831,22 @@ function AdminDashboard() {
     if (paymentMethod === 'xazna') return 'Xazna';
     return paymentMethod || '-';
   };
+  const getCardBankRequisitesRows = () => {
+    const rows = [];
+    const bankName = String(restaurantSettings?.card_bank_name || '').trim();
+    const inn = String(restaurantSettings?.card_bank_inn || '').trim();
+    const mfo = String(restaurantSettings?.card_bank_mfo || '').trim();
+    const legalAddress = String(restaurantSettings?.card_bank_legal_address || '').trim();
+    const oked = String(restaurantSettings?.card_bank_oked || '').trim();
+    const okonx = String(restaurantSettings?.card_bank_okonx || '').trim();
+    if (bankName) rows.push({ label: language === 'uz' ? 'Bank nomi' : 'Название банка', value: bankName });
+    if (inn) rows.push({ label: 'ИНН', value: inn });
+    if (mfo) rows.push({ label: 'МФО', value: mfo });
+    if (legalAddress) rows.push({ label: language === 'uz' ? 'Yur. manzil' : 'Юр. адрес', value: legalAddress });
+    if (oked) rows.push({ label: 'ОКЭД', value: oked });
+    if (okonx) rows.push({ label: 'ОКОНХ', value: okonx });
+    return rows;
+  };
 
   const getAnalyticsPaymentMethodLabel = (methodKey) => {
     const meta = ANALYTICS_PAYMENT_METHOD_META[methodKey] || {};
@@ -15105,6 +15127,83 @@ function AdminDashboard() {
                                               />
                                             </Form.Group>
                                           </Col>
+                                          <Col md={6}>
+                                            <Form.Group className="mb-0">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                                {language === 'uz' ? 'Bank nomi' : 'Название банка'}
+                                              </Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.card_bank_name || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, card_bank_name: e.target.value })}
+                                                placeholder={language === 'uz' ? 'Masalan: Agrobank' : 'Например: Agrobank'}
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group className="mb-0">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">ИНН</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.card_bank_inn || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, card_bank_inn: e.target.value })}
+                                                placeholder="123456789"
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group className="mb-0">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">МФО</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.card_bank_mfo || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, card_bank_mfo: e.target.value })}
+                                                placeholder="00450"
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group className="mb-0">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">ОКЭД</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.card_bank_oked || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, card_bank_oked: e.target.value })}
+                                                placeholder="47.91"
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group className="mb-0">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">ОКОНХ</Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                className="form-control-custom"
+                                                value={restaurantSettings.card_bank_okonx || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, card_bank_okonx: e.target.value })}
+                                                placeholder="96170"
+                                              />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={12}>
+                                            <Form.Group className="mb-0">
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                                {language === 'uz' ? 'Yur. manzil' : 'Юр. адрес'}
+                                              </Form.Label>
+                                              <Form.Control
+                                                as="textarea"
+                                                rows={2}
+                                                className="form-control-custom"
+                                                value={restaurantSettings.card_bank_legal_address || ''}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, card_bank_legal_address: e.target.value })}
+                                                placeholder={language === 'uz' ? "Yuridik manzilni kiriting" : 'Укажите юридический адрес'}
+                                              />
+                                            </Form.Group>
+                                          </Col>
                                         </Row>
 
                                         <div className="admin-payment-placeholder-box">
@@ -16282,7 +16381,18 @@ function AdminDashboard() {
                     </div>
                     <div className="order-meta-item">
                       <span className="order-meta-label">Оплата</span>
-                      <div className="order-meta-value">{getPaymentMethodLabel(selectedOrder.payment_method)}</div>
+                      <div className="order-meta-value">
+                        {getPaymentMethodLabel(selectedOrder.payment_method)}
+                        {String(selectedOrder.payment_method || '').trim().toLowerCase() === 'card' && (
+                          <div className="small text-muted mt-1 d-flex flex-column gap-1">
+                            {getCardBankRequisitesRows().map((item) => (
+                              <span key={`card-bank-requisite-${item.label}`}>
+                                <strong>{item.label}:</strong> {item.value}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     {selectedOrder.processed_by_name && (
                       <div className="order-meta-item">

@@ -297,6 +297,36 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName, c
               <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
                 {cardPaymentInfo.holder || '—'}
               </div>
+              {cardPaymentInfo.bankName && (
+                <div style={{ fontSize: '12px', color: '#334155' }}>
+                  {t('bankName')}: {cardPaymentInfo.bankName}
+                </div>
+              )}
+              {cardPaymentInfo.inn && (
+                <div style={{ fontSize: '12px', color: '#334155' }}>
+                  ИНН: {cardPaymentInfo.inn}
+                </div>
+              )}
+              {cardPaymentInfo.mfo && (
+                <div style={{ fontSize: '12px', color: '#334155' }}>
+                  МФО: {cardPaymentInfo.mfo}
+                </div>
+              )}
+              {cardPaymentInfo.legalAddress && (
+                <div style={{ fontSize: '12px', color: '#334155' }}>
+                  {t('legalAddress')}: {cardPaymentInfo.legalAddress}
+                </div>
+              )}
+              {cardPaymentInfo.oked && (
+                <div style={{ fontSize: '12px', color: '#334155' }}>
+                  ОКЭД: {cardPaymentInfo.oked}
+                </div>
+              )}
+              {cardPaymentInfo.okonx && (
+                <div style={{ fontSize: '12px', color: '#334155', marginBottom: '10px' }}>
+                  ОКОНХ: {cardPaymentInfo.okonx}
+                </div>
+              )}
               <button
                 onClick={openReceiptDestination}
                 style={{
