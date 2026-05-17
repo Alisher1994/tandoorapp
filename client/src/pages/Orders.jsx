@@ -304,6 +304,8 @@ function Orders() {
                         <img src="/xazna.png" alt="Xazna" style={{ height: 16, verticalAlign: 'middle' }} />
                       ) : order.payment_method === 'card' ? (
                         '💳 Карта'
+                      ) : order.payment_method === 'bank' ? (
+                        '🏦 Банк'
                       ) : (
                         `💵 ${t('cash')}`
                       )}
@@ -366,3 +368,4 @@ function Orders() {
 }
 
 export default Orders;
+

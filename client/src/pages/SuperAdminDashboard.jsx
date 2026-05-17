@@ -21842,6 +21842,7 @@ function SuperAdminDashboard() {
                         <td>
                           {order.payment_method === 'cash' ? '💵 Наличные' :
                             order.payment_method === 'card' ? '💳 Карта' :
+                            order.payment_method === 'bank' ? '🏦 Банк' :
                               order.payment_method === 'click' ? 'Click' :
                                 order.payment_method === 'payme' ? 'Payme' :
                                   order.payment_method === 'uzum' ? 'Uzum' :
@@ -21944,6 +21945,7 @@ function SuperAdminDashboard() {
                       <p className="mb-2"><strong>Способ оплаты:</strong> {
                         selectedOrder.payment_method === 'cash' ? '💵 Наличные' :
                           selectedOrder.payment_method === 'card' ? '💳 Карта' :
+                          selectedOrder.payment_method === 'bank' ? '🏦 Банк' :
                             selectedOrder.payment_method === 'click' ? 'Click' :
                               selectedOrder.payment_method === 'payme' ? 'Payme' :
                                 selectedOrder.payment_method === 'uzum' ? 'Uzum' :
@@ -23359,3 +23361,4 @@ function SuperAdminDashboard() {
 }
 
 export default SuperAdminDashboard;
+

@@ -157,15 +157,26 @@ function Cart() {
       isCard: true,
       enabled: Boolean(restaurant?.card_payment_enabled),
       label: restaurant?.card_payment_title ? `💳 ${restaurant.card_payment_title}` : '💳 Карта'
+    },
+    {
+      key: 'bank',
+      isBank: true,
+      enabled: Boolean(
+        String(restaurant?.card_bank_account || '').trim()
+        && String(restaurant?.card_bank_name || '').trim()
+      ),
+      label: '🏦 Банк'
     }
-  ].filter((item) => item.isCard ? item.enabled : (item.isServerCheckout || Boolean(String(item.url || '').trim())))), [
+  ].filter((item) => (item.isCard || item.isBank) ? item.enabled : (item.isServerCheckout || Boolean(String(item.url || '').trim())))), [
     restaurant?.click_url,
     restaurant?.payme_enabled,
     restaurant?.payme_url,
     restaurant?.uzum_url,
     restaurant?.xazna_url,
     restaurant?.card_payment_enabled,
-    restaurant?.card_payment_title
+    restaurant?.card_payment_title,
+    restaurant?.card_bank_account,
+    restaurant?.card_bank_name
   ]);
   const availablePaymentMethods = useMemo(() => ([
     ...(isCashEnabled ? ['cash'] : []),
@@ -1132,10 +1143,12 @@ function Cart() {
       <OrderReceipt
         order={createdOrder}
         items={orderItems}
-        cardPaymentInfo={createdOrder?.payment_method === 'card' ? {
+        cardPaymentInfo={(createdOrder?.payment_method === 'card' || createdOrder?.payment_method === 'bank') ? {
+          method: createdOrder?.payment_method,
           title: restaurant?.card_payment_title || '',
           number: restaurant?.card_payment_number || '',
           holder: restaurant?.card_payment_holder || '',
+          bankAccount: restaurant?.card_bank_account || '',
           bankName: restaurant?.card_bank_name || '',
           inn: restaurant?.card_bank_inn || '',
           mfo: restaurant?.card_bank_mfo || '',
@@ -1764,27 +1777,20 @@ function Cart() {
                       </div>
                     )}
                     <div>{restaurant.card_payment_holder || '—'}</div>
-                    {restaurant.card_bank_name && (
-                      <div className="small text-muted">{language === 'uz' ? 'Bank nomi' : 'Название банка'}: {restaurant.card_bank_name}</div>
-                    )}
-                    {restaurant.card_bank_inn && (
-                      <div className="small text-muted">ИНН: {restaurant.card_bank_inn}</div>
-                    )}
-                    {restaurant.card_bank_mfo && (
-                      <div className="small text-muted">МФО: {restaurant.card_bank_mfo}</div>
-                    )}
-                    {restaurant.card_bank_legal_address && (
-                      <div className="small text-muted">{language === 'uz' ? 'Yur. manzil' : 'Юр. адрес'}: {restaurant.card_bank_legal_address}</div>
-                    )}
-                    {restaurant.card_bank_oked && (
-                      <div className="small text-muted">ОКЭД: {restaurant.card_bank_oked}</div>
-                    )}
-                    {restaurant.card_bank_okonx && (
-                      <div className="small text-muted">ОКОНХ: {restaurant.card_bank_okonx}</div>
-                    )}
                     <div className={`small text-danger mt-2 cart-receipt-attention ${receiptInstructionBlink ? 'is-blinking' : ''}`}>
                       {typedReceiptInstruction}
                     </div>
+                  </div>
+                )}
+                {formData.payment_method === 'bank' && (
+                  <div className="p-3 rounded-3 border bg-light">
+                    {restaurant.card_bank_account && <div className="small text-muted">Р/с: {restaurant.card_bank_account}</div>}
+                    {restaurant.card_bank_name && <div className="small text-muted">{language === 'uz' ? 'Bank nomi' : 'Название банка'}: {restaurant.card_bank_name}</div>}
+                    {restaurant.card_bank_inn && <div className="small text-muted">ИНН: {restaurant.card_bank_inn}</div>}
+                    {restaurant.card_bank_mfo && <div className="small text-muted">МФО: {restaurant.card_bank_mfo}</div>}
+                    {restaurant.card_bank_oked && <div className="small text-muted">ОКЭД: {restaurant.card_bank_oked}</div>}
+                    {restaurant.card_bank_okonx && <div className="small text-muted">ОКОНХ: {restaurant.card_bank_okonx}</div>}
+                    {restaurant.card_bank_legal_address && <div className="small text-muted">{language === 'uz' ? 'Yur. manzil' : 'Юр. адрес'}: {restaurant.card_bank_legal_address}</div>}
                   </div>
                 )}
                   </>

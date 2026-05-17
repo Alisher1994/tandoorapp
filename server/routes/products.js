@@ -1053,6 +1053,7 @@ router.get('/restaurant/:id', async (req, res) => {
     const cardNumber = String(r.card_payment_number || '').replace(/\D/g, '').slice(0, 19);
     const cardTitle = String(r.card_payment_title || '').trim();
     const cardHolder = String(r.card_payment_holder || '').trim();
+    const cardBankAccount = String(r.card_bank_account || '').trim();
     const cardBankName = String(r.card_bank_name || '').trim();
     const cardBankInn = String(r.card_bank_inn || '').trim();
     const cardBankMfo = String(r.card_bank_mfo || '').trim();
@@ -1103,12 +1104,14 @@ router.get('/restaurant/:id', async (req, res) => {
       card_payment_title: cardPaymentEnabled ? cardTitle : '',
       card_payment_number: cardPaymentEnabled ? cardNumber : '',
       card_payment_holder: cardPaymentEnabled ? cardHolder : '',
-      card_bank_name: cardPaymentEnabled ? cardBankName : '',
-      card_bank_inn: cardPaymentEnabled ? cardBankInn : '',
-      card_bank_mfo: cardPaymentEnabled ? cardBankMfo : '',
-      card_bank_legal_address: cardPaymentEnabled ? cardBankLegalAddress : '',
-      card_bank_oked: cardPaymentEnabled ? cardBankOked : '',
-      card_bank_okonx: cardPaymentEnabled ? cardBankOkonx : '',
+      bank_payment_enabled: Boolean(cardBankAccount && cardBankName),
+      card_bank_account: cardBankAccount,
+      card_bank_name: cardBankName,
+      card_bank_inn: cardBankInn,
+      card_bank_mfo: cardBankMfo,
+      card_bank_legal_address: cardBankLegalAddress,
+      card_bank_oked: cardBankOked,
+      card_bank_okonx: cardBankOkonx,
       card_receipt_target: cardReceiptTarget,
       support_username: r.support_username || '',
       owner_username: ownerUsername || String(r.support_username || '').trim().replace(/^@+/, ''),

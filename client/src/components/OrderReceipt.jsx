@@ -271,6 +271,8 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName, c
           }}>
             {order?.payment_method === 'card'
               ? '💳 Оплата картой'
+              : order?.payment_method === 'bank'
+                ? '🏦 Оплата по банковским реквизитам'
               : order?.payment_method === 'click'
                 ? '💳 Оплата через Click'
                 : order?.payment_method === 'payme'
@@ -282,21 +284,33 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName, c
                       : '💵 Оплата наличными'}
           </div>
 
-          {order?.payment_method === 'card' && cardPaymentInfo && (
+          {(order?.payment_method === 'card' || order?.payment_method === 'bank') && cardPaymentInfo && (
             <div style={{
               padding: '14px 20px',
               borderBottom: '1px dashed var(--border-color)',
               background: '#f8fafc'
             }}>
-              <div style={{ fontSize: '12px', color: '#475569', marginBottom: '4px' }}>
-                {cardPaymentInfo.title || 'Карта'}
-              </div>
-              <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '2px' }}>
-                {cardPaymentInfo.number || '—'}
-              </div>
-              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
-                {cardPaymentInfo.holder || '—'}
-              </div>
+              {order?.payment_method === 'card' ? (
+                <>
+                  <div style={{ fontSize: '12px', color: '#475569', marginBottom: '4px' }}>
+                    {cardPaymentInfo.title || 'Карта'}
+                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '2px' }}>
+                    {cardPaymentInfo.number || '—'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
+                    {cardPaymentInfo.holder || '—'}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {cardPaymentInfo.bankAccount && (
+                    <div style={{ fontSize: '12px', color: '#334155' }}>
+                      Р/с: {cardPaymentInfo.bankAccount}
+                    </div>
+                  )}
+                </>
+              )}
               {cardPaymentInfo.bankName && (
                 <div style={{ fontSize: '12px', color: '#334155' }}>
                   {t('bankName')}: {cardPaymentInfo.bankName}
@@ -327,21 +341,23 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName, c
                   ОКОНХ: {cardPaymentInfo.okonx}
                 </div>
               )}
-              <button
-                onClick={openReceiptDestination}
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: '10px 12px',
-                  background: '#0ea5e9',
-                  color: '#fff',
-                  fontWeight: 700,
-                  cursor: 'pointer'
-                }}
-              >
-                🧾 Отправить чек
-              </button>
+              {order?.payment_method === 'card' && (
+                <button
+                  onClick={openReceiptDestination}
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    background: '#0ea5e9',
+                    color: '#fff',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  🧾 Отправить чек
+                </button>
+              )}
             </div>
           )}
 

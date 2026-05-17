@@ -223,6 +223,7 @@ function ClientAccountModal({ show, onHide }) {
     const key = String(method || '').toLowerCase();
     if (key === 'cash') return isUz ? 'Naqd pul' : 'Наличные';
     if (key === 'card') return isUz ? 'Karta' : 'Карта';
+    if (key === 'bank') return isUz ? 'Bank' : 'Банк';
     if (key === 'click') return 'Click';
     if (key === 'payme') return 'Payme';
     if (key === 'xazna') return 'Xazna';
@@ -628,3 +629,4 @@ function ClientAccountModal({ show, onHide }) {
 }
 
 export default ClientAccountModal;
+

@@ -3459,7 +3459,7 @@ const AD_TRANSITIONS = new Set(['none', 'fade', 'slide']);
 const AD_BANNER_TYPES = new Set(['banner', 'entry_popup']);
 const TASHKENT_TZ = 'Asia/Tashkent';
 const ANALYTICS_TIMEZONE = process.env.RESTAURANT_TIMEZONE || TASHKENT_TZ;
-const OPERATOR_PAYMENT_METHODS = ['click', 'payme', 'cash', 'card', 'xazna', 'uzum'];
+const OPERATOR_PAYMENT_METHODS = ['click', 'payme', 'cash', 'card', 'bank', 'xazna', 'uzum'];
 const OPERATOR_PAYMENT_LABELS = {
   click: 'Click',
   payme: 'Payme',
@@ -12446,4 +12446,5 @@ router.get('/sessions/login-attempts', async (req, res) => {
 
 module.exports = router;
 module.exports.generateGlobalProductLocalizedText = generateGlobalProductLocalizedText;
+
 

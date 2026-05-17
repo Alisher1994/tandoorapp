@@ -1140,6 +1140,7 @@ function replacePlaceholders(template, order) {
     'payme': 'Payme',
     'uzum': 'Uzum',
     'xazna': 'Xazna',
+    'bank': 'Банк',
     'card': 'Карта'
   };
 
@@ -1392,6 +1393,24 @@ async function sendOrderUpdateToUser(
             callback_data: `card_receipt_${order.id}`
           };
         }
+      } else if (order.payment_method === 'bank') {
+        const bankAccount = String(restaurantPaymentUrls.card_bank_account || '').trim();
+        const cardBankName = String(restaurantPaymentUrls.card_bank_name || '').trim();
+        const cardBankInn = String(restaurantPaymentUrls.card_bank_inn || '').trim();
+        const cardBankMfo = String(restaurantPaymentUrls.card_bank_mfo || '').trim();
+        const cardBankLegalAddress = String(restaurantPaymentUrls.card_bank_legal_address || '').trim();
+        const cardBankOked = String(restaurantPaymentUrls.card_bank_oked || '').trim();
+        const cardBankOkonx = String(restaurantPaymentUrls.card_bank_okonx || '').trim();
+        const bankDetails = [
+          bankAccount ? `\nР/с: <code>${escapeHtml(bankAccount)}</code>` : '',
+          cardBankName ? `\nБанк: <b>${escapeHtml(cardBankName)}</b>` : '',
+          cardBankInn ? `\nИНН: <code>${escapeHtml(cardBankInn)}</code>` : '',
+          cardBankMfo ? `\nМФО: <code>${escapeHtml(cardBankMfo)}</code>` : '',
+          cardBankLegalAddress ? `\nЮр. адрес: <b>${escapeHtml(cardBankLegalAddress)}</b>` : '',
+          cardBankOked ? `\nОКЭД: <code>${escapeHtml(cardBankOked)}</code>` : '',
+          cardBankOkonx ? `\nОКОНХ: <code>${escapeHtml(cardBankOkonx)}</code>` : ''
+        ].join('');
+        paymentLine = bankDetails || '';
       }
     }
 

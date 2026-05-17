@@ -99,6 +99,7 @@ const buildTextOverlaySvg = ({
 const buildQrBackgroundSvg = ({ x, y, size }) => `
 <svg width="${A5_WIDTH_PX_300_DPI}" height="${A5_HEIGHT_PX_300_DPI}" viewBox="0 0 ${A5_WIDTH_PX_300_DPI} ${A5_HEIGHT_PX_300_DPI}" xmlns="http://www.w3.org/2000/svg">
   <rect x="${x - 34}" y="${y - 34}" width="${size + 68}" height="${size + 68}" rx="48" ry="48" fill="white" fill-opacity="0.94" />
+  <rect x="${x - 34}" y="${y + size - 2}" width="${size + 68}" height="70" rx="16" ry="16" fill="white" fill-opacity="0.94" />
 </svg>
 `;
 
@@ -109,8 +110,8 @@ const buildQrBotLinkSvg = ({ linkText, y }) => `
     y="${y}"
     text-anchor="middle"
     dominant-baseline="middle"
-    font-family="DejaVu Sans, Arial, Helvetica, sans-serif"
-    font-size="34"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="28"
     font-weight="700"
     fill="#1f2937"
   >${escapeSvgText(linkText)}</text>
@@ -167,10 +168,10 @@ const normalizeBotUsernameForPrint = (botUsername, botLink) => {
 const normalizeBotLinkForPrint = (botUsername, botLink) => {
   const normalizedUsername = normalizeBotUsernameForPrint(botUsername, botLink).replace(/^@+/, '').trim();
   if (normalizedUsername) {
-    return `https://t.me/${normalizedUsername}`;
+    return `t.me/${normalizedUsername}`;
   }
   const rawLink = String(botLink || '').trim();
-  return rawLink || '';
+  return rawLink.replace(/^https?:\/\//i, '') || '';
 };
 
 const createPdfFromPng = async (pngBuffer) => {
@@ -210,7 +211,7 @@ const generateStorePrintForm = async ({
     : Math.round(A5_HEIGHT_PX_300_DPI * 0.45);
   const qrX = Math.round(centerX - qrSize / 2);
   const qrY = Math.round(centerY - qrSize / 2);
-  const qrLinkY = Math.min(qrY + qrSize + 26, A5_HEIGHT_PX_300_DPI - 120);
+  const qrLinkY = Math.min(qrY + qrSize + 34, A5_HEIGHT_PX_300_DPI - 120);
   const usernameY = Math.max(qrY - 92, 90);
   const captionY = Math.min(qrY + qrSize + 120, A5_HEIGHT_PX_300_DPI - 86);
 

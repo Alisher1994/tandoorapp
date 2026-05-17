@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   card_payment_title VARCHAR(120),
   card_payment_number VARCHAR(40),
   card_payment_holder VARCHAR(120),
+  card_bank_account VARCHAR(64),
   card_bank_name VARCHAR(160),
   card_bank_inn VARCHAR(32),
   card_bank_mfo VARCHAR(32),

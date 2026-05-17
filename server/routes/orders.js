@@ -1002,10 +1002,11 @@ router.post('/', authenticate, async (req, res) => {
 
     // Send notifications using restaurant's bot if configured
     if (shouldNotifyImmediately && finalRestaurantId) {
+      await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS card_bank_account VARCHAR(64)').catch(() => {});
       const restaurantResult = await pool.query(
         `SELECT telegram_bot_token, telegram_group_id, click_url, payme_url, uzum_url, xazna_url,
                 card_payment_title, card_payment_number, card_payment_holder,
-                card_bank_name, card_bank_inn, card_bank_mfo, card_bank_legal_address, card_bank_oked, card_bank_okonx,
+                card_bank_account, card_bank_name, card_bank_inn, card_bank_mfo, card_bank_legal_address, card_bank_oked, card_bank_okonx,
                 card_receipt_target, support_username
          FROM restaurants
          WHERE id = $1`,
@@ -1046,6 +1047,7 @@ router.post('/', authenticate, async (req, res) => {
           card_payment_title: restaurant?.card_payment_title,
           card_payment_number: restaurant?.card_payment_number,
           card_payment_holder: restaurant?.card_payment_holder,
+          card_bank_account: restaurant?.card_bank_account,
           card_bank_name: restaurant?.card_bank_name,
           card_bank_inn: restaurant?.card_bank_inn,
           card_bank_mfo: restaurant?.card_bank_mfo,

@@ -1989,7 +1989,7 @@ router.put('/restaurant', async (req, res) => {
       operator_registration_code, start_time, end_time, click_url, payme_url, uzum_url, xazna_url,
       cash_enabled,
       card_payment_title, card_payment_number, card_payment_holder,
-      card_bank_name, card_bank_inn, card_bank_mfo, card_bank_legal_address, card_bank_oked, card_bank_okonx,
+      card_bank_account, card_bank_name, card_bank_inn, card_bank_mfo, card_bank_legal_address, card_bank_oked, card_bank_okonx,
       card_receipt_target, support_username,
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
       latitude, longitude, delivery_base_radius, delivery_base_price,
@@ -2060,6 +2060,7 @@ router.put('/restaurant', async (req, res) => {
     );
     const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(currency_code, previousRestaurant.currency_code || 'uz');
     const normalizedCardReceiptTarget = normalizeCardReceiptTarget(card_receipt_target, 'bot');
+    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS card_bank_account VARCHAR(64)').catch(() => {});
     const normalizedCashEnabled = normalizeOptionalBoolean(cash_enabled);
     const normalizedPaymentPlaceholders = normalizePaymentPlaceholders(payment_placeholders);
     const normalizedSendBalanceAfterConfirm = normalizeOptionalBoolean(send_balance_after_confirm);
@@ -2261,6 +2262,10 @@ router.put('/restaurant', async (req, res) => {
       normalizedMenuLiquidGlassBlur,
       restaurantId
     ]);
+    await pool.query(
+      'UPDATE restaurants SET card_bank_account = $1 WHERE id = $2',
+      [card_bank_account ? String(card_bank_account).trim() : null, Number(restaurantId)]
+    ).catch(() => {});
 
     if (normalizedOperatorDeliveryLaterEnabled !== null) {
       const deliveryLaterResult = await pool.query(
