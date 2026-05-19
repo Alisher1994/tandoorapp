@@ -1398,7 +1398,7 @@ function Catalog() {
   const isNestedCategoriesMode = menuViewMode === 'nested_categories';
   const hideCategoryTitleBackgroundForMenu = categoryStyleSettings?.hideCategoryTitleBackground === true;
   const categoryTitleBackgroundTransparentForMenu = categoryStyleSettings?.categoryTitleBackgroundTransparent === true;
-  const categoryTitleOutsideImageForMenu = categoryStyleSettings?.categoryTitleOutsideImage === true;
+  const categoryTitleOutsideImageForMenu = true;
   const getCategorySortVal = (category) => (
     category?.sort_order === null || category?.sort_order === undefined ? 9999 : Number(category.sort_order)
   );
@@ -4465,13 +4465,14 @@ function Catalog() {
 
                   {nestedChildCategories.length > 0 && (
                     <section className="mb-4">
-                      <h6 className="mb-3 text-muted fw-bold">
-                        {language === 'uz' ? "Bo'limlar" : 'Подкатегории'}
-                      </h6>
                       <Row className="g-3">
                         {nestedChildCategories.map((nestedCategory) => {
                           const nestedCategoryImage = resolveImageUrl(nestedCategory.image_url);
                           const hasNestedCategoryImage = Boolean(nestedCategoryImage);
+                          const nestedCategoryName = getCategoryName(nestedCategory);
+                          const titleBackground = hideCategoryTitleBackgroundForMenu
+                            ? 'transparent'
+                            : (categoryTitleBackgroundTransparentForMenu ? 'rgba(255, 255, 255, 0.42)' : 'rgba(255, 255, 255, 0.74)');
                           return (
                             <Col key={nestedCategory.id} xs={6} lg={3}>
                               <button
@@ -4480,8 +4481,9 @@ function Catalog() {
                                 className="w-100 border-0 p-0 text-start"
                                 style={{
                                   borderRadius: '14px',
-                                  overflow: 'hidden',
-                                  background: '#ffffff',
+                                  overflow: categoryTitleOutsideImageForMenu ? 'visible' : 'hidden',
+                                  background: categoryTitleOutsideImageForMenu ? 'transparent' : '#ffffff',
+                                  position: 'relative',
                                   minHeight: '110px'
                                 }}
                               >
@@ -4504,35 +4506,62 @@ function Catalog() {
                                     backgroundColor: hasNestedCategoryImage ? '#ffffff' : '#eef2f7'
                                   }}
                                 >
+                                  {!categoryTitleOutsideImageForMenu && (
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        top: 4,
+                                        left: 0,
+                                        right: 0,
+                                        zIndex: 1,
+                                        padding: '6px 10px 0'
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          display: 'inline-block',
+                                          maxWidth: '100%',
+                                          padding: hideCategoryTitleBackgroundForMenu ? '0' : '4px 8px',
+                                          borderRadius: hideCategoryTitleBackgroundForMenu ? 0 : 8,
+                                          background: titleBackground,
+                                          backdropFilter: hideCategoryTitleBackgroundForMenu ? 'none' : 'blur(2px)',
+                                          WebkitBackdropFilter: hideCategoryTitleBackgroundForMenu ? 'none' : 'blur(2px)',
+                                          color: '#111827',
+                                          fontWeight: 700,
+                                          fontSize: '0.78rem',
+                                          lineHeight: 1.2
+                                        }}
+                                      >
+                                        {nestedCategoryName}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                {categoryTitleOutsideImageForMenu && (
                                   <div
                                     style={{
-                                      position: 'absolute',
-                                      top: 4,
-                                      left: 0,
-                                      right: 0,
-                                      zIndex: 1,
-                                      padding: '6px 10px 0'
+                                      marginTop: '0.42rem',
+                                      padding: '0 0.16rem'
                                     }}
                                   >
                                     <span
                                       style={{
-                                        display: 'inline-block',
+                                        display: '-webkit-box',
                                         maxWidth: '100%',
-                                        padding: '4px 8px',
-                                        borderRadius: 8,
-                                        background: 'rgba(255, 255, 255, 0.74)',
-                                        backdropFilter: 'blur(2px)',
-                                        WebkitBackdropFilter: 'blur(2px)',
                                         color: '#111827',
-                                        fontWeight: 700,
-                                        fontSize: '0.78rem',
-                                        lineHeight: 1.2
+                                        fontWeight: 500,
+                                        fontSize: '0.76rem',
+                                        lineHeight: 1.15,
+                                        overflow: 'hidden',
+                                        textOverflow: 'clip',
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: 'vertical'
                                       }}
                                     >
-                                      {getCategoryName(nestedCategory)}
+                                      {nestedCategoryName}
                                     </span>
                                   </div>
-                                </div>
+                                )}
                               </button>
                             </Col>
                           );
@@ -4543,9 +4572,6 @@ function Catalog() {
 
                   {nestedDirectProducts.length > 0 && (
                     <section className="mb-1">
-                      <h6 className="mb-3 text-muted fw-bold">
-                        {language === 'uz' ? 'Tovarlar' : 'Товары'}
-                      </h6>
                       <Row className="g-3">
                         {nestedDirectProducts.map((product) => (
                           <Col key={product.id} xs={6} lg={3}>
@@ -4573,9 +4599,6 @@ function Catalog() {
                     )}
                     {!isSingleListMode && level3Categories.length > 0 && (
                       <section className="mb-4">
-                        <h6 className="mb-3 text-muted fw-bold">
-                          {language === 'uz' ? "Bo'limlar" : 'Подкатегории'}
-                        </h6>
                         <Row className="g-2 g-lg-3">
                           {level3Categories.map((category) => {
                             const isActive = catalogSectionTabKey(activeSubcategoryTab) === catalogSectionTabKey(category.id);
