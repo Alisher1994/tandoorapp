@@ -241,6 +241,7 @@ function Catalog() {
   const tabActivationSourceRef = useRef('init');
   const activeSubcategoryTabRef = useRef(null);
   const showcaseEntryScrollOffsetRef = useRef(0);
+  const showcaseEntryCategoryRef = useRef(null);
   const catalogCardTouchStartRef = useRef({});
   const catalogCardSwipeTimestampRef = useRef({});
   const catalogHeaderBackground = '#f8fafc';
@@ -1394,8 +1395,12 @@ function Catalog() {
     () => normalizeCatalogCardMode(currentRestaurant?.catalog_card_mode, 'wide'),
     [currentRestaurant]
   );
-  const isSingleListMode = menuViewMode === 'single_list';
-  const isNestedCategoriesMode = menuViewMode === 'nested_categories';
+  // Витрина (/showcase/catalog) всегда работает как режим «Папки категорий»,
+  // независимо от menu_view_mode магазина: входим в категорию -> видим
+  // подкатегории как папки/карточки, а если их нет — товары этой категории.
+  const isShowcaseCatalog = location.pathname === '/showcase/catalog';
+  const isSingleListMode = menuViewMode === 'single_list' && !isShowcaseCatalog;
+  const isNestedCategoriesMode = menuViewMode === 'nested_categories' || isShowcaseCatalog;
   const hideCategoryTitleBackgroundForMenu = categoryStyleSettings?.hideCategoryTitleBackground === true;
   const categoryTitleBackgroundTransparentForMenu = categoryStyleSettings?.categoryTitleBackgroundTransparent === true;
   const categoryTitleOutsideImageForMenu = true;
@@ -2524,12 +2529,31 @@ function Catalog() {
   };
 
   const closeLevel2Category = () => {
-    if (location.pathname === '/showcase/catalog') {
-      navigate('/');
+    isTabAutoScrollRef.current = false;
+
+    if (isShowcaseCatalog) {
+      // Внутри витрины поднимаемся по дереву категорий на один уровень.
+      const currentId = normalizeId(selectedCategory);
+      const entryId = showcaseEntryCategoryRef.current;
+      if (currentId !== null && currentId !== entryId) {
+        const currentCategory = categoriesById.get(currentId) || null;
+        const parentId = normalizeId(currentCategory?.parent_id);
+        if (parentId !== null) {
+          setSelectedCategory(parentId);
+          setActiveSubcategoryTab(null);
+          scrollToTop();
+          return;
+        }
+      }
+      // Дошли до категории, в которую зашли из витрины — возвращаемся на витрину.
+      navigate('/', {
+        state: {
+          restoreShowcaseScrollOffset: showcaseEntryScrollOffsetRef.current
+        }
+      });
       return;
     }
 
-    isTabAutoScrollRef.current = false;
     if (isNestedCategoriesMode && selectedCategory !== null) {
       const currentCategory = categoriesById.get(normalizeId(selectedCategory)) || null;
       const parentId = normalizeId(currentCategory?.parent_id);
@@ -3414,10 +3438,16 @@ function Catalog() {
     if (requestedCategory) {
       const parentId = normalizeId(requestedCategory.parent_id);
       if (parentId === null) {
-        const level2Children = (childrenByParent.get(requestedCategoryId) || [])
-          .map((item) => normalizeId(item?.id))
-          .filter((id) => Number.isInteger(id));
-        targetLevel2CategoryId = level2Children[0] || requestedCategoryId;
+        if (isNestedCategoriesMode) {
+          // В папочном режиме показываем подкатегории выбранной категории как
+          // папки, а не проваливаемся сразу в первую из них.
+          targetLevel2CategoryId = requestedCategoryId;
+        } else {
+          const level2Children = (childrenByParent.get(requestedCategoryId) || [])
+            .map((item) => normalizeId(item?.id))
+            .filter((id) => Number.isInteger(id));
+          targetLevel2CategoryId = level2Children[0] || requestedCategoryId;
+        }
       } else {
         const parentCategory = categoriesById.get(parentId) || null;
         const grandParentId = normalizeId(parentCategory?.parent_id);
@@ -3438,6 +3468,11 @@ function Catalog() {
     }
 
     if (targetLevel2CategoryId) {
+      if (isShowcaseCatalog) {
+        // Запоминаем категорию, в которую зашли из витрины — это «корень»
+        // навигации: при достижении его кнопка «назад» вернёт на витрину.
+        showcaseEntryCategoryRef.current = normalizeId(targetLevel2CategoryId);
+      }
       setSelectedCategory(targetLevel2CategoryId);
       if (isSingleListMode) {
         setActiveSubcategoryTab(`single-${targetLevel2CategoryId}`);
@@ -3959,7 +3994,7 @@ function Catalog() {
   }
 
   const isCategoryView = !isSingleListMode && selectedCategory !== null;
-  const isShowcaseCatalogRoute = location.pathname === '/showcase/catalog';
+  const isShowcaseCatalogRoute = isShowcaseCatalog;
   const shouldShowHeaderBackButton = isCategoryView || isShowcaseCatalogRoute;
   const handleHeaderBackAction = () => {
     if (isCategoryView) {

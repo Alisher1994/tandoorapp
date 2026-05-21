@@ -323,12 +323,40 @@ function ShowcaseDisplay() {
         const isProductVisible = (product) => product?.is_active !== false;
         const visibleProducts = productList.filter(isProductVisible);
 
-        // Filter categories that have at least one visible product
-        const activeCategories = categoryList.filter(cat =>
-          visibleProducts.some(prod =>
-            normalizeId(prod?.category_id) === normalizeId(cat?.id)
-          )
+        // Категория считается «непустой», если товары есть в ней самой или в
+        // любой из её подкатегорий (по дереву parent_id). Иначе родительские
+        // категории, у которых товары лежат только в потомках, отфильтровывались
+        // бы и не показывались в витрине.
+        const visibleProductCategoryIds = new Set(
+          visibleProducts
+            .map((prod) => normalizeId(prod?.category_id))
+            .filter((id) => Number.isInteger(id))
         );
+        const childrenByParentId = new Map();
+        categoryList.forEach((cat) => {
+          const parentId = normalizeId(cat?.parent_id);
+          if (parentId === null) return;
+          if (!childrenByParentId.has(parentId)) childrenByParentId.set(parentId, []);
+          childrenByParentId.get(parentId).push(cat);
+        });
+        const deepHasProductsMemo = new Map();
+        const categoryHasProductsDeep = (categoryId) => {
+          const id = normalizeId(categoryId);
+          if (id === null) return false;
+          if (deepHasProductsMemo.has(id)) return deepHasProductsMemo.get(id);
+          // Guard against cyclic references in the data.
+          deepHasProductsMemo.set(id, false);
+          let result = visibleProductCategoryIds.has(id);
+          if (!result) {
+            const children = childrenByParentId.get(id) || [];
+            result = children.some((child) => categoryHasProductsDeep(child?.id));
+          }
+          deepHasProductsMemo.set(id, result);
+          return result;
+        };
+
+        // Filter categories that have at least one visible product (deep).
+        const activeCategories = categoryList.filter((cat) => categoryHasProductsDeep(cat?.id));
 
         setCategories(activeCategories);
         setProducts(visibleProducts);
