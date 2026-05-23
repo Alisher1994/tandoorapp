@@ -6423,7 +6423,7 @@ router.get('/restaurants/:id(\\d+)', async (req, res) => {
   }
 });
 
-// Создать ресторан
+// Добавить ресторан
 router.post('/restaurants', async (req, res) => {
   try {
     await ensureActivityTypesSchema();
@@ -8444,7 +8444,7 @@ router.get('/categories', async (req, res) => {
   }
 });
 
-// Создать категорию
+// Добавить категорию
 router.post('/categories', async (req, res) => {
   try {
     const { name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id } = req.body;
@@ -8657,7 +8657,7 @@ router.delete('/categories/:id', async (req, res) => {
 });
 
 
-// Создать оператора
+// Добавить оператора
 router.post('/operators', async (req, res) => {
   const client = await pool.connect();
   try {

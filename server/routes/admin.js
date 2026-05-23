@@ -2478,7 +2478,7 @@ router.get('/operators', async (req, res) => {
   }
 });
 
-// Добавить оператора к текущему ресторану (создать нового или привязать существующего)
+// Добавить оператора к текущему ресторану (Добавить нового или привязать существующего)
 router.post('/operators', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -3748,7 +3748,7 @@ router.get('/products', async (req, res) => {
   }
 });
 
-// Создать товар
+// Добавить товар
 router.post('/products', async (req, res) => {
   try {
     await ensureProductsIkpuSchema();
@@ -3879,7 +3879,7 @@ RETURNING *
   }
 });
 
-// Upsert товар (создать или обновить по категории и названию)
+// Upsert товар (Добавить или обновить по категории и названию)
 router.post('/products/upsert', async (req, res) => {
   try {
     await ensureProductsIkpuSchema();
@@ -4572,7 +4572,7 @@ router.get('/containers', async (req, res) => {
   }
 });
 
-// Создать посуду
+// Добавить посуду
 router.post('/containers', async (req, res) => {
   try {
     const { name, price, sort_order } = req.body;
@@ -4874,7 +4874,7 @@ router.get('/categories', async (req, res) => {
   }
 });
 
-// Создать категорию
+// Добавить категорию
 router.post('/categories', async (req, res) => {
   try {
     if (req.user.role !== 'superadmin') {
@@ -6738,7 +6738,7 @@ router.post('/promo-codes', authenticate, requireOperator, async (req, res) => {
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('Create promo code error:', error);
-    res.status(500).json({ error: 'Не удалось создать промокод' });
+    res.status(500).json({ error: 'Не удалось Добавить промокод' });
   } finally {
     client.release();
   }

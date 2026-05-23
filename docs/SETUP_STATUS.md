@@ -31,7 +31,7 @@ docker run -d --name postgres-orders -e POSTGRES_PASSWORD=postgres -e POSTGRES_D
 - Установите с паролем `postgres` для пользователя `postgres`
 - Порт: 5432
 
-### 2. Создать Telegram бота
+### 2. Добавить Telegram бота
 
 1. Откройте [@BotFather](https://t.me/BotFather) в Telegram
 2. Отправьте `/newbot`
@@ -40,7 +40,7 @@ docker run -d --name postgres-orders -e POSTGRES_PASSWORD=postgres -e POSTGRES_D
 5. Откройте файл `.env` в редакторе
 6. Замените `your-telegram-bot-token` на ваш токен
 
-### 3. Создать группу для админов
+### 3. Добавить группу для админов
 
 1. Создайте новую группу в Telegram
 2. Добавьте вашего бота в группу
@@ -50,7 +50,7 @@ docker run -d --name postgres-orders -e POSTGRES_PASSWORD=postgres -e POSTGRES_D
 6. Откройте файл `.env`
 7. Замените `your-admin-group-chat-id` на этот ID
 
-### 4. Создать базу данных
+### 4. Добавить базу данных
 
 После установки PostgreSQL:
 

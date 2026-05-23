@@ -292,7 +292,7 @@ export const BLOCK_TYPES = {
   CAROUSEL: 'carousel'  // новый тип
 };
 
-// 2. Создать компонент
+// 2. Добавить компонент
 export function CarouselBlock({ ... }) { ... }
 
 // 3. Добавить в ShowcaseBlocks.jsx switch
