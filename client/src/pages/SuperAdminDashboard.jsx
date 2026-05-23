@@ -11852,7 +11852,7 @@ function SuperAdminDashboard() {
         daysDisplay: 'Ko‘rsatish kunlari (tanlanmasa — har kuni)',
         cancel: 'Bekor qilish',
         saveChanges: "O'zgarishlarni saqlash",
-        createSlot: 'Slot yaratish',
+        createSlot: 'Slot qo‘shish',
         analytics: 'Analitika',
         analyticsTitle: 'Banner analitikasi',
         analyticsRange: 'Davr',
