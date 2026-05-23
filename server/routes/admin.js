@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
@@ -6329,8 +6330,57 @@ router.get('/printer-agent/download', async (req, res) => {
 
     const externalUrl = String(process.env.PRINTER_AGENT_DOWNLOAD_URL || '').trim();
     if (externalUrl) {
+      // Стримим файл через сервер (same-origin), а не редиректим на внешний
+      // URL: фронтенд качает его как blob, и кросс-доменный редирект без
+      // CORS-заголовков браузер бы заблокировал.
+      let upstream;
+      try {
+        upstream = await axios.get(externalUrl, {
+          responseType: 'stream',
+          timeout: 120000,
+          maxRedirects: 5,
+          // Любой http-статус доходит до нас, чтобы вернуть осмысленную ошибку.
+          validateStatus: () => true
+        });
+      } catch (fetchError) {
+        console.error('Printer agent upstream fetch error:', fetchError?.message || fetchError);
+        return res.status(502).json({
+          error: 'Не удалось получить файл TalablarPrinter.exe из внешнего хранилища.'
+        });
+      }
+
+      if (!upstream || upstream.status < 200 || upstream.status >= 300) {
+        // Сбрасываем поток, чтобы не висело соединение.
+        if (upstream?.data && typeof upstream.data.destroy === 'function') {
+          upstream.data.destroy();
+        }
+        console.error('Printer agent upstream bad status:', upstream?.status);
+        return res.status(502).json({
+          error: 'Внешнее хранилище вернуло ошибку при скачивании TalablarPrinter.exe.'
+        });
+      }
+
+      const upstreamLength = Number(upstream.headers?.['content-length'] || 0);
       res.setHeader('Cache-Control', 'no-store');
-      return res.redirect(302, externalUrl);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${PRINTER_AGENT_FILENAME}"`
+      );
+      if (Number.isFinite(upstreamLength) && upstreamLength > 0) {
+        res.setHeader('Content-Length', String(upstreamLength));
+      }
+
+      upstream.data.on('error', (streamError) => {
+        console.error('Printer agent stream error:', streamError?.message || streamError);
+        if (!res.headersSent) {
+          res.status(502).json({ error: 'Ошибка передачи файла TalablarPrinter.exe.' });
+          return;
+        }
+        res.destroy(streamError);
+      });
+
+      return upstream.data.pipe(res);
     }
 
     const exePath = resolvePrinterAgentExePath();
