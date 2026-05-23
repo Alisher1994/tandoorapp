@@ -824,6 +824,18 @@ async function printToPrinter(config, data, mode = 'order') {
  */
 function applyPrinterTextEncoding(printer) {
   printer.hardware('init');
+  // Многие Xprinter (T80-Q и т.п.) по умолчанию стартуют в китайском
+  // двухбайтовом режиме: байты ≥0x80 трактуются как лид-байт иероглифа, и
+  // кириллица печатается «китайскими» символами (латиница/цифры — норм).
+  // FS . (0x1C 0x2E) отменяет Kanji/Chinese-режим → принтер читает однобайтовую
+  // кодовую таблицу. Для принтеров без CJK это безвредный no-op.
+  if (process.env.TALABLAR_DISABLE_CJK !== '0') {
+    try {
+      printer.raw(Buffer.from([0x1c, 0x2e]));
+    } catch (cjkErr) {
+      console.warn('⚠️ Could not send FS . (cancel CJK mode):', cjkErr.message);
+    }
+  }
   const rawCodePage = parseInt(process.env.TALABLAR_CODEPAGE || '17', 10);
   const codePage = Number.isFinite(rawCodePage) ? rawCodePage : 17;
   printer.setCharacterCodeTable(codePage);

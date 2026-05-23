@@ -1,6 +1,6 @@
 {
   "name": "talablar-agent",
-  "version": "8.14.0",
+  "version": "8.15.0",
   "description": "Talablar Printer Agent (core + single EXE desktop shell)",
   "main": "desktop/main.js",
   "scripts": {
