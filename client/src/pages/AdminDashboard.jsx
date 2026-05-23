@@ -13561,7 +13561,7 @@ function AdminDashboard() {
                     <Modal.Footer>
                       <Button variant="secondary" onClick={() => setShowPrinterAgentModal(false)}>{t('cancel')}</Button>
                       <Button type="submit" className="btn-primary-custom" disabled={!printerAgentName.trim()}>
-                        {language === 'uz' ? "Yaratish" : 'Создать'}
+                        {language === 'uz' ? "Qo'shish" : 'Добавить'}
                       </Button>
                     </Modal.Footer>
                   </Form>
@@ -18895,7 +18895,7 @@ function AdminDashboard() {
               if (k === 'history') fetchBroadcastHistory();
             }}>
               <Nav.Item>
-                <Nav.Link eventKey="send">{editingBroadcastId ? '✏️ Редактировать' : '🆕 Создать'}</Nav.Link>
+                <Nav.Link eventKey="send">{editingBroadcastId ? '✏️ Редактировать' : '🆕 Добавить'}</Nav.Link>
               </Nav.Item>
               <Nav.Item>
                 <Nav.Link eventKey="scheduled">📅 Очередь</Nav.Link>

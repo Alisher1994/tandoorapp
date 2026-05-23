@@ -11931,7 +11931,7 @@ function SuperAdminDashboard() {
         daysDisplay: 'Дни показа (если не выбрано — каждый день)',
         cancel: 'Отмена',
         saveChanges: 'Сохранить изменения',
-        createSlot: 'Создать слот',
+        createSlot: 'Добавить слот',
         analytics: 'Аналитика',
         analyticsTitle: 'Аналитика баннера',
         analyticsRange: 'Период',
