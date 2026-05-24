@@ -55,6 +55,7 @@ async function migrate() {
       `telegram_bot_status VARCHAR(16) DEFAULT 'active'`,
       'telegram_bot_disabled_at TIMESTAMP',
       'telegram_bot_disable_reason VARCHAR(120)',
+      'telegram_bot_username VARCHAR(255)',
       'delivery_zone JSONB',
       'start_time VARCHAR(5)',
       'end_time VARCHAR(5)',

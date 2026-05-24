@@ -124,6 +124,18 @@ const resolveTelegramBotUsernameByToken = async (botToken) => {
 
   return username;
 };
+// Persist the resolved bot username on the restaurant row so the superadmin
+// search can match by bot nickname. Fire-and-forget; only writes when the value
+// actually changed to avoid hammering the DB on every storefront load.
+const persistRestaurantBotUsername = (restaurantId, resolvedUsername, storedRaw) => {
+  const normalizedNew = normalizeTelegramBotUsername(resolvedUsername);
+  const normalizedStored = normalizeTelegramBotUsername(storedRaw);
+  if (!restaurantId || !normalizedNew || normalizedNew === normalizedStored) return;
+  pool.query(
+    'UPDATE restaurants SET telegram_bot_username = $1 WHERE id = $2',
+    [normalizedNew, restaurantId]
+  ).catch((err) => console.warn('Persist bot username failed:', err.message));
+};
 const escapeHtml = (value) => String(value || '')
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -1067,6 +1079,7 @@ router.get('/restaurant/:id', async (req, res) => {
       : isEnabledFlag(r.cash_enabled);
     const telegramBotUsername = normalizeTelegramBotUsername(r.telegram_bot_username)
       || await resolveTelegramBotUsernameByToken(r.telegram_bot_token);
+    persistRestaurantBotUsername(r.id, telegramBotUsername, r.telegram_bot_username);
     res.json({
       id: r.id,
       name: r.name,
@@ -1979,6 +1992,7 @@ router.get('/restaurants/list', async (req, res) => {
       const serviceFee = Number.parseFloat(r.service_fee ?? 0);
       const telegramBotUsername = normalizeTelegramBotUsername(r.telegram_bot_username)
         || await resolveTelegramBotUsernameByToken(r.telegram_bot_token);
+      persistRestaurantBotUsername(r.id, telegramBotUsername, r.telegram_bot_username);
       return ({
       id: r.id,
       name: r.name,
