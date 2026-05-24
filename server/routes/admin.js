@@ -6405,10 +6405,11 @@ router.get('/printer-agent/download', async (req, res) => {
 });
 
 // =====================================================
-// TEMPORARY: upload a new TalablarPrinter.exe into the Railway volume.
-// Prod serves the agent from PRINTER_AGENT_EXE_PATH (a persistent volume), so a
-// rebuilt EXE has to be pushed there once. Superadmin-only, single-purpose.
-// Remove this route + the multer instance once the 8.15.0 build is in place.
+// Printer agent release management (superadmin).
+// Prod serves the agent EXE from PRINTER_AGENT_EXE_PATH (a persistent Railway
+// volume). The superadmin panel uploads a freshly built TalablarPrinter.exe
+// here; admins then get it via /printer-agent/download. GET /printer-agent/info
+// reports the version/size currently sitting in the volume.
 // =====================================================
 const PRINTER_AGENT_UPLOAD_TARGET = (() => {
   const customPathRaw = String(process.env.PRINTER_AGENT_EXE_PATH || '').trim();
@@ -6441,6 +6442,25 @@ const printerAgentUpload = multer({
   limits: { fileSize: 300 * 1024 * 1024 } // 300MB ceiling; EXE is ~116MB
 });
 
+function readPrinterAgentReleaseInfo() {
+  const result = { exists: false, size: 0, modifiedAt: null, version: null, path: PRINTER_AGENT_UPLOAD_TARGET };
+  try {
+    const stats = fs.statSync(PRINTER_AGENT_UPLOAD_TARGET);
+    if (stats.isFile() && stats.size > 0) {
+      result.exists = true;
+      result.size = stats.size;
+      result.modifiedAt = stats.mtime.toISOString();
+    }
+  } catch (_) {}
+  try {
+    const versionFile = path.join(path.dirname(PRINTER_AGENT_UPLOAD_TARGET), 'VERSION.txt');
+    const raw = fs.readFileSync(versionFile, 'utf8');
+    const match = raw.match(/version\s*=\s*(.+)/i);
+    result.version = match ? match[1].trim() : raw.trim().slice(0, 64);
+  } catch (_) {}
+  return result;
+}
+
 router.post('/printer-agent/upload', (req, res) => {
   if (req.user.role !== 'superadmin') {
     return res.status(403).json({ error: 'Только для суперадмина' });
@@ -6466,20 +6486,33 @@ router.post('/printer-agent/upload', (req, res) => {
       console.error('Printer agent upload finalize error:', moveErr?.message || moveErr);
       return res.status(500).json({ error: `Не удалось сохранить файл: ${moveErr.message}` });
     }
-    let version = null;
-    try {
-      const versionFile = path.join(path.dirname(PRINTER_AGENT_UPLOAD_TARGET), 'VERSION.txt');
-      if (fs.existsSync(versionFile)) version = fs.readFileSync(versionFile, 'utf8').trim();
-    } catch (_) {}
-    const savedSize = fs.statSync(PRINTER_AGENT_UPLOAD_TARGET).size;
-    console.log(`✅ Printer agent EXE replaced at ${PRINTER_AGENT_UPLOAD_TARGET} (${savedSize} bytes)`);
-    return res.json({
-      success: true,
-      path: PRINTER_AGENT_UPLOAD_TARGET,
-      size: savedSize,
-      version
-    });
+    // Persist the version label (typed by the superadmin) next to the EXE so the
+    // panel and download flow can report which build is live.
+    const versionLabel = String(req.body?.version || '').trim().slice(0, 64);
+    if (versionLabel) {
+      try {
+        const versionFile = path.join(path.dirname(PRINTER_AGENT_UPLOAD_TARGET), 'VERSION.txt');
+        fs.writeFileSync(
+          versionFile,
+          `version=${versionLabel}\nuploaded_at=${new Date().toISOString()}\nuploaded_by=${req.user.id || 'superadmin'}\n`,
+          'utf8'
+        );
+      } catch (versionErr) {
+        console.warn('Could not write printer-agent VERSION.txt:', versionErr.message);
+      }
+    }
+    const info = readPrinterAgentReleaseInfo();
+    console.log(`✅ Printer agent EXE replaced at ${PRINTER_AGENT_UPLOAD_TARGET} (${info.size} bytes, v=${info.version || '?'})`);
+    return res.json({ success: true, ...info });
   });
+});
+
+// Current agent build sitting in the volume (superadmin panel display).
+router.get('/printer-agent/info', (req, res) => {
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Только для суперадмина' });
+  }
+  return res.json(readPrinterAgentReleaseInfo());
 });
 
 // Get all printers for current restaurant
