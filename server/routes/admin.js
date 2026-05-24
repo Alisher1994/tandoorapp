@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 const jwt = require('jsonwebtoken');
 const TelegramBot = require('node-telegram-bot-api');
 const pool = require('../database/connection');
@@ -6401,6 +6402,84 @@ router.get('/printer-agent/download', async (req, res) => {
     console.error('Prepare printer-agent download error:', error);
     return res.status(500).json({ error: 'Ошибка подготовки файла printer-agent' });
   }
+});
+
+// =====================================================
+// TEMPORARY: upload a new TalablarPrinter.exe into the Railway volume.
+// Prod serves the agent from PRINTER_AGENT_EXE_PATH (a persistent volume), so a
+// rebuilt EXE has to be pushed there once. Superadmin-only, single-purpose.
+// Remove this route + the multer instance once the 8.15.0 build is in place.
+// =====================================================
+const PRINTER_AGENT_UPLOAD_TARGET = (() => {
+  const customPathRaw = String(process.env.PRINTER_AGENT_EXE_PATH || '').trim();
+  if (customPathRaw) {
+    const resolved = path.isAbsolute(customPathRaw)
+      ? customPathRaw
+      : path.resolve(process.cwd(), customPathRaw);
+    // Env may point at the file itself or at the volume directory.
+    const looksLikeDir = !path.extname(resolved) || resolved.endsWith(path.sep);
+    return looksLikeDir ? path.join(resolved, PRINTER_AGENT_FILENAME) : resolved;
+  }
+  return path.resolve(process.cwd(), 'printer-agent', 'dist', PRINTER_AGENT_FILENAME);
+})();
+
+const printerAgentUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const targetDir = path.dirname(PRINTER_AGENT_UPLOAD_TARGET);
+      try {
+        fs.mkdirSync(targetDir, { recursive: true });
+        cb(null, targetDir);
+      } catch (mkdirErr) {
+        cb(mkdirErr);
+      }
+    },
+    // Write to a temp name in the SAME dir so the final rename is atomic and
+    // never crosses a device boundary (tmpdir could be a different mount).
+    filename: (req, file, cb) => cb(null, `${PRINTER_AGENT_FILENAME}.upload-${Date.now()}.tmp`)
+  }),
+  limits: { fileSize: 300 * 1024 * 1024 } // 300MB ceiling; EXE is ~116MB
+});
+
+router.post('/printer-agent/upload', (req, res) => {
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Только для суперадмина' });
+  }
+  printerAgentUpload.single('file')(req, res, (uploadErr) => {
+    if (uploadErr) {
+      console.error('Printer agent upload error:', uploadErr?.message || uploadErr);
+      return res.status(400).json({ error: `Ошибка загрузки файла: ${uploadErr.message}` });
+    }
+    if (!req.file || !req.file.path) {
+      return res.status(400).json({ error: 'Файл не передан (ожидается поле "file")' });
+    }
+    const tempPath = req.file.path;
+    try {
+      const stats = fs.statSync(tempPath);
+      if (!stats.isFile() || stats.size <= 0) {
+        throw new Error('Загружен пустой файл');
+      }
+      // Overwrite the old EXE in place.
+      fs.renameSync(tempPath, PRINTER_AGENT_UPLOAD_TARGET);
+    } catch (moveErr) {
+      try { fs.unlinkSync(tempPath); } catch (_) {}
+      console.error('Printer agent upload finalize error:', moveErr?.message || moveErr);
+      return res.status(500).json({ error: `Не удалось сохранить файл: ${moveErr.message}` });
+    }
+    let version = null;
+    try {
+      const versionFile = path.join(path.dirname(PRINTER_AGENT_UPLOAD_TARGET), 'VERSION.txt');
+      if (fs.existsSync(versionFile)) version = fs.readFileSync(versionFile, 'utf8').trim();
+    } catch (_) {}
+    const savedSize = fs.statSync(PRINTER_AGENT_UPLOAD_TARGET).size;
+    console.log(`✅ Printer agent EXE replaced at ${PRINTER_AGENT_UPLOAD_TARGET} (${savedSize} bytes)`);
+    return res.json({
+      success: true,
+      path: PRINTER_AGENT_UPLOAD_TARGET,
+      size: savedSize,
+      version
+    });
+  });
 });
 
 // Get all printers for current restaurant
