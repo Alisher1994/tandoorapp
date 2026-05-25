@@ -7,6 +7,7 @@ const geoip = require('geoip-lite');
 const { authenticate } = require('../middleware/auth');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureCheckConstraint } = require('../database/constraintHelpers');
+const { normalizeRestaurantSlug } = require('../services/restaurantSlugPolicy');
 
 const router = express.Router();
 const isEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
@@ -1010,6 +1011,34 @@ router.get('/', async (req, res) => {
 });
 
 // Get restaurant by id (public - for receipt/logo)
+// Public: resolve a storefront slug (talablar.up.railway.app/<slug>) to a restaurant id
+router.get('/storefront-resolve/:slug', async (req, res) => {
+  try {
+    const normalized = normalizeRestaurantSlug(req.params.slug);
+    if (!normalized) {
+      return res.status(404).json({ error: 'Витрина не найдена' });
+    }
+    const result = await pool.query(
+      `SELECT id, name, COALESCE(is_active, true) AS is_active
+       FROM restaurants
+       WHERE LOWER(slug) = $1
+       LIMIT 1`,
+      [normalized]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Витрина не найдена' });
+    }
+    const row = result.rows[0];
+    if (row.is_active === false) {
+      return res.status(404).json({ error: 'Витрина недоступна' });
+    }
+    return res.json({ restaurant_id: Number(row.id), name: row.name, slug: normalized });
+  } catch (error) {
+    console.error('Storefront resolve error:', error);
+    return res.status(500).json({ error: 'Ошибка поиска витрины' });
+  }
+});
+
 router.get('/restaurant/:id', async (req, res) => {
   try {
     await ensureRestaurantCurrencySchema();

@@ -48,6 +48,7 @@ const OperatorQuickProducts = lazyWithRetry(() => import('./pages/OperatorQuickP
 const ShowcaseBuilder = lazyWithRetry(() => import('./pages/ShowcaseBuilder'), 'showcase-builder');
 const SuperAdminDashboard = lazyWithRetry(() => import('./pages/SuperAdminDashboard'), 'superadmin-dashboard');
 const TelegramStoreRegistration = lazyWithRetry(() => import('./pages/TelegramStoreRegistration'), 'tg-store-registration');
+const StorefrontGate = lazyWithRetry(() => import('./components/StorefrontGate'), 'storefront');
 
 
 function RoutePrefetcher() {
@@ -228,6 +229,8 @@ function App() {
                       </SuperAdminRoute>
                     }
                   />
+                  {/* Публичная витрина магазина по кастомному адресу: talablar.app/<slug> */}
+                  <Route path="/:slug" element={<StorefrontGate />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useDeferredValue } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useDeferredValue, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Container from 'react-bootstrap/Container';
@@ -134,7 +134,7 @@ const ShareLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   </svg>
 );
 
-function Catalog() {
+function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBotHref = '' } = {}) {
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [prevRestaurant, setPrevRestaurant] = useState(null);
@@ -249,7 +249,7 @@ function Catalog() {
   const isTelegramWebView = useMemo(() => (
     typeof window !== 'undefined' && Boolean(window.Telegram?.WebApp)
   ), []);
-  const shouldShowDesktopLogout = isDesktopViewport && !isTelegramWebView && !isOperator();
+  const shouldShowDesktopLogout = isDesktopViewport && !isTelegramWebView && !isOperator() && !publicStorefront;
   const requestedShareContext = useMemo(() => {
     const searchParams = new URLSearchParams(location.search || '');
     const requestedProductId = normalizeId(searchParams.get('product_id'));
@@ -260,6 +260,34 @@ function Catalog() {
     return { productId: requestedProductId, restaurantId: requestedRestaurantId };
   }, [location.search]);
   const requestedShareRestaurantId = requestedShareContext.restaurantId;
+
+  // Публичная витрина (talablar.app/<slug>): открывается без входа, привязана к магазину из slug.
+  // Все действия, требующие заказа/аккаунта, перенаправляются в Telegram-бот магазина.
+  const isPublicStorefront = Boolean(publicStorefront);
+  const isGuestStorefront = isPublicStorefront && !user;
+  const promptTelegramOrder = useCallback(() => {
+    const href = String(publicBotHref || '').trim();
+    if (href) {
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp?.openLink) {
+        window.Telegram.WebApp.openLink(href);
+      } else if (typeof window !== 'undefined') {
+        window.open(href, '_blank', 'noopener,noreferrer');
+      }
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      window.alert('Для оформления заказа откройте магазин в Telegram.');
+    }
+  }, [publicBotHref]);
+
+  // В публичном режиме жёстко привязываем витрину к магазину из slug.
+  useEffect(() => {
+    if (!isPublicStorefront) return;
+    const id = Number.parseInt(publicRestaurantId, 10);
+    if (!Number.isInteger(id) || id <= 0) return;
+    if (Number(selectedRestaurant) === id) return;
+    setSelectedRestaurant(id);
+  }, [isPublicStorefront, publicRestaurantId, selectedRestaurant]);
 
   // Load restaurants (for header/logo and operator selection); re-sync when active shop changes (tabs / Telegram)
   useEffect(() => {
@@ -1219,6 +1247,7 @@ function Catalog() {
   };
 
   const handleAddToCart = (product) => {
+    if (isGuestStorefront) { promptTelegramOrder(); return; }
     const parseLocalizedNumber = (value, fallback = 0) => {
       if (value === null || value === undefined || value === '') return fallback;
       const normalized = String(value).replace(/\s+/g, '').replace(',', '.');
@@ -1289,6 +1318,7 @@ function Catalog() {
   };
 
   const handleToggleFavorite = (product) => {
+    if (isGuestStorefront) { promptTelegramOrder(); return; }
     toggleFavorite({
       ...product,
       restaurant_id: selectedRestaurant
@@ -3242,7 +3272,7 @@ function Catalog() {
       <div className="mt-2 mb-0">
         <button
           type="button"
-          onClick={() => navigate('/cart')}
+          onClick={() => { if (isGuestStorefront) { promptTelegramOrder(); return; } navigate('/cart'); }}
           style={{
             width: '100%',
             border: '1px solid rgba(71, 85, 105,0.22)',
@@ -3595,6 +3625,7 @@ function Catalog() {
   };
 
   const submitProductReview = async () => {
+    if (isGuestStorefront) { promptTelegramOrder(); return; }
     const product = selectedProductDetails || selectedProductSummary;
     if (!product?.id || productReviewSubmitting) return;
     if (!productReviewPermissions.can_review) {
@@ -5490,7 +5521,7 @@ function Catalog() {
                         <Button
                           type="button"
                           className="product-details-bottom-cta"
-                          onClick={() => navigate('/cart')}
+                          onClick={() => { if (isGuestStorefront) { promptTelegramOrder(); return; } navigate('/cart'); }}
                         >
                           {language === 'uz' ? "Savatga o'tish" : 'В корзину'}
                         </Button>
