@@ -4421,7 +4421,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             : (categoryTitleBackgroundTransparentForMenu ? 'rgba(255, 255, 255, 0.42)' : 'rgba(255, 255, 255, 0.74)');
                           const imageZoneHeight = '110px';
                           return (
-                            <Col key={level2Category.id} xs={6} lg={3}>
+                            <Col key={level2Category.id} xs={6} md={4} lg={3} xxl={2}>
                               <button
                                 type="button"
                                 onClick={() => openLevel2Category(level2Category.id)}
@@ -4540,7 +4540,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             ? 'transparent'
                             : (categoryTitleBackgroundTransparentForMenu ? 'rgba(255, 255, 255, 0.42)' : 'rgba(255, 255, 255, 0.74)');
                           return (
-                            <Col key={nestedCategory.id} xs={6} lg={3}>
+                            <Col key={nestedCategory.id} xs={6} md={4} lg={3} xxl={2}>
                               <button
                                 type="button"
                                 onClick={() => openLevel2Category(nestedCategory.id)}
@@ -4640,7 +4640,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     <section className="mb-1">
                       <Row className="g-3">
                         {nestedDirectProducts.map((product) => (
-                          <Col key={product.id} xs={6} lg={3}>
+                          <Col key={product.id} xs={6} md={4} lg={3} xxl={2}>
                             {renderProductCard(product)}
                           </Col>
                         ))}
@@ -4669,7 +4669,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                           {level3Categories.map((category) => {
                             const isActive = catalogSectionTabKey(activeSubcategoryTab) === catalogSectionTabKey(category.id);
                             return (
-                              <Col key={`level3-folder-${category.id}`} xs={6} lg={3}>
+                              <Col key={`level3-folder-${category.id}`} xs={6} md={4} lg={3} xxl={2}>
                                 <button
                                   type="button"
                                   onClick={() => handleCatalogTabClick(category.id)}
@@ -4721,7 +4721,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         <h6 className="mb-3 text-muted fw-bold">{section.title}</h6>
                         <Row className="g-3">
                           {section.products.map((product) => (
-                            <Col key={product.id} xs={6} lg={3}>
+                            <Col key={product.id} xs={6} md={4} lg={3} xxl={2}>
                               {renderProductCard(product)}
                             </Col>
                           ))}
