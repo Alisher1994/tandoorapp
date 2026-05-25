@@ -55,6 +55,7 @@ async function migrate() {
       `telegram_bot_status VARCHAR(16) DEFAULT 'active'`,
       'telegram_bot_disabled_at TIMESTAMP',
       'telegram_bot_disable_reason VARCHAR(120)',
+      'telegram_bot_username VARCHAR(255)',
       'delivery_zone JSONB',
       'start_time VARCHAR(5)',
       'end_time VARCHAR(5)',
@@ -75,6 +76,7 @@ async function migrate() {
       `payment_placeholders JSONB DEFAULT '{}'::jsonb`,
       'uzum_url TEXT',
       'xazna_url TEXT',
+      'slug VARCHAR(64)',
       'cash_enabled BOOLEAN DEFAULT true',
       'card_payment_title VARCHAR(120)',
       'card_payment_number VARCHAR(40)',
@@ -122,6 +124,12 @@ async function migrate() {
         await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ${col}`);
       } catch (e) { }
     }
+    // Уникальный slug витрины (talablar.up.railway.app/<slug>). NULL допускается для магазинов без адреса.
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS restaurants_slug_unique_idx
+      ON restaurants (LOWER(slug))
+      WHERE slug IS NOT NULL AND BTRIM(slug) <> ''
+    `).catch(() => {});
     await client.query(`
       UPDATE restaurants
       SET telegram_bot_status = 'active'

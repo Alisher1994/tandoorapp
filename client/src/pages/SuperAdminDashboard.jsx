@@ -12298,7 +12298,7 @@ function SuperAdminDashboard() {
           <Form.Control
             className="form-control-custom"
             type="search"
-            placeholder="Поиск по названию..."
+            placeholder="Поиск: название, ID или @бот..."
             value={restaurantsNameFilter}
             onChange={(e) => { setRestaurantsNameFilter(e.target.value); setRestaurantsPage(1); }}
           />
@@ -13996,7 +13996,7 @@ function SuperAdminDashboard() {
                     <Form.Control
                       className="form-control-custom"
                       type="search"
-                      placeholder="Поиск по названию..."
+                      placeholder="Поиск: название, ID или @бот..."
                       style={{ width: '220px' }}
                       value={restaurantsNameFilter}
                       onChange={(e) => { setRestaurantsNameFilter(e.target.value); setRestaurantsPage(1); }}

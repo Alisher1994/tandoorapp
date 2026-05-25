@@ -820,6 +820,7 @@ const buildRestaurantSettingsSignature = (settings) => {
     payme_url: normalizeSettingsText(settings.payme_url),
     uzum_url: normalizeSettingsText(settings.uzum_url),
     xazna_url: normalizeSettingsText(settings.xazna_url),
+    slug: String(settings.slug || '').trim().toLowerCase(),
     cash_enabled: normalizeSettingsBoolean(settings.cash_enabled, true),
     card_payment_title: normalizeSettingsText(settings.card_payment_title),
     card_payment_number: normalizeSettingsText(settings.card_payment_number),
@@ -2049,7 +2050,10 @@ function AdminDashboard() {
     nameAvailable: true,
     tokenAvailable: true,
     groupAvailable: true,
-    nameMessage: ''
+    nameMessage: '',
+    slugAvailable: true,
+    slugMessage: '',
+    slugNormalized: ''
   });
   const restaurantLogoInputRef = useRef(null);
   const productModalBodyRef = useRef(null);
@@ -2837,19 +2841,25 @@ function AdminDashboard() {
   const isNameTaken = normalizedCurrentRestaurantName.length > 0 && restaurantIdentityAvailability.nameAvailable === false;
   const isTokenTaken = normalizedCurrentRestaurantBotTokenForAvailability.length > 0 && restaurantIdentityAvailability.tokenAvailable === false;
   const isGroupIdTaken = normalizedCurrentTelegramGroupId.length > 0 && restaurantIdentityAvailability.groupAvailable === false;
-  const isRestaurantSettingsSaveDisabled = savingSettings || isTokenSaveLocked || !isRestaurantSettingsDirty || restaurantIdentityAvailability.loading || isNameTaken || isTokenTaken || isGroupIdTaken;
+  const normalizedCurrentRestaurantSlug = String(restaurantSettings?.slug || '').trim();
+  const isSlugTaken = normalizedCurrentRestaurantSlug.length > 0 && restaurantIdentityAvailability.slugAvailable === false;
+  const isRestaurantSettingsSaveDisabled = savingSettings || isTokenSaveLocked || !isRestaurantSettingsDirty || restaurantIdentityAvailability.loading || isNameTaken || isTokenTaken || isGroupIdTaken || isSlugTaken;
 
   useEffect(() => {
     const name = String(restaurantSettings?.name || '').trim();
     const botToken = String(restaurantSettings?.telegram_bot_token || '').trim();
     const groupId = String(restaurantSettings?.telegram_group_id || '').trim();
-    if (!name && !botToken && !groupId) {
+    const slug = String(restaurantSettings?.slug || '').trim();
+    if (!name && !botToken && !groupId && !slug) {
       setRestaurantIdentityAvailability({
         loading: false,
         nameAvailable: true,
         tokenAvailable: true,
         groupAvailable: true,
-        nameMessage: ''
+        nameMessage: '',
+        slugAvailable: true,
+        slugMessage: '',
+        slugNormalized: ''
       });
       return;
     }
@@ -2859,11 +2869,13 @@ function AdminDashboard() {
       setRestaurantIdentityAvailability((prev) => ({ ...prev, loading: true }));
       try {
         const response = await axios.get(`${API_URL}/admin/restaurant/check-availability`, {
-          params: { name, telegram_bot_token: botToken, telegram_group_id: groupId },
+          params: { name, telegram_bot_token: botToken, telegram_group_id: groupId, slug },
           timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
         });
         if (cancelled) return;
         const nameValidation = response?.data?.name?.validation || null;
+        const slugBlock = response?.data?.slug || null;
+        const slugValidation = slugBlock?.validation || null;
         setRestaurantIdentityAvailability({
           loading: false,
           nameAvailable: response?.data?.name?.available !== false,
@@ -2871,7 +2883,12 @@ function AdminDashboard() {
           groupAvailable: response?.data?.telegram_group_id?.available !== false,
           nameMessage: nameValidation?.ok === false
             ? (nameValidation?.message || 'Недопустимое название')
-            : ''
+            : '',
+          slugAvailable: slugBlock ? slugBlock.available !== false : true,
+          slugMessage: slugValidation?.ok === false
+            ? (slugValidation?.message || 'Недопустимый адрес')
+            : '',
+          slugNormalized: slugBlock?.value || ''
         });
       } catch {
         if (cancelled) return;
@@ -2883,7 +2900,7 @@ function AdminDashboard() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [restaurantSettings?.name, restaurantSettings?.telegram_bot_token, restaurantSettings?.telegram_group_id]);
+  }, [restaurantSettings?.name, restaurantSettings?.telegram_bot_token, restaurantSettings?.telegram_group_id, restaurantSettings?.slug]);
   
   const fetchPrinters = useCallback(async () => {
     setLoadingPrinters(true);
@@ -5688,8 +5705,8 @@ function AdminDashboard() {
 
   const saveRestaurantSettings = async () => {
     if (isTokenSaveLocked) return;
-    if (isNameTaken || isTokenTaken || isGroupIdTaken) {
-      setAlertMessage({ type: 'warning', text: 'Исправьте занятые поля (название / Bot Token / Group ID) перед сохранением' });
+    if (isNameTaken || isTokenTaken || isGroupIdTaken || isSlugTaken) {
+      setAlertMessage({ type: 'warning', text: 'Исправьте занятые поля (название / Bot Token / Group ID / адрес витрины) перед сохранением' });
       return;
     }
 
@@ -13843,6 +13860,37 @@ function AdminDashboard() {
                                               </div>
                                             );
                                           })()}
+                                          {(() => {
+                                            const slugValue = String(restaurantSettings.slug || '').trim().toLowerCase();
+                                            if (!slugValue) return null;
+                                            const origin = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : '';
+                                            const storefrontHref = `${origin}/${slugValue}`;
+                                            return (
+                                              <div className="admin-general-qr-link-row">
+                                                <span className="small text-muted">
+                                                  <i className="bi bi-shop me-1" aria-hidden="true" />
+                                                  Сайт магазина:
+                                                </span>
+                                                <a
+                                                  href={storefrontHref}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="admin-general-qr-bot-link"
+                                                >
+                                                  {storefrontHref}
+                                                </a>
+                                                <button
+                                                  type="button"
+                                                  className="admin-general-qr-copy-btn"
+                                                  onClick={() => copyTelegramMetaField(storefrontHref, 'qr_storefront_link')}
+                                                  aria-label="Скопировать ссылку на витрину"
+                                                  title="Скопировать ссылку"
+                                                >
+                                                  {copiedTelegramField === 'qr_storefront_link' ? <i className="bi bi-check2" /> : <CopyIcon />}
+                                                </button>
+                                              </div>
+                                            );
+                                          })()}
                                           <Button
                                             variant="outline-primary"
                                             className="w-100"
@@ -13897,6 +13945,41 @@ function AdminDashboard() {
                                                 value={restaurantSettings.address}
                                                 onChange={e => setRestaurantSettings({ ...restaurantSettings, address: e.target.value })}
                                               />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={12}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Адрес витрины (сайт магазина)</Form.Label>
+                                              <InputGroup>
+                                                <InputGroup.Text className="text-muted">
+                                                  {((typeof window !== 'undefined' && window.location?.host) ? window.location.host : 'talablar.app')}/
+                                                </InputGroup.Text>
+                                                <Form.Control
+                                                  type="text"
+                                                  className="form-control-custom"
+                                                  placeholder="apple"
+                                                  autoComplete="off"
+                                                  spellCheck={false}
+                                                  value={restaurantSettings.slug || ''}
+                                                  onChange={e => setRestaurantSettings({
+                                                    ...restaurantSettings,
+                                                    slug: String(e.target.value || '')
+                                                      .toLowerCase()
+                                                      .replace(/[^a-z0-9-]/g, '')
+                                                  })}
+                                                />
+                                              </InputGroup>
+                                              {!!String(restaurantSettings.slug || '').trim() && (
+                                                <Form.Text className={(!restaurantIdentityAvailability.slugMessage && restaurantIdentityAvailability.slugAvailable) ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
+                                                  {restaurantIdentityAvailability.loading
+                                                    ? 'Проверка...'
+                                                    : (restaurantIdentityAvailability.slugMessage
+                                                      || (restaurantIdentityAvailability.slugAvailable ? 'Адрес доступен ✓' : 'Этот адрес уже занят'))}
+                                                </Form.Text>
+                                              )}
+                                              <Form.Text className="text-muted d-block mt-1">
+                                                Уникальный адрес вашей витрины. Латиница, цифры и дефис. Кто первый занял — за тем и закреплён.
+                                              </Form.Text>
                                             </Form.Group>
                                           </Col>
                                           <Col md={12}>

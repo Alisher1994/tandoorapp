@@ -4086,7 +4086,12 @@ router.get('/restaurants', async (req, res) => {
     const search = String(req.query.search || '').trim();
     if (search) {
       params.push(`%${search}%`);
-      where.push(`(r.name ILIKE $${params.length} OR CAST(r.id AS TEXT) ILIKE $${params.length})`);
+      const nameIdParam = params.length;
+      // Bot usernames are stored without a leading "@"; strip it so a query like
+      // "@mybot" still matches.
+      params.push(`%${search.replace(/^@+/, '')}%`);
+      const botParam = params.length;
+      where.push(`(r.name ILIKE $${nameIdParam} OR CAST(r.id AS TEXT) ILIKE $${nameIdParam} OR r.telegram_bot_username ILIKE $${botParam})`);
     }
 
     const status = String(req.query.status || '').trim().toLowerCase();

@@ -50,6 +50,10 @@ const {
   validateRestaurantName,
   normalizeRestaurantNameForStorage
 } = require('../services/restaurantNamePolicy');
+const {
+  validateRestaurantSlug,
+  normalizeRestaurantSlug
+} = require('../services/restaurantSlugPolicy');
 const superadminRoutes = require('./superadmin');
 
 const router = express.Router();
@@ -1924,8 +1928,44 @@ router.get('/restaurant/check-availability', async (req, res) => {
       excludeRestaurantId: Number(restaurantId)
     });
 
+    // Доступность slug-адреса витрины (talablar.up.railway.app/<slug>)
+    const slugRaw = req.query?.slug;
+    let slugBlock;
+    if (slugRaw === undefined) {
+      slugBlock = undefined;
+    } else {
+      const slugValidation = String(slugRaw).trim()
+        ? validateRestaurantSlug(slugRaw)
+        : { ok: true, code: 'OK', message: '', normalized: '' };
+      let slugTaken = false;
+      let slugConflictId = null;
+      if (slugValidation.ok && slugValidation.normalized) {
+        const slugConflict = await pool.query(
+          `SELECT id FROM restaurants
+           WHERE LOWER(slug) = $1 AND id <> $2
+           LIMIT 1`,
+          [slugValidation.normalized, Number(restaurantId)]
+        );
+        if (slugConflict.rows.length > 0) {
+          slugTaken = true;
+          slugConflictId = Number(slugConflict.rows[0].id);
+        }
+      }
+      slugBlock = {
+        value: slugValidation.normalized || '',
+        available: slugValidation.ok ? !slugTaken : false,
+        conflict_restaurant_id: slugConflictId,
+        validation: {
+          ok: slugValidation.ok,
+          code: slugValidation.code,
+          message: slugValidation.message
+        }
+      };
+    }
+
     return res.json({
       ok: true,
+      ...(slugBlock ? { slug: slugBlock } : {}),
       name: {
         value: nameValidation.normalized || '',
         available: nameValidation.ok ? !availability.nameTaken : false,
@@ -1989,6 +2029,7 @@ router.put('/restaurant', async (req, res) => {
     const {
       name, address, phone, logo_url, telegram_bot_token, telegram_group_id,
       operator_registration_code, start_time, end_time, click_url, payme_url, uzum_url, xazna_url,
+      slug,
       cash_enabled,
       card_payment_title, card_payment_number, card_payment_holder,
       card_bank_account, card_bank_name, card_bank_inn, card_bank_mfo, card_bank_legal_address, card_bank_oked, card_bank_okonx,
@@ -2118,6 +2159,28 @@ router.put('/restaurant', async (req, res) => {
     }
     if (updateAvailability.groupIdTaken) {
       return res.status(409).json({ error: 'Этот Group ID уже используется в другом магазине' });
+    }
+
+    // slug-адрес витрины: undefined => не трогаем; '' => очистить; иначе валидируем + проверяем занятость
+    let slugUpdate; // undefined = не менять
+    if (slug !== undefined) {
+      const slugTrimmed = String(slug ?? '').trim();
+      if (!slugTrimmed) {
+        slugUpdate = null; // очистить адрес
+      } else {
+        const slugValidation = validateRestaurantSlug(slugTrimmed);
+        if (!slugValidation.ok) {
+          return res.status(400).json({ error: slugValidation.message, code: slugValidation.code });
+        }
+        const slugConflict = await pool.query(
+          `SELECT id FROM restaurants WHERE LOWER(slug) = $1 AND id <> $2 LIMIT 1`,
+          [slugValidation.normalized, Number(restaurantId)]
+        );
+        if (slugConflict.rows.length > 0) {
+          return res.status(409).json({ error: 'Этот адрес витрины уже занят другим магазином', code: 'SLUG_TAKEN' });
+        }
+        slugUpdate = slugValidation.normalized;
+      }
     }
 
     let customerMigrationResult = null;
@@ -2279,6 +2342,25 @@ router.put('/restaurant', async (req, res) => {
         [normalizedOperatorDeliveryLaterEnabled, restaurantId]
       );
       result.rows[0].is_operator_delivery_later_enabled = deliveryLaterResult.rows[0]?.is_operator_delivery_later_enabled === true;
+    }
+
+    if (slugUpdate !== undefined) {
+      try {
+        const slugResult = await pool.query(
+          `UPDATE restaurants
+             SET slug = $1, updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2
+             RETURNING slug`,
+          [slugUpdate, restaurantId]
+        );
+        result.rows[0].slug = slugResult.rows[0]?.slug || null;
+      } catch (slugErr) {
+        // гонка по уникальному индексу: кто-то занял адрес между проверкой и сохранением
+        if (slugErr && slugErr.code === '23505') {
+          return res.status(409).json({ error: 'Этот адрес витрины уже занят другим магазином', code: 'SLUG_TAKEN' });
+        }
+        throw slugErr;
+      }
     }
 
     if (req.body?.promo_codes_enabled !== undefined) {
