@@ -13950,36 +13950,69 @@ function AdminDashboard() {
                                           <Col md={12}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Адрес витрины (сайт магазина)</Form.Label>
-                                              <InputGroup>
-                                                <InputGroup.Text className="text-muted">
-                                                  {((typeof window !== 'undefined' && window.location?.host) ? window.location.host : 'talablar.app')}/
-                                                </InputGroup.Text>
-                                                <Form.Control
-                                                  type="text"
-                                                  className="form-control-custom"
-                                                  placeholder="apple"
-                                                  autoComplete="off"
-                                                  spellCheck={false}
-                                                  value={restaurantSettings.slug || ''}
-                                                  onChange={e => setRestaurantSettings({
-                                                    ...restaurantSettings,
-                                                    slug: String(e.target.value || '')
-                                                      .toLowerCase()
-                                                      .replace(/[^a-z0-9-]/g, '')
-                                                  })}
-                                                />
-                                              </InputGroup>
-                                              {!!String(restaurantSettings.slug || '').trim() && (
-                                                <Form.Text className={(!restaurantIdentityAvailability.slugMessage && restaurantIdentityAvailability.slugAvailable) ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
-                                                  {restaurantIdentityAvailability.loading
-                                                    ? 'Проверка...'
-                                                    : (restaurantIdentityAvailability.slugMessage
-                                                      || (restaurantIdentityAvailability.slugAvailable ? 'Адрес доступен ✓' : 'Этот адрес уже занят'))}
-                                                </Form.Text>
-                                              )}
-                                              <Form.Text className="text-muted d-block mt-1">
-                                                Уникальный адрес вашей витрины. Латиница, цифры и дефис. Кто первый занял — за тем и закреплён.
-                                              </Form.Text>
+                                              {(() => {
+                                                const slugValue = String(restaurantSettings.slug || '').trim().toLowerCase();
+                                                const host = (typeof window !== 'undefined' && window.location?.host) ? window.location.host : 'talablar.app';
+                                                const origin = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : `https://${host}`;
+                                                const storefrontUrl = slugValue ? `${origin}/${slugValue}` : '';
+                                                // Копировать можно только сохранённый и доступный адрес (без несохранённых правок).
+                                                const slugDirty = isRestaurantSettingsDirty;
+                                                const canCopySlug = Boolean(storefrontUrl) && restaurantIdentityAvailability.slugAvailable && !restaurantIdentityAvailability.slugMessage && !slugDirty;
+                                                return (
+                                                  <>
+                                                    <InputGroup>
+                                                      <InputGroup.Text className="text-muted">{host}/</InputGroup.Text>
+                                                      <Form.Control
+                                                        type="text"
+                                                        className="form-control-custom"
+                                                        placeholder="apple"
+                                                        autoComplete="off"
+                                                        spellCheck={false}
+                                                        value={restaurantSettings.slug || ''}
+                                                        onChange={e => setRestaurantSettings({
+                                                          ...restaurantSettings,
+                                                          slug: String(e.target.value || '')
+                                                            .toLowerCase()
+                                                            .replace(/[^a-z0-9-]/g, '')
+                                                        })}
+                                                      />
+                                                      <Button
+                                                        variant="outline-secondary"
+                                                        onClick={() => copyTelegramMetaField(storefrontUrl, 'storefront_slug_link')}
+                                                        disabled={!canCopySlug}
+                                                        title={slugDirty ? 'Сначала сохраните адрес' : 'Скопировать ссылку на витрину'}
+                                                        aria-label="Скопировать ссылку на витрину"
+                                                      >
+                                                        {copiedTelegramField === 'storefront_slug_link' ? <i className="bi bi-check2" /> : <CopyIcon />}
+                                                      </Button>
+                                                    </InputGroup>
+                                                    {!!slugValue && (
+                                                      <Form.Text className={(!restaurantIdentityAvailability.slugMessage && restaurantIdentityAvailability.slugAvailable) ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
+                                                        {restaurantIdentityAvailability.loading
+                                                          ? 'Проверка...'
+                                                          : (restaurantIdentityAvailability.slugMessage
+                                                            || (restaurantIdentityAvailability.slugAvailable ? 'Адрес доступен ✓' : 'Этот адрес уже занят'))}
+                                                      </Form.Text>
+                                                    )}
+                                                    {!!storefrontUrl && (
+                                                      <Form.Text className="d-block mt-1">
+                                                        <a
+                                                          href={storefrontUrl}
+                                                          target="_blank"
+                                                          rel="noopener noreferrer"
+                                                          className="admin-general-qr-bot-link"
+                                                        >
+                                                          {storefrontUrl}
+                                                        </a>
+                                                        {slugDirty && <span className="text-muted"> · сохраните, чтобы скопировать</span>}
+                                                      </Form.Text>
+                                                    )}
+                                                    <Form.Text className="text-muted d-block mt-1">
+                                                      Уникальный адрес вашей витрины. Латиница, цифры и дефис. Кто первый занял — за тем и закреплён.
+                                                    </Form.Text>
+                                                  </>
+                                                );
+                                              })()}
                                             </Form.Group>
                                           </Col>
                                           <Col md={12}>
