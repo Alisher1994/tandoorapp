@@ -264,7 +264,9 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   // Публичная витрина (talablar.app/<slug>): открывается без входа, привязана к магазину из slug.
   // Все действия, требующие заказа/аккаунта, перенаправляются в Telegram-бот магазина.
   const isPublicStorefront = Boolean(publicStorefront);
-  const isGuestStorefront = isPublicStorefront && !user;
+  // На публичной витрине заказ всегда идёт через Telegram, даже если в localStorage
+  // осталась чужая сессия (актуально для встроенного браузера Telegram на мобиле).
+  const isGuestStorefront = isPublicStorefront;
   const promptTelegramOrder = useCallback(() => {
     const href = String(publicBotHref || '').trim();
     if (href) {
@@ -317,6 +319,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
   useEffect(() => {
     // Keep catalog bound to token-selected restaurant in Telegram WebApp.
+    if (isPublicStorefront) return; // на витрине магазин задаёт slug, а не сессия
     if (requestedShareRestaurantId) return;
     if (!isTelegramWebView) return;
     const activeRestaurantId = Number.parseInt(user?.active_restaurant_id, 10);
@@ -338,6 +341,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
   // For customers: lock to active_restaurant_id from bot (avoid stale catalog when only other user fields change)
   useEffect(() => {
+    if (isPublicStorefront) return; // на витрине магазин задаёт slug, а не сессия
     const role = user?.role;
     if (role === 'operator' || role === 'superadmin') return;
     if (requestedShareRestaurantId) return;
@@ -353,6 +357,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   }, [requestedShareRestaurantId, selectedRestaurant]);
 
   useEffect(() => {
+    if (isPublicStorefront) return; // витрина не зависит от active_restaurant_id сессии
     const raw = user?.active_restaurant_id;
     if (raw === undefined || raw === null || raw === '') {
       lastActiveRestaurantForCatalogRef.current = null;
@@ -1134,6 +1139,12 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       const response = await axios.get(`${API_URL}/products/restaurants/list`);
       const restaurantList = response.data || [];
       setRestaurants(restaurantList);
+      // На публичной витрине магазин жёстко задаётся slug — не даём сессии/оператору переопределить выбор.
+      if (isPublicStorefront) {
+        const id = Number.parseInt(publicRestaurantId, 10);
+        if (Number.isInteger(id) && id > 0) setSelectedRestaurant(id);
+        return;
+      }
       const hasRequestedRestaurant = requestedShareRestaurantId
         ? restaurantList.some((item) => Number(item?.id) === Number(requestedShareRestaurantId))
         : false;

@@ -1,7 +1,6 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext';
 import { PageSkeleton } from './SkeletonUI';
 
 const Catalog = lazy(() => import('../pages/Catalog'));
@@ -12,7 +11,6 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 // Открывается без входа. Разрешает slug в id магазина и отдаёт его в каталог (гостевой режим).
 function StorefrontGate() {
   const { slug } = useParams();
-  const { user } = useAuth();
   const [state, setState] = useState({ status: 'loading', restaurantId: null, botHref: '' });
 
   useEffect(() => {
@@ -44,11 +42,6 @@ function StorefrontGate() {
     if (slug) resolve();
     return () => { cancelled = true; };
   }, [slug]);
-
-  // Авторизованного пользователя ведём в его обычный каталог, чтобы не смешивать режимы.
-  if (user) {
-    return <Navigate to="/" replace />;
-  }
 
   if (state.status === 'loading') {
     return <PageSkeleton fullscreen label="Загрузка витрины" cards={8} />;
