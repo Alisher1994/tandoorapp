@@ -207,8 +207,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     endSpacerWidth: 0
   });
   const { user, isOperator, logout } = useAuth();
-  const { addToCart, updateQuantity, clearCart, cart, cartTotal } = useCart();
-  const { toggleFavorite, isFavorite } = useFavorites();
+  const { addToCart, updateQuantity, clearCart, cart, cartTotal, setOverrideRestaurantId: setCartOverrideRestaurantId } = useCart();
+  const { toggleFavorite, isFavorite, setOverrideRestaurantId: setFavoritesOverrideRestaurantId } = useFavorites();
   const { language, t, setCountryCurrency, setLanguage } = useLanguage();
   const { menuVisible, categoryStyleSettings, loadShowcase } = useShowcase();
   const navigate = useNavigate();
@@ -290,6 +290,20 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     if (Number(selectedRestaurant) === id) return;
     setSelectedRestaurant(id);
   }, [isPublicStorefront, publicRestaurantId, selectedRestaurant]);
+
+  // На публичной витрине корзина и избранное фильтруются по магазину из URL
+  // (а не по active_restaurant_id сессии), иначе счётчик «+» не видит добавленные товары.
+  useEffect(() => {
+    if (!isPublicStorefront) return;
+    const id = Number.parseInt(publicRestaurantId, 10);
+    if (!Number.isInteger(id) || id <= 0) return;
+    if (typeof setCartOverrideRestaurantId === 'function') setCartOverrideRestaurantId(id);
+    if (typeof setFavoritesOverrideRestaurantId === 'function') setFavoritesOverrideRestaurantId(id);
+    return () => {
+      if (typeof setCartOverrideRestaurantId === 'function') setCartOverrideRestaurantId(null);
+      if (typeof setFavoritesOverrideRestaurantId === 'function') setFavoritesOverrideRestaurantId(null);
+    };
+  }, [isPublicStorefront, publicRestaurantId, setCartOverrideRestaurantId, setFavoritesOverrideRestaurantId]);
 
   // Load restaurants (for header/logo and operator selection); re-sync when active shop changes (tabs / Telegram)
   useEffect(() => {
@@ -4121,15 +4135,33 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
         <div
           className="w-100 px-3 mx-auto"
           style={{
-            maxWidth: '1280px',
+            maxWidth: isDesktopViewport ? '1440px' : '1280px',
             display: 'grid',
-            gridTemplateColumns: '1fr auto 1fr',
+            gridTemplateColumns: isDesktopViewport ? 'auto 1fr auto' : '1fr auto 1fr',
             alignItems: 'center',
-            gap: '12px'
+            gap: isDesktopViewport ? '24px' : '12px'
           }}
         >
+          {/* Левая колонка: на мобиле — кнопка назад/плейсхолдер; на ПК — логотип магазина */}
           <div className="d-flex align-items-center justify-content-start">
-            {shouldShowHeaderBackButton ? (
+            {isDesktopViewport ? (
+              currentRestaurant?.logo_url ? (
+                (() => {
+                  const logoFrame = getRestaurantLogoFrame(currentRestaurant?.logo_display_mode);
+                  return (
+                    <div style={logoFrame.box}>
+                      <img
+                        src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
+                        alt={currentRestaurant.name}
+                        style={logoFrame.img}
+                      />
+                    </div>
+                  );
+                })()
+              ) : (
+                <span style={{ fontSize: '1.7rem' }}>🏪</span>
+              )
+            ) : shouldShowHeaderBackButton ? (
               <button
                 type="button"
                 onClick={handleHeaderBackAction}
@@ -4158,24 +4190,31 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
             )}
           </div>
 
-          <Navbar.Brand className="d-flex align-items-center justify-content-center mx-auto mb-0">
-            {currentRestaurant?.logo_url ? (
-              (() => {
-                const logoFrame = getRestaurantLogoFrame(currentRestaurant?.logo_display_mode);
-                return (
-                  <div style={logoFrame.box}>
-                    <img
-                      src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
-                      alt={currentRestaurant.name}
-                      style={logoFrame.img}
-                    />
-                  </div>
-                );
-              })()
-            ) : (
-              <span style={{ fontSize: '1.7rem' }}>🏪</span>
-            )}
-          </Navbar.Brand>
+          {/* Центральная колонка: на мобиле — логотип; на ПК — инлайн-поиск */}
+          {isDesktopViewport ? (
+            <div className="w-100" style={{ maxWidth: 640, justifySelf: 'center' }}>
+              {renderCatalogSearch({ compact: true })}
+            </div>
+          ) : (
+            <Navbar.Brand className="d-flex align-items-center justify-content-center mx-auto mb-0">
+              {currentRestaurant?.logo_url ? (
+                (() => {
+                  const logoFrame = getRestaurantLogoFrame(currentRestaurant?.logo_display_mode);
+                  return (
+                    <div style={logoFrame.box}>
+                      <img
+                        src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
+                        alt={currentRestaurant.name}
+                        style={logoFrame.img}
+                      />
+                    </div>
+                  );
+                })()
+              ) : (
+                <span style={{ fontSize: '1.7rem' }}>🏪</span>
+              )}
+            </Navbar.Brand>
+          )}
 
           <div className="d-flex align-items-center justify-content-end gap-2">
             <button
@@ -4204,31 +4243,34 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
               <UserLucideIcon size={17} color="#4b5563" />
             </button>
 
-            <button
-              type="button"
-              onClick={toggleHeaderSearch}
-              aria-label={language === 'uz' ? 'Qidiruv' : 'Поиск'}
-              title={language === 'uz' ? 'Qidiruv' : 'Поиск'}
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: 12,
-                border: isHeaderSearchOpen || normalizedCatalogSearch
-                  ? '1px solid rgba(71, 85, 105, 0.22)'
-                  : '1px solid transparent',
-                background: isHeaderSearchOpen || normalizedCatalogSearch
-                  ? 'rgba(255,255,255,0.7)'
-                  : 'transparent',
-                color: '#4b5563',
-                fontSize: '1rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.22s ease'
-              }}
-            >
-              <SearchLucideIcon size={17} color="#4b5563" />
-            </button>
+            {/* На ПК поиск инлайн в центре — тогл-иконка не нужна */}
+            {!isDesktopViewport && (
+              <button
+                type="button"
+                onClick={toggleHeaderSearch}
+                aria-label={language === 'uz' ? 'Qidiruv' : 'Поиск'}
+                title={language === 'uz' ? 'Qidiruv' : 'Поиск'}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: 12,
+                  border: isHeaderSearchOpen || normalizedCatalogSearch
+                    ? '1px solid rgba(71, 85, 105, 0.22)'
+                    : '1px solid transparent',
+                  background: isHeaderSearchOpen || normalizedCatalogSearch
+                    ? 'rgba(255,255,255,0.7)'
+                    : 'transparent',
+                  color: '#4b5563',
+                  fontSize: '1rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.22s ease'
+                }}
+              >
+                <SearchLucideIcon size={17} color="#4b5563" />
+              </button>
+            )}
 
             {shouldShowDesktopLogout && (
               <button
@@ -4243,23 +4285,25 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
           </div>
         </div>
 
-        <div
-          className="px-3 mx-auto"
-          style={{
-            maxWidth: '1280px',
-            width: '100%',
-            overflow: 'hidden',
-            maxHeight: isHeaderSearchOpen ? 88 : 0,
-            opacity: isHeaderSearchOpen ? 1 : 0,
-            transform: `translateY(${isHeaderSearchOpen ? 0 : -8}px)`,
-            transition: 'max-height 0.28s ease, opacity 0.22s ease, transform 0.28s ease',
-            pointerEvents: isHeaderSearchOpen ? 'auto' : 'none'
-          }}
-        >
-          <div style={{ padding: '0 0 10px' }}>
-            {renderCatalogSearch({ compact: true })}
+        {!isDesktopViewport && (
+          <div
+            className="px-3 mx-auto"
+            style={{
+              maxWidth: '1280px',
+              width: '100%',
+              overflow: 'hidden',
+              maxHeight: isHeaderSearchOpen ? 88 : 0,
+              opacity: isHeaderSearchOpen ? 1 : 0,
+              transform: `translateY(${isHeaderSearchOpen ? 0 : -8}px)`,
+              transition: 'max-height 0.28s ease, opacity 0.22s ease, transform 0.28s ease',
+              pointerEvents: isHeaderSearchOpen ? 'auto' : 'none'
+            }}
+          >
+            <div style={{ padding: '0 0 10px' }}>
+              {renderCatalogSearch({ compact: true })}
+            </div>
           </div>
-        </div>
+        )}
         <div
           style={{
             display: shouldShowCatalogTabs ? 'block' : 'none',

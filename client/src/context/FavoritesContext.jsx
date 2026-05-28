@@ -42,6 +42,8 @@ const normalizeFavoriteProduct = (product) => ({
 
 export function FavoritesProvider({ children }) {
   const { user } = useAuth();
+  // Override для публичной витрины: фильтрация по магазину из URL, а не из сессии.
+  const [overrideRestaurantId, setOverrideRestaurantId] = useState(null);
   const [allFavorites, setAllFavorites] = useState(() => {
     try {
       const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
@@ -56,7 +58,9 @@ export function FavoritesProvider({ children }) {
     localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(allFavorites));
   }, [allFavorites]);
 
-  const activeRestaurantId = parseRestaurantId(user?.active_restaurant_id) || getActiveRestaurantId();
+  const activeRestaurantId = parseRestaurantId(overrideRestaurantId)
+    || parseRestaurantId(user?.active_restaurant_id)
+    || getActiveRestaurantId();
   const favorites = filterByActiveRestaurant(allFavorites, activeRestaurantId);
 
   const isFavorite = (productId) => favorites.some((item) => Number(item.id) === Number(productId));
@@ -112,7 +116,8 @@ export function FavoritesProvider({ children }) {
     addFavorite,
     removeFavorite,
     toggleFavorite,
-    updateFavoriteQuantity
+    updateFavoriteQuantity,
+    setOverrideRestaurantId
   }), [favorites, favoriteCount]);
 
   return (
