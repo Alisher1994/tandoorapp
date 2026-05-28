@@ -183,11 +183,11 @@
 /* Verdant Glass — тёмно-зелёный фон + матовое стекло на карточках, белый текст.
    Применяется к публичной витрине (.client-surface) и WebApp-корзине (.client-content). */
 :root[data-ui-theme="verdant_glass"] {
-  --primary-color: #2dd4bf;
-  --primary-dark: #14b8a6;
-  --primary-light: #5eead4;
+  --primary-color: #0d9488;
+  --primary-dark: #0f766e;
+  --primary-light: #2dd4bf;
   --accent-color: #facc15;
-  --accent-soft: rgba(45, 212, 191, 0.18);
+  --accent-soft: rgba(13, 148, 136, 0.22);
   --background-color: #0d2e1c;
   --app-shell-background:
     radial-gradient(circle at 18% 8%, rgba(45, 212, 191, 0.18), transparent 48%),
@@ -200,7 +200,8 @@
   --border-color: rgba(255, 255, 255, 0.14);
   --shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
   --shadow-hover: 0 22px 44px rgba(0, 0, 0, 0.55);
-  --bs-primary: #2dd4bf;
+  --bs-primary: #0d9488;
+  --bs-primary-rgb: 13, 148, 136;
   --bs-secondary: #facc15;
 }
 
@@ -257,19 +258,153 @@
 :root[data-ui-theme="verdant_glass"] .client-surface .form-control,
 :root[data-ui-theme="verdant_glass"] .client-content .form-control {
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   color: #f0fdf4;
 }
 :root[data-ui-theme="verdant_glass"] .client-surface .form-control::placeholder,
 :root[data-ui-theme="verdant_glass"] .client-content .form-control::placeholder {
-  color: rgba(240, 253, 244, 0.45);
+  color: rgba(240, 253, 244, 0.55);
 }
 :root[data-ui-theme="verdant_glass"] .client-surface .form-control:focus,
 :root[data-ui-theme="verdant_glass"] .client-content .form-control:focus {
   background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(45, 212, 191, 0.5);
-  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18);
+  border-color: rgba(94, 234, 212, 0.6);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.2);
   color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .form-label,
+:root[data-ui-theme="verdant_glass"] .client-content .form-label,
+:root[data-ui-theme="verdant_glass"] .client-surface label,
+:root[data-ui-theme="verdant_glass"] .client-content label {
+  color: #f0fdf4;
+}
+
+/* Модалки витрины и WebApp рендерятся в портал (вне .client-surface/.client-content).
+   Перекрашиваем их отдельно, чтобы текст/поля/кнопки совпадали с темой. */
+:root[data-ui-theme="verdant_glass"] .modal-content {
+  background: linear-gradient(180deg, #0f3220 0%, #082417 100%);
+  color: #f0fdf4;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  --bs-body-color: #f0fdf4;
+  --bs-body-color-rgb: 240, 253, 244;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .modal-header,
+:root[data-ui-theme="verdant_glass"] .modal-content .modal-footer {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .modal-title,
+:root[data-ui-theme="verdant_glass"] .modal-content h1,
+:root[data-ui-theme="verdant_glass"] .modal-content h2,
+:root[data-ui-theme="verdant_glass"] .modal-content h3,
+:root[data-ui-theme="verdant_glass"] .modal-content h4,
+:root[data-ui-theme="verdant_glass"] .modal-content h5,
+:root[data-ui-theme="verdant_glass"] .modal-content h6,
+:root[data-ui-theme="verdant_glass"] .modal-content p {
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .btn-close {
+  filter: invert(1) grayscale(100%) brightness(2);
+  opacity: 0.8;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .form-label,
+:root[data-ui-theme="verdant_glass"] .modal-content label {
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .form-control {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .form-control::placeholder {
+  color: rgba(240, 253, 244, 0.55);
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .form-control:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(94, 234, 212, 0.6);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.2);
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .text-muted {
+  color: rgba(240, 253, 244, 0.7) !important;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .border-top {
+  border-top-color: rgba(255, 255, 255, 0.14) !important;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .bg-light {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .btn-outline-secondary {
+  color: #f0fdf4;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .btn-outline-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+/* Inline-стили модалок ставят светлые панели (#f8fafc и т.п.) — переводим в стекло. */
+:root[data-ui-theme="verdant_glass"] .modal-content [style*="background: #f8fafc"],
+:root[data-ui-theme="verdant_glass"] .modal-content [style*="background: rgb(248, 250, 252)"],
+:root[data-ui-theme="verdant_glass"] .modal-content [style*="background: #f8fafb"],
+:root[data-ui-theme="verdant_glass"] .modal-content [style*="background: rgba(248, 250, 252"],
+:root[data-ui-theme="verdant_glass"] .modal-content [style*="background: rgba(241, 245, 249"] {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f0fdf4;
+}
+/* «Назад»-кнопка модалок витрины с inline-белым фоном — тоже в стекло. */
+:root[data-ui-theme="verdant_glass"] .modal-content [style*="background: rgba(255, 255, 255, 0.82)"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f0fdf4 !important;
+}
+/* Catalog.jsx и баннеры ставят inline color: #111827/4b5563/334155, фон rgba(255,255,255,...).
+   Переводим их в светлый текст и матовое стекло, чтобы шапки и баннеры читались. */
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="color: rgb(17, 24, 39)"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="color: rgb(75, 85, 99)"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="color: rgb(51, 65, 85)"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="color: rgb(100, 116, 139)"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="color: #111827"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="color: #4b5563"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="color: #334155"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="color: #64748b"] {
+  color: #f0fdf4 !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: rgba(255, 255, 255, 0.85)"],
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: rgba(71, 85, 105, 0.1)"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="background: rgba(71, 85, 105, 0.13)"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* Cart.jsx определяет .cart-surface-* / .cart-segmented-* в собственном <style>
+   с background:#f8fafc !important; перебиваем темой более специфичным селектором. */
+:root[data-ui-theme="verdant_glass"] .client-content .cart-surface-field,
+:root[data-ui-theme="verdant_glass"] .client-content .cart-surface-panel,
+:root[data-ui-theme="verdant_glass"] .client-content .cart-segmented-switch {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #f0fdf4 !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-content .cart-surface-field:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(94, 234, 212, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.2) !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-content .cart-segmented-option {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #f0fdf4 !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-content .cart-segmented-option.is-active {
+  background: rgba(45, 212, 191, 0.18) !important;
+  border-color: rgba(94, 234, 212, 0.45) !important;
+  color: #5eead4 !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-content .cart-segmented-option:hover,
+:root[data-ui-theme="verdant_glass"] .client-content .cart-segmented-option:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
 }
 /* Топбар каталога — полупрозрачное зелёное стекло поверх фона. */
 :root[data-ui-theme="verdant_glass"] .client-surface .navbar {
