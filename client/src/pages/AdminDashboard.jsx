@@ -13929,7 +13929,7 @@ function AdminDashboard() {
                                     <Col xxl={8} xl={9} lg={10} md={11} className="admin-store-profile-layout-main">
                                       <div className="admin-store-profile-fields h-100">
                                         <Row className="gy-4">
-                                          <Col md={12}>
+                                          <Col md={6}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Название магазина</Form.Label>
                                               <Form.Control
@@ -13947,7 +13947,7 @@ function AdminDashboard() {
                                               )}
                                             </Form.Group>
                                           </Col>
-                                          <Col md={12}>
+                                          <Col md={6}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Телефон</Form.Label>
                                               <Form.Control
@@ -13958,7 +13958,7 @@ function AdminDashboard() {
                                               />
                                             </Form.Group>
                                           </Col>
-                                          <Col md={12}>
+                                          <Col md={6}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Адрес</Form.Label>
                                               <Form.Control
@@ -13969,17 +13969,28 @@ function AdminDashboard() {
                                               />
                                             </Form.Group>
                                           </Col>
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                                {language === 'uz' ? "Do'kon faoliyat turi" : 'Вид деятельности магазина'}
+                                              </Form.Label>
+                                              <Form.Control
+                                                type="text"
+                                                readOnly
+                                                className="form-control-custom admin-readonly-field"
+                                                value={String(
+                                                  restaurantSettings.activity_type_name
+                                                  || (language === 'uz' ? 'Tanlanmagan' : 'Не выбран')
+                                                )}
+                                              />
+                                            </Form.Group>
+                                          </Col>
                                           <Col md={12}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Адрес витрины (сайт магазина)</Form.Label>
                                               {(() => {
                                                 const slugValue = String(restaurantSettings.slug || '').trim().toLowerCase();
                                                 const host = (typeof window !== 'undefined' && window.location?.host) ? window.location.host : 'talablar.app';
-                                                const origin = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : `https://${host}`;
-                                                const storefrontUrl = slugValue ? `${origin}/${slugValue}` : '';
-                                                // Копировать можно только сохранённый и доступный адрес (без несохранённых правок).
-                                                const slugDirty = isRestaurantSettingsDirty;
-                                                const canCopySlug = Boolean(storefrontUrl) && restaurantIdentityAvailability.slugAvailable && !restaurantIdentityAvailability.slugMessage && !slugDirty;
                                                 return (
                                                   <>
                                                     <InputGroup>
@@ -13998,15 +14009,6 @@ function AdminDashboard() {
                                                             .replace(/[^a-z0-9-]/g, '')
                                                         })}
                                                       />
-                                                      <Button
-                                                        variant="outline-secondary"
-                                                        onClick={() => copyTelegramMetaField(storefrontUrl, 'storefront_slug_link')}
-                                                        disabled={!canCopySlug}
-                                                        title={slugDirty ? 'Сначала сохраните адрес' : 'Скопировать ссылку на витрину'}
-                                                        aria-label="Скопировать ссылку на витрину"
-                                                      >
-                                                        {copiedTelegramField === 'storefront_slug_link' ? <i className="bi bi-check2" /> : <CopyIcon />}
-                                                      </Button>
                                                     </InputGroup>
                                                     {!!slugValue && (
                                                       <Form.Text className={(!restaurantIdentityAvailability.slugMessage && restaurantIdentityAvailability.slugAvailable) ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
@@ -14016,44 +14018,15 @@ function AdminDashboard() {
                                                             || (restaurantIdentityAvailability.slugAvailable ? 'Адрес доступен ✓' : 'Этот адрес уже занят'))}
                                                       </Form.Text>
                                                     )}
-                                                    {!!storefrontUrl && (
-                                                      <Form.Text className="d-block mt-1">
-                                                        <a
-                                                          href={storefrontUrl}
-                                                          target="_blank"
-                                                          rel="noopener noreferrer"
-                                                          className="admin-general-qr-bot-link"
-                                                        >
-                                                          {storefrontUrl}
-                                                        </a>
-                                                        {slugDirty && <span className="text-muted"> · сохраните, чтобы скопировать</span>}
-                                                      </Form.Text>
-                                                    )}
                                                     <Form.Text className="text-muted d-block mt-1">
-                                                      Уникальный адрес вашей витрины. Латиница, цифры и дефис. Кто первый занял — за тем и закреплён.
+                                                      Уникальный адрес вашей витрины. Латиница, цифры и дефис. Кто первый занял — за тем и закреплён. Ссылку для копирования смотрите в блоке QR-кода выше.
                                                     </Form.Text>
                                                   </>
                                                 );
                                               })()}
                                             </Form.Group>
                                           </Col>
-                                          <Col md={12}>
-                                            <Form.Group>
-                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
-                                                {language === 'uz' ? "Do'kon faoliyat turi" : 'Вид деятельности магазина'}
-                                              </Form.Label>
-                                              <Form.Control
-                                                type="text"
-                                                readOnly
-                                                className="form-control-custom admin-readonly-field"
-                                                value={String(
-                                                  restaurantSettings.activity_type_name
-                                                  || (language === 'uz' ? 'Tanlanmagan' : 'Не выбран')
-                                                )}
-                                              />
-                                            </Form.Group>
-                                          </Col>
-                                          <Col md={12}>
+                                          <Col md={6}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Начало работы</Form.Label>
                                               <Form.Control
@@ -14064,7 +14037,7 @@ function AdminDashboard() {
                                               />
                                             </Form.Group>
                                           </Col>
-                                          <Col md={12}>
+                                          <Col md={6}>
                                             <Form.Group>
                                               <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Конец работы</Form.Label>
                                               <Form.Control
