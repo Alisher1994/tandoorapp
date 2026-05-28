@@ -203,7 +203,7 @@ const BOT_TEXTS = {
   ru: {
     chooseLanguage: '🌐 Выберите язык системы:',
     languageSaved: '✅ Язык сохранен.',
-    openMenu: 'Заказать',
+    openMenu: 'Открыть',
     promoButton: '😍 Акция',
     myOrders: '📋 Мои заказы',
     contactButton: '☎️ Связь',
@@ -235,7 +235,7 @@ const BOT_TEXTS = {
   uz: {
     chooseLanguage: '🌐 Tizim tilini tanlang:',
     languageSaved: '✅ Til saqlandi.',
-    openMenu: 'Buyurtma berish',
+    openMenu: 'Ochish',
     promoButton: '😍 Aksiya',
     myOrders: '📋 Buyurtmalarim',
     contactButton: "☎️ Bog'lanish",
