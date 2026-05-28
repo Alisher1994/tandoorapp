@@ -13839,7 +13839,16 @@ function AdminDashboard() {
                                             if (!botHref) return null;
                                             return (
                                               <div className="admin-general-qr-link-row">
-                                                <span className="small text-muted">Ссылка на бот:</span>
+                                                <span className="small text-muted d-inline-flex align-items-center gap-1">
+                                                  <img
+                                                    src="https://cdn.simpleicons.org/telegram/229ED9"
+                                                    alt="Telegram"
+                                                    width="14"
+                                                    height="14"
+                                                    style={{ display: 'inline-block' }}
+                                                  />
+                                                  Ссылка на бот:
+                                                </span>
                                                 <a
                                                   href={botHref}
                                                   target="_blank"
@@ -13867,8 +13876,14 @@ function AdminDashboard() {
                                             const storefrontHref = `${origin}/${slugValue}`;
                                             return (
                                               <div className="admin-general-qr-link-row">
-                                                <span className="small text-muted">
-                                                  <i className="bi bi-shop me-1" aria-hidden="true" />
+                                                <span className="small text-muted d-inline-flex align-items-center gap-1">
+                                                  <img
+                                                    src="/talablar.svg"
+                                                    alt="Talablar"
+                                                    width="14"
+                                                    height="14"
+                                                    style={{ display: 'inline-block' }}
+                                                  />
                                                   Сайт магазина:
                                                 </span>
                                                 <a
