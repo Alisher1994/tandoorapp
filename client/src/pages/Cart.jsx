@@ -1819,95 +1819,99 @@ function Cart() {
           </Form>
         )}
 
+        {/* Детализация — отдельная карточка, чтобы промокод не выглядел как матрёшка */}
+        {step === 3 && (
+          <Card className="border-0 shadow-sm mb-3">
+            <Card.Body>
+              <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
+                <span className="text-muted">🛒 {t('products')}:</span>
+                <span className="text-muted">{formatPrice(productTotal)} {t('sum')}</span>
+              </div>
+
+              {containerTotal > 0 && (
+                <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
+                  <span className="text-muted">📦 {language === 'uz' ? 'Fasovka' : 'Фасовка'}:</span>
+                  <span className="text-muted">{formatPrice(containerTotal)} {t('sum')}</span>
+                </div>
+              )}
+
+              {serviceFee > 0 && (
+                <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
+                  <span className="text-muted">🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
+                  <span className="text-muted">{formatPrice(serviceFee)} {t('sum')}</span>
+                </div>
+              )}
+
+              {isDeliverySelected && hasLocation && (
+                <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
+                  <span className="text-muted">
+                    🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                    {effectiveDeliveryDistance > 0 && <small className="ms-1">({effectiveDeliveryDistance} км)</small>}
+                  </span>
+                  <span className="text-muted">
+                    {deliveryLoading ? (
+                      <Spinner animation="border" size="sm" />
+                    ) : (
+                      `${formatPrice(effectiveDeliveryCost)} ${t('sum')}`
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {!isDeliverySelected && (
+                <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
+                  <span className="text-muted">🚶‍♂️ {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}</span>
+                  <span className="text-muted">0 {t('sum')}</span>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+        )}
+
+        {/* Промокод — собственная карточка одного уровня с детализацией */}
+        {step === 3 && isPromoEnabled && (
+          <Card className="border-0 shadow-sm mb-3">
+            <Card.Body>
+              <div className="small fw-semibold mb-2">
+                🎟 {language === 'uz' ? 'Promokod' : 'Промокод'}
+              </div>
+              {appliedPromo ? (
+                <div className="d-flex justify-content-between align-items-center">
+                  <div className="small">
+                    <span className="badge bg-success me-2">{appliedPromo.code}</span>
+                    <span className="text-success">−{formatPrice(promoDiscountAmount)} {t('sum')}</span>
+                  </div>
+                  <Button variant="outline-secondary" size="sm" onClick={handleRemovePromo}>
+                    {language === 'uz' ? "O'chirish" : 'Убрать'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="d-flex gap-2">
+                  <Form.Control
+                    type="text"
+                    size="sm"
+                    placeholder={language === 'uz' ? 'Promokodni kiriting' : 'Введите промокод'}
+                    value={promoInput}
+                    onChange={(e) => setPromoInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyPromo(); } }}
+                    disabled={promoApplying}
+                    maxLength={64}
+                  />
+                  <Button variant="primary" size="sm" onClick={handleApplyPromo} disabled={promoApplying || !promoInput.trim()}>
+                    {promoApplying
+                      ? (language === 'uz' ? 'Tekshirilmoqda...' : 'Проверяем...')
+                      : (language === 'uz' ? 'Qollash' : 'Применить')}
+                  </Button>
+                </div>
+              )}
+              {promoError ? <div className="small text-danger mt-1">{promoError}</div> : null}
+            </Card.Body>
+          </Card>
+        )}
+
         {/* Итого и кнопки */}
         <Card className="border-0 shadow-sm">
           <Card.Body>
-            {/* Детализация и итог только на финальном шаге */}
-            {step === 3 && (
-              <>
-                <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
-                  <span className="text-muted">🛒 {t('products')}:</span>
-                  <span className="text-muted">{formatPrice(productTotal)} {t('sum')}</span>
-                </div>
-
-                {containerTotal > 0 && (
-                  <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
-                    <span className="text-muted">📦 {language === 'uz' ? 'Fasovka' : 'Фасовка'}:</span>
-                    <span className="text-muted">{formatPrice(containerTotal)} {t('sum')}</span>
-                  </div>
-                )}
-
-                {serviceFee > 0 && (
-                  <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
-                    <span className="text-muted">🛎 {language === 'uz' ? 'Xizmat' : 'Сервис'}:</span>
-                    <span className="text-muted">{formatPrice(serviceFee)} {t('sum')}</span>
-                  </div>
-                )}
-
-                {/* Доставка - показываем всегда когда есть координаты */}
-                {isDeliverySelected && hasLocation && (
-                  <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
-                    <span className="text-muted">
-                      🚗 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
-                      {effectiveDeliveryDistance > 0 && <small className="ms-1">({effectiveDeliveryDistance} км)</small>}
-                    </span>
-                    <span className="text-muted">
-                      {deliveryLoading ? (
-                        <Spinner animation="border" size="sm" />
-                      ) : (
-                        `${formatPrice(effectiveDeliveryCost)} ${t('sum')}`
-                      )}
-                    </span>
-                  </div>
-                )}
-
-                {!isDeliverySelected && (
-                  <div className="d-flex justify-content-between align-items-center mb-1 cart-summary-row">
-                    <span className="text-muted">🚶‍♂️ {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}</span>
-                    <span className="text-muted">0 {t('sum')}</span>
-                  </div>
-                )}
-              </>
-            )}
-
-            {step === 3 && isPromoEnabled && (
-              <div className="mb-3 p-2 rounded-3 border bg-light">
-                <div className="small fw-semibold mb-1">
-                  🎟 {language === 'uz' ? 'Promokod' : 'Промокод'}
-                </div>
-                {appliedPromo ? (
-                  <div className="d-flex justify-content-between align-items-center">
-                    <div className="small">
-                      <span className="badge bg-success me-2">{appliedPromo.code}</span>
-                      <span className="text-success">−{formatPrice(promoDiscountAmount)} {t('sum')}</span>
-                    </div>
-                    <Button variant="outline-secondary" size="sm" onClick={handleRemovePromo}>
-                      {language === 'uz' ? "O'chirish" : 'Убрать'}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="d-flex gap-2">
-                    <Form.Control
-                      type="text"
-                      size="sm"
-                      placeholder={language === 'uz' ? 'Promokodni kiriting' : 'Введите промокод'}
-                      value={promoInput}
-                      onChange={(e) => setPromoInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyPromo(); } }}
-                      disabled={promoApplying}
-                      maxLength={64}
-                    />
-                    <Button variant="primary" size="sm" onClick={handleApplyPromo} disabled={promoApplying || !promoInput.trim()}>
-                      {promoApplying
-                        ? (language === 'uz' ? 'Tekshirilmoqda...' : 'Проверяем...')
-                        : (language === 'uz' ? 'Qollash' : 'Применить')}
-                    </Button>
-                  </div>
-                )}
-                {promoError ? <div className="small text-danger mt-1">{promoError}</div> : null}
-              </div>
-            )}
-
             {step === 3 && (
               <>
                 {appliedPromo && promoDiscountAmount > 0 ? (
