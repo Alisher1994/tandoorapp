@@ -6478,7 +6478,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     {(
                       <>
                         <Form.Label className="small mb-1 text-muted d-inline-flex align-items-center gap-1">
-                          <span aria-hidden="true">🎟️</span>
+                          <span aria-hidden="true">🎁</span>
                           {language === 'uz' ? 'Promokod' : 'Промокод'}
                         </Form.Label>
                         <div className="d-flex gap-2 mb-3">
@@ -6581,7 +6581,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       {storefrontEffectivePromoDiscount > 0 && (
                         <div className="d-flex justify-content-between mb-1">
                           <span className="text-muted d-inline-flex align-items-center gap-1">
-                            <span aria-hidden="true">🎟️</span>{language === 'uz' ? 'Promokod' : 'Промокод'}
+                            <span aria-hidden="true">🎁</span>{language === 'uz' ? 'Promokod' : 'Промокод'}
                           </span>
                           <span className="fw-semibold text-success">−{storefrontEffectivePromoDiscount.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
                         </div>

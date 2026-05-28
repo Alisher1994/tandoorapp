@@ -229,7 +229,7 @@ function OrderReceipt({ order, items, onClose, restaurantLogo, restaurantName, c
                 )}
                 {promoDiscount > 0 && (
                   <div style={{ ...rowStyle, color: '#9c4221', fontWeight: 600 }}>
-                    <span>🎟 Промокод{promoCode ? ` ${promoCode}` : ''}</span>
+                    <span>🎁 Промокод{promoCode ? ` ${promoCode}` : ''}</span>
                     <span>−{formatPrice(promoDiscount)} {t('sum')}</span>
                   </div>
                 )}
