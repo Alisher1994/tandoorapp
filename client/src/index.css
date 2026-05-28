@@ -907,14 +907,14 @@ h6 {
   }
 }
 
-/* Анимированный логотип магазина — заменяет скелетоны на витрине */
+/* Анимированный логотип магазина — заменяет скелетоны на витрине. Без кольца, только пульсация. */
 @keyframes storefront-loader-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50%       { transform: scale(0.94); opacity: 0.78; }
+  0%, 100% { transform: scale(0.92); }
+  50%      { transform: scale(1.08); }
 }
-@keyframes storefront-loader-ring {
-  0%   { transform: rotate(0deg);   opacity: 0.85; }
-  100% { transform: rotate(360deg); opacity: 0.85; }
+@keyframes storefront-loader-dot {
+  0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
+  40%           { opacity: 1;   transform: translateY(-3px); }
 }
 .storefront-loader-fullscreen {
   position: fixed;
@@ -933,31 +933,11 @@ h6 {
   justify-content: center;
   padding: 56px 16px;
 }
-.storefront-loader-wrap {
-  position: relative;
-  width: 110px;
-  height: 110px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.storefront-loader-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 3px solid transparent;
-  border-top-color: var(--primary-color, #2563eb);
-  border-right-color: var(--primary-color, #2563eb);
-  animation: storefront-loader-ring 1.05s linear infinite;
-}
 .storefront-loader-logo {
-  width: 72px;
-  height: 72px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
-  border-radius: 16px;
-  background: #ffffff;
-  padding: 8px;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  display: block;
   animation: storefront-loader-pulse 1.4s ease-in-out infinite;
 }
 .storefront-loader-label {
@@ -965,7 +945,20 @@ h6 {
   color: #64748b;
   font-size: 0.95rem;
   font-weight: 500;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
 }
+.storefront-loader-dots {
+  display: inline-flex;
+  margin-left: 2px;
+}
+.storefront-loader-dots span {
+  display: inline-block;
+  animation: storefront-loader-dot 1.2s ease-in-out infinite;
+}
+.storefront-loader-dots span:nth-child(2) { animation-delay: 0.15s; }
+.storefront-loader-dots span:nth-child(3) { animation-delay: 0.30s; }
 
 /* Инлайн-кнопки управления (на мобиле скрыты, видны только на ПК) */
 .product-details-inline-actions { display: none; }
