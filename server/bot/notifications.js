@@ -1565,6 +1565,57 @@ async function sendBalanceNotification(telegramId, amount, currentBalance, botTo
   }
 }
 
+// Перманентный отказ от Telegram (бот выгнан, чат удалён, токен отозван) — отчёты
+// в эту группу слать больше нет смысла, нужно автоматически выключить флаги.
+function isPermanentTelegramGroupFailure(error) {
+  if (!error) return false;
+  const status = Number(
+    error?.response?.statusCode
+    || error?.response?.body?.error_code
+    || error?.response?.data?.error_code
+    || error?.code
+  );
+  const description = String(
+    error?.response?.body?.description
+    || error?.response?.data?.description
+    || error?.message
+    || ''
+  ).toLowerCase();
+
+  // 401 — токен неактивен; 403 — бот выгнан/заблокирован; 404 — чат/бот не найден.
+  if (status === 401 || status === 403 || status === 404) return true;
+  // 400 «chat not found» — группа удалена или ID невалиден.
+  if (status === 400 && description.includes('chat not found')) return true;
+  if (description.includes('bot was kicked')) return true;
+  if (description.includes('bot is not a member')) return true;
+  if (description.includes('chat not found')) return true;
+  if (description.includes('user is deactivated')) return true;
+  if (description.includes('unauthorized')) return true;
+  return false;
+}
+
+// Выключить флаги отчётов магазину, чьи группа/бот недостижимы.
+// Возвращает обновлённое имя поля (или null), чтобы вызывающий код мог залогировать.
+async function disableRestaurantReportsOnPermanentFailure(restaurantId, reason = '') {
+  const rid = Number(restaurantId);
+  if (!Number.isFinite(rid) || rid <= 0) return null;
+  try {
+    await pool.query(
+      `UPDATE restaurants
+       SET send_balance_after_confirm = false,
+           send_daily_close_report = false,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [rid]
+    );
+    console.warn(`[telegram] auto-disabled reports for restaurant ${rid}: ${reason || 'permanent bot/group failure'}`);
+    return 'disabled';
+  } catch (e) {
+    console.error('Auto-disable reports error:', e.message);
+    return null;
+  }
+}
+
 async function sendRestaurantGroupBalanceLeft({
   restaurantId = null,
   botToken = null,
@@ -1585,6 +1636,9 @@ async function sendRestaurantGroupBalanceLeft({
     return true;
   } catch (error) {
     console.error('Send group balance-left notification error:', error.message);
+    if (isPermanentTelegramGroupFailure(error)) {
+      await disableRestaurantReportsOnPermanentFailure(restaurantId, `balance-left: ${error.message}`);
+    }
     return false;
   }
 }
@@ -1644,6 +1698,8 @@ module.exports = {
   sendBalanceNotification,
   sendRestaurantGroupBalanceLeft,
   notifyRestaurantAdminsLowBalance,
+  isPermanentTelegramGroupFailure,
+  disableRestaurantReportsOnPermanentFailure,
   getRestaurantBot,
   buildGroupOrderNotificationPayload,
   buildGroupOrderActionKeyboard,

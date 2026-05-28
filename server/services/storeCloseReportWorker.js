@@ -1,5 +1,9 @@
 const pool = require('../database/connection');
-const { getRestaurantBot } = require('../bot/notifications');
+const {
+  getRestaurantBot,
+  isPermanentTelegramGroupFailure,
+  disableRestaurantReportsOnPermanentFailure
+} = require('../bot/notifications');
 
 const REPORT_TIMEZONE = process.env.RESTAURANT_TIMEZONE || 'Asia/Tashkent';
 const CLOSE_REPORT_WINDOW_MINUTES = Number(process.env.CLOSE_REPORT_WINDOW_MINUTES || 120);
@@ -217,6 +221,9 @@ async function processStoreCloseReports() {
         );
       } catch (sendError) {
         console.error(`Store close report send error (restaurant ${restaurant.id}):`, sendError.message);
+        if (isPermanentTelegramGroupFailure(sendError)) {
+          await disableRestaurantReportsOnPermanentFailure(restaurant.id, `close-report: ${sendError.message}`);
+        }
       }
     }
   } catch (error) {

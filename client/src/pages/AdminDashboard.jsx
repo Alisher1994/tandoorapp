@@ -848,6 +848,7 @@ const buildRestaurantSettingsSignature = (settings) => {
     delivery_pricing_mode: normalizeDeliveryPricingMode(settings.delivery_pricing_mode, 'dynamic'),
     delivery_fixed_price: normalizeSettingsNumber(settings.delivery_fixed_price, 0),
     is_delivery_enabled: normalizeSettingsBoolean(settings.is_delivery_enabled, true),
+    is_pickup_enabled: normalizeSettingsBoolean(settings.is_pickup_enabled, true),
     delivery_zone: sortObjectKeysDeep(settings.delivery_zone || null),
     minimum_order_amount: normalizeSettingsNumber(settings.minimum_order_amount, 0),
     inventory_tracking_enabled: normalizeSettingsBoolean(settings.inventory_tracking_enabled, false),
@@ -5660,6 +5661,7 @@ function AdminDashboard() {
         ...(response.data || {}),
         cash_enabled: response.data?.cash_enabled === false ? false : true,
         is_delivery_enabled: response.data?.is_delivery_enabled === false ? false : true,
+        is_pickup_enabled: response.data?.is_pickup_enabled === false ? false : true,
         currency_code: response.data?.currency_code || 'uz',
         logo_display_mode: (response.data?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(response.data?.ui_theme, 'classic'),
@@ -5719,6 +5721,7 @@ function AdminDashboard() {
         ...savedSettings,
         cash_enabled: savedSettings?.cash_enabled === false ? false : (restaurantSettings?.cash_enabled !== false),
         is_delivery_enabled: savedSettings?.is_delivery_enabled === false ? false : (restaurantSettings?.is_delivery_enabled !== false),
+        is_pickup_enabled: savedSettings?.is_pickup_enabled === false ? false : (restaurantSettings?.is_pickup_enabled !== false),
         is_scheduled_date_delivery_enabled: savedSettings?.is_scheduled_date_delivery_enabled === true || savedSettings?.is_scheduled_date_delivery_enabled === 'true' || false,
         scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(savedSettings?.scheduled_delivery_max_days || restaurantSettings?.scheduled_delivery_max_days || 7))),
         is_asap_delivery_enabled: savedSettings?.is_asap_delivery_enabled !== false,
@@ -13877,12 +13880,10 @@ function AdminDashboard() {
                                             return (
                                               <div className="admin-general-qr-link-row">
                                                 <span className="small text-muted d-inline-flex align-items-center gap-1">
-                                                  <img
-                                                    src="/talablar.svg"
-                                                    alt="Talablar"
-                                                    width="14"
-                                                    height="14"
-                                                    style={{ display: 'inline-block' }}
+                                                  <i
+                                                    className="bi bi-globe2"
+                                                    aria-hidden="true"
+                                                    style={{ fontSize: '14px', lineHeight: 1, color: '#0ea5e9', display: 'inline-block' }}
                                                   />
                                                   Сайт магазина:
                                                 </span>
@@ -15586,10 +15587,20 @@ function AdminDashboard() {
                                 <Form.Check
                                   type="switch"
                                   label="Включить собственную доставку"
-                                  className="fw-bold mb-4"
+                                  className="fw-bold mb-2"
                                   checked={restaurantSettings.is_delivery_enabled}
                                   onChange={e => setRestaurantSettings({ ...restaurantSettings, is_delivery_enabled: e.target.checked })}
                                 />
+                                <Form.Check
+                                  type="switch"
+                                  label="Разрешить самовывоз"
+                                  className="fw-bold mb-4"
+                                  checked={restaurantSettings.is_pickup_enabled}
+                                  onChange={e => setRestaurantSettings({ ...restaurantSettings, is_pickup_enabled: e.target.checked })}
+                                />
+                                <div className="small text-muted mb-4" style={{ marginTop: -8 }}>
+                                  Если самовывоз выключен, на витрине показывается только режим доставки и кнопки выбора скрываются.
+                                </div>
                               </Col>
 
                               <Col md={12}>

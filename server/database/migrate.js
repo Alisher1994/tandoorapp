@@ -106,6 +106,7 @@ async function migrate() {
       `delivery_pricing_mode VARCHAR(16) DEFAULT 'dynamic'`,
       'delivery_fixed_price DECIMAL(10, 2) DEFAULT 0',
       'is_delivery_enabled BOOLEAN DEFAULT true',
+      'is_pickup_enabled BOOLEAN DEFAULT true',
       'size_variants_enabled BOOLEAN DEFAULT false',
       `currency_code VARCHAR(8) DEFAULT 'uz'`,
       'balance DECIMAL(12, 2) DEFAULT 100000.00',

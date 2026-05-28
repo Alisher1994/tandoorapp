@@ -339,6 +339,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [storefrontDeliveryOutOfZone, setStorefrontDeliveryOutOfZone] = useState(false);
   const storefrontServiceFee = Number(publicRestaurantMeta?.service_fee) || 0;
   const storefrontIsDeliveryEnabled = publicRestaurantMeta?.is_delivery_enabled !== false;
+  const storefrontIsPickupEnabled = publicRestaurantMeta?.is_pickup_enabled !== false;
+  // Магазин запретил самовывоз — насильно держим режим доставки, иначе будет недостижимое состояние.
+  useEffect(() => {
+    if (!isPublicStorefront) return;
+    if (storefrontIsPickupEnabled) return;
+    if (storefrontOrderForm.fulfillment_type === 'pickup') {
+      setStorefrontOrderForm((prev) => ({ ...prev, fulfillment_type: 'delivery' }));
+    }
+  }, [isPublicStorefront, storefrontIsPickupEnabled, storefrontOrderForm.fulfillment_type]);
   const storefrontEffectiveDeliveryCost = storefrontOrderForm.fulfillment_type === 'pickup' ? 0 : storefrontDeliveryCost;
   const storefrontEffectivePromoDiscount = storefrontPromoState.status === 'valid' ? Number(storefrontPromoState.discount) || 0 : 0;
   const storefrontFinalTotal = Math.max(0, Number(cartTotal || 0) + storefrontServiceFee + storefrontEffectiveDeliveryCost - storefrontEffectivePromoDiscount);
@@ -6257,24 +6266,28 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                 {/* Шаг 2: тип заказа + адрес + детали */}
                 {storefrontStep === 2 && (
                   <>
-                    {/* Тип заказа: Доставка / Самовывоз */}
-                    <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Buyurtma turi' : 'Тип заказа'}</Form.Label>
-                    <div className="d-flex gap-2 mb-3">
-                      <Button
-                        variant={storefrontOrderForm.fulfillment_type === 'delivery' ? 'primary' : 'outline-secondary'}
-                        style={{ flex: 1 }}
-                        onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, fulfillment_type: 'delivery' }))}
-                      >
-                        🛵 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
-                      </Button>
-                      <Button
-                        variant={storefrontOrderForm.fulfillment_type === 'pickup' ? 'primary' : 'outline-secondary'}
-                        style={{ flex: 1 }}
-                        onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, fulfillment_type: 'pickup' }))}
-                      >
-                        🚶 {language === 'uz' ? 'Olib ketish' : 'Самовывоз'}
-                      </Button>
-                    </div>
+                    {/* Тип заказа: Доставка / Самовывоз — кнопки прячем, если магазин не разрешил самовывоз */}
+                    {storefrontIsPickupEnabled && (
+                      <>
+                        <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Buyurtma turi' : 'Тип заказа'}</Form.Label>
+                        <div className="d-flex gap-2 mb-3">
+                          <Button
+                            variant={storefrontOrderForm.fulfillment_type === 'delivery' ? 'primary' : 'outline-secondary'}
+                            style={{ flex: 1 }}
+                            onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, fulfillment_type: 'delivery' }))}
+                          >
+                            🛵 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                          </Button>
+                          <Button
+                            variant={storefrontOrderForm.fulfillment_type === 'pickup' ? 'primary' : 'outline-secondary'}
+                            style={{ flex: 1 }}
+                            onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, fulfillment_type: 'pickup' }))}
+                          >
+                            🚶 {language === 'uz' ? 'Olib ketish' : 'Самовывоз'}
+                          </Button>
+                        </div>
+                      </>
+                    )}
 
                     {storefrontOrderForm.fulfillment_type === 'pickup' ? (
                       <div className="p-3 mb-2" style={{ background: '#f8fafc', borderRadius: 12 }}>

@@ -2036,7 +2036,7 @@ router.put('/restaurant', async (req, res) => {
       card_receipt_target, support_username,
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
       latitude, longitude, delivery_base_radius, delivery_base_price,
-      delivery_price_per_km, delivery_pricing_mode, delivery_fixed_price, is_delivery_enabled, delivery_zone,
+      delivery_price_per_km, delivery_pricing_mode, delivery_fixed_price, is_delivery_enabled, is_pickup_enabled, delivery_zone,
       msg_new, msg_preparing, msg_delivering, msg_delivered, msg_cancelled,
       logo_display_mode, ui_theme, ui_font_family, menu_view_mode, catalog_card_mode, payment_placeholders, currency_code,
       menu_liquid_glass_enabled, menu_height_lock_enabled, menu_liquid_glass_opacity, menu_liquid_glass_blur,
@@ -2331,6 +2331,24 @@ router.put('/restaurant', async (req, res) => {
       'UPDATE restaurants SET card_bank_account = $1 WHERE id = $2',
       [card_bank_account ? String(card_bank_account).trim() : null, Number(restaurantId)]
     ).catch(() => {});
+
+    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_pickup_enabled BOOLEAN DEFAULT true').catch(() => {});
+    const normalizedPickupEnabled = normalizeOptionalBoolean(is_pickup_enabled);
+    if (normalizedPickupEnabled !== null) {
+      const pickupResult = await pool.query(
+        `UPDATE restaurants
+         SET is_pickup_enabled = $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+         RETURNING is_pickup_enabled`,
+        [normalizedPickupEnabled, restaurantId]
+      );
+      if (pickupResult.rows[0]) {
+        result.rows[0].is_pickup_enabled = pickupResult.rows[0].is_pickup_enabled === true;
+      }
+    } else if (result.rows[0]) {
+      result.rows[0].is_pickup_enabled = result.rows[0].is_pickup_enabled !== false;
+    }
 
     if (normalizedOperatorDeliveryLaterEnabled !== null) {
       const deliveryLaterResult = await pool.query(
