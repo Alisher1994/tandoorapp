@@ -98,7 +98,7 @@ const UI_THEME_OPTIONS = [
   { value: 'violet_wave', label: 'Violet Wave (фиолетовый)', preview: ['#8b5cf6', '#6d28d9', '#22d3ee'] },
   { value: 'rainbow', label: 'Rainbow (радужный)', preview: ['#3b82f6', '#f97316', '#8b5cf6'] },
   { value: 'verdant_glass', label: 'Verdant Glass (стеклянный лес)', preview: ['#0d2e1c', '#1f6f4a', '#2dd4bf'] },
-  { value: 'golden_crust', label: 'Golden Crust (тёплый люкс)', preview: ['#1c1308', '#3a2615', '#e0962f'] }
+  { value: 'golden_crust', label: 'Golden Crust (тёплый люкс)', preview: ['#0f0c08', '#241810', '#e0962f'] }
 ];
 const UI_FONT_FAMILY_VALUES = new Set([
   'sans',
@@ -233,7 +233,7 @@ const APPEARANCE_PREVIEW_THEME_TOKENS = Object.freeze({
   violet_wave: { bgStart: '#f2ecff', bgEnd: '#f8f5ff', accent: '#6d28d9', accentSoft: '#ddd6fe' },
   rainbow: { bgStart: '#edf4ff', bgEnd: '#fff7ef', accent: '#2563eb', accentSoft: '#bfdbfe' },
   verdant_glass: { bgStart: '#0d2e1c', bgEnd: '#082417', accent: '#2dd4bf', accentSoft: 'rgba(45, 212, 191, 0.22)' },
-  golden_crust: { bgStart: '#1c1308', bgEnd: '#140d07', accent: '#e0962f', accentSoft: 'rgba(217, 138, 43, 0.22)' }
+  golden_crust: { bgStart: '#0f0c08', bgEnd: '#0a0805', accent: '#e0962f', accentSoft: 'rgba(217, 138, 43, 0.22)' }
 });
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
