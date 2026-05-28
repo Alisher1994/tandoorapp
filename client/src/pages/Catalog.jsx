@@ -4390,8 +4390,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
           )}
 
           <div className="d-flex align-items-center justify-content-end gap-2">
-            {/* Флаги RU/UZ — переключатель языка на публичной витрине */}
-            {isPublicStorefront && (
+            {/* Флаги RU/UZ — только на ПК; на мобиле скрыты чтобы шапка выглядела как WebApp */}
+            {isPublicStorefront && isDesktopViewport && (
               <div className="d-flex align-items-center gap-1" role="group" aria-label="Язык / Til">
                 {['ru', 'uz'].map((lang) => {
                   const active = (language === 'uz' ? 'uz' : 'ru') === lang;
@@ -4435,8 +4435,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                 })}
               </div>
             )}
-            {/* На публичной витрине показываем кнопку корзины с бейджем */}
-            {isPublicStorefront && (
+            {/* Иконка корзины в шапке витрины — только на ПК; на мобиле шапка как WebApp без неё (корзина видна через баннер «Итого сумма») */}
+            {isPublicStorefront && isDesktopViewport && (
               <button
                 type="button"
                 onClick={() => { setShowProductDetailsModal(false); setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setStorefrontStep(1); setShowStorefrontCartModal(true); }}
