@@ -294,6 +294,11 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [storefrontPromoState, setStorefrontPromoState] = useState({ status: 'idle', discount: 0, message: '' });
   const [storefrontPromoLoading, setStorefrontPromoLoading] = useState(false);
   const [storefrontGeolocating, setStorefrontGeolocating] = useState(false);
+  // Управление видимостью кнопки «Определить» и поля адреса.
+  // Изначально показываем только кнопку под картой; после определения — скрываем её и показываем поле.
+  // Если пользователь сдвинет маркер — кнопка снова появится, поле остаётся.
+  const [storefrontShowGpsButton, setStorefrontShowGpsButton] = useState(true);
+  const [storefrontShowAddressField, setStorefrontShowAddressField] = useState(false);
 
   // Спросить браузер о текущей геолокации и подставить в форму.
   const requestStorefrontGeolocation = useCallback(() => {
@@ -305,6 +310,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
         const lng = Number(pos?.coords?.longitude);
         if (Number.isFinite(lat) && Number.isFinite(lng)) {
           setStorefrontOrderForm((prev) => ({ ...prev, delivery_lat: lat, delivery_lng: lng }));
+          setStorefrontShowGpsButton(false);
+          setStorefrontShowAddressField(true);
         }
         setStorefrontGeolocating(false);
       },
@@ -6280,18 +6287,6 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     ) : (
                       <>
                         <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки'}</Form.Label>
-                        <Button
-                          variant="outline-secondary"
-                          size="sm"
-                          className="mb-2 d-inline-flex align-items-center gap-1"
-                          disabled={storefrontGeolocating}
-                          onClick={() => requestStorefrontGeolocation()}
-                        >
-                          <span aria-hidden="true">📍</span>
-                          {storefrontGeolocating
-                            ? (language === 'uz' ? 'Aniqlanmoqda...' : 'Определяем...')
-                            : (language === 'uz' ? 'Joriy joylashuvni aniqlash' : 'Определить местоположение')}
-                        </Button>
                         <div style={{ height: 240, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(71,85,105,0.18)', marginBottom: 10 }}>
                           <ClientLocationPicker
                             latitude={storefrontOrderForm.delivery_lat || 41.311081}
@@ -6301,6 +6296,9 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                               const nlng = Number(lng);
                               if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return;
                               setStorefrontOrderForm((prev) => ({ ...prev, delivery_lat: nlat, delivery_lng: nlng }));
+                              // Пользователь сдвинул маркер — снова даём возможность определить по GPS.
+                              setStorefrontShowGpsButton(true);
+                              setStorefrontShowAddressField(true);
                             }}
                             onAddressChange={(addressText, meta = {}) => {
                               const full = String(meta?.fullAddress || addressText || '').trim();
@@ -6310,16 +6308,31 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             }}
                           />
                         </div>
-                        <Form.Group className="mb-3">
-                          <Form.Control
-                            as="textarea"
-                            rows={2}
-                            placeholder={language === 'uz' ? 'Shahar, koʻcha' : 'Город, улица'}
-                            value={storefrontOrderForm.delivery_address}
-                            onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, delivery_address: e.target.value })}
-                            autoComplete="street-address"
-                          />
-                        </Form.Group>
+                        {storefrontShowGpsButton && (
+                          <Button
+                            variant="primary"
+                            className="w-100 mb-3 d-inline-flex align-items-center justify-content-center gap-2"
+                            disabled={storefrontGeolocating}
+                            onClick={() => requestStorefrontGeolocation()}
+                          >
+                            <span aria-hidden="true">📍</span>
+                            {storefrontGeolocating
+                              ? (language === 'uz' ? 'Aniqlanmoqda...' : 'Определяем...')
+                              : (language === 'uz' ? 'Joriy joylashuvni aniqlash' : 'Определить местоположение')}
+                          </Button>
+                        )}
+                        {storefrontShowAddressField && (
+                          <Form.Group className="mb-3">
+                            <Form.Control
+                              as="textarea"
+                              rows={2}
+                              placeholder={language === 'uz' ? 'Shahar, koʻcha' : 'Город, улица'}
+                              value={storefrontOrderForm.delivery_address}
+                              onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, delivery_address: e.target.value })}
+                              autoComplete="street-address"
+                            />
+                          </Form.Group>
+                        )}
 
                         {/* Детали адреса: Дом / Квартира / Домофон */}
                         <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Manzil tafsilotlari' : 'Детали адреса'}</Form.Label>
