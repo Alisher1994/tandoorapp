@@ -819,12 +819,12 @@
   --primary-light: #f0b65c;
   --accent-color: #fbbf24;
   --accent-soft: rgba(217, 138, 43, 0.22);
-  --background-color: #1c1308;
+  --background-color: #0f0c08;
   --app-shell-background:
-    radial-gradient(circle at 18% 8%, rgba(217, 138, 43, 0.18), transparent 48%),
-    radial-gradient(circle at 82% 22%, rgba(240, 182, 92, 0.14), transparent 48%),
-    radial-gradient(circle at 60% 90%, rgba(176, 111, 31, 0.16), transparent 52%),
-    linear-gradient(180deg, #1c1308 0%, #241a10 48%, #140d07 100%);
+    radial-gradient(circle at 18% 8%, rgba(217, 138, 43, 0.1), transparent 48%),
+    radial-gradient(circle at 82% 22%, rgba(240, 182, 92, 0.08), transparent 48%),
+    radial-gradient(circle at 60% 90%, rgba(176, 111, 31, 0.1), transparent 52%),
+    linear-gradient(180deg, #0f0c08 0%, #15110b 48%, #0a0805 100%);
   --surface-color: rgba(255, 255, 255, 0.06);
   --text-color: #f7efe3;
   --text-secondary: rgba(247, 239, 227, 0.72);
@@ -913,7 +913,7 @@
 /* Модалки витрины и WebApp рендерятся в портал (вне .client-surface/.client-content).
    Перекрашиваем их отдельно, чтобы текст/поля/кнопки совпадали с темой. */
 :root[data-ui-theme="golden_crust"] .modal-content {
-  background: linear-gradient(180deg, #241a10 0%, #140d07 100%);
+  background: linear-gradient(180deg, #15110b 0%, #0a0805 100%);
   color: #f7efe3;
   border: 1px solid rgba(255, 255, 255, 0.14);
   --bs-body-color: #f7efe3;
@@ -1028,7 +1028,7 @@
   color: #f7efe3 !important;
 }
 :root[data-ui-theme="golden_crust"] .client-content .cart-segmented-option.is-active {
-  background: rgba(217, 138, 43, 0.18) !important;
+  background: rgba(217, 138, 43, 0.1) !important;
   border-color: rgba(245, 196, 81, 0.45) !important;
   color: #f5c451 !important;
 }
@@ -1189,7 +1189,7 @@
 :root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen .modal-content,
 :root[data-ui-theme="golden_crust"] .product-details-modal-body,
 :root[data-ui-theme="golden_crust"] .product-details-scroll {
-  background: linear-gradient(180deg, #241a10 0%, #140d07 100%) !important;
+  background: linear-gradient(180deg, #15110b 0%, #0a0805 100%) !important;
   color: #f7efe3 !important;
   border-color: rgba(255, 255, 255, 0.14) !important;
 }
@@ -1223,7 +1223,7 @@
   color: #f7efe3 !important;
 }
 :root[data-ui-theme="golden_crust"] .product-details-variants-scroll button[style*="rgba(22,163,74,0.14)"] {
-  background: rgba(217, 138, 43, 0.18) !important;
+  background: rgba(217, 138, 43, 0.1) !important;
   border: 2px solid #f5c451 !important;
   color: #f5c451 !important;
 }
@@ -1232,12 +1232,12 @@
    Делаем фон НЕПРОЗРАЧНЫМ тёмно-зелёным: светлый текст темы читается, и лист
    перекрывает sticky-фото при прокрутке (прозрачный фон пропускал картинку). */
 :root[data-ui-theme="golden_crust"] .product-details-sheet {
-  background: #251a0e !important;
+  background: #14100b !important;
   box-shadow: none !important;
 }
 /* Нижняя плашка с CTA (webapp/мобайл) — светлый градиент #f3f4f6 → тёмно-зелёный. */
 :root[data-ui-theme="golden_crust"] .product-details-bottom-bar {
-  background: linear-gradient(180deg, rgba(20, 13, 7, 0), rgba(20, 13, 7, 0.95) 26%, #140d07 62%) !important;
+  background: linear-gradient(180deg, rgba(10, 8, 5, 0), rgba(10, 8, 5, 0.95) 26%, #0a0805 62%) !important;
 }
 /* Метрика недели — стеклянная плашка вместо светло-синей, текст светлый. */
 :root[data-ui-theme="golden_crust"] .product-details-weekly-metric {
@@ -1290,18 +1290,18 @@
 
 /* Топбар каталога — полупрозрачное зелёное стекло поверх фона. */
 :root[data-ui-theme="golden_crust"] .client-surface .navbar {
-  background: rgba(28, 19, 8, 0.7) !important;
+  background: rgba(15, 12, 8, 0.7) !important;
   backdrop-filter: blur(18px) saturate(150%);
   -webkit-backdrop-filter: blur(18px) saturate(150%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 :root[data-ui-theme="golden_crust"] .client-topbar {
-  background: rgba(28, 19, 8, 0.7);
+  background: rgba(15, 12, 8, 0.7);
   border-bottom-color: rgba(255, 255, 255, 0.08);
   color: #f7efe3;
 }
 :root[data-ui-theme="golden_crust"] .client-bottom-nav {
-  background: rgba(28, 19, 8, 0.85);
+  background: rgba(15, 12, 8, 0.85);
   border-color: rgba(255, 255, 255, 0.08);
   color: #f7efe3;
   box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
@@ -1373,10 +1373,10 @@
 /* Превью в админке (вкладка «Оформление и стиль») — копируем стеклянный стиль так,
    чтобы оператор видел итог, а не светлую сетку. */
 [data-preview-theme="golden_crust"] .admin-appearance-live-preview-viewport {
-  background: linear-gradient(180deg, #1c1308 0%, #140d07 100%);
+  background: linear-gradient(180deg, #0f0c08 0%, #0a0805 100%);
 }
 [data-preview-theme="golden_crust"] .admin-appearance-live-preview-header {
-  background: rgba(28, 19, 8, 0.82);
+  background: rgba(15, 12, 8, 0.82);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
@@ -1413,12 +1413,12 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
 }
 [data-preview-theme="golden_crust"] .admin-appearance-live-product-heart {
-  background: rgba(28, 19, 8, 0.7);
+  background: rgba(15, 12, 8, 0.7);
   color: #f7efe3;
   border-color: rgba(255, 255, 255, 0.2);
 }
 [data-preview-theme="golden_crust"] .admin-appearance-live-preview-nav {
-  background: rgba(28, 19, 8, 0.78);
+  background: rgba(15, 12, 8, 0.78);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   border-color: rgba(255, 255, 255, 0.1);
@@ -1427,7 +1427,7 @@
   color: rgba(247, 239, 227, 0.7);
 }
 [data-preview-theme="golden_crust"] .admin-appearance-live-preview-nav-item.is-active {
-  background: rgba(217, 138, 43, 0.18);
+  background: rgba(217, 138, 43, 0.1);
   color: #f5c451;
 }
 [data-preview-theme="golden_crust"] .admin-appearance-live-detail-title,
