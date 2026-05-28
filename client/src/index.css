@@ -1358,15 +1358,36 @@ h6 {
   font-weight: 700;
 }
 
-.product-details-bottom-cta {
+/* Кнопка «В корзину»: React-Bootstrap <Button> добавляет .btn-primary, чей
+   --bs-btn-bg перебивал наш фон. Поднимаем специфичность и берём цвет темы. */
+.product-details-bottom-cta,
+.product-details-bottom-cta.btn,
+.product-details-bottom-cta.btn-primary {
   flex: 1 1 auto;
   min-height: 46px;
   border-radius: 999px;
-  border: 1px solid var(--primary-color);
-  background: var(--primary-color);
-  color: #fff;
+  border: 1px solid var(--primary-color) !important;
+  background: var(--primary-color) !important;
+  color: #fff !important;
   font-size: 1.03rem;
   font-weight: 700;
+}
+.product-details-bottom-cta.btn-primary:hover,
+.product-details-bottom-cta.btn-primary:focus,
+.product-details-bottom-cta.btn-primary:active,
+.product-details-bottom-cta.btn:hover,
+.product-details-bottom-cta.btn:focus,
+.product-details-bottom-cta.btn:active {
+  background: var(--primary-dark, var(--primary-color)) !important;
+  border-color: var(--primary-dark, var(--primary-color)) !important;
+  color: #fff !important;
+}
+.product-details-bottom-cta.btn:disabled,
+.product-details-bottom-cta.btn.disabled {
+  background: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+  color: #fff !important;
+  opacity: 0.55;
 }
 
 .product-gallery-modal.modal {
@@ -1622,6 +1643,10 @@ h6 {
   .product-details-scroll {
     padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
   }
+  /* Отзывы вынесены из листа отдельной секцией — сохраняем боковые отступы. */
+  .product-details-reviews-section {
+    padding: 0 14px;
+  }
 }
 
 /* Стрелки листания фото на главном изображении */
@@ -1701,7 +1726,8 @@ h6 {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "hero info"
-      "related related";
+      "related related"
+      "reviews reviews";
     column-gap: 36px;
     row-gap: 24px;
     padding: 24px 32px 16px;
@@ -1733,6 +1759,7 @@ h6 {
   }
   .product-details-block { box-shadow: none !important; }
   .product-details-related-section { grid-area: related; }
+  .product-details-reviews-section { grid-area: reviews; }
 
   /* Инлайн «В корзину»/кол-во сразу после цены */
   .product-details-inline-actions {

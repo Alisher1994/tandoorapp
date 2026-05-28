@@ -180,6 +180,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [productReviewComment, setProductReviewComment] = useState('');
   const [productReviewSubmitting, setProductReviewSubmitting] = useState(false);
   const [showProductReviewComposer, setShowProductReviewComposer] = useState(false);
+  const [showAllProductReviews, setShowAllProductReviews] = useState(false);
   const [productReviewPermissions, setProductReviewPermissions] = useState({
     is_authenticated: false,
     has_successful_order: false,
@@ -3543,6 +3544,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     setProductReviewsAverage(0);
     setProductReviewsHasMore(false);
     setShowProductReviewComposer(false);
+    setShowAllProductReviews(false);
     setProductReviewPermissions({
       is_authenticated: false,
       has_successful_order: false,
@@ -5681,6 +5683,71 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     </div>
                   </div>
 
+                </section>
+
+                {/* Похожие товары — отдельной секцией снизу, на ПК растягиваются на 2 колонки */}
+                {relatedProducts.length > 0 && (
+                  <section className="product-details-related-section">
+                    <div className="product-details-block">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <div className="fw-semibold">{language === 'uz' ? "O'xshash mahsulotlar" : 'Похожие товары'}</div>
+                        <small className="text-muted">{relatedProducts.length}/15</small>
+                      </div>
+                      <div className="product-details-related-scroll">
+                        {relatedProducts.slice(0, 15).map((item) => {
+                          const relatedName = getProductName(item);
+                          const relatedImageUrl = getProductCardImage(item, getSelectedVariantForProduct(item));
+                          const relatedPriceMeta = getSelectedVariantPriceMeta(item, getSelectedVariantForProduct(item));
+                          return (
+                            <button
+                              key={`related-${item.id}`}
+                              type="button"
+                              onClick={() => openProductDetailsModal(item)}
+                              className="product-details-related-card"
+                            >
+                              {relatedImageUrl ? (
+                                <img
+                                  src={relatedImageUrl}
+                                  alt={relatedName}
+                                  style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }}
+                                />
+                              ) : (
+                                renderStoreLogoFallback({
+                                  wrapperStyle: { width: '100%', aspectRatio: '4 / 3', background: '#f8fafc' },
+                                  imageStyle: { width: '46%', maxHeight: '46%' }
+                                })
+                              )}
+                              <div style={{ padding: '8px 9px 9px' }}>
+                                <div
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    lineHeight: 1.2,
+                                    color: '#0f172a',
+                                    fontWeight: 600,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    minHeight: 34
+                                  }}
+                                >
+                                  {relatedName}
+                                </div>
+                                <div style={{ marginTop: 6, fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-color, #0f766e)' }}>
+                                  {formatPrice(relatedPriceMeta.currentPrice)} {t('sum')}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* Отзывы и комментарии — внизу: список может быть длинным, поэтому
+                    показываем 3, остальное — по кнопке «Показать ещё». */}
+                <section className="product-details-reviews-section">
                   <div className="product-details-block">
                     <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
                       <div className="fw-semibold">{language === 'uz' ? 'Baholar va kommentlar' : 'Оценки и комментарии'}</div>
@@ -5698,7 +5765,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       </div>
                     ) : (
                       <div className="d-flex flex-column gap-2">
-                        {productReviews.map((review) => (
+                        {(showAllProductReviews ? productReviews : productReviews.slice(0, 3)).map((review) => (
                           <div key={review.id} className="product-details-review-item">
                             <div className="d-flex justify-content-between align-items-center gap-2">
                               <strong style={{ fontSize: '0.9rem' }}>{review.author_name || (language === 'uz' ? 'Mijoz' : 'Клиент')}</strong>
@@ -5713,7 +5780,18 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       </div>
                     )}
 
-                    {productReviewsHasMore && (
+                    {!showAllProductReviews && (productReviews.length > 3 || productReviewsHasMore) ? (
+                      <div className="mt-2">
+                        <Button
+                          type="button"
+                          variant="outline-secondary"
+                          size="sm"
+                          onClick={() => { setShowAllProductReviews(true); if (productReviewsHasMore) loadMoreProductReviews(); }}
+                        >
+                          {language === 'uz' ? "Ko'proq ko'rsatish" : 'Показать ещё'}
+                        </Button>
+                      </div>
+                    ) : (showAllProductReviews && productReviewsHasMore) ? (
                       <div className="mt-2">
                         <Button
                           type="button"
@@ -5727,9 +5805,11 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             : (language === 'uz' ? "Yana ko'rsatish" : 'Ещё')}
                         </Button>
                       </div>
-                    )}
+                    ) : null}
 
-                    <hr className="my-3" />
+                    {(productReviewPermissions.can_review || !productReviewPermissions.is_authenticated) && (
+                      <hr className="my-3" />
+                    )}
 
                     {productReviewPermissions.can_review ? (
                       !showProductReviewComposer ? (
@@ -5801,79 +5881,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                           </div>
                         </>
                       )
-                    ) : (
+                    ) : !productReviewPermissions.is_authenticated ? (
                       <div className="small text-muted">
-                        {productReviewPermissions.is_authenticated
-                          ? (language === 'uz'
-                            ? "Komment va baho faqat muvaffaqiyatli yetkazilgan buyurtmadan keyin ochiladi."
-                            : 'Оценка и комментарий доступны только после успешно доставленного заказа.')
-                          : (language === 'uz'
-                            ? "Komment qoldirish uchun tizimga kiring."
-                            : 'Войдите в аккаунт, чтобы оставить комментарий.')}
+                        {language === 'uz'
+                          ? "Komment qoldirish uchun tizimga kiring."
+                          : 'Войдите в аккаунт, чтобы оставить комментарий.'}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </section>
-
-                {/* Похожие товары — отдельной секцией снизу, на ПК растягиваются на 2 колонки */}
-                {relatedProducts.length > 0 && (
-                  <section className="product-details-related-section">
-                    <div className="product-details-block">
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <div className="fw-semibold">{language === 'uz' ? "O'xshash mahsulotlar" : 'Похожие товары'}</div>
-                        <small className="text-muted">{relatedProducts.length}/15</small>
-                      </div>
-                      <div className="product-details-related-scroll">
-                        {relatedProducts.slice(0, 15).map((item) => {
-                          const relatedName = getProductName(item);
-                          const relatedImageUrl = getProductCardImage(item, getSelectedVariantForProduct(item));
-                          const relatedPriceMeta = getSelectedVariantPriceMeta(item, getSelectedVariantForProduct(item));
-                          return (
-                            <button
-                              key={`related-${item.id}`}
-                              type="button"
-                              onClick={() => openProductDetailsModal(item)}
-                              className="product-details-related-card"
-                            >
-                              {relatedImageUrl ? (
-                                <img
-                                  src={relatedImageUrl}
-                                  alt={relatedName}
-                                  style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }}
-                                />
-                              ) : (
-                                renderStoreLogoFallback({
-                                  wrapperStyle: { width: '100%', aspectRatio: '4 / 3', background: '#f8fafc' },
-                                  imageStyle: { width: '46%', maxHeight: '46%' }
-                                })
-                              )}
-                              <div style={{ padding: '8px 9px 9px' }}>
-                                <div
-                                  style={{
-                                    fontSize: '0.78rem',
-                                    lineHeight: 1.2,
-                                    color: '#0f172a',
-                                    fontWeight: 600,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                    minHeight: 34
-                                  }}
-                                >
-                                  {relatedName}
-                                </div>
-                                <div style={{ marginTop: 6, fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-color, #0f766e)' }}>
-                                  {formatPrice(relatedPriceMeta.currentPrice)} {t('sum')}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </section>
-                )}
               </div>
 
               <div className="product-details-bottom-bar">
