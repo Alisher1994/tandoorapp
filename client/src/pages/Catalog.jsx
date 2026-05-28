@@ -6444,9 +6444,9 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                           variant={storefrontOrderForm.payment_method === 'click' ? 'primary' : 'outline-secondary'}
                           style={{ flex: '1 1 30%', minWidth: 110, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                           onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, payment_method: 'click' }))}
+                          aria-label="Click"
                         >
-                          <img src="/click.png" alt="" height="18" style={{ display: 'block' }} />
-                          Click
+                          <img src="/click.png" alt="Click" height="20" style={{ display: 'block' }} />
                         </Button>
                       )}
                       {publicRestaurantMeta?.card_payment_enabled && (
