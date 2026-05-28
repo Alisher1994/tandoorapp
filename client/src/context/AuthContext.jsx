@@ -61,6 +61,21 @@ const applyUiTheme = (theme, fontFamily) => {
   document.documentElement.setAttribute('data-ui-font', normalizeUiFontFamily(fontFamily));
 };
 
+// На публичной витрине (talablar.app/<slug>) темой владеет StorefrontGate.
+// AuthContext не должен переписывать data-ui-theme/font, иначе тема магазина
+// сбрасывается на дефолт у гостей и у залогиненных под другим магазином.
+const TOP_LEVEL_APP_ROUTES = new Set([
+  '', 'login', 'catalog', 'cart', 'orders', 'feedback', 'favorites',
+  'reservations', 'admin', 'superadmin', 'showcase', 'webapp', 'api'
+]);
+const isOnPublicStorefrontRoute = () => {
+  if (typeof window === 'undefined') return false;
+  const pathname = window.location?.pathname || '/';
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length !== 1) return false;
+  return !TOP_LEVEL_APP_ROUTES.has(segments[0].toLowerCase());
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -186,6 +201,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    // На публичной витрине темой управляет StorefrontGate — не трогаем data-ui-theme.
+    if (isOnPublicStorefrontRoute()) return;
     const effectiveTheme = user?.role === 'superadmin'
       ? 'talablar_blue'
       : user?.active_restaurant_ui_theme;
