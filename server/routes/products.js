@@ -1010,7 +1010,33 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get restaurant by id (public - for receipt/logo)
+// Public: проверка промокода для гостевой корзины витрины (зеркало /orders/promo/validate без auth).
+router.post('/storefront-promo/validate', async (req, res) => {
+  try {
+    const { validatePromo } = require('../services/promoCodes');
+    const restaurantId = Number(req.body?.restaurant_id);
+    const code = String(req.body?.code || '').trim();
+    const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ valid: false, reason: 'BAD_RESTAURANT' });
+    }
+    if (!code) return res.status(400).json({ valid: false, reason: 'EMPTY' });
+    const flagResult = await pool.query(`SELECT promo_codes_enabled FROM restaurants WHERE id = $1`, [restaurantId]);
+    if (flagResult.rows[0]?.promo_codes_enabled !== true) {
+      return res.status(400).json({ valid: false, reason: 'DISABLED' });
+    }
+    const items = rawItems
+      .map((row) => ({ product_id: Number(row?.product_id) || null, total: Number(row?.total) || 0 }))
+      .filter((row) => row.total > 0);
+    const result = await validatePromo({ restaurantId, code, items });
+    if (!result.valid) return res.json({ valid: false, reason: result.reason });
+    return res.json({ valid: true, promo: result.promo, discount_amount: result.discountAmount, eligible_subtotal: result.eligibleSubtotal });
+  } catch (error) {
+    console.error('Storefront promo validate error:', error);
+    return res.status(500).json({ valid: false, reason: 'SERVER_ERROR' });
+  }
+});
+
 // Public: гостевое оформление заказа с витрины (без авторизации, без SMS).
 // Покупатель заполняет ФИО+телефон+адрес и кладёт корзину — заказ попадает в БД и в Telegram магазина.
 router.post('/storefront-orders', async (req, res) => {
@@ -1026,8 +1052,19 @@ router.post('/storefront-orders', async (req, res) => {
       delivery_cost: rawDeliveryCost,
       delivery_distance_km: rawDeliveryDistance,
       service_fee: rawServiceFee,
+      fulfillment_type: rawFulfillment,
+      delivery_time_type: rawDeliveryTimeType,
+      delivery_date: rawDeliveryDate,
+      payment_method: rawPaymentMethod,
+      promo_code: rawPromoCode,
       comment
     } = req.body || {};
+    const fulfillmentType = String(rawFulfillment || 'delivery').toLowerCase() === 'pickup' ? 'pickup' : 'delivery';
+    const deliveryTimeType = String(rawDeliveryTimeType || 'asap').toLowerCase() === 'scheduled' ? 'scheduled' : 'asap';
+    const deliveryDate = (deliveryTimeType === 'scheduled' && /^\d{4}-\d{2}-\d{2}$/.test(String(rawDeliveryDate || ''))) ? String(rawDeliveryDate) : null;
+    const paymentMethod = ['cash', 'card', 'click'].includes(String(rawPaymentMethod || '').toLowerCase())
+      ? String(rawPaymentMethod).toLowerCase() : 'cash';
+    const promoCodeClean = String(rawPromoCode || '').trim().slice(0, 64);
     const coordinatesClean = (() => {
       const raw = String(delivery_coordinates || '').trim();
       if (!raw) return null;
@@ -1054,7 +1091,10 @@ router.post('/storefront-orders', async (req, res) => {
     if (!phoneClean || phoneClean.replace(/\D/g, '').length < 7) {
       return res.status(400).json({ error: 'Введите корректный телефон' });
     }
-    if (!addressClean) return res.status(400).json({ error: 'Введите адрес доставки' });
+    // Самовывоз — адрес не обязателен.
+    if (fulfillmentType !== 'pickup' && !addressClean) {
+      return res.status(400).json({ error: 'Введите адрес доставки' });
+    }
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Корзина пуста' });
     }
@@ -1132,19 +1172,47 @@ router.post('/storefront-orders', async (req, res) => {
       return res.status(400).json({ error: 'Нет валидных товаров' });
     }
 
-    // Итоговая сумма заказа = товары+упаковка + сервисный сбор + доставка.
-    const grandTotal = totalAmount + serviceFeeFinal + deliveryCostFinal;
+    // Самовывоз: доставка не нужна.
+    const deliveryCostApplied = fulfillmentType === 'pickup' ? 0 : deliveryCostFinal;
+    const deliveryDistanceApplied = fulfillmentType === 'pickup' ? 0 : deliveryDistanceNum;
+    const coordinatesApplied = fulfillmentType === 'pickup' ? null : coordinatesClean;
+
+    // Валидируем промокод на сервере и применяем скидку.
+    let promoDiscount = 0;
+    let promoCodeApplied = null;
+    if (promoCodeClean) {
+      try {
+        const { validatePromo } = require('../services/promoCodes');
+        const promoItems = normalizedItems.map((it) => {
+          const containerUnits = it.container_norm > 0 ? Math.ceil(it.quantity / it.container_norm) : 0;
+          return { product_id: it.product_id, total: it.price * it.quantity + (it.container_price || 0) * containerUnits };
+        });
+        const promoResult = await validatePromo({ restaurantId, code: promoCodeClean, items: promoItems });
+        if (promoResult.valid) {
+          promoDiscount = Number.parseFloat(promoResult.discountAmount) || 0;
+          promoCodeApplied = promoCodeClean;
+        }
+      } catch (e) {
+        // не критично — заказ принимаем без скидки
+      }
+    }
+
+    // Итоговая сумма заказа = товары+упаковка + сервис + доставка − скидка.
+    const grandTotal = Math.max(0, totalAmount + serviceFeeFinal + deliveryCostApplied - promoDiscount);
     const orderNumber = String(Math.floor(10000 + Math.random() * 90000));
     const orderInsert = await client.query(
       `INSERT INTO orders
         (restaurant_id, user_id, order_number, total_amount, delivery_address, delivery_coordinates,
          customer_name, customer_phone, payment_method, payment_status, comment, status,
-         service_fee, delivery_cost, delivery_distance_km)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, 'cash', 'unpaid', $8, 'new', $9, $10, $11)
+         service_fee, delivery_cost, delivery_distance_km, delivery_date,
+         promo_code, promo_discount_amount)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 'unpaid', $9, 'new', $10, $11, $12, $13, $14, $15)
        RETURNING *`,
-      [restaurantId, orderNumber, grandTotal, addressClean, coordinatesClean, nameClean, phoneClean,
+      [restaurantId, orderNumber, grandTotal, addressClean, coordinatesApplied, nameClean, phoneClean,
+       paymentMethod,
        comment ? String(comment).slice(0, 1000) : null,
-       serviceFeeFinal, deliveryCostFinal, deliveryDistanceNum]
+       serviceFeeFinal, deliveryCostApplied, deliveryDistanceApplied, deliveryDate,
+       promoCodeApplied, promoDiscount]
     );
     const order = orderInsert.rows[0];
 
