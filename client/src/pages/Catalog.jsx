@@ -4212,7 +4212,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       return (
         <StorefrontLoader
           fullscreen
-          logoUrl={currentRestaurant?.logo_url || ''}
+          logoUrl={currentRestaurant?.logo_url || publicRestaurantMeta?.logo_url || ''}
           label={language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
         />
       );
@@ -4715,7 +4715,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
             {loading && (
               isPublicStorefront ? (
                 <StorefrontLoader
-                  logoUrl={currentRestaurant?.logo_url || ''}
+                  logoUrl={currentRestaurant?.logo_url || publicRestaurantMeta?.logo_url || ''}
                   label={language === 'uz' ? 'Mahsulotlar yuklanmoqda...' : 'Загрузка товаров...'}
                 />
               ) : (
