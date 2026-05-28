@@ -572,6 +572,36 @@
   color: #5eead4 !important;
 }
 
+/* Лист с описанием/ценой (.product-details-sheet) хардкодит светлый #f3f4f6.
+   Без переопределения светлый текст темы ложится на светлый фон и пропадает —
+   делаем фон прозрачным, чтобы проступал тёмно-зелёный .product-details-scroll. */
+:root[data-ui-theme="verdant_glass"] .product-details-sheet {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+/* Нижняя плашка с CTA (webapp/мобайл) — светлый градиент #f3f4f6 → тёмно-зелёный. */
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-bar {
+  background: linear-gradient(180deg, rgba(8, 36, 23, 0), rgba(8, 36, 23, 0.95) 26%, #082417 62%) !important;
+}
+/* Метрика недели — стеклянная плашка вместо светло-синей, текст светлый. */
+:root[data-ui-theme="verdant_glass"] .product-details-weekly-metric {
+  background: rgba(45, 212, 191, 0.12) !important;
+  border-color: rgba(94, 234, 212, 0.32) !important;
+  color: #d7fbf0 !important;
+}
+/* Скроллбар модалки на тёмно-зелёном фоне — берём яркую бирюзу для контраста. */
+:root[data-ui-theme="verdant_glass"] .product-details-scroll {
+  scrollbar-color: rgba(45, 212, 191, 0.7) transparent;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-scroll::-webkit-scrollbar-thumb {
+  background: rgba(45, 212, 191, 0.7);
+  background-clip: padding-box;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(94, 234, 212, 0.9);
+  background-clip: padding-box;
+}
+
 /* Иконка корзины в шапке витрины — белый stroke, как у аккаунта/поиска. */
 :root[data-ui-theme="verdant_glass"] .client-surface button[aria-label="Корзина"] svg,
 :root[data-ui-theme="verdant_glass"] .client-surface button[aria-label="Savat"] svg {
@@ -1537,12 +1567,18 @@ h6 {
 .product-details-inline-actions { display: none; }
 
 /* Кастомные скроллбары: тонкие, светлые, одинаковая толщина по обеим осям */
+/* Скроллбар модалки деталей — кастомный, в цвет выбранной темы (--primary-color).
+   Вертикальный (модалка на ПК) делаем чуть заметнее, горизонтальный (related) тоньше. */
 .product-details-scroll,
 .product-details-related-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  scrollbar-color: var(--primary-color, #94a3b8) transparent;
 }
-.product-details-scroll::-webkit-scrollbar,
+.product-details-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  display: block;
+}
 .product-details-related-scroll::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -1550,12 +1586,15 @@ h6 {
 }
 .product-details-scroll::-webkit-scrollbar-thumb,
 .product-details-related-scroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.35);
+  background: var(--primary-color, rgba(148, 163, 184, 0.5));
   border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 .product-details-scroll::-webkit-scrollbar-thumb:hover,
 .product-details-related-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.6);
+  background: var(--primary-dark, rgba(148, 163, 184, 0.75));
+  background-clip: padding-box;
 }
 .product-details-scroll::-webkit-scrollbar-track,
 .product-details-related-scroll::-webkit-scrollbar-track {
