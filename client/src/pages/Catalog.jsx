@@ -5957,11 +5957,13 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
         </Modal.Body>
       </Modal>
 
-      {/* Bottom navigation */}
-      {!isOperator() && <BottomNav />}
+      {/* Bottom navigation — скрываем на публичной витрине, иначе пункты ведут на /cart, /favorites
+         и т.д., которые защищены PrivateRoute и редиректят гостя на /login. Корзина у гостя доступна
+         через иконку в шапке. */}
+      {!isOperator() && !isPublicStorefront && <BottomNav />}
 
       {/* Spacer for bottom nav */}
-      {!isOperator() && <div style={{ height: '70px' }} />}
+      {!isOperator() && !isPublicStorefront && <div style={{ height: '70px' }} />}
 
       {/* Гостевое оформление заказа с публичной витрины (мастер 3 шага, как в WebApp) */}
       {isPublicStorefront && (
