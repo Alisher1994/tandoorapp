@@ -508,6 +508,31 @@
   color: #0f172a !important;
 }
 
+/* Кнопка «В корзину» в карточке: задаём бирюзу темы напрямую (как у остальных
+   .modal-content .btn-primary), не полагаясь на var(--primary-color). */
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-cta,
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn,
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn-primary {
+  --bs-btn-bg: #0d9488;
+  --bs-btn-border-color: #0d9488;
+  --bs-btn-hover-bg: #0f766e;
+  --bs-btn-hover-border-color: #0f766e;
+  --bs-btn-active-bg: #0f766e;
+  --bs-btn-active-border-color: #0f766e;
+  --bs-btn-disabled-bg: rgba(13, 148, 136, 0.55);
+  --bs-btn-disabled-border-color: rgba(13, 148, 136, 0.55);
+  background: #0d9488 !important;
+  border-color: #0d9488 !important;
+  color: #fff !important;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn:hover,
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn:focus,
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn:active {
+  background: #0f766e !important;
+  border-color: #0f766e !important;
+  color: #fff !important;
+}
+
 /* Pill-счётчик qty в storefront cart-modal (.bg-light.rounded-pill внутри портала). */
 :root[data-ui-theme="verdant_glass"] .modal-content .bg-light.rounded-pill {
   background-color: rgba(255, 255, 255, 0.92) !important;
@@ -1161,20 +1186,28 @@ h6 {
   overflow: hidden;
 }
 
-.product-details-modal-body {
+/* Bootstrap fullscreen вешает на .modal-body overflow-y:auto, из-за чего скролл
+   делили ДВА контейнера (modal-body и .product-details-scroll). Колесо доставалось
+   внутреннему, который почти не переполнялся, поэтому страница не прокручивалась —
+   двигать можно было только перетаскивая сам ползунок. Делаем .product-details-scroll
+   единственным скроллером: modal-body не скроллит, а у flex-ребёнка min-height:0. */
+.product-details-modal-fullscreen .product-details-modal-body {
   height: 100%;
   padding: 0 !important;
+  overflow: hidden !important;
 }
 
 .product-details-shell {
   position: relative;
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .product-details-scroll {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   -ms-overflow-style: none;
