@@ -1271,7 +1271,7 @@ router.get('/storefront-resolve/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Витрина не найдена' });
     }
     const result = await pool.query(
-      `SELECT id, name, COALESCE(is_active, true) AS is_active
+      `SELECT id, name, logo_url, ui_theme, ui_font_family, COALESCE(is_active, true) AS is_active
        FROM restaurants
        WHERE LOWER(slug) = $1
        LIMIT 1`,
@@ -1284,7 +1284,14 @@ router.get('/storefront-resolve/:slug', async (req, res) => {
     if (row.is_active === false) {
       return res.status(404).json({ error: 'Витрина недоступна' });
     }
-    return res.json({ restaurant_id: Number(row.id), name: row.name, slug: normalized });
+    return res.json({
+      restaurant_id: Number(row.id),
+      name: row.name,
+      slug: normalized,
+      logo_url: String(row.logo_url || ''),
+      ui_theme: String(row.ui_theme || 'classic').trim().toLowerCase(),
+      ui_font_family: String(row.ui_font_family || 'sans').trim().toLowerCase()
+    });
   } catch (error) {
     console.error('Storefront resolve error:', error);
     return res.status(500).json({ error: 'Ошибка поиска витрины' });
