@@ -4768,7 +4768,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                               <button
                                 type="button"
                                 onClick={() => openLevel2Category(level2Category.id)}
-                                className="w-100 border-0 p-0 text-start"
+                                className="w-100 border-0 p-0 text-start client-category-card"
                                 style={{
                                   borderRadius: '14px',
                                   overflow: categoryTitleOutsideImageForMenu ? 'visible' : 'hidden',

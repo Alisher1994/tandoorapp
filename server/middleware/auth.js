@@ -9,7 +9,8 @@ const UI_THEME_VALUES = new Set([
   'sunset_pop',
   'berry_blast',
   'violet_wave',
-  'rainbow'
+  'rainbow',
+  'verdant_glass'
 ]);
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
