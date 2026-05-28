@@ -278,10 +278,20 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     customer_name: '',
     customer_phone: '',
     delivery_address: '',
+    address_house: '',
+    address_apartment: '',
+    address_doorcode: '',
     comment: '',
     delivery_lat: null,
-    delivery_lng: null
+    delivery_lng: null,
+    fulfillment_type: 'delivery', // 'delivery' | 'pickup'
+    delivery_time_type: 'asap',   // 'asap' | 'scheduled'
+    delivery_date: '',
+    payment_method: 'cash',       // 'cash' | 'card' | 'click'
+    promo_code: ''
   });
+  const [storefrontPromoState, setStorefrontPromoState] = useState({ status: 'idle', discount: 0, message: '' });
+  const [storefrontPromoLoading, setStorefrontPromoLoading] = useState(false);
   const [storefrontOrderSubmitting, setStorefrontOrderSubmitting] = useState(false);
   const [storefrontOrderError, setStorefrontOrderError] = useState('');
   const [storefrontOrderSuccess, setStorefrontOrderSuccess] = useState(''); // order_number
@@ -292,7 +302,9 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [storefrontDeliveryOutOfZone, setStorefrontDeliveryOutOfZone] = useState(false);
   const storefrontServiceFee = Number(publicRestaurantMeta?.service_fee) || 0;
   const storefrontIsDeliveryEnabled = publicRestaurantMeta?.is_delivery_enabled !== false;
-  const storefrontFinalTotal = Math.max(0, Number(cartTotal || 0) + storefrontServiceFee + storefrontDeliveryCost);
+  const storefrontEffectiveDeliveryCost = storefrontOrderForm.fulfillment_type === 'pickup' ? 0 : storefrontDeliveryCost;
+  const storefrontEffectivePromoDiscount = storefrontPromoState.status === 'valid' ? Number(storefrontPromoState.discount) || 0 : 0;
+  const storefrontFinalTotal = Math.max(0, Number(cartTotal || 0) + storefrontServiceFee + storefrontEffectiveDeliveryCost - storefrontEffectivePromoDiscount);
 
   // Рассчитываем стоимость доставки при смене координат на карте.
   useEffect(() => {
@@ -335,10 +347,19 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     }
     const name = String(storefrontOrderForm.customer_name || '').trim();
     const phone = String(storefrontOrderForm.customer_phone || '').trim();
-    const address = String(storefrontOrderForm.delivery_address || '').trim();
+    const fulfillment = storefrontOrderForm.fulfillment_type === 'pickup' ? 'pickup' : 'delivery';
+    const baseAddress = String(storefrontOrderForm.delivery_address || '').trim();
+    const extras = [
+      storefrontOrderForm.address_house && `дом ${storefrontOrderForm.address_house}`,
+      storefrontOrderForm.address_apartment && `кв. ${storefrontOrderForm.address_apartment}`,
+      storefrontOrderForm.address_doorcode && `домофон ${storefrontOrderForm.address_doorcode}`
+    ].filter(Boolean).join(', ');
+    const address = fulfillment === 'pickup'
+      ? ''
+      : (extras ? `${baseAddress}${baseAddress ? ', ' : ''}${extras}` : baseAddress);
     if (!name) { setStorefrontOrderError('Введите ФИО'); return; }
     if (!phone || phone.replace(/\D/g, '').length < 7) { setStorefrontOrderError('Введите корректный телефон'); return; }
-    if (!address) { setStorefrontOrderError('Введите адрес доставки'); return; }
+    if (fulfillment !== 'pickup' && !baseAddress) { setStorefrontOrderError('Введите адрес доставки'); return; }
 
     setStorefrontOrderSubmitting(true);
     setStorefrontOrderError('');
@@ -357,10 +378,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
         customer_name: name,
         customer_phone: phone,
         delivery_address: address,
-        delivery_coordinates: coordinates,
-        delivery_cost: storefrontDeliveryCost,
+        delivery_coordinates: fulfillment === 'pickup' ? null : coordinates,
+        delivery_cost: storefrontEffectiveDeliveryCost,
         delivery_distance_km: storefrontDeliveryDistance,
         service_fee: storefrontServiceFee,
+        fulfillment_type: fulfillment,
+        delivery_time_type: storefrontOrderForm.delivery_time_type,
+        delivery_date: storefrontOrderForm.delivery_time_type === 'scheduled' ? storefrontOrderForm.delivery_date : null,
+        payment_method: storefrontOrderForm.payment_method,
+        promo_code: storefrontPromoState.status === 'valid' ? storefrontOrderForm.promo_code : '',
         comment: String(storefrontOrderForm.comment || '').trim() || undefined
       });
       const orderNumber = String(response?.data?.order_number || '');
@@ -6057,33 +6083,66 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         })}
                       </div>
 
+                      {/* Комментарий к заказу — как в WebApp */}
+                      <Form.Group className="mb-3">
+                        <Form.Label className="small mb-1 text-muted">
+                          {language === 'uz' ? 'Buyurtmaga izoh' : 'Комментарий к заказу'}
+                        </Form.Label>
+                        <Form.Control
+                          as="textarea"
+                          rows={2}
+                          placeholder={language === 'uz' ? 'Buyurtmaga doir tilaklar...' : 'Пожелания к заказу...'}
+                          value={storefrontOrderForm.comment}
+                          onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, comment: e.target.value })}
+                        />
+                      </Form.Group>
+
                       {/* Расшифровка сумм */}
                       <div className="mb-3 p-3" style={{ background: '#f8fafc', borderRadius: 12 }}>
                         <div className="d-flex justify-content-between mb-1">
-                          <span className="text-muted small">{language === 'uz' ? 'Mahsulotlar' : 'Товары'}</span>
+                          <span className="text-muted small d-inline-flex align-items-center gap-1">
+                            <span aria-hidden="true">🧾</span>
+                            {language === 'uz' ? 'Mahsulotlar' : 'Товары'}
+                          </span>
                           <span className="small fw-semibold">{Number(productTotal || 0).toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
                         </div>
                         {Number(containerTotal || 0) > 0 && (
                           <div className="d-flex justify-content-between mb-1">
-                            <span className="text-muted small">{language === 'uz' ? 'Qadoqlash' : 'Упаковка'}</span>
+                            <span className="text-muted small d-inline-flex align-items-center gap-1">
+                              <span aria-hidden="true">🎁</span>
+                              {language === 'uz' ? 'Qadoqlash' : 'Упаковка'}
+                            </span>
                             <span className="small fw-semibold">{Number(containerTotal).toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
                           </div>
                         )}
                         {storefrontServiceFee > 0 && (
                           <div className="d-flex justify-content-between mb-1">
-                            <span className="text-muted small">{language === 'uz' ? 'Xizmat haqi' : 'Сервисный сбор'}</span>
+                            <span className="text-muted small d-inline-flex align-items-center gap-1">
+                              <span aria-hidden="true">🛎️</span>
+                              {language === 'uz' ? 'Xizmat haqi' : 'Сервис'}
+                            </span>
                             <span className="small fw-semibold">{storefrontServiceFee.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
                           </div>
                         )}
-                        {storefrontDeliveryCost > 0 && (
+                        {storefrontDeliveryCost > 0 && storefrontOrderForm.fulfillment_type !== 'pickup' && (
                           <div className="d-flex justify-content-between mb-1">
-                            <span className="text-muted small">
+                            <span className="text-muted small d-inline-flex align-items-center gap-1">
+                              <span aria-hidden="true">🚚</span>
                               {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
                               {storefrontDeliveryDistance > 0 && (
-                                <span className="ms-1" style={{ opacity: 0.7 }}>({storefrontDeliveryDistance.toFixed(1)} км)</span>
+                                <span className="ms-1" style={{ opacity: 0.7 }}>({storefrontDeliveryDistance.toFixed(2)} км)</span>
                               )}
                             </span>
                             <span className="small fw-semibold">{storefrontDeliveryCost.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
+                          </div>
+                        )}
+                        {storefrontPromoState.status === 'valid' && storefrontPromoState.discount > 0 && (
+                          <div className="d-flex justify-content-between mb-1">
+                            <span className="text-muted small d-inline-flex align-items-center gap-1">
+                              <span aria-hidden="true">🎟️</span>
+                              {language === 'uz' ? 'Promokod' : 'Промокод'}
+                            </span>
+                            <span className="small fw-semibold text-success">−{storefrontPromoState.discount.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
                           </div>
                         )}
                         {storefrontDeliveryLoading && (
@@ -6103,51 +6162,101 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                   )
                 )}
 
-                {/* Шаг 2: адрес с картой */}
+                {/* Шаг 2: тип заказа + адрес + детали */}
                 {storefrontStep === 2 && (
                   <>
-                    <div className="small text-muted mb-2">
-                      {language === 'uz'
-                        ? 'Yetkazib berish manzilini kartadan tanlang yoki qo‘lda kiriting.'
-                        : 'Выберите адрес на карте или впишите вручную.'}
+                    {/* Тип заказа: Доставка / Самовывоз */}
+                    <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Buyurtma turi' : 'Тип заказа'}</Form.Label>
+                    <div className="d-flex gap-2 mb-3">
+                      <Button
+                        variant={storefrontOrderForm.fulfillment_type === 'delivery' ? 'primary' : 'outline-secondary'}
+                        style={{ flex: 1 }}
+                        onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, fulfillment_type: 'delivery' }))}
+                      >
+                        🛵 {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                      </Button>
+                      <Button
+                        variant={storefrontOrderForm.fulfillment_type === 'pickup' ? 'primary' : 'outline-secondary'}
+                        style={{ flex: 1 }}
+                        onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, fulfillment_type: 'pickup' }))}
+                      >
+                        🚶 {language === 'uz' ? 'Olib ketish' : 'Самовывоз'}
+                      </Button>
                     </div>
-                    <div style={{ height: 280, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(71,85,105,0.18)', marginBottom: 12 }}>
-                      <ClientLocationPicker
-                        latitude={storefrontOrderForm.delivery_lat || 41.311081}
-                        longitude={storefrontOrderForm.delivery_lng || 69.240562}
-                        onLocationChange={(lat, lng) => {
-                          const nlat = Number(lat);
-                          const nlng = Number(lng);
-                          if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return;
-                          setStorefrontOrderForm((prev) => ({ ...prev, delivery_lat: nlat, delivery_lng: nlng }));
-                        }}
-                        onAddressChange={(addressText, meta = {}) => {
-                          const full = String(meta?.fullAddress || addressText || '').trim();
-                          if (full) {
-                            setStorefrontOrderForm((prev) => ({ ...prev, delivery_address: full }));
-                          }
-                        }}
-                      />
-                    </div>
-                    <Form.Group className="mb-2">
-                      <Form.Label className="small mb-1">{language === 'uz' ? 'Manzil' : 'Адрес'}</Form.Label>
-                      <Form.Control
-                        as="textarea"
-                        rows={2}
-                        placeholder={language === 'uz' ? 'Shahar, ko‘cha, uy, kv.' : 'Город, улица, дом, кв.'}
-                        value={storefrontOrderForm.delivery_address}
-                        onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, delivery_address: e.target.value })}
-                        autoComplete="street-address"
-                      />
-                    </Form.Group>
+
+                    {storefrontOrderForm.fulfillment_type === 'pickup' ? (
+                      <div className="p-3 mb-2" style={{ background: '#f8fafc', borderRadius: 12 }}>
+                        <div className="small text-muted">
+                          {language === 'uz'
+                            ? 'Buyurtmani magazinning oʻzidan olib ketasiz. Magazin siz bilan tasdiqlash uchun bogʻlanadi.'
+                            : 'Заберёте заказ из магазина. Магазин свяжется с вами для подтверждения.'}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки'}</Form.Label>
+                        <div style={{ height: 240, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(71,85,105,0.18)', marginBottom: 10 }}>
+                          <ClientLocationPicker
+                            latitude={storefrontOrderForm.delivery_lat || 41.311081}
+                            longitude={storefrontOrderForm.delivery_lng || 69.240562}
+                            onLocationChange={(lat, lng) => {
+                              const nlat = Number(lat);
+                              const nlng = Number(lng);
+                              if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return;
+                              setStorefrontOrderForm((prev) => ({ ...prev, delivery_lat: nlat, delivery_lng: nlng }));
+                            }}
+                            onAddressChange={(addressText, meta = {}) => {
+                              const full = String(meta?.fullAddress || addressText || '').trim();
+                              if (full) {
+                                setStorefrontOrderForm((prev) => ({ ...prev, delivery_address: full }));
+                              }
+                            }}
+                          />
+                        </div>
+                        <Form.Group className="mb-3">
+                          <Form.Control
+                            as="textarea"
+                            rows={2}
+                            placeholder={language === 'uz' ? 'Shahar, koʻcha' : 'Город, улица'}
+                            value={storefrontOrderForm.delivery_address}
+                            onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, delivery_address: e.target.value })}
+                            autoComplete="street-address"
+                          />
+                        </Form.Group>
+
+                        {/* Детали адреса: Дом / Квартира / Домофон */}
+                        <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Manzil tafsilotlari' : 'Детали адреса'}</Form.Label>
+                        <div className="d-flex gap-2 mb-2">
+                          <Form.Control
+                            type="text"
+                            placeholder={language === 'uz' ? 'Uy' : 'Дом'}
+                            value={storefrontOrderForm.address_house}
+                            onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, address_house: e.target.value })}
+                          />
+                          <Form.Control
+                            type="text"
+                            placeholder={language === 'uz' ? 'Kvartira' : 'Квартира'}
+                            value={storefrontOrderForm.address_apartment}
+                            onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, address_apartment: e.target.value })}
+                          />
+                        </div>
+                        <Form.Control
+                          className="mb-2"
+                          type="text"
+                          placeholder={language === 'uz' ? 'Eshik kodi / domofon' : 'Код двери / домофон'}
+                          value={storefrontOrderForm.address_doorcode}
+                          onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, address_doorcode: e.target.value })}
+                        />
+                      </>
+                    )}
                   </>
                 )}
 
-                {/* Шаг 3: контакты + отправка */}
+                {/* Шаг 3: ФИО, телефон*, время доставки, оплата, промокод, сводка */}
                 {storefrontStep === 3 && (
                   <>
                     <Form.Group className="mb-2">
-                      <Form.Label className="small mb-1">{language === 'uz' ? 'F.I.SH.' : 'ФИО'}</Form.Label>
+                      <Form.Label className="small mb-1">{language === 'uz' ? 'F.I.SH.' : 'ФИО'} <span className="text-danger">*</span></Form.Label>
                       <Form.Control
                         type="text"
                         placeholder={language === 'uz' ? 'Ismingiz' : 'Ваше имя'}
@@ -6156,8 +6265,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         autoComplete="name"
                       />
                     </Form.Group>
-                    <Form.Group className="mb-2">
-                      <Form.Label className="small mb-1">{language === 'uz' ? 'Telefon' : 'Телефон'}</Form.Label>
+                    <Form.Group className="mb-3">
+                      <Form.Label className="small mb-1">{language === 'uz' ? 'Telefon' : 'Телефон'} <span className="text-danger">*</span></Form.Label>
                       <Form.Control
                         type="tel"
                         placeholder="+998 90 123 45 67"
@@ -6166,36 +6275,192 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         autoComplete="tel"
                       />
                     </Form.Group>
-                    <Form.Group className="mb-3">
-                      <Form.Label className="small mb-1">{language === 'uz' ? "Izoh (ixtiyoriy)" : 'Комментарий (необязательно)'}</Form.Label>
-                      <Form.Control
-                        as="textarea"
-                        rows={2}
-                        placeholder={language === 'uz' ? 'Buyurtmaga doir tilaklar' : 'Пожелания к заказу'}
-                        value={storefrontOrderForm.comment}
-                        onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, comment: e.target.value })}
-                      />
-                    </Form.Group>
 
-                    {/* Сводка перед отправкой */}
+                    {/* Время доставки — как в WebApp */}
+                    {storefrontOrderForm.fulfillment_type !== 'pickup' && (
+                      <>
+                        <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Yetkazib berish vaqti' : 'Время доставки'}</Form.Label>
+                        <div className="d-flex gap-2 mb-2">
+                          <Button
+                            variant={storefrontOrderForm.delivery_time_type === 'asap' ? 'primary' : 'outline-secondary'}
+                            style={{ flex: 1 }}
+                            onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, delivery_time_type: 'asap', delivery_date: '' }))}
+                          >
+                            🚀 {language === 'uz' ? 'Tezroq' : 'Быстрее'}
+                          </Button>
+                          {publicRestaurantMeta?.is_scheduled_date_delivery_enabled && (
+                            <Button
+                              variant={storefrontOrderForm.delivery_time_type === 'scheduled' ? 'primary' : 'outline-secondary'}
+                              style={{ flex: 1 }}
+                              onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, delivery_time_type: 'scheduled' }))}
+                            >
+                              📅 {language === 'uz' ? 'Sana tanlash' : 'Выбрать дату'}
+                            </Button>
+                          )}
+                        </div>
+                        {storefrontOrderForm.delivery_time_type === 'scheduled' && publicRestaurantMeta?.is_scheduled_date_delivery_enabled && (
+                          <Form.Control
+                            className="mb-3"
+                            type="date"
+                            min={new Date().toISOString().split('T')[0]}
+                            max={(() => {
+                              const maxDays = Number(publicRestaurantMeta?.scheduled_delivery_max_days) || 7;
+                              const d = new Date();
+                              d.setDate(d.getDate() + maxDays);
+                              return d.toISOString().split('T')[0];
+                            })()}
+                            value={storefrontOrderForm.delivery_date}
+                            onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, delivery_date: e.target.value })}
+                          />
+                        )}
+                      </>
+                    )}
+
+                    {/* Способ оплаты */}
+                    <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Toʻlov usuli' : 'Способ оплаты'}</Form.Label>
+                    <div className="d-flex flex-wrap gap-2 mb-3">
+                      {publicRestaurantMeta?.cash_enabled !== false && (
+                        <Button
+                          variant={storefrontOrderForm.payment_method === 'cash' ? 'primary' : 'outline-secondary'}
+                          style={{ flex: '1 1 30%', minWidth: 110 }}
+                          onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, payment_method: 'cash' }))}
+                        >
+                          💵 {language === 'uz' ? 'Naqd' : 'Наличные'}
+                        </Button>
+                      )}
+                      {publicRestaurantMeta?.click_enabled && (
+                        <Button
+                          variant={storefrontOrderForm.payment_method === 'click' ? 'primary' : 'outline-secondary'}
+                          style={{ flex: '1 1 30%', minWidth: 110 }}
+                          onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, payment_method: 'click' }))}
+                        >
+                          🔵 Click
+                        </Button>
+                      )}
+                      {publicRestaurantMeta?.card_payment_enabled && (
+                        <Button
+                          variant={storefrontOrderForm.payment_method === 'card' ? 'primary' : 'outline-secondary'}
+                          style={{ flex: '1 1 30%', minWidth: 110 }}
+                          onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, payment_method: 'card' }))}
+                        >
+                          💳 {language === 'uz' ? 'Karta' : 'Карта'}
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Промокод */}
+                    {publicRestaurantMeta?.promo_codes_enabled && (
+                      <>
+                        <Form.Label className="small mb-1 text-muted d-inline-flex align-items-center gap-1">
+                          <span aria-hidden="true">🎟️</span>
+                          {language === 'uz' ? 'Promokod' : 'Промокод'}
+                        </Form.Label>
+                        <div className="d-flex gap-2 mb-3">
+                          <Form.Control
+                            type="text"
+                            placeholder={language === 'uz' ? 'Promokodni kiriting' : 'Введите промокод'}
+                            value={storefrontOrderForm.promo_code}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setStorefrontOrderForm((prev) => ({ ...prev, promo_code: v }));
+                              setStorefrontPromoState({ status: 'idle', discount: 0, message: '' });
+                            }}
+                          />
+                          <Button
+                            variant="outline-primary"
+                            disabled={storefrontPromoLoading || !String(storefrontOrderForm.promo_code || '').trim()}
+                            onClick={async () => {
+                              const code = String(storefrontOrderForm.promo_code || '').trim();
+                              if (!code) return;
+                              setStorefrontPromoLoading(true);
+                              try {
+                                const promoItems = cart.map((it) => {
+                                  const containerNorm = Number(it.container_norm) || 1;
+                                  const containerUnits = containerNorm > 0 ? Math.ceil(Number(it.quantity || 0) / containerNorm) : 0;
+                                  const line = Number(it.price || 0) * Number(it.quantity || 0) + Number(it.container_price || 0) * containerUnits;
+                                  return { product_id: Number(it.id), total: line };
+                                });
+                                const res = await axios.post(`${API_URL}/products/storefront-promo/validate`, {
+                                  restaurant_id: Number(publicRestaurantId) || Number(selectedRestaurant),
+                                  code,
+                                  items: promoItems
+                                });
+                                if (res.data?.valid) {
+                                  setStorefrontPromoState({ status: 'valid', discount: Number(res.data?.discount_amount) || 0, message: 'Промокод применён' });
+                                } else {
+                                  setStorefrontPromoState({ status: 'invalid', discount: 0, message: 'Промокод недействителен' });
+                                }
+                              } catch {
+                                setStorefrontPromoState({ status: 'invalid', discount: 0, message: 'Ошибка проверки' });
+                              } finally {
+                                setStorefrontPromoLoading(false);
+                              }
+                            }}
+                          >
+                            {storefrontPromoLoading ? '...' : (language === 'uz' ? 'Qoʻllash' : 'Применить')}
+                          </Button>
+                        </div>
+                        {storefrontPromoState.message && (
+                          <div className={`small mb-2 ${storefrontPromoState.status === 'valid' ? 'text-success' : 'text-danger'}`}>
+                            {storefrontPromoState.message}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Сводка с иконками */}
                     <div className="p-3 mb-3" style={{ background: '#f8fafc', borderRadius: 12, fontSize: '0.9rem' }}>
                       <div className="d-flex justify-content-between mb-1">
-                        <span className="text-muted">{language === 'uz' ? 'Mahsulotlar' : 'Товары'}</span>
+                        <span className="text-muted d-inline-flex align-items-center gap-1">
+                          <span aria-hidden="true">🧾</span>{language === 'uz' ? 'Mahsulotlar' : 'Товары'}
+                        </span>
                         <span className="fw-semibold">{Number(productTotal || 0).toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
                       </div>
                       {Number(containerTotal || 0) > 0 && (
                         <div className="d-flex justify-content-between mb-1">
-                          <span className="text-muted">{language === 'uz' ? 'Qadoqlash' : 'Упаковка'}</span>
+                          <span className="text-muted d-inline-flex align-items-center gap-1">
+                            <span aria-hidden="true">🎁</span>{language === 'uz' ? 'Qadoqlash' : 'Упаковка'}
+                          </span>
                           <span className="fw-semibold">{Number(containerTotal).toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
                         </div>
                       )}
-                      <div className="d-flex justify-content-between pt-2 mt-2" style={{ borderTop: '1px solid rgba(71,85,105,0.12)', fontSize: '1rem' }}>
+                      {storefrontServiceFee > 0 && (
+                        <div className="d-flex justify-content-between mb-1">
+                          <span className="text-muted d-inline-flex align-items-center gap-1">
+                            <span aria-hidden="true">🛎️</span>{language === 'uz' ? 'Xizmat' : 'Сервис'}
+                          </span>
+                          <span className="fw-semibold">{storefrontServiceFee.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
+                        </div>
+                      )}
+                      {storefrontEffectiveDeliveryCost > 0 && (
+                        <div className="d-flex justify-content-between mb-1">
+                          <span className="text-muted d-inline-flex align-items-center gap-1">
+                            <span aria-hidden="true">🚚</span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                            {storefrontDeliveryDistance > 0 && (
+                              <span style={{ opacity: 0.7 }}>({storefrontDeliveryDistance.toFixed(2)} км)</span>
+                            )}
+                          </span>
+                          <span className="fw-semibold">{storefrontEffectiveDeliveryCost.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
+                        </div>
+                      )}
+                      {storefrontEffectivePromoDiscount > 0 && (
+                        <div className="d-flex justify-content-between mb-1">
+                          <span className="text-muted d-inline-flex align-items-center gap-1">
+                            <span aria-hidden="true">🎟️</span>{language === 'uz' ? 'Promokod' : 'Промокод'}
+                          </span>
+                          <span className="fw-semibold text-success">−{storefrontEffectivePromoDiscount.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
+                        </div>
+                      )}
+                      <div className="d-flex justify-content-between pt-2 mt-2" style={{ borderTop: '1px solid rgba(71,85,105,0.12)', fontSize: '1.05rem' }}>
                         <span className="fw-semibold">{language === 'uz' ? 'Jami' : 'Итого'}</span>
-                        <strong style={{ color: '#2563eb' }}>{Number(cartTotal || 0).toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</strong>
+                        <strong style={{ color: '#2563eb' }}>{storefrontFinalTotal.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</strong>
                       </div>
-                      {storefrontOrderForm.delivery_address && (
+                      {storefrontOrderForm.delivery_address && storefrontOrderForm.fulfillment_type !== 'pickup' && (
                         <div className="small text-muted mt-2">
                           📍 {storefrontOrderForm.delivery_address}
+                          {(storefrontOrderForm.address_house || storefrontOrderForm.address_apartment) && (
+                            <> · {storefrontOrderForm.address_house && `дом ${storefrontOrderForm.address_house}`} {storefrontOrderForm.address_apartment && `кв. ${storefrontOrderForm.address_apartment}`}</>
+                          )}
                         </div>
                       )}
                     </div>
@@ -6230,7 +6495,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                           return;
                         }
                         if (storefrontStep === 2) {
-                          if (!String(storefrontOrderForm.delivery_address || '').trim()) {
+                          if (storefrontOrderForm.fulfillment_type !== 'pickup'
+                            && !String(storefrontOrderForm.delivery_address || '').trim()) {
                             setStorefrontOrderError('Введите адрес доставки');
                             return;
                           }

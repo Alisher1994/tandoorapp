@@ -34,7 +34,14 @@ function StorefrontGate() {
           meta = {
             service_fee: Number(infoRes.data?.service_fee) || 0,
             is_delivery_enabled: infoRes.data?.is_delivery_enabled !== false,
-            currency_code: infoRes.data?.currency_code || 'uz'
+            currency_code: infoRes.data?.currency_code || 'uz',
+            cash_enabled: infoRes.data?.cash_enabled !== false,
+            card_payment_enabled: infoRes.data?.card_payment_enabled === true,
+            click_enabled: Boolean(String(infoRes.data?.click_url || '').trim()),
+            payme_enabled: infoRes.data?.payme_enabled === true,
+            promo_codes_enabled: infoRes.data?.promo_codes_enabled === true,
+            is_scheduled_date_delivery_enabled: infoRes.data?.is_scheduled_date_delivery_enabled === true,
+            scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(infoRes.data?.scheduled_delivery_max_days) || 7))
           };
         } catch (_) { /* CTA просто не появится, не критично */ }
         if (!cancelled) setState({ status: 'ready', restaurantId, botHref, meta });
