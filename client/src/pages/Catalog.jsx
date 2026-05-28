@@ -3429,7 +3429,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       <div className="mt-2 mb-0">
         <button
           type="button"
-          onClick={() => { if (isGuestStorefront) { setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setStorefrontStep(1); setShowStorefrontCartModal(true); return; } navigate('/cart'); }}
+          onClick={() => { if (isGuestStorefront) { setShowProductDetailsModal(false); setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setStorefrontStep(1); setShowStorefrontCartModal(true); return; } navigate('/cart'); }}
           style={{
             width: '100%',
             border: '1px solid rgba(71, 85, 105,0.22)',
@@ -4355,7 +4355,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
             {isPublicStorefront && (
               <button
                 type="button"
-                onClick={() => { setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setStorefrontStep(1); setShowStorefrontCartModal(true); }}
+                onClick={() => { setShowProductDetailsModal(false); setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setStorefrontStep(1); setShowStorefrontCartModal(true); }}
                 aria-label={language === 'uz' ? 'Savat' : 'Корзина'}
                 title={language === 'uz' ? 'Savat' : 'Корзина'}
                 style={{
@@ -5757,7 +5757,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         <Button
                           type="button"
                           className="product-details-bottom-cta"
-                          onClick={() => { if (isGuestStorefront) { setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setStorefrontStep(1); setShowStorefrontCartModal(true); return; } navigate('/cart'); }}
+                          onClick={() => { if (isGuestStorefront) { setShowProductDetailsModal(false); setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setStorefrontStep(1); setShowStorefrontCartModal(true); return; } navigate('/cart'); }}
                         >
                           {language === 'uz' ? "Savatga o'tish" : 'В корзину'}
                         </Button>
@@ -6350,8 +6350,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       )}
                     </div>
 
-                    {/* Промокод */}
-                    {publicRestaurantMeta?.promo_codes_enabled && (
+                    {/* Промокод — показываем всегда; если магазин не включил, сервер вернёт ошибку */}
+                    {(
                       <>
                         <Form.Label className="small mb-1 text-muted d-inline-flex align-items-center gap-1">
                           <span aria-hidden="true">🎟️</span>
@@ -6434,7 +6434,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                           <span className="fw-semibold">{storefrontServiceFee.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
                         </div>
                       )}
-                      {storefrontEffectiveDeliveryCost > 0 && (
+                      {storefrontOrderForm.fulfillment_type !== 'pickup' && (
                         <div className="d-flex justify-content-between mb-1">
                           <span className="text-muted d-inline-flex align-items-center gap-1">
                             <span aria-hidden="true">🚚</span>{language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
@@ -6442,7 +6442,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                               <span style={{ opacity: 0.7 }}>({storefrontDeliveryDistance.toFixed(2)} км)</span>
                             )}
                           </span>
-                          <span className="fw-semibold">{storefrontEffectiveDeliveryCost.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
+                          <span className="fw-semibold">
+                            {storefrontDeliveryLoading
+                              ? (language === 'uz' ? 'Hisoblanmoqda...' : 'Расчёт...')
+                              : storefrontDeliveryOutOfZone
+                                ? <span className="text-danger">{language === 'uz' ? 'Zonadan tashqarida' : 'Вне зоны'}</span>
+                                : (!storefrontOrderForm.delivery_lat || !storefrontOrderForm.delivery_lng)
+                                  ? <span style={{ opacity: 0.7 }}>{language === 'uz' ? 'Manzilni kartadan tanlang' : 'Укажите на карте'}</span>
+                                  : `${storefrontEffectiveDeliveryCost.toLocaleString('ru-RU')} ${language === 'uz' ? "so'm" : 'сум'}`}
+                          </span>
                         </div>
                       )}
                       {storefrontEffectivePromoDiscount > 0 && (
