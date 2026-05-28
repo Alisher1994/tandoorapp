@@ -132,6 +132,9 @@ export function formatQuantity(quantity) {
 
 export function CartProvider({ children }) {
   const { user } = useAuth();
+  // Публичная витрина (/<slug>) выставляет override, чтобы корзина
+  // фильтровалась по магазину из URL, а не по active_restaurant_id сессии.
+  const [overrideRestaurantId, setOverrideRestaurantId] = useState(null);
   // Initialize cart from localStorage
   const [allCartItems, setAllCartItems] = useState(() => {
     try {
@@ -148,7 +151,9 @@ export function CartProvider({ children }) {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(allCartItems));
   }, [allCartItems]);
 
-  const activeRestaurantId = parseRestaurantId(user?.active_restaurant_id) || getActiveRestaurantId();
+  const activeRestaurantId = parseRestaurantId(overrideRestaurantId)
+    || parseRestaurantId(user?.active_restaurant_id)
+    || getActiveRestaurantId();
   const cart = filterCartByRestaurant(allCartItems, activeRestaurantId);
 
   const addToCart = (product, quantityToAdd) => {
@@ -270,7 +275,8 @@ export function CartProvider({ children }) {
         addToCart,
         updateQuantity,
         removeFromCart,
-        clearCart
+        clearCart,
+        setOverrideRestaurantId
       }}
     >
       {children}
