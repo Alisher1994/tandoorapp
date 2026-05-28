@@ -412,6 +412,32 @@ const UI_THEME_VALUES = new Set([
   'verdant_glass',
   'golden_crust'
 ]);
+
+// Рекламные баннеры магазина: админ задаёт массив {image_url, target_url,
+// transition_effect, enabled, title}. Чистим и ограничиваем перед записью в JSONB.
+const STORE_AD_BANNER_EFFECTS = new Set(['none', 'fade', 'slide']);
+const normalizeStoreAdBanners = (value) => {
+  let arr = value;
+  if (typeof arr === 'string') {
+    try { arr = JSON.parse(arr); } catch { arr = []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((item) => {
+      const image = String(item?.image_url || '').trim();
+      if (!image) return null;
+      const effect = String(item?.transition_effect || 'fade').toLowerCase();
+      return {
+        image_url: image.slice(0, 1000),
+        target_url: String(item?.target_url || '').trim().slice(0, 1000),
+        transition_effect: STORE_AD_BANNER_EFFECTS.has(effect) ? effect : 'fade',
+        enabled: item?.enabled !== false,
+        title: String(item?.title || '').slice(0, 200)
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 8);
+};
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (UI_THEME_VALUES.has(normalized)) return normalized;
@@ -2417,6 +2443,25 @@ router.put('/restaurant', async (req, res) => {
       [normalizedUiFontFamily, restaurantId]
     );
     result.rows[0].ui_font_family = fontUpdateResult.rows[0]?.ui_font_family || normalizedUiFontFamily;
+
+    // Рекламные баннеры магазина (JSONB-массив). Колонку добавляем «на лету»,
+    // чтобы работало и до прогона миграции.
+    await pool.query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS store_ad_banners JSONB NOT NULL DEFAULT '[]'::jsonb").catch(() => {});
+    if (req.body?.store_ad_banners !== undefined) {
+      const normalizedStoreBanners = normalizeStoreAdBanners(req.body.store_ad_banners);
+      const storeBannersResult = await pool.query(
+        `UPDATE restaurants
+           SET store_ad_banners = $1::jsonb, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2
+           RETURNING store_ad_banners`,
+        [JSON.stringify(normalizedStoreBanners), restaurantId]
+      );
+      if (result.rows[0]) {
+        result.rows[0].store_ad_banners = storeBannersResult.rows[0]?.store_ad_banners || [];
+      }
+    } else if (result.rows[0] && (result.rows[0].store_ad_banners == null)) {
+      result.rows[0].store_ad_banners = [];
+    }
 
     try {
       if (isInventoryTrackingEnabled(result.rows[0]?.inventory_tracking_enabled)) {

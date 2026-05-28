@@ -2908,6 +2908,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   useEffect(() => {
     const activeBanner = inlineAdBanners[activeAdIndex];
     if (!activeBanner || !selectedRestaurant) return;
+    // Баннеры магазина (id вида "store-0") не имеют записи в ad_banners — пропускаем учёт.
+    if (!Number.isFinite(Number(activeBanner.id))) return;
     const trackKey = `${selectedRestaurant}:${activeBanner.id}`;
     if (viewedAdsRef.current.has(trackKey)) return;
     viewedAdsRef.current.add(trackKey);

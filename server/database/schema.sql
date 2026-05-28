@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
     )
   ),
   currency_code VARCHAR(8) DEFAULT 'uz',
+  store_ad_banners JSONB NOT NULL DEFAULT '[]'::jsonb,
   reservation_cost DECIMAL(12, 2) DEFAULT 0,
   activity_type_id INTEGER,
   operator_registration_code VARCHAR(64),

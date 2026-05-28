@@ -871,7 +871,14 @@ const buildRestaurantSettingsSignature = (settings) => {
     msg_delivering: normalizeSettingsText(settings.msg_delivering),
     msg_delivered: normalizeSettingsText(settings.msg_delivered),
     msg_cancelled: normalizeSettingsText(settings.msg_cancelled),
-    payment_placeholders: normalizedPlaceholders
+    payment_placeholders: normalizedPlaceholders,
+    store_ad_banners: (Array.isArray(settings.store_ad_banners) ? settings.store_ad_banners : []).map((b) => ({
+      image_url: normalizeSettingsText(b?.image_url),
+      target_url: normalizeSettingsText(b?.target_url),
+      transition_effect: String(b?.transition_effect || 'fade').trim().toLowerCase(),
+      enabled: normalizeSettingsBoolean(b?.enabled, true),
+      title: normalizeSettingsText(b?.title)
+    }))
   });
 };
 const extractYouTubeVideoId = (value) => {
@@ -2051,6 +2058,7 @@ function AdminDashboard() {
   const [isProductSortHintsPopupOpen, setIsProductSortHintsPopupOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
+  const [uploadingStoreBannerIndex, setUploadingStoreBannerIndex] = useState(null);
   const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
   const [restaurantIdentityAvailability, setRestaurantIdentityAvailability] = useState({
     loading: false,
@@ -7767,6 +7775,69 @@ function AdminDashboard() {
       setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка загрузки логотипа' });
     } finally {
       setUploadingRestaurantLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  // ===== Рекламные баннеры магазина (вкладка «Баннеры магазина») =====
+  const MAX_STORE_AD_BANNERS = 8;
+  const getStoreAdBanners = () => (
+    Array.isArray(restaurantSettings?.store_ad_banners) ? restaurantSettings.store_ad_banners : []
+  );
+  const setStoreAdBanners = (nextList) => {
+    setRestaurantSettings((prev) => ({ ...(prev || {}), store_ad_banners: nextList }));
+  };
+  const addStoreAdBanner = () => {
+    const list = getStoreAdBanners();
+    if (list.length >= MAX_STORE_AD_BANNERS) {
+      setAlertMessage({ type: 'warning', text: `Можно добавить не более ${MAX_STORE_AD_BANNERS} баннеров` });
+      return;
+    }
+    setStoreAdBanners([...list, { image_url: '', target_url: '', transition_effect: 'fade', enabled: true, title: '' }]);
+  };
+  const updateStoreAdBanner = (index, patch) => {
+    const list = getStoreAdBanners();
+    setStoreAdBanners(list.map((item, idx) => (idx === index ? { ...item, ...patch } : item)));
+  };
+  const removeStoreAdBanner = (index) => {
+    const list = getStoreAdBanners();
+    setStoreAdBanners(list.filter((_, idx) => idx !== index));
+  };
+  const moveStoreAdBanner = (index, dir) => {
+    const list = [...getStoreAdBanners()];
+    const target = index + dir;
+    if (target < 0 || target >= list.length) return;
+    [list[index], list[target]] = [list[target], list[index]];
+    setStoreAdBanners(list);
+  };
+  const handleStoreAdBannerImageUpload = async (index, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type?.startsWith('image/')) {
+      setAlertMessage({ type: 'warning', text: 'Можно загружать только изображения' });
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      setAlertMessage({ type: 'warning', text: 'Файл слишком большой. Максимум 12MB' });
+      e.target.value = '';
+      return;
+    }
+    setUploadingStoreBannerIndex(index);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await axios.post(`${API_URL}/upload/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const imageUrl = toAbsoluteFileUrl(response.data?.url || response.data?.imageUrl);
+      updateStoreAdBanner(index, { image_url: imageUrl });
+      setAlertMessage({ type: 'success', text: 'Картинка баннера загружена. Нажмите "Сохранить изменения".' });
+    } catch (error) {
+      console.error('Store banner upload error:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка загрузки картинки' });
+    } finally {
+      setUploadingStoreBannerIndex(null);
       e.target.value = '';
     }
   };
@@ -13688,6 +13759,7 @@ function AdminDashboard() {
                       { key: 'general', icon: '⚙️', label: language === 'uz' ? 'Umumiy' : 'Общие' },
                       { key: 'product_settings', icon: '📦', label: language === 'uz' ? 'Mahsulot sozlamalari' : 'Настройки товаров' },
                       { key: 'appearance', icon: '🎨', label: language === 'uz' ? "Dizayn va uslub" : 'Оформление и стиль' },
+                      { key: 'store_ads', icon: '📢', label: language === 'uz' ? 'Reklama bannerlari' : 'Рекламные баннеры' },
                       { key: 'category_images', icon: '🗂️', label: language === 'uz' ? 'Kategoriya rasmlari' : 'Фото категорий' },
                       { key: 'telegram', icon: '✈️', label: 'Telegram' },
                       { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
@@ -14770,6 +14842,151 @@ function AdminDashboard() {
                                 </div>
                               </aside>
                             </div>
+                          </Card.Body>
+                        </Card>
+                      )}
+
+                      {settingsTab === 'store_ads' && (
+                        <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
+                          <Card.Body className="p-4">
+                            <div className="mb-3">
+                              <h5 className="fw-bold mb-1">{language === 'uz' ? 'Reklama bannerlari' : 'Рекламные баннеры магазина'}</h5>
+                              <div className="small text-muted">
+                                {language === 'uz'
+                                  ? 'Bannerlar mijozlar vitrinasida katalog ustida animatsiya bilan, karusel tarzida ko‘rsatiladi. Eng ko‘pi 8 ta.'
+                                  : 'Баннеры показываются клиентам на витрине над каталогом — каруселью, с анимацией. Максимум 8.'}
+                              </div>
+                            </div>
+
+                            {getStoreAdBanners().length === 0 ? (
+                              <div className="text-center text-muted py-4 border rounded-4">
+                                {language === 'uz' ? 'Hali banner yo‘q' : 'Баннеров пока нет'}
+                              </div>
+                            ) : (
+                              <div className="d-flex flex-column gap-3">
+                                {getStoreAdBanners().map((banner, idx) => (
+                                  <div key={idx} className="border rounded-4 p-3">
+                                    <Row className="g-3 align-items-start">
+                                      <Col md={4}>
+                                        <div
+                                          style={{
+                                            width: '100%',
+                                            aspectRatio: '3 / 1',
+                                            borderRadius: 12,
+                                            overflow: 'hidden',
+                                            background: '#f1f5f9',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            border: '1px solid rgba(71,85,105,0.18)'
+                                          }}
+                                        >
+                                          {banner.image_url ? (
+                                            <img
+                                              src={toAbsoluteFileUrl(banner.image_url)}
+                                              alt={banner.title || 'Баннер'}
+                                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                            />
+                                          ) : (
+                                            <span className="text-muted small"><i className="bi bi-image fs-4" /></span>
+                                          )}
+                                        </div>
+                                        <Form.Control
+                                          type="file"
+                                          accept="image/*"
+                                          size="sm"
+                                          className="mt-2"
+                                          disabled={uploadingStoreBannerIndex === idx}
+                                          onChange={(e) => handleStoreAdBannerImageUpload(idx, e)}
+                                        />
+                                        {uploadingStoreBannerIndex === idx && (
+                                          <div className="small text-muted mt-1">Загрузка...</div>
+                                        )}
+                                      </Col>
+                                      <Col md={8}>
+                                        <Form.Group className="mb-2">
+                                          <Form.Label className="small fw-bold text-muted text-uppercase mb-1">
+                                            {language === 'uz' ? 'Bosilganda havola (ixtiyoriy)' : 'Ссылка при клике (необязательно)'}
+                                          </Form.Label>
+                                          <Form.Control
+                                            type="url"
+                                            placeholder="https://..."
+                                            value={banner.target_url || ''}
+                                            onChange={(e) => updateStoreAdBanner(idx, { target_url: e.target.value })}
+                                          />
+                                        </Form.Group>
+                                        <Row className="g-2">
+                                          <Col xs={12} sm={6}>
+                                            <Form.Label className="small fw-bold text-muted text-uppercase mb-1">
+                                              {language === 'uz' ? 'Animatsiya' : 'Анимация'}
+                                            </Form.Label>
+                                            <Form.Select
+                                              value={banner.transition_effect || 'fade'}
+                                              onChange={(e) => updateStoreAdBanner(idx, { transition_effect: e.target.value })}
+                                            >
+                                              <option value="fade">{language === 'uz' ? 'Paydo bo‘lish' : 'Появление'}</option>
+                                              <option value="slide">{language === 'uz' ? 'Slayd' : 'Слайд'}</option>
+                                              <option value="none">{language === 'uz' ? 'Animatsiyasiz' : 'Без анимации'}</option>
+                                            </Form.Select>
+                                          </Col>
+                                          <Col xs={12} sm={6} className="d-flex align-items-end">
+                                            <Form.Check
+                                              type="switch"
+                                              id={`store-banner-enabled-${idx}`}
+                                              className="fw-semibold mb-1"
+                                              label={banner.enabled !== false
+                                                ? (language === 'uz' ? 'Ko‘rsatiladi' : 'Показывать')
+                                                : (language === 'uz' ? 'Yashirilgan' : 'Скрыт')}
+                                              checked={banner.enabled !== false}
+                                              onChange={(e) => updateStoreAdBanner(idx, { enabled: e.target.checked })}
+                                            />
+                                          </Col>
+                                        </Row>
+                                        <div className="d-flex gap-2 mt-3">
+                                          <Button variant="outline-secondary" size="sm" onClick={() => moveStoreAdBanner(idx, -1)} disabled={idx === 0} aria-label="Вверх">↑</Button>
+                                          <Button variant="outline-secondary" size="sm" onClick={() => moveStoreAdBanner(idx, 1)} disabled={idx === getStoreAdBanners().length - 1} aria-label="Вниз">↓</Button>
+                                          <Button variant="outline-danger" size="sm" className="ms-auto" onClick={() => removeStoreAdBanner(idx)}>
+                                            <i className="bi bi-trash" /> {language === 'uz' ? 'O‘chirish' : 'Удалить'}
+                                          </Button>
+                                        </div>
+                                      </Col>
+                                    </Row>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="mt-3">
+                              <Button
+                                variant="outline-primary"
+                                onClick={addStoreAdBanner}
+                                disabled={getStoreAdBanners().length >= MAX_STORE_AD_BANNERS}
+                              >
+                                + {language === 'uz' ? 'Banner qo‘shish' : 'Добавить баннер'}
+                              </Button>
+                              <div className="small text-muted mt-2">
+                                {language === 'uz'
+                                  ? 'Tavsiya etilgan o‘lcham: 1200×400 px. O‘zgarishlarni saqlash uchun pastdagi tugmani bosing.'
+                                  : 'Рекомендуемый размер: 1200×400 px. Не забудьте нажать «Сохранить изменения».'}
+                              </div>
+                            </div>
+
+                            {(isRestaurantSettingsDirty || savingSettings) && (
+                              <div className="mt-4 pt-3 border-top text-end">
+                                <Button
+                                  variant="primary"
+                                  className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                  onClick={saveRestaurantSettings}
+                                  disabled={savingSettings || isTokenSaveLocked || restaurantIdentityAvailability.loading || isNameTaken || isTokenTaken || isGroupIdTaken || isSlugTaken}
+                                >
+                                  {savingSettings
+                                    ? 'Сохранение...'
+                                    : isTokenSaveLocked
+                                      ? `Подождите ${tokenSaveCountdown}с...`
+                                      : 'Сохранить изменения'}
+                                </Button>
+                              </div>
+                            )}
                           </Card.Body>
                         </Card>
                       )}

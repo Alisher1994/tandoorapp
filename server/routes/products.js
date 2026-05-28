@@ -1492,7 +1492,42 @@ router.get('/ads-banners', async (req, res) => {
         click_url: banner.target_url ? `/api/products/ads-banners/${banner.id}/click` : null
       }));
 
-    res.json(banners);
+    // Per-store banners configured by the store admin (stored as a JSONB array on
+    // the restaurant). They have no ad_banners row, so the click opens the link
+    // directly (no server-side tracking). Shown before the global/superadmin ads.
+    let storeAdBannersRaw = [];
+    if (hasValidRestaurantId && restaurantExists) {
+      try {
+        const sb = await pool.query('SELECT store_ad_banners FROM restaurants WHERE id = $1 LIMIT 1', [requestedRestaurantId]);
+        storeAdBannersRaw = sb.rows[0]?.store_ad_banners || [];
+        if (typeof storeAdBannersRaw === 'string') {
+          try { storeAdBannersRaw = JSON.parse(storeAdBannersRaw); } catch { storeAdBannersRaw = []; }
+        }
+      } catch (e) {
+        storeAdBannersRaw = []; // column may not exist yet on an un-migrated DB
+      }
+    }
+    const STORE_AD_EFFECTS = new Set(['none', 'fade', 'slide']);
+    const storeBanners = (Array.isArray(storeAdBannersRaw) ? storeAdBannersRaw : [])
+      .filter((b) => b && b.enabled !== false && String(b.image_url || '').trim())
+      .slice(0, 8)
+      .map((b, idx) => {
+        const link = String(b.target_url || '').trim();
+        const effect = String(b.transition_effect || 'fade').toLowerCase();
+        return {
+          id: `store-${idx}`,
+          title: String(b.title || '').slice(0, 200),
+          image_url: b.image_url,
+          button_text: 'Открыть',
+          ad_type: 'banner',
+          slot_order: idx + 1,
+          display_seconds: 5,
+          transition_effect: STORE_AD_EFFECTS.has(effect) ? effect : 'fade',
+          click_url: link || null
+        };
+      });
+
+    res.json([...storeBanners, ...banners]);
   } catch (error) {
     console.error('Get ads banners error:', error);
     res.status(500).json({ error: 'Ошибка получения рекламных баннеров' });
