@@ -907,6 +907,78 @@ h6 {
   }
 }
 
+/* ПК-вид карточки товара: центрированный контейнер, 2 колонки (галерея слева, инфо справа),
+   нижняя панель «В корзину» прижата к низу карточки. */
+@media (min-width: 992px) {
+  .product-details-modal-fullscreen .modal-dialog,
+  .product-details-modal-dialog {
+    width: min(100%, 1200px) !important;
+    max-width: 1200px !important;
+    height: auto;
+    min-height: 0;
+    margin: 32px auto !important;
+    max-height: calc(100vh - 64px);
+  }
+  .product-details-modal-fullscreen .modal-content {
+    width: auto !important;
+    height: auto;
+    min-height: 0;
+    max-height: calc(100vh - 64px);
+    border-radius: 18px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 18px 60px rgba(15, 23, 42, 0.18);
+  }
+  .product-details-modal-body {
+    background: #ffffff;
+  }
+  .product-details-scroll {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 36px;
+    row-gap: 0;
+    padding: 24px 32px 12px;
+    align-items: start;
+    background: #ffffff;
+  }
+  /* Слева — галерея: фиксированная пропорция, скруглённая, не sticky */
+  .product-details-hero {
+    position: sticky;
+    top: 0;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    max-height: 520px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+  }
+  .product-details-hero-image-btn {
+    background: #ffffff;
+  }
+  .product-details-hero-image {
+    object-fit: contain;
+    background: #ffffff;
+  }
+  /* Иконки ←, ♥, share, × поверх галереи */
+  .product-details-top-actions {
+    left: 12px;
+    right: 12px;
+    top: 12px;
+  }
+  /* Правая колонка — информация */
+  .product-details-sheet {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+    padding-top: 0 !important;
+  }
+  /* Нижняя панель «В корзину» */
+  .product-details-bottom-bar {
+    border-top: 1px solid #e5e7eb;
+    background: #ffffff;
+  }
+}
+
 /* Admin panel button styles - black background, white text */
 .admin-panel .btn-outline-primary,
 .admin-panel .btn-outline-secondary,
