@@ -811,6 +811,637 @@
   color: #f0fdf4;
 }
 
+/* Golden Crust — тёплый «люкс» в тёмном эспрессо-тоне: матовое стекло, кремовый
+   текст, янтарные акценты. Зеркалит структуру Verdant Glass (см. выше). */
+:root[data-ui-theme="golden_crust"] {
+  --primary-color: #d98a2b;
+  --primary-dark: #b06f1f;
+  --primary-light: #f0b65c;
+  --accent-color: #fbbf24;
+  --accent-soft: rgba(217, 138, 43, 0.22);
+  --background-color: #1c1308;
+  --app-shell-background:
+    radial-gradient(circle at 18% 8%, rgba(217, 138, 43, 0.18), transparent 48%),
+    radial-gradient(circle at 82% 22%, rgba(240, 182, 92, 0.14), transparent 48%),
+    radial-gradient(circle at 60% 90%, rgba(176, 111, 31, 0.16), transparent 52%),
+    linear-gradient(180deg, #1c1308 0%, #241a10 48%, #140d07 100%);
+  --surface-color: rgba(255, 255, 255, 0.06);
+  --text-color: #f7efe3;
+  --text-secondary: rgba(247, 239, 227, 0.72);
+  --border-color: rgba(255, 255, 255, 0.14);
+  --shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
+  --shadow-hover: 0 22px 44px rgba(0, 0, 0, 0.55);
+  --bs-primary: #d98a2b;
+  --bs-primary-rgb: 217, 138, 43;
+  --bs-secondary: #fbbf24;
+}
+
+/* Карточки на клиентских поверхностях — матовое стекло. */
+:root[data-ui-theme="golden_crust"] .client-surface .card,
+:root[data-ui-theme="golden_crust"] .client-content .card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f7efe3;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+:root[data-ui-theme="golden_crust"] .client-surface .card .card-title,
+:root[data-ui-theme="golden_crust"] .client-content .card .card-title,
+:root[data-ui-theme="golden_crust"] .client-surface .card h1,
+:root[data-ui-theme="golden_crust"] .client-surface .card h2,
+:root[data-ui-theme="golden_crust"] .client-surface .card h3,
+:root[data-ui-theme="golden_crust"] .client-surface .card h4,
+:root[data-ui-theme="golden_crust"] .client-surface .card h5,
+:root[data-ui-theme="golden_crust"] .client-content .card h1,
+:root[data-ui-theme="golden_crust"] .client-content .card h2,
+:root[data-ui-theme="golden_crust"] .client-content .card h3,
+:root[data-ui-theme="golden_crust"] .client-content .card h4,
+:root[data-ui-theme="golden_crust"] .client-content .card h5 {
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .client-surface .card .text-muted,
+:root[data-ui-theme="golden_crust"] .client-content .card .text-muted,
+:root[data-ui-theme="golden_crust"] .client-surface .text-muted,
+:root[data-ui-theme="golden_crust"] .client-content .text-muted {
+  color: rgba(247, 239, 227, 0.7) !important;
+}
+:root[data-ui-theme="golden_crust"] .client-surface .bg-light,
+:root[data-ui-theme="golden_crust"] .client-content .bg-light {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .client-surface .border-top,
+:root[data-ui-theme="golden_crust"] .client-content .border-top {
+  border-top-color: rgba(255, 255, 255, 0.14) !important;
+}
+:root[data-ui-theme="golden_crust"] .client-surface .btn-outline-secondary,
+:root[data-ui-theme="golden_crust"] .client-content .btn-outline-secondary {
+  color: #f7efe3;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+}
+:root[data-ui-theme="golden_crust"] .client-surface .btn-outline-secondary:hover,
+:root[data-ui-theme="golden_crust"] .client-content .btn-outline-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+:root[data-ui-theme="golden_crust"] .client-surface .form-control,
+:root[data-ui-theme="golden_crust"] .client-content .form-control {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .client-surface .form-control::placeholder,
+:root[data-ui-theme="golden_crust"] .client-content .form-control::placeholder {
+  color: rgba(247, 239, 227, 0.55);
+}
+:root[data-ui-theme="golden_crust"] .client-surface .form-control:focus,
+:root[data-ui-theme="golden_crust"] .client-content .form-control:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(245, 196, 81, 0.6);
+  box-shadow: 0 0 0 3px rgba(217, 138, 43, 0.2);
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .client-surface .form-label,
+:root[data-ui-theme="golden_crust"] .client-content .form-label,
+:root[data-ui-theme="golden_crust"] .client-surface label,
+:root[data-ui-theme="golden_crust"] .client-content label {
+  color: #f7efe3;
+}
+
+/* Модалки витрины и WebApp рендерятся в портал (вне .client-surface/.client-content).
+   Перекрашиваем их отдельно, чтобы текст/поля/кнопки совпадали с темой. */
+:root[data-ui-theme="golden_crust"] .modal-content {
+  background: linear-gradient(180deg, #241a10 0%, #140d07 100%);
+  color: #f7efe3;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  --bs-body-color: #f7efe3;
+  --bs-body-color-rgb: 240, 253, 244;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .modal-header,
+:root[data-ui-theme="golden_crust"] .modal-content .modal-footer {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+:root[data-ui-theme="golden_crust"] .modal-content .modal-title,
+:root[data-ui-theme="golden_crust"] .modal-content h1,
+:root[data-ui-theme="golden_crust"] .modal-content h2,
+:root[data-ui-theme="golden_crust"] .modal-content h3,
+:root[data-ui-theme="golden_crust"] .modal-content h4,
+:root[data-ui-theme="golden_crust"] .modal-content h5,
+:root[data-ui-theme="golden_crust"] .modal-content h6,
+:root[data-ui-theme="golden_crust"] .modal-content p {
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .btn-close {
+  filter: invert(1) grayscale(100%) brightness(2);
+  opacity: 0.8;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .form-label,
+:root[data-ui-theme="golden_crust"] .modal-content label {
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .form-control {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .form-control::placeholder {
+  color: rgba(247, 239, 227, 0.55);
+}
+:root[data-ui-theme="golden_crust"] .modal-content .form-control:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(245, 196, 81, 0.6);
+  box-shadow: 0 0 0 3px rgba(217, 138, 43, 0.2);
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .text-muted {
+  color: rgba(247, 239, 227, 0.7) !important;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .border-top {
+  border-top-color: rgba(255, 255, 255, 0.14) !important;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .bg-light {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .btn-outline-secondary {
+  color: #f7efe3;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+}
+:root[data-ui-theme="golden_crust"] .modal-content .btn-outline-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+/* Inline-стили модалок ставят светлые панели (#f8fafc и т.п.) — переводим в стекло. */
+:root[data-ui-theme="golden_crust"] .modal-content [style*="background: #f8fafc"],
+:root[data-ui-theme="golden_crust"] .modal-content [style*="background: rgb(248, 250, 252)"],
+:root[data-ui-theme="golden_crust"] .modal-content [style*="background: #f8fafb"],
+:root[data-ui-theme="golden_crust"] .modal-content [style*="background: rgba(248, 250, 252"],
+:root[data-ui-theme="golden_crust"] .modal-content [style*="background: rgba(241, 245, 249"] {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f7efe3;
+}
+/* «Назад»-кнопка модалок витрины с inline-белым фоном — тоже в стекло. */
+:root[data-ui-theme="golden_crust"] .modal-content [style*="background: rgba(255, 255, 255, 0.82)"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f7efe3 !important;
+}
+/* Catalog.jsx и баннеры ставят inline color: #111827/4b5563/334155, фон rgba(255,255,255,...).
+   Переводим их в светлый текст и матовое стекло, чтобы шапки и баннеры читались. */
+:root[data-ui-theme="golden_crust"] .client-surface [style*="color: rgb(17, 24, 39)"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="color: rgb(75, 85, 99)"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="color: rgb(51, 65, 85)"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="color: rgb(100, 116, 139)"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="color: #111827"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="color: #4b5563"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="color: #334155"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="color: #64748b"] {
+  color: #f7efe3 !important;
+}
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: rgba(255, 255, 255, 0.85)"],
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: rgba(71, 85, 105, 0.1)"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="background: rgba(71, 85, 105, 0.13)"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* Cart.jsx определяет .cart-surface-* / .cart-segmented-* в собственном <style>
+   с background:#f8fafc !important; перебиваем темой более специфичным селектором. */
+:root[data-ui-theme="golden_crust"] .client-content .cart-surface-field,
+:root[data-ui-theme="golden_crust"] .client-content .cart-surface-panel,
+:root[data-ui-theme="golden_crust"] .client-content .cart-segmented-switch {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #f7efe3 !important;
+}
+:root[data-ui-theme="golden_crust"] .client-content .cart-surface-field:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(245, 196, 81, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(217, 138, 43, 0.2) !important;
+}
+:root[data-ui-theme="golden_crust"] .client-content .cart-segmented-option {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #f7efe3 !important;
+}
+:root[data-ui-theme="golden_crust"] .client-content .cart-segmented-option.is-active {
+  background: rgba(217, 138, 43, 0.18) !important;
+  border-color: rgba(245, 196, 81, 0.45) !important;
+  color: #f5c451 !important;
+}
+:root[data-ui-theme="golden_crust"] .client-content .cart-segmented-option:hover,
+:root[data-ui-theme="golden_crust"] .client-content .cart-segmented-option:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+/* Поисковая строка в шапке каталога — белый фон inline → стекло, текст светлый. */
+:root[data-ui-theme="golden_crust"] .client-surface div[style*="background: rgba(255,255,255,0.95)"],
+:root[data-ui-theme="golden_crust"] .client-surface div[style*="background: rgba(255, 255, 255, 0.95)"],
+:root[data-ui-theme="golden_crust"] .client-surface div[style*="background: rgb(255, 255, 255)"][style*="border-radius: 12"] {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+:root[data-ui-theme="golden_crust"] .client-surface input[type="search"] {
+  color: #f7efe3 !important;
+}
+:root[data-ui-theme="golden_crust"] .client-surface input[type="search"]::placeholder {
+  color: rgba(247, 239, 227, 0.55) !important;
+}
+
+/* Иконки шапки витрины (аккаунт, поиск) — белый stroke у lucide-SVG.
+   color="#4b5563" в JSX становится stroke-атрибутом; CSS-присваивание
+   stroke с !important переопределяет presentation-атрибут SVG. */
+:root[data-ui-theme="golden_crust"] .client-surface button[aria-label="Аккаунт"] svg,
+:root[data-ui-theme="golden_crust"] .client-surface button[aria-label="Поиск"] svg,
+:root[data-ui-theme="golden_crust"] .client-surface button[aria-label="Akkaunt"] svg,
+:root[data-ui-theme="golden_crust"] .client-surface button[aria-label="Qidiruv"] svg,
+:root[data-ui-theme="golden_crust"] .client-surface .client-topbar-side svg {
+  stroke: #f7efe3 !important;
+  color: #f7efe3 !important;
+}
+/* Лупа в поиске тоже */
+:root[data-ui-theme="golden_crust"] .client-surface span[style*="color: #475569"] svg {
+  stroke: rgba(247, 239, 227, 0.85) !important;
+  color: rgba(247, 239, 227, 0.85) !important;
+}
+
+/* Счётчик количества в корзине — pill белый, цифра тёмная, чтобы число читалось. */
+:root[data-ui-theme="golden_crust"] .client-content .bg-light.rounded-pill {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  color: #0f172a !important;
+}
+:root[data-ui-theme="golden_crust"] .client-content .bg-light.rounded-pill * {
+  color: #0f172a !important;
+}
+
+/* WebApp шапка — стилизуем кнопку «Назад» и переключатель языка под тему. */
+:root[data-ui-theme="golden_crust"] .client-topbar-back-btn,
+:root[data-ui-theme="golden_crust"] .client-language-toggle {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #f7efe3 !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+:root[data-ui-theme="golden_crust"] .client-topbar-back-btn:hover,
+:root[data-ui-theme="golden_crust"] .client-language-toggle:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+/* Кнопка «Назад» в шапке каталога (inline-стиль rgba(255,255,255,0.82) + dark text). */
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: rgba(255,255,255,0.82)"],
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: rgba(255, 255, 255, 0.82)"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #f7efe3 !important;
+}
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: rgba(255,255,255,0.82)"] span,
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: rgba(255, 255, 255, 0.82)"] span {
+  color: #f7efe3 !important;
+}
+/* Кнопки аккаунта/поиска с inline-фоном rgba(255,255,255,0.7) когда модалка открыта. */
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: rgba(255,255,255,0.7)"],
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: rgba(255, 255, 255, 0.7)"] {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+/* Модалка деталей товара (.product-details-modal-fullscreen) — внутри
+   .product-details-block (#ffffff) и .product-details-review-item (#f8fafc)
+   рендерятся как светлые карточки. Переводим в стекло, светлый текст. */
+:root[data-ui-theme="golden_crust"] .product-details-block {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .product-details-block .text-muted,
+:root[data-ui-theme="golden_crust"] .product-details-block .small {
+  color: rgba(247, 239, 227, 0.7) !important;
+}
+:root[data-ui-theme="golden_crust"] .product-details-review-item {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f7efe3;
+}
+/* Нижний qty-степпер на модалке деталей — белый pill с тёмной цифрой,
+   чтобы число «8 / 3» нормально читалось (как в WebApp). */
+:root[data-ui-theme="golden_crust"] .product-details-bottom-stepper {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+:root[data-ui-theme="golden_crust"] .product-details-bottom-stepper span,
+:root[data-ui-theme="golden_crust"] .product-details-bottom-stepper button {
+  color: #0f172a !important;
+}
+
+/* Кнопка «В корзину» в карточке: задаём бирюзу темы напрямую (как у остальных
+   .modal-content .btn-primary), не полагаясь на var(--primary-color). */
+:root[data-ui-theme="golden_crust"] .product-details-bottom-cta,
+:root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn,
+:root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn-primary {
+  --bs-btn-bg: #d98a2b;
+  --bs-btn-border-color: #d98a2b;
+  --bs-btn-hover-bg: #b06f1f;
+  --bs-btn-hover-border-color: #b06f1f;
+  --bs-btn-active-bg: #b06f1f;
+  --bs-btn-active-border-color: #b06f1f;
+  --bs-btn-disabled-bg: rgba(217, 138, 43, 0.55);
+  --bs-btn-disabled-border-color: rgba(217, 138, 43, 0.55);
+  background: #d98a2b !important;
+  border-color: #d98a2b !important;
+  color: #fff !important;
+}
+:root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn:hover,
+:root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn:focus,
+:root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn:active {
+  background: #b06f1f !important;
+  border-color: #b06f1f !important;
+  color: #fff !important;
+}
+
+/* Pill-счётчик qty в storefront cart-modal (.bg-light.rounded-pill внутри портала). */
+:root[data-ui-theme="golden_crust"] .modal-content .bg-light.rounded-pill {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  color: #0f172a !important;
+}
+:root[data-ui-theme="golden_crust"] .modal-content .bg-light.rounded-pill * {
+  color: #0f172a !important;
+}
+
+/* Cart-step 1 inline-степпер: outer div { background: #f1f5f9; borderRadius: 999 } —
+   делаем pill белым, цифру и кнопки тёмными, чтобы число читалось. */
+:root[data-ui-theme="golden_crust"] .modal-content div[style*="background: rgb(241, 245, 249)"],
+:root[data-ui-theme="golden_crust"] .modal-content div[style*="background: #f1f5f9"] {
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+:root[data-ui-theme="golden_crust"] .modal-content div[style*="background: rgb(241, 245, 249)"] *,
+:root[data-ui-theme="golden_crust"] .modal-content div[style*="background: #f1f5f9"] * {
+  color: #0f172a !important;
+}
+
+/* product-details-modal на десктопе и мобиле имеет хардкод #ffffff/#f3f4f6/#f8fafc
+   для modal-content, body, scroll, hero. Перекрываем темой. */
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen .modal-content,
+:root[data-ui-theme="golden_crust"] .product-details-modal-body,
+:root[data-ui-theme="golden_crust"] .product-details-scroll {
+  background: linear-gradient(180deg, #241a10 0%, #140d07 100%) !important;
+  color: #f7efe3 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+:root[data-ui-theme="golden_crust"] .product-details-hero,
+:root[data-ui-theme="golden_crust"] .product-details-hero-image-btn,
+:root[data-ui-theme="golden_crust"] .product-details-hero-image {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* Текст внутри карточки деталей — заголовок, цена-stricken, размеры. */
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen h1,
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen h2,
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen h3,
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen h4,
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen h5,
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen h6,
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen p,
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen .product-details-block,
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen .product-details-block * {
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen .text-muted,
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen .small {
+  color: rgba(247, 239, 227, 0.7) !important;
+}
+/* Кнопки вариантов (S/M/L/красный/...): inline-styled, переводим в стекло, текст светлый. */
+:root[data-ui-theme="golden_crust"] .product-details-variants-scroll button {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #f7efe3 !important;
+}
+:root[data-ui-theme="golden_crust"] .product-details-variants-scroll button[style*="rgba(22,163,74,0.14)"] {
+  background: rgba(217, 138, 43, 0.18) !important;
+  border: 2px solid #f5c451 !important;
+  color: #f5c451 !important;
+}
+
+/* Лист с описанием/ценой (.product-details-sheet) хардкодит светлый #f3f4f6.
+   Делаем фон НЕПРОЗРАЧНЫМ тёмно-зелёным: светлый текст темы читается, и лист
+   перекрывает sticky-фото при прокрутке (прозрачный фон пропускал картинку). */
+:root[data-ui-theme="golden_crust"] .product-details-sheet {
+  background: #251a0e !important;
+  box-shadow: none !important;
+}
+/* Нижняя плашка с CTA (webapp/мобайл) — светлый градиент #f3f4f6 → тёмно-зелёный. */
+:root[data-ui-theme="golden_crust"] .product-details-bottom-bar {
+  background: linear-gradient(180deg, rgba(20, 13, 7, 0), rgba(20, 13, 7, 0.95) 26%, #140d07 62%) !important;
+}
+/* Метрика недели — стеклянная плашка вместо светло-синей, текст светлый. */
+:root[data-ui-theme="golden_crust"] .product-details-weekly-metric {
+  background: rgba(217, 138, 43, 0.12) !important;
+  border-color: rgba(245, 196, 81, 0.32) !important;
+  color: #fbe6cf !important;
+}
+/* Скроллбар модалки на тёмно-зелёном фоне — берём яркую бирюзу для контраста. */
+:root[data-ui-theme="golden_crust"] .product-details-modal-body,
+:root[data-ui-theme="golden_crust"] .product-details-scroll {
+  scrollbar-color: rgba(217, 138, 43, 0.7) transparent;
+}
+:root[data-ui-theme="golden_crust"] .product-details-modal-body::-webkit-scrollbar-thumb,
+:root[data-ui-theme="golden_crust"] .product-details-scroll::-webkit-scrollbar-thumb {
+  background: rgba(217, 138, 43, 0.7);
+  background-clip: padding-box;
+}
+:root[data-ui-theme="golden_crust"] .product-details-modal-body::-webkit-scrollbar-thumb:hover,
+:root[data-ui-theme="golden_crust"] .product-details-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 196, 81, 0.9);
+  background-clip: padding-box;
+}
+
+/* Иконка корзины в шапке витрины — белый stroke, как у аккаунта/поиска. */
+:root[data-ui-theme="golden_crust"] .client-surface button[aria-label="Корзина"] svg,
+:root[data-ui-theme="golden_crust"] .client-surface button[aria-label="Savat"] svg {
+  stroke: #f7efe3 !important;
+  color: #f7efe3 !important;
+}
+
+/* Кнопка «Применить» (промокод) и любая .btn-primary на клиентских поверхностях.
+   Bootstrap btn-* читает --bs-btn-* переменные, --bs-primary его не меняет. */
+:root[data-ui-theme="golden_crust"] .client-surface .btn-primary,
+:root[data-ui-theme="golden_crust"] .client-content .btn-primary,
+:root[data-ui-theme="golden_crust"] .modal-content .btn-primary {
+  --bs-btn-bg: #d98a2b;
+  --bs-btn-border-color: #d98a2b;
+  --bs-btn-color: #ffffff;
+  --bs-btn-hover-bg: #b06f1f;
+  --bs-btn-hover-border-color: #b06f1f;
+  --bs-btn-hover-color: #ffffff;
+  --bs-btn-active-bg: #b06f1f;
+  --bs-btn-active-border-color: #b06f1f;
+  --bs-btn-active-color: #ffffff;
+  --bs-btn-disabled-bg: rgba(217, 138, 43, 0.55);
+  --bs-btn-disabled-border-color: rgba(217, 138, 43, 0.55);
+  --bs-btn-disabled-color: rgba(255, 255, 255, 0.75);
+  color: #ffffff;
+}
+
+/* Топбар каталога — полупрозрачное зелёное стекло поверх фона. */
+:root[data-ui-theme="golden_crust"] .client-surface .navbar {
+  background: rgba(28, 19, 8, 0.7) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+:root[data-ui-theme="golden_crust"] .client-topbar {
+  background: rgba(28, 19, 8, 0.7);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .client-bottom-nav {
+  background: rgba(28, 19, 8, 0.85);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #f7efe3;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* Светлый текст на тёмно-зелёном фоне для всех клиентских заголовков и абзацев.
+   Локально переопределяем Bootstrap body-color, чтобы любой текст вне явно
+   окрашенных элементов был светлым, не задевая админку. */
+:root[data-ui-theme="golden_crust"] .client-surface,
+:root[data-ui-theme="golden_crust"] .client-content {
+  --bs-body-color: #f7efe3;
+  --bs-body-color-rgb: 240, 253, 244;
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .client-surface h1,
+:root[data-ui-theme="golden_crust"] .client-surface h2,
+:root[data-ui-theme="golden_crust"] .client-surface h3,
+:root[data-ui-theme="golden_crust"] .client-surface h4,
+:root[data-ui-theme="golden_crust"] .client-surface h5,
+:root[data-ui-theme="golden_crust"] .client-surface h6,
+:root[data-ui-theme="golden_crust"] .client-surface p,
+:root[data-ui-theme="golden_crust"] .client-content h1,
+:root[data-ui-theme="golden_crust"] .client-content h2,
+:root[data-ui-theme="golden_crust"] .client-content h3,
+:root[data-ui-theme="golden_crust"] .client-content h4,
+:root[data-ui-theme="golden_crust"] .client-content h5,
+:root[data-ui-theme="golden_crust"] .client-content h6,
+:root[data-ui-theme="golden_crust"] .client-content p {
+  color: #f7efe3;
+}
+/* Кнопки/обёртки категорий и шапка с логотипом ставят inline background: white/rgba(255,...).
+   Перебиваем их матовым стеклом, текст внутри становится светлым. */
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: #ffffff"],
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: rgb(255, 255, 255)"],
+:root[data-ui-theme="golden_crust"] .client-surface button[style*="background: white"],
+:root[data-ui-theme="golden_crust"] .client-surface div[style*="background: #ffffff"],
+:root[data-ui-theme="golden_crust"] .client-surface div[style*="background: rgb(255, 255, 255)"],
+:root[data-ui-theme="golden_crust"] .client-surface div[style*="background: white"] {
+  background: rgba(255, 255, 255, 0.07) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .client-surface [style*="background: rgba(255, 255, 255, 0.74)"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="background: rgba(255, 255, 255, 0.42)"],
+:root[data-ui-theme="golden_crust"] .client-surface [style*="background: rgba(255,255,255,0.82)"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f7efe3 !important;
+}
+:root[data-ui-theme="golden_crust"] .client-surface .navbar-brand,
+:root[data-ui-theme="golden_crust"] .client-surface .navbar-brand * {
+  color: #f7efe3;
+}
+/* Карточки категорий (на витрине) и любые текстовые надписи внутри них —
+   принудительно стеклянные, чтобы перебить inline-белый из Catalog.jsx. */
+:root[data-ui-theme="golden_crust"] .client-surface .client-category-card {
+  background: rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .client-surface .client-category-card * {
+  color: #f7efe3 !important;
+}
+
+/* Превью в админке (вкладка «Оформление и стиль») — копируем стеклянный стиль так,
+   чтобы оператор видел итог, а не светлую сетку. */
+[data-preview-theme="golden_crust"] .admin-appearance-live-preview-viewport {
+  background: linear-gradient(180deg, #1c1308 0%, #140d07 100%);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-preview-header {
+  background: rgba(28, 19, 8, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-preview-topbar {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-preview-brand,
+[data-preview-theme="golden_crust"] .admin-appearance-live-preview-top-icons {
+  color: #f7efe3;
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-preview-logo-wrap {
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-section-title {
+  color: #f7efe3;
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-category-card,
+[data-preview-theme="golden_crust"] .admin-appearance-live-product-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-category-card span,
+[data-preview-theme="golden_crust"] .admin-appearance-live-product-name {
+  color: #f7efe3;
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-product-unit {
+  color: rgba(247, 239, 227, 0.65);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-product-image-wrap {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-product-heart {
+  background: rgba(28, 19, 8, 0.7);
+  color: #f7efe3;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-preview-nav {
+  background: rgba(28, 19, 8, 0.78);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-preview-nav-item {
+  color: rgba(247, 239, 227, 0.7);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-preview-nav-item.is-active {
+  background: rgba(217, 138, 43, 0.18);
+  color: #f5c451;
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-detail-title,
+[data-preview-theme="golden_crust"] .admin-appearance-live-detail-price,
+[data-preview-theme="golden_crust"] .admin-appearance-live-detail-meta {
+  color: #f7efe3;
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-detail-meta {
+  color: rgba(247, 239, 227, 0.65);
+}
+[data-preview-theme="golden_crust"] .admin-appearance-live-detail-back {
+  color: #f7efe3;
+}
+
 :root[data-ui-font="sans"] {
   --app-font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }
