@@ -117,7 +117,8 @@ async function migrate() {
       'is_asap_delivery_enabled BOOLEAN DEFAULT true',
       'is_scheduled_time_delivery_enabled BOOLEAN DEFAULT true',
       'is_operator_delivery_later_enabled BOOLEAN DEFAULT false',
-      'promo_codes_enabled BOOLEAN DEFAULT false'
+      'promo_codes_enabled BOOLEAN DEFAULT false',
+      `store_ad_banners JSONB NOT NULL DEFAULT '[]'::jsonb`
     ];
 
     for (const col of restaurantColumns) {
