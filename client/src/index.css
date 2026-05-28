@@ -528,6 +528,77 @@
   color: #0f172a !important;
 }
 
+/* product-details-modal на десктопе и мобиле имеет хардкод #ffffff/#f3f4f6/#f8fafc
+   для modal-content, body, scroll, hero. Перекрываем темой. */
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen .modal-content,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-body,
+:root[data-ui-theme="verdant_glass"] .product-details-scroll {
+  background: linear-gradient(180deg, #0f3220 0%, #082417 100%) !important;
+  color: #f0fdf4 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-hero,
+:root[data-ui-theme="verdant_glass"] .product-details-hero-image-btn,
+:root[data-ui-theme="verdant_glass"] .product-details-hero-image {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* Текст внутри карточки деталей — заголовок, цена-stricken, размеры. */
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen h1,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen h2,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen h3,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen h4,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen h5,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen h6,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen p,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen .product-details-block,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen .product-details-block * {
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen .text-muted,
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen .small {
+  color: rgba(240, 253, 244, 0.7) !important;
+}
+/* Кнопки вариантов (S/M/L/красный/...): inline-styled, переводим в стекло, текст светлый. */
+:root[data-ui-theme="verdant_glass"] .product-details-variants-scroll button {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #f0fdf4 !important;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-variants-scroll button[style*="rgba(22,163,74,0.14)"] {
+  background: rgba(45, 212, 191, 0.18) !important;
+  border: 2px solid #5eead4 !important;
+  color: #5eead4 !important;
+}
+
+/* Иконка корзины в шапке витрины — белый stroke, как у аккаунта/поиска. */
+:root[data-ui-theme="verdant_glass"] .client-surface button[aria-label="Корзина"] svg,
+:root[data-ui-theme="verdant_glass"] .client-surface button[aria-label="Savat"] svg {
+  stroke: #f0fdf4 !important;
+  color: #f0fdf4 !important;
+}
+
+/* Кнопка «Применить» (промокод) и любая .btn-primary на клиентских поверхностях.
+   Bootstrap btn-* читает --bs-btn-* переменные, --bs-primary его не меняет. */
+:root[data-ui-theme="verdant_glass"] .client-surface .btn-primary,
+:root[data-ui-theme="verdant_glass"] .client-content .btn-primary,
+:root[data-ui-theme="verdant_glass"] .modal-content .btn-primary {
+  --bs-btn-bg: #0d9488;
+  --bs-btn-border-color: #0d9488;
+  --bs-btn-color: #ffffff;
+  --bs-btn-hover-bg: #0f766e;
+  --bs-btn-hover-border-color: #0f766e;
+  --bs-btn-hover-color: #ffffff;
+  --bs-btn-active-bg: #0f766e;
+  --bs-btn-active-border-color: #0f766e;
+  --bs-btn-active-color: #ffffff;
+  --bs-btn-disabled-bg: rgba(13, 148, 136, 0.55);
+  --bs-btn-disabled-border-color: rgba(13, 148, 136, 0.55);
+  --bs-btn-disabled-color: rgba(255, 255, 255, 0.75);
+  color: #ffffff;
+}
+
 /* Топбар каталога — полупрозрачное зелёное стекло поверх фона. */
 :root[data-ui-theme="verdant_glass"] .client-surface .navbar {
   background: rgba(13, 46, 28, 0.7) !important;
