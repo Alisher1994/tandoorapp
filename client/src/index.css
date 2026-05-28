@@ -290,6 +290,141 @@
   box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
 }
 
+/* Светлый текст на тёмно-зелёном фоне для всех клиентских заголовков и абзацев.
+   Локально переопределяем Bootstrap body-color, чтобы любой текст вне явно
+   окрашенных элементов был светлым, не задевая админку. */
+:root[data-ui-theme="verdant_glass"] .client-surface,
+:root[data-ui-theme="verdant_glass"] .client-content {
+  --bs-body-color: #f0fdf4;
+  --bs-body-color-rgb: 240, 253, 244;
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface h1,
+:root[data-ui-theme="verdant_glass"] .client-surface h2,
+:root[data-ui-theme="verdant_glass"] .client-surface h3,
+:root[data-ui-theme="verdant_glass"] .client-surface h4,
+:root[data-ui-theme="verdant_glass"] .client-surface h5,
+:root[data-ui-theme="verdant_glass"] .client-surface h6,
+:root[data-ui-theme="verdant_glass"] .client-surface p,
+:root[data-ui-theme="verdant_glass"] .client-content h1,
+:root[data-ui-theme="verdant_glass"] .client-content h2,
+:root[data-ui-theme="verdant_glass"] .client-content h3,
+:root[data-ui-theme="verdant_glass"] .client-content h4,
+:root[data-ui-theme="verdant_glass"] .client-content h5,
+:root[data-ui-theme="verdant_glass"] .client-content h6,
+:root[data-ui-theme="verdant_glass"] .client-content p {
+  color: #f0fdf4;
+}
+/* Кнопки/обёртки категорий и шапка с логотипом ставят inline background: white/rgba(255,...).
+   Перебиваем их матовым стеклом, текст внутри становится светлым. */
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: #ffffff"],
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: rgb(255, 255, 255)"],
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: white"],
+:root[data-ui-theme="verdant_glass"] .client-surface div[style*="background: #ffffff"],
+:root[data-ui-theme="verdant_glass"] .client-surface div[style*="background: rgb(255, 255, 255)"],
+:root[data-ui-theme="verdant_glass"] .client-surface div[style*="background: white"] {
+  background: rgba(255, 255, 255, 0.07) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="background: rgba(255, 255, 255, 0.74)"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="background: rgba(255, 255, 255, 0.42)"],
+:root[data-ui-theme="verdant_glass"] .client-surface [style*="background: rgba(255,255,255,0.82)"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f0fdf4 !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .navbar-brand,
+:root[data-ui-theme="verdant_glass"] .client-surface .navbar-brand * {
+  color: #f0fdf4;
+}
+/* Карточки категорий (на витрине) и любые текстовые надписи внутри них —
+   принудительно стеклянные, чтобы перебить inline-белый из Catalog.jsx. */
+:root[data-ui-theme="verdant_glass"] .client-surface .client-category-card {
+  background: rgba(255, 255, 255, 0.06) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .client-category-card * {
+  color: #f0fdf4 !important;
+}
+
+/* Превью в админке (вкладка «Оформление и стиль») — копируем стеклянный стиль так,
+   чтобы оператор видел итог, а не светлую сетку. */
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-viewport {
+  background: linear-gradient(180deg, #0d2e1c 0%, #082417 100%);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-header {
+  background: rgba(13, 46, 28, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-topbar {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-brand,
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-top-icons {
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-logo-wrap {
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-section-title {
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-category-card,
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-category-card span,
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-name {
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-unit {
+  color: rgba(240, 253, 244, 0.65);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-image-wrap {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-heart {
+  background: rgba(13, 46, 28, 0.7);
+  color: #f0fdf4;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-nav {
+  background: rgba(13, 46, 28, 0.78);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-nav-item {
+  color: rgba(240, 253, 244, 0.7);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-nav-item.is-active {
+  background: rgba(45, 212, 191, 0.18);
+  color: #5eead4;
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-title,
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-price,
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-meta {
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-meta {
+  color: rgba(240, 253, 244, 0.65);
+}
+:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-back {
+  color: #f0fdf4;
+}
+
 :root[data-ui-font="sans"] {
   --app-font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }
