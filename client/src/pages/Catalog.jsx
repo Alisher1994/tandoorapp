@@ -137,7 +137,7 @@ const ShareLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   </svg>
 );
 
-function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBotHref = '' } = {}) {
+function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBotHref = '', publicRestaurantMeta = null } = {}) {
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [prevRestaurant, setPrevRestaurant] = useState(null);
@@ -285,6 +285,48 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [storefrontOrderSubmitting, setStorefrontOrderSubmitting] = useState(false);
   const [storefrontOrderError, setStorefrontOrderError] = useState('');
   const [storefrontOrderSuccess, setStorefrontOrderSuccess] = useState(''); // order_number
+  // Услуги и доставка — как в Telegram WebApp корзине
+  const [storefrontDeliveryCost, setStorefrontDeliveryCost] = useState(0);
+  const [storefrontDeliveryDistance, setStorefrontDeliveryDistance] = useState(0);
+  const [storefrontDeliveryLoading, setStorefrontDeliveryLoading] = useState(false);
+  const [storefrontDeliveryOutOfZone, setStorefrontDeliveryOutOfZone] = useState(false);
+  const storefrontServiceFee = Number(publicRestaurantMeta?.service_fee) || 0;
+  const storefrontIsDeliveryEnabled = publicRestaurantMeta?.is_delivery_enabled !== false;
+  const storefrontFinalTotal = Math.max(0, Number(cartTotal || 0) + storefrontServiceFee + storefrontDeliveryCost);
+
+  // Рассчитываем стоимость доставки при смене координат на карте.
+  useEffect(() => {
+    if (!isPublicStorefront) return;
+    if (!storefrontIsDeliveryEnabled) { setStorefrontDeliveryCost(0); setStorefrontDeliveryDistance(0); setStorefrontDeliveryOutOfZone(false); return; }
+    const lat = Number(storefrontOrderForm.delivery_lat);
+    const lng = Number(storefrontOrderForm.delivery_lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat === 0 || lng === 0) {
+      setStorefrontDeliveryCost(0); setStorefrontDeliveryDistance(0); setStorefrontDeliveryOutOfZone(false);
+      return;
+    }
+    const rid = Number(publicRestaurantId) || Number(selectedRestaurant);
+    if (!rid) return;
+    let cancelled = false;
+    setStorefrontDeliveryLoading(true);
+    axios.post(`${API_URL}/delivery/calculate`, { restaurant_id: rid, customer_lat: lat, customer_lng: lng })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.data?.disabled) {
+          setStorefrontDeliveryCost(0); setStorefrontDeliveryDistance(0); setStorefrontDeliveryOutOfZone(false);
+          return;
+        }
+        if (res.data?.out_of_zone) {
+          setStorefrontDeliveryCost(0); setStorefrontDeliveryDistance(0); setStorefrontDeliveryOutOfZone(true);
+          return;
+        }
+        setStorefrontDeliveryOutOfZone(false);
+        setStorefrontDeliveryCost(Number(res.data?.delivery_cost) || 0);
+        setStorefrontDeliveryDistance(Number(res.data?.distance_km) || 0);
+      })
+      .catch(() => { if (!cancelled) { setStorefrontDeliveryCost(0); setStorefrontDeliveryDistance(0); } })
+      .finally(() => { if (!cancelled) setStorefrontDeliveryLoading(false); });
+    return () => { cancelled = true; };
+  }, [isPublicStorefront, storefrontIsDeliveryEnabled, storefrontOrderForm.delivery_lat, storefrontOrderForm.delivery_lng, publicRestaurantId, selectedRestaurant]);
   const submitStorefrontOrder = useCallback(async () => {
     if (storefrontOrderSubmitting) return;
     if (!cart || cart.length === 0) {
@@ -316,6 +358,9 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
         customer_phone: phone,
         delivery_address: address,
         delivery_coordinates: coordinates,
+        delivery_cost: storefrontDeliveryCost,
+        delivery_distance_km: storefrontDeliveryDistance,
+        service_fee: storefrontServiceFee,
         comment: String(storefrontOrderForm.comment || '').trim() || undefined
       });
       const orderNumber = String(response?.data?.order_number || '');
@@ -328,7 +373,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     } finally {
       setStorefrontOrderSubmitting(false);
     }
-  }, [cart, storefrontOrderForm, storefrontOrderSubmitting, publicRestaurantId, selectedRestaurant, clearCart]);
+  }, [cart, storefrontOrderForm, storefrontOrderSubmitting, publicRestaurantId, selectedRestaurant, clearCart, storefrontDeliveryCost, storefrontDeliveryDistance, storefrontServiceFee]);
 
   const promptTelegramOrder = useCallback(() => {
     const href = String(publicBotHref || '').trim();
@@ -6024,9 +6069,34 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             <span className="small fw-semibold">{Number(containerTotal).toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
                           </div>
                         )}
+                        {storefrontServiceFee > 0 && (
+                          <div className="d-flex justify-content-between mb-1">
+                            <span className="text-muted small">{language === 'uz' ? 'Xizmat haqi' : 'Сервисный сбор'}</span>
+                            <span className="small fw-semibold">{storefrontServiceFee.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
+                          </div>
+                        )}
+                        {storefrontDeliveryCost > 0 && (
+                          <div className="d-flex justify-content-between mb-1">
+                            <span className="text-muted small">
+                              {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
+                              {storefrontDeliveryDistance > 0 && (
+                                <span className="ms-1" style={{ opacity: 0.7 }}>({storefrontDeliveryDistance.toFixed(1)} км)</span>
+                              )}
+                            </span>
+                            <span className="small fw-semibold">{storefrontDeliveryCost.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
+                          </div>
+                        )}
+                        {storefrontDeliveryLoading && (
+                          <div className="small text-muted">{language === 'uz' ? 'Yetkazib berish hisoblanmoqda...' : 'Расчёт доставки...'}</div>
+                        )}
+                        {storefrontDeliveryOutOfZone && (
+                          <div className="small text-danger">
+                            {language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки'}
+                          </div>
+                        )}
                         <div className="d-flex justify-content-between pt-2 mt-2" style={{ borderTop: '1px solid rgba(71,85,105,0.12)', fontSize: '1.05rem' }}>
                           <span className="fw-semibold">{language === 'uz' ? 'Jami' : 'Итого'}</span>
-                          <strong style={{ color: '#2563eb' }}>{Number(cartTotal || 0).toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</strong>
+                          <strong style={{ color: '#2563eb' }}>{storefrontFinalTotal.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</strong>
                         </div>
                       </div>
                     </>
@@ -6043,20 +6113,18 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     </div>
                     <div style={{ height: 280, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(71,85,105,0.18)', marginBottom: 12 }}>
                       <ClientLocationPicker
-                        latitude={storefrontOrderForm.delivery_lat}
-                        longitude={storefrontOrderForm.delivery_lng}
-                        onLocationChange={(loc) => {
-                          if (!loc) return;
-                          setStorefrontOrderForm((prev) => ({
-                            ...prev,
-                            delivery_lat: Number(loc.latitude),
-                            delivery_lng: Number(loc.longitude)
-                          }));
+                        latitude={storefrontOrderForm.delivery_lat || 41.311081}
+                        longitude={storefrontOrderForm.delivery_lng || 69.240562}
+                        onLocationChange={(lat, lng) => {
+                          const nlat = Number(lat);
+                          const nlng = Number(lng);
+                          if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return;
+                          setStorefrontOrderForm((prev) => ({ ...prev, delivery_lat: nlat, delivery_lng: nlng }));
                         }}
-                        onAddressChange={(meta) => {
-                          const next = meta?.fullAddress || meta?.shortAddress || '';
-                          if (next) {
-                            setStorefrontOrderForm((prev) => ({ ...prev, delivery_address: next }));
+                        onAddressChange={(addressText, meta = {}) => {
+                          const full = String(meta?.fullAddress || addressText || '').trim();
+                          if (full) {
+                            setStorefrontOrderForm((prev) => ({ ...prev, delivery_address: full }));
                           }
                         }}
                       />
