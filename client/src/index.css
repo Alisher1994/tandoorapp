@@ -180,6 +180,116 @@
   --bs-secondary: #f97316;
 }
 
+/* Verdant Glass — тёмно-зелёный фон + матовое стекло на карточках, белый текст.
+   Применяется к публичной витрине (.client-surface) и WebApp-корзине (.client-content). */
+:root[data-ui-theme="verdant_glass"] {
+  --primary-color: #2dd4bf;
+  --primary-dark: #14b8a6;
+  --primary-light: #5eead4;
+  --accent-color: #facc15;
+  --accent-soft: rgba(45, 212, 191, 0.18);
+  --background-color: #0d2e1c;
+  --app-shell-background:
+    radial-gradient(circle at 18% 8%, rgba(45, 212, 191, 0.18), transparent 48%),
+    radial-gradient(circle at 82% 22%, rgba(74, 222, 128, 0.14), transparent 48%),
+    radial-gradient(circle at 60% 90%, rgba(20, 184, 166, 0.16), transparent 52%),
+    linear-gradient(180deg, #0d2e1c 0%, #0f3220 48%, #082417 100%);
+  --surface-color: rgba(255, 255, 255, 0.06);
+  --text-color: #f0fdf4;
+  --text-secondary: rgba(240, 253, 244, 0.72);
+  --border-color: rgba(255, 255, 255, 0.14);
+  --shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
+  --shadow-hover: 0 22px 44px rgba(0, 0, 0, 0.55);
+  --bs-primary: #2dd4bf;
+  --bs-secondary: #facc15;
+}
+
+/* Карточки на клиентских поверхностях — матовое стекло. */
+:root[data-ui-theme="verdant_glass"] .client-surface .card,
+:root[data-ui-theme="verdant_glass"] .client-content .card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f0fdf4;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .card .card-title,
+:root[data-ui-theme="verdant_glass"] .client-content .card .card-title,
+:root[data-ui-theme="verdant_glass"] .client-surface .card h1,
+:root[data-ui-theme="verdant_glass"] .client-surface .card h2,
+:root[data-ui-theme="verdant_glass"] .client-surface .card h3,
+:root[data-ui-theme="verdant_glass"] .client-surface .card h4,
+:root[data-ui-theme="verdant_glass"] .client-surface .card h5,
+:root[data-ui-theme="verdant_glass"] .client-content .card h1,
+:root[data-ui-theme="verdant_glass"] .client-content .card h2,
+:root[data-ui-theme="verdant_glass"] .client-content .card h3,
+:root[data-ui-theme="verdant_glass"] .client-content .card h4,
+:root[data-ui-theme="verdant_glass"] .client-content .card h5 {
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .card .text-muted,
+:root[data-ui-theme="verdant_glass"] .client-content .card .text-muted,
+:root[data-ui-theme="verdant_glass"] .client-surface .text-muted,
+:root[data-ui-theme="verdant_glass"] .client-content .text-muted {
+  color: rgba(240, 253, 244, 0.7) !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .bg-light,
+:root[data-ui-theme="verdant_glass"] .client-content .bg-light {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .border-top,
+:root[data-ui-theme="verdant_glass"] .client-content .border-top {
+  border-top-color: rgba(255, 255, 255, 0.14) !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .btn-outline-secondary,
+:root[data-ui-theme="verdant_glass"] .client-content .btn-outline-secondary {
+  color: #f0fdf4;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .btn-outline-secondary:hover,
+:root[data-ui-theme="verdant_glass"] .client-content .btn-outline-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .form-control,
+:root[data-ui-theme="verdant_glass"] .client-content .form-control {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .form-control::placeholder,
+:root[data-ui-theme="verdant_glass"] .client-content .form-control::placeholder {
+  color: rgba(240, 253, 244, 0.45);
+}
+:root[data-ui-theme="verdant_glass"] .client-surface .form-control:focus,
+:root[data-ui-theme="verdant_glass"] .client-content .form-control:focus {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(45, 212, 191, 0.5);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18);
+  color: #f0fdf4;
+}
+/* Топбар каталога — полупрозрачное зелёное стекло поверх фона. */
+:root[data-ui-theme="verdant_glass"] .client-surface .navbar {
+  background: rgba(13, 46, 28, 0.7) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+:root[data-ui-theme="verdant_glass"] .client-topbar {
+  background: rgba(13, 46, 28, 0.7);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .client-bottom-nav {
+  background: rgba(13, 46, 28, 0.85);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #f0fdf4;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
+}
+
 :root[data-ui-font="sans"] {
   --app-font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }

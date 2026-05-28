@@ -4300,7 +4300,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   );
 
   return (
-    <>
+    <div className="client-surface">
       <Navbar
         ref={catalogHeaderRef}
         expand="lg"
@@ -6664,7 +6664,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
           </Modal.Body>
         </Modal>
       )}
-    </>
+    </div>
   );
 }
 
