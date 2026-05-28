@@ -1258,7 +1258,6 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   };
 
   const handleAddToCart = (product) => {
-    if (isGuestStorefront) { promptTelegramOrder(); return; }
     const parseLocalizedNumber = (value, fallback = 0) => {
       if (value === null || value === undefined || value === '') return fallback;
       const normalized = String(value).replace(/\s+/g, '').replace(',', '.');
@@ -1329,7 +1328,6 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   };
 
   const handleToggleFavorite = (product) => {
-    if (isGuestStorefront) { promptTelegramOrder(); return; }
     toggleFavorite({
       ...product,
       restaurant_id: selectedRestaurant
