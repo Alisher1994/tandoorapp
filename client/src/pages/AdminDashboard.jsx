@@ -84,7 +84,8 @@ const UI_THEME_VALUES = new Set([
   'sunset_pop',
   'berry_blast',
   'violet_wave',
-  'rainbow'
+  'rainbow',
+  'verdant_glass'
 ]);
 const UI_THEME_OPTIONS = [
   { value: 'classic', label: 'Текущий (Classic)', preview: ['#64748b', '#475569', '#334155'] },
@@ -94,7 +95,8 @@ const UI_THEME_OPTIONS = [
   { value: 'sunset_pop', label: 'Sunset Pop (тёплый)', preview: ['#f97316', '#ea580c', '#f43f5e'] },
   { value: 'berry_blast', label: 'Berry Blast (ягодный)', preview: ['#db2777', '#be185d', '#f97316'] },
   { value: 'violet_wave', label: 'Violet Wave (фиолетовый)', preview: ['#8b5cf6', '#6d28d9', '#22d3ee'] },
-  { value: 'rainbow', label: 'Rainbow (радужный)', preview: ['#3b82f6', '#f97316', '#8b5cf6'] }
+  { value: 'rainbow', label: 'Rainbow (радужный)', preview: ['#3b82f6', '#f97316', '#8b5cf6'] },
+  { value: 'verdant_glass', label: 'Verdant Glass (стеклянный лес)', preview: ['#0d2e1c', '#1f6f4a', '#2dd4bf'] }
 ];
 const UI_FONT_FAMILY_VALUES = new Set([
   'sans',
@@ -227,7 +229,8 @@ const APPEARANCE_PREVIEW_THEME_TOKENS = Object.freeze({
   sunset_pop: { bgStart: '#fff3ea', bgEnd: '#fff8f1', accent: '#ea580c', accentSoft: '#fdba74' },
   berry_blast: { bgStart: '#ffeaf4', bgEnd: '#fff2f7', accent: '#be185d', accentSoft: '#f9a8d4' },
   violet_wave: { bgStart: '#f2ecff', bgEnd: '#f8f5ff', accent: '#6d28d9', accentSoft: '#ddd6fe' },
-  rainbow: { bgStart: '#edf4ff', bgEnd: '#fff7ef', accent: '#2563eb', accentSoft: '#bfdbfe' }
+  rainbow: { bgStart: '#edf4ff', bgEnd: '#fff7ef', accent: '#2563eb', accentSoft: '#bfdbfe' },
+  verdant_glass: { bgStart: '#0d2e1c', bgEnd: '#082417', accent: '#2dd4bf', accentSoft: 'rgba(45, 212, 191, 0.22)' }
 });
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
