@@ -292,6 +292,35 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   });
   const [storefrontPromoState, setStorefrontPromoState] = useState({ status: 'idle', discount: 0, message: '' });
   const [storefrontPromoLoading, setStorefrontPromoLoading] = useState(false);
+  const [storefrontGeolocating, setStorefrontGeolocating] = useState(false);
+
+  // Спросить браузер о текущей геолокации и подставить в форму.
+  const requestStorefrontGeolocation = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    setStorefrontGeolocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos?.coords?.latitude);
+        const lng = Number(pos?.coords?.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setStorefrontOrderForm((prev) => ({ ...prev, delivery_lat: lat, delivery_lng: lng }));
+        }
+        setStorefrontGeolocating(false);
+      },
+      () => { setStorefrontGeolocating(false); },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+  }, []);
+
+  // На шаге 2 (если доставка и координат ещё нет) — сразу попросить браузер о локации.
+  useEffect(() => {
+    if (!isPublicStorefront) return;
+    if (!showStorefrontCartModal) return;
+    if (storefrontStep !== 2) return;
+    if (storefrontOrderForm.fulfillment_type === 'pickup') return;
+    if (storefrontOrderForm.delivery_lat && storefrontOrderForm.delivery_lng) return;
+    requestStorefrontGeolocation();
+  }, [isPublicStorefront, showStorefrontCartModal, storefrontStep, storefrontOrderForm.fulfillment_type, storefrontOrderForm.delivery_lat, storefrontOrderForm.delivery_lng, requestStorefrontGeolocation]);
   const [storefrontOrderSubmitting, setStorefrontOrderSubmitting] = useState(false);
   const [storefrontOrderError, setStorefrontOrderError] = useState('');
   const [storefrontOrderSuccess, setStorefrontOrderSuccess] = useState(''); // order_number
@@ -6103,12 +6132,12 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     <div key={stepNum} className="d-flex align-items-center gap-2">
                       <div style={{
                         width: 26, height: 26, borderRadius: '50%',
-                        background: storefrontStep >= stepNum ? '#2563eb' : '#e5e7eb',
+                        background: storefrontStep >= stepNum ? 'var(--primary-color, #2563eb)' : '#e5e7eb',
                         color: storefrontStep >= stepNum ? '#fff' : '#6b7280',
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: '0.8rem', fontWeight: 700
                       }}>{stepNum}</div>
-                      {stepNum < 3 && <div style={{ width: 28, height: 2, background: storefrontStep > stepNum ? '#2563eb' : '#e5e7eb' }} />}
+                      {stepNum < 3 && <div style={{ width: 28, height: 2, background: storefrontStep > stepNum ? 'var(--primary-color, #2563eb)' : '#e5e7eb' }} />}
                     </div>
                   ))}
                 </div>
@@ -6147,7 +6176,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                                 {item.selected_variant && (
                                   <div className="small text-muted">{language === 'uz' ? 'Variant' : 'Вариант'}: {item.selected_variant}</div>
                                 )}
-                                <div className="small" style={{ color: '#2563eb', fontWeight: 700 }}>
+                                <div className="small" style={{ color: 'var(--primary-color, #2563eb)', fontWeight: 700 }}>
                                   {price.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}
                                 </div>
                                 {Number(item.container_price) > 0 && (
@@ -6196,67 +6225,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         />
                       </Form.Group>
 
-                      {/* Расшифровка сумм */}
-                      <div className="mb-3 p-3" style={{ background: '#f8fafc', borderRadius: 12 }}>
-                        <div className="d-flex justify-content-between mb-1">
-                          <span className="text-muted small d-inline-flex align-items-center gap-1">
-                            <span aria-hidden="true">🧾</span>
-                            {language === 'uz' ? 'Mahsulotlar' : 'Товары'}
-                          </span>
-                          <span className="small fw-semibold">{Number(productTotal || 0).toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
-                        </div>
-                        {Number(containerTotal || 0) > 0 && (
-                          <div className="d-flex justify-content-between mb-1">
-                            <span className="text-muted small d-inline-flex align-items-center gap-1">
-                              <span aria-hidden="true">🎁</span>
-                              {language === 'uz' ? 'Qadoqlash' : 'Упаковка'}
-                            </span>
-                            <span className="small fw-semibold">{Number(containerTotal).toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
-                          </div>
-                        )}
-                        {storefrontServiceFee > 0 && (
-                          <div className="d-flex justify-content-between mb-1">
-                            <span className="text-muted small d-inline-flex align-items-center gap-1">
-                              <span aria-hidden="true">🛎️</span>
-                              {language === 'uz' ? 'Xizmat haqi' : 'Сервис'}
-                            </span>
-                            <span className="small fw-semibold">{storefrontServiceFee.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
-                          </div>
-                        )}
-                        {storefrontDeliveryCost > 0 && storefrontOrderForm.fulfillment_type !== 'pickup' && (
-                          <div className="d-flex justify-content-between mb-1">
-                            <span className="text-muted small d-inline-flex align-items-center gap-1">
-                              <span aria-hidden="true">🚚</span>
-                              {language === 'uz' ? 'Yetkazib berish' : 'Доставка'}
-                              {storefrontDeliveryDistance > 0 && (
-                                <span className="ms-1" style={{ opacity: 0.7 }}>({storefrontDeliveryDistance.toFixed(2)} км)</span>
-                              )}
-                            </span>
-                            <span className="small fw-semibold">{storefrontDeliveryCost.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
-                          </div>
-                        )}
-                        {storefrontPromoState.status === 'valid' && storefrontPromoState.discount > 0 && (
-                          <div className="d-flex justify-content-between mb-1">
-                            <span className="text-muted small d-inline-flex align-items-center gap-1">
-                              <span aria-hidden="true">🎟️</span>
-                              {language === 'uz' ? 'Promokod' : 'Промокод'}
-                            </span>
-                            <span className="small fw-semibold text-success">−{storefrontPromoState.discount.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</span>
-                          </div>
-                        )}
-                        {storefrontDeliveryLoading && (
-                          <div className="small text-muted">{language === 'uz' ? 'Yetkazib berish hisoblanmoqda...' : 'Расчёт доставки...'}</div>
-                        )}
-                        {storefrontDeliveryOutOfZone && (
-                          <div className="small text-danger">
-                            {language === 'uz' ? 'Manzil yetkazib berish zonasidan tashqarida' : 'Адрес вне зоны доставки'}
-                          </div>
-                        )}
-                        <div className="d-flex justify-content-between pt-2 mt-2" style={{ borderTop: '1px solid rgba(71,85,105,0.12)', fontSize: '1.05rem' }}>
-                          <span className="fw-semibold">{language === 'uz' ? 'Jami' : 'Итого'}</span>
-                          <strong style={{ color: '#2563eb' }}>{storefrontFinalTotal.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</strong>
-                        </div>
-                      </div>
+                      {/* Сумма скрыта на шаге 1 — она зависит от доставки, которую выберут дальше */}
                     </>
                   )
                 )}
@@ -6294,6 +6263,18 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     ) : (
                       <>
                         <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки'}</Form.Label>
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          className="mb-2 d-inline-flex align-items-center gap-1"
+                          disabled={storefrontGeolocating}
+                          onClick={() => requestStorefrontGeolocation()}
+                        >
+                          <span aria-hidden="true">📍</span>
+                          {storefrontGeolocating
+                            ? (language === 'uz' ? 'Aniqlanmoqda...' : 'Определяем...')
+                            : (language === 'uz' ? 'Joriy joylashuvni aniqlash' : 'Определить местоположение')}
+                        </Button>
                         <div style={{ height: 240, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(71,85,105,0.18)', marginBottom: 10 }}>
                           <ClientLocationPicker
                             latitude={storefrontOrderForm.delivery_lat || 41.311081}
@@ -6415,34 +6396,37 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       </>
                     )}
 
-                    {/* Способ оплаты */}
+                    {/* Способ оплаты — оригинальные иконки/логотипы */}
                     <Form.Label className="small mb-1 text-muted">{language === 'uz' ? 'Toʻlov usuli' : 'Способ оплаты'}</Form.Label>
                     <div className="d-flex flex-wrap gap-2 mb-3">
                       {publicRestaurantMeta?.cash_enabled !== false && (
                         <Button
                           variant={storefrontOrderForm.payment_method === 'cash' ? 'primary' : 'outline-secondary'}
-                          style={{ flex: '1 1 30%', minWidth: 110 }}
+                          style={{ flex: '1 1 30%', minWidth: 110, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                           onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, payment_method: 'cash' }))}
                         >
-                          💵 {language === 'uz' ? 'Naqd' : 'Наличные'}
+                          <img src="/cash.svg" alt="" width="18" height="18" style={{ display: 'block' }} />
+                          {language === 'uz' ? 'Naqd' : 'Наличные'}
                         </Button>
                       )}
                       {publicRestaurantMeta?.click_enabled && (
                         <Button
                           variant={storefrontOrderForm.payment_method === 'click' ? 'primary' : 'outline-secondary'}
-                          style={{ flex: '1 1 30%', minWidth: 110 }}
+                          style={{ flex: '1 1 30%', minWidth: 110, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                           onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, payment_method: 'click' }))}
                         >
-                          🔵 Click
+                          <img src="/click.png" alt="" height="18" style={{ display: 'block' }} />
+                          Click
                         </Button>
                       )}
                       {publicRestaurantMeta?.card_payment_enabled && (
                         <Button
                           variant={storefrontOrderForm.payment_method === 'card' ? 'primary' : 'outline-secondary'}
-                          style={{ flex: '1 1 30%', minWidth: 110 }}
+                          style={{ flex: '1 1 30%', minWidth: 110, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                           onClick={() => setStorefrontOrderForm((prev) => ({ ...prev, payment_method: 'card' }))}
                         >
-                          💳 {language === 'uz' ? 'Karta' : 'Карта'}
+                          <img src="/card.svg" alt="" width="18" height="18" style={{ display: 'block' }} />
+                          {language === 'uz' ? 'Karta' : 'Карта'}
                         </Button>
                       )}
                     </div>
@@ -6466,7 +6450,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             }}
                           />
                           <Button
-                            variant="outline-primary"
+                            variant="primary"
+                            style={{ background: 'var(--primary-color, #2563eb)', borderColor: 'var(--primary-color, #2563eb)' }}
                             disabled={storefrontPromoLoading || !String(storefrontOrderForm.promo_code || '').trim()}
                             onClick={async () => {
                               const code = String(storefrontOrderForm.promo_code || '').trim();
@@ -6485,12 +6470,12 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                                   items: promoItems
                                 });
                                 if (res.data?.valid) {
-                                  setStorefrontPromoState({ status: 'valid', discount: Number(res.data?.discount_amount) || 0, message: 'Промокод применён' });
+                                  setStorefrontPromoState({ status: 'valid', discount: Number(res.data?.discount_amount) || 0, message: (language === 'uz' ? 'Promokod qoʻllandi' : 'Промокод применён') });
                                 } else {
-                                  setStorefrontPromoState({ status: 'invalid', discount: 0, message: 'Промокод недействителен' });
+                                  setStorefrontPromoState({ status: 'invalid', discount: 0, message: (language === 'uz' ? 'Promokod yaroqsiz' : 'Промокод недействителен') });
                                 }
                               } catch {
-                                setStorefrontPromoState({ status: 'invalid', discount: 0, message: 'Ошибка проверки' });
+                                setStorefrontPromoState({ status: 'invalid', discount: 0, message: (language === 'uz' ? 'Tekshirishda xatolik' : 'Ошибка проверки') });
                               } finally {
                                 setStorefrontPromoLoading(false);
                               }
@@ -6560,7 +6545,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       )}
                       <div className="d-flex justify-content-between pt-2 mt-2" style={{ borderTop: '1px solid rgba(71,85,105,0.12)', fontSize: '1.05rem' }}>
                         <span className="fw-semibold">{language === 'uz' ? 'Jami' : 'Итого'}</span>
-                        <strong style={{ color: '#2563eb' }}>{storefrontFinalTotal.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</strong>
+                        <strong style={{ color: 'var(--primary-color, #2563eb)' }}>{storefrontFinalTotal.toLocaleString('ru-RU')} {language === 'uz' ? "so'm" : 'сум'}</strong>
                       </div>
                       {storefrontOrderForm.delivery_address && storefrontOrderForm.fulfillment_type !== 'pickup' && (
                         <div className="small text-muted mt-2">
