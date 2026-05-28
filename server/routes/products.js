@@ -1102,7 +1102,8 @@ router.post('/storefront-orders', async (req, res) => {
     const restRes = await pool.query(
       `SELECT id, telegram_bot_token, telegram_group_id,
               COALESCE(service_fee, 0) AS service_fee,
-              COALESCE(is_delivery_enabled, true) AS is_delivery_enabled
+              COALESCE(is_delivery_enabled, true) AS is_delivery_enabled,
+              COALESCE(is_pickup_enabled, true) AS is_pickup_enabled
        FROM restaurants
        WHERE id = $1 AND COALESCE(is_active, true) = true
        LIMIT 1`,
@@ -1112,6 +1113,10 @@ router.post('/storefront-orders', async (req, res) => {
       return res.status(404).json({ error: 'Магазин не найден' });
     }
     const restaurant = restRes.rows[0];
+    // Магазин запретил самовывоз — гость не может оформить самовывоз с витрины.
+    if (fulfillmentType === 'pickup' && restaurant.is_pickup_enabled === false) {
+      return res.status(400).json({ error: 'Магазин не принимает самовывоз' });
+    }
     // Сервисный сбор — берём из БД магазина; клиент мог прислать справочно, но истина — DB.
     const serviceFeeFinal = Number.parseFloat(restaurant.service_fee) > 0
       ? Number.parseFloat(restaurant.service_fee)
@@ -1388,6 +1393,7 @@ router.get('/restaurant/:id', async (req, res) => {
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       minimum_order_amount: Number.isFinite(minimumOrderAmount) ? Math.max(0, minimumOrderAmount) : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
+      is_pickup_enabled: r.is_pickup_enabled !== false,
       cash_enabled: cashEnabled,
       click_url: r.click_url,
       payme_enabled: isEnabledFlag(r.payme_enabled) && Boolean(String(r.payme_merchant_id || '').trim()),
@@ -2300,6 +2306,7 @@ router.get('/restaurants/list', async (req, res) => {
       inventory_tracking_enabled: isEnabledFlag(r.inventory_tracking_enabled),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
       is_delivery_enabled: isEnabledFlag(r.is_delivery_enabled),
+      is_pickup_enabled: r.is_pickup_enabled !== false,
       reservation_enabled: r.reservation_enabled_setting === true || r.reservation_enabled_setting === 'true',
       reservation_fee: Number.isFinite(Number.parseFloat(r.reservation_fee)) ? Number.parseFloat(r.reservation_fee) : 0,
       reservation_service_cost: Number.isFinite(Number.parseFloat(r.reservation_service_cost)) ? Number.parseFloat(r.reservation_service_cost) : 0,

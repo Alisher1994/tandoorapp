@@ -8593,11 +8593,15 @@ body::-webkit-scrollbar,
     color: var(--primary-color) !important;
 }
 
-.admin-panel .text-success,
 .admin-panel .text-info,
 .admin-panel .text-warning,
 .admin-panel .text-danger {
     color: var(--primary-color) !important;
+}
+
+/* «доступно/доступен» и прочие подтверждения держим зелёными, чтобы они отличались от темы. */
+.admin-panel .text-success {
+    color: #16a34a !important;
 }
 
 .admin-panel .bg-primary,

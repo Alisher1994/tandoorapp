@@ -45,6 +45,7 @@ function StorefrontGate() {
           meta = {
             service_fee: Number(infoRes.data?.service_fee) || 0,
             is_delivery_enabled: infoRes.data?.is_delivery_enabled !== false,
+            is_pickup_enabled: infoRes.data?.is_pickup_enabled !== false,
             currency_code: infoRes.data?.currency_code || 'uz',
             cash_enabled: infoRes.data?.cash_enabled !== false,
             card_payment_enabled: infoRes.data?.card_payment_enabled === true,
