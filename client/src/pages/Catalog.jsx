@@ -4351,6 +4351,51 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
           )}
 
           <div className="d-flex align-items-center justify-content-end gap-2">
+            {/* Флаги RU/UZ — переключатель языка на публичной витрине */}
+            {isPublicStorefront && (
+              <div className="d-flex align-items-center gap-1" role="group" aria-label="Язык / Til">
+                {['ru', 'uz'].map((lang) => {
+                  const active = (language === 'uz' ? 'uz' : 'ru') === lang;
+                  return (
+                    <button
+                      key={`lang-${lang}`}
+                      type="button"
+                      onClick={() => {
+                        if (typeof setLanguage === 'function') setLanguage(lang);
+                        if (typeof window !== 'undefined') {
+                          try { localStorage.setItem(LANGUAGE_STORAGE_KEY, lang); } catch (_) { /* no-op */ }
+                        }
+                      }}
+                      aria-label={lang === 'ru' ? 'Русский' : 'Oʻzbek'}
+                      title={lang === 'ru' ? 'Русский' : 'Oʻzbek'}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        border: active ? '2px solid #2563eb' : '1px solid rgba(71,85,105,0.22)',
+                        background: '#fff',
+                        padding: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        opacity: active ? 1 : 0.65,
+                        transition: 'all 0.18s ease'
+                      }}
+                    >
+                      <img
+                        src={`/flags/${lang}.svg`}
+                        alt={lang.toUpperCase()}
+                        width="22"
+                        height="22"
+                        style={{ display: 'block', objectFit: 'cover', borderRadius: '50%' }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {/* На публичной витрине показываем кнопку корзины с бейджем */}
             {isPublicStorefront && (
               <button
@@ -5433,6 +5478,57 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     </span>
                   </div>
 
+                  {/* Inline-кнопки управления (видны только на ПК) */}
+                  <div className="product-details-inline-actions">
+                    {activeProductSelectedVariantAvailable ? (
+                      activeProductQty > 0 ? (
+                        <>
+                          <div className="product-details-bottom-stepper">
+                            <button
+                              type="button"
+                              className="btn btn-sm p-0 border-0 bg-transparent"
+                              onClick={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant)}
+                              aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
+                            >−</button>
+                            <span>{formatQuantity(activeProductQty)}</span>
+                            <button
+                              type="button"
+                              className="btn btn-sm p-0 border-0 bg-transparent"
+                              style={{ opacity: activeProductIsAtStockLimit ? 0.45 : 1 }}
+                              disabled={activeProductIsAtStockLimit}
+                              onClick={() => updateProductQuantityWithinStock(
+                                activeProduct,
+                                activeProductQty,
+                                activeProductQuantityStep,
+                                activeProductSelectedVariant
+                              )}
+                              aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
+                            >+</button>
+                          </div>
+                          <Button
+                            type="button"
+                            className="product-details-bottom-cta"
+                            onClick={() => { if (isGuestStorefront) { setShowProductDetailsModal(false); setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setStorefrontStep(1); setShowStorefrontCartModal(true); return; } navigate('/cart'); }}
+                          >
+                            {language === 'uz' ? "Savatga o'tish" : 'В корзину'}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          type="button"
+                          className="product-details-bottom-cta"
+                          onClick={() => handleAddToCart(activeProduct)}
+                        >
+                          {language === 'uz' ? "Savatga qo'shish" : 'В корзину'}
+                        </Button>
+                      )
+                    ) : (
+                      <Button type="button" className="product-details-bottom-cta" disabled>
+                        {language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
+                      </Button>
+                    )}
+                  </div>
+
                   {(productWeeklyBuyers > 0 || productWeeklyOrders > 0 || productWeeklySoldCount > 0) && (
                     <div className="product-details-weekly-metric mb-3">
                       <div>
@@ -5508,85 +5604,6 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       {activeProductDescription || (language === 'uz' ? "Tavsif kiritilmagan" : 'Описание не указано')}
                     </div>
                   </div>
-
-                  {relatedProducts.length > 0 && (
-                    <div className="product-details-block mb-3">
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <div className="fw-semibold">{language === 'uz' ? "O'xshash mahsulotlar" : 'Похожие товары'}</div>
-                        <small className="text-muted">{relatedProducts.length}/15</small>
-                      </div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: 10,
-                          overflowX: 'auto',
-                          overflowY: 'hidden',
-                          WebkitOverflowScrolling: 'touch',
-                          paddingBottom: 4
-                        }}
-                      >
-                        {relatedProducts.slice(0, 15).map((item) => {
-                          const relatedName = getProductName(item);
-                          const relatedImageUrl = getProductCardImage(item, getSelectedVariantForProduct(item));
-                          const relatedPriceMeta = getSelectedVariantPriceMeta(item, getSelectedVariantForProduct(item));
-                          return (
-                            <button
-                              key={`related-${item.id}`}
-                              type="button"
-                              onClick={() => openProductDetailsModal(item)}
-                              style={{
-                                flex: '0 0 132px',
-                                border: '1px solid rgba(148,163,184,0.28)',
-                                borderRadius: 12,
-                                background: '#fff',
-                                textAlign: 'left',
-                                padding: 0,
-                                overflow: 'hidden'
-                              }}
-                            >
-                              {relatedImageUrl ? (
-                                <img
-                                  src={relatedImageUrl}
-                                  alt={relatedName}
-                                  style={{
-                                    width: '100%',
-                                    aspectRatio: '4 / 3',
-                                    objectFit: 'cover',
-                                    display: 'block'
-                                  }}
-                                />
-                              ) : (
-                                renderStoreLogoFallback({
-                                  wrapperStyle: { width: '100%', aspectRatio: '4 / 3', background: '#f8fafc' },
-                                  imageStyle: { width: '46%', maxHeight: '46%' }
-                                })
-                              )}
-                              <div style={{ padding: '8px 9px 9px' }}>
-                                <div
-                                  style={{
-                                    fontSize: '0.78rem',
-                                    lineHeight: 1.2,
-                                    color: '#0f172a',
-                                    fontWeight: 600,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                    minHeight: 34
-                                  }}
-                                >
-                                  {relatedName}
-                                </div>
-                                <div style={{ marginTop: 6, fontSize: '0.8rem', fontWeight: 700, color: '#0f766e' }}>
-                                  {formatPrice(relatedPriceMeta.currentPrice)} {t('sum')}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="product-details-block">
                     <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
@@ -5721,6 +5738,66 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     )}
                   </div>
                 </section>
+
+                {/* Похожие товары — отдельной секцией снизу, на ПК растягиваются на 2 колонки */}
+                {relatedProducts.length > 0 && (
+                  <section className="product-details-related-section">
+                    <div className="product-details-block">
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <div className="fw-semibold">{language === 'uz' ? "O'xshash mahsulotlar" : 'Похожие товары'}</div>
+                        <small className="text-muted">{relatedProducts.length}/15</small>
+                      </div>
+                      <div className="product-details-related-scroll">
+                        {relatedProducts.slice(0, 15).map((item) => {
+                          const relatedName = getProductName(item);
+                          const relatedImageUrl = getProductCardImage(item, getSelectedVariantForProduct(item));
+                          const relatedPriceMeta = getSelectedVariantPriceMeta(item, getSelectedVariantForProduct(item));
+                          return (
+                            <button
+                              key={`related-${item.id}`}
+                              type="button"
+                              onClick={() => openProductDetailsModal(item)}
+                              className="product-details-related-card"
+                            >
+                              {relatedImageUrl ? (
+                                <img
+                                  src={relatedImageUrl}
+                                  alt={relatedName}
+                                  style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', display: 'block' }}
+                                />
+                              ) : (
+                                renderStoreLogoFallback({
+                                  wrapperStyle: { width: '100%', aspectRatio: '4 / 3', background: '#f8fafc' },
+                                  imageStyle: { width: '46%', maxHeight: '46%' }
+                                })
+                              )}
+                              <div style={{ padding: '8px 9px 9px' }}>
+                                <div
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    lineHeight: 1.2,
+                                    color: '#0f172a',
+                                    fontWeight: 600,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    minHeight: 34
+                                  }}
+                                >
+                                  {relatedName}
+                                </div>
+                                <div style={{ marginTop: 6, fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary-color, #0f766e)' }}>
+                                  {formatPrice(relatedPriceMeta.currentPrice)} {t('sum')}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </section>
+                )}
               </div>
 
               <div className="product-details-bottom-bar">
