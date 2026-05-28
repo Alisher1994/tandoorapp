@@ -342,7 +342,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const submitStorefrontOrder = useCallback(async () => {
     if (storefrontOrderSubmitting) return;
     if (!cart || cart.length === 0) {
-      setStorefrontOrderError('Корзина пуста');
+      setStorefrontOrderError(language === 'uz' ? 'Savat boʻsh' : 'Корзина пуста');
       return;
     }
     const name = String(storefrontOrderForm.customer_name || '').trim();
@@ -357,9 +357,9 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     const address = fulfillment === 'pickup'
       ? ''
       : (extras ? `${baseAddress}${baseAddress ? ', ' : ''}${extras}` : baseAddress);
-    if (!name) { setStorefrontOrderError('Введите ФИО'); return; }
-    if (!phone || phone.replace(/\D/g, '').length < 7) { setStorefrontOrderError('Введите корректный телефон'); return; }
-    if (fulfillment !== 'pickup' && !baseAddress) { setStorefrontOrderError('Введите адрес доставки'); return; }
+    if (!name) { setStorefrontOrderError(language === 'uz' ? "Ismingizni kiriting" : 'Введите ФИО'); return; }
+    if (!phone || phone.replace(/\D/g, '').length < 7) { setStorefrontOrderError(language === 'uz' ? "Toʻgʻri telefon kiriting" : 'Введите корректный телефон'); return; }
+    if (fulfillment !== 'pickup' && !baseAddress) { setStorefrontOrderError(language === 'uz' ? "Yetkazib berish manzilini kiriting" : 'Введите адрес доставки'); return; }
 
     setStorefrontOrderSubmitting(true);
     setStorefrontOrderError('');
@@ -5408,9 +5408,23 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                   </div>
 
                   {activeProductGalleryImages.length > 1 && (
-                    <div className="product-details-hero-counter">
-                      {activeProductGalleryIndex + 1} / {activeProductGalleryImages.length}
-                    </div>
+                    <>
+                      <button
+                        type="button"
+                        className="product-details-hero-nav product-details-hero-nav-prev"
+                        onClick={(e) => { e.stopPropagation(); showPrevProductHeroImage(activeProductGalleryImages.length); }}
+                        aria-label={language === 'uz' ? 'Oldingi rasm' : 'Предыдущее фото'}
+                      >‹</button>
+                      <button
+                        type="button"
+                        className="product-details-hero-nav product-details-hero-nav-next"
+                        onClick={(e) => { e.stopPropagation(); showNextProductHeroImage(activeProductGalleryImages.length); }}
+                        aria-label={language === 'uz' ? 'Keyingi rasm' : 'Следующее фото'}
+                      >›</button>
+                      <div className="product-details-hero-counter">
+                        {activeProductGalleryIndex + 1} / {activeProductGalleryImages.length}
+                      </div>
+                    </>
                   )}
                 </section>
 
@@ -6054,25 +6068,31 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
           <Modal.Header closeButton>
             <Modal.Title style={{ fontSize: '1.05rem' }}>
               {storefrontOrderSuccess
-                ? 'Заказ принят'
-                : storefrontStep === 1 ? 'Корзина'
-                  : storefrontStep === 2 ? 'Адрес доставки'
-                    : 'Контактные данные'}
+                ? (language === 'uz' ? 'Buyurtma qabul qilindi' : 'Заказ принят')
+                : storefrontStep === 1
+                  ? (language === 'uz' ? 'Savat' : 'Корзина')
+                  : storefrontStep === 2
+                    ? (language === 'uz' ? 'Yetkazib berish manzili' : 'Адрес доставки')
+                    : (language === 'uz' ? 'Aloqa maʼlumotlari' : 'Контактные данные')}
             </Modal.Title>
           </Modal.Header>
           <Modal.Body style={{ padding: '12px 14px' }}>
             {storefrontOrderSuccess ? (
               <div className="text-center py-3">
                 <div style={{ fontSize: 56, marginBottom: 12 }}>✅</div>
-                <h5 className="mb-2">Спасибо! Заказ оформлен.</h5>
+                <h5 className="mb-2">
+                  {language === 'uz' ? 'Rahmat! Buyurtma rasmiylashtirildi.' : 'Спасибо! Заказ оформлен.'}
+                </h5>
                 <div className="text-muted mb-3">
-                  Номер заказа: <strong>#{storefrontOrderSuccess}</strong>
+                  {language === 'uz' ? 'Buyurtma raqami' : 'Номер заказа'}: <strong>#{storefrontOrderSuccess}</strong>
                 </div>
                 <p className="text-muted small mb-4">
-                  Магазин свяжется с вами по указанному номеру телефона.
+                  {language === 'uz'
+                    ? 'Magazin koʻrsatilgan raqam orqali siz bilan bogʻlanadi.'
+                    : 'Магазин свяжется с вами по указанному номеру телефона.'}
                 </p>
                 <Button variant="primary" className="w-100" onClick={() => { setShowStorefrontCartModal(false); setStorefrontOrderSuccess(''); setStorefrontStep(1); }}>
-                  Закрыть
+                  {language === 'uz' ? 'Yopish' : 'Закрыть'}
                 </Button>
               </div>
             ) : (
@@ -6098,7 +6118,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                   cart.length === 0 ? (
                     <div className="text-center py-4 text-muted">
                       <div style={{ fontSize: 56, marginBottom: 8 }}>🛒</div>
-                      <div>Корзина пуста</div>
+                      <div>{language === 'uz' ? 'Savat boʻsh' : 'Корзина пуста'}</div>
                     </div>
                   ) : (
                     <>
@@ -6577,7 +6597,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       onClick={() => {
                         setStorefrontOrderError('');
                         if (storefrontStep === 1) {
-                          if (cart.length === 0) { setStorefrontOrderError('Корзина пуста'); return; }
+                          if (cart.length === 0) { setStorefrontOrderError(language === 'uz' ? 'Savat boʻsh' : 'Корзина пуста'); return; }
                           setStorefrontStep(2);
                           return;
                         }

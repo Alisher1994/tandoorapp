@@ -910,31 +910,60 @@ h6 {
 /* Инлайн-кнопки управления (на мобиле скрыты, видны только на ПК) */
 .product-details-inline-actions { display: none; }
 
-/* Кастомные скроллбары для карточки товара (вертикальный и горизонтальные) */
+/* Кастомные скроллбары: тонкие, светлые, одинаковая толщина по обеим осям */
 .product-details-scroll,
 .product-details-related-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.55) transparent;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
 }
 .product-details-scroll::-webkit-scrollbar,
 .product-details-related-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 5px;
+  height: 5px;
   display: block;
 }
 .product-details-scroll::-webkit-scrollbar-thumb,
 .product-details-related-scroll::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.55);
+  background: rgba(148, 163, 184, 0.35);
   border-radius: 999px;
 }
 .product-details-scroll::-webkit-scrollbar-thumb:hover,
 .product-details-related-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.75);
+  background: rgba(148, 163, 184, 0.6);
 }
 .product-details-scroll::-webkit-scrollbar-track,
 .product-details-related-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Стрелки листания фото на главном изображении */
+.product-details-hero-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.92);
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 0 4px;
+  z-index: 3;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.product-details-hero-nav:hover {
+  background: #ffffff;
+  border-color: rgba(100, 116, 139, 0.7);
+}
+.product-details-hero-nav-prev { left: 10px; }
+.product-details-hero-nav-next { right: 10px; }
 
 /* Горизонтальный карусель похожих товаров */
 .product-details-related-scroll {
@@ -1012,7 +1041,7 @@ h6 {
     grid-area: info;
     padding-left: 4px !important;
     padding-right: 4px !important;
-    padding-top: 0 !important;
+    padding-top: 16px !important;
   }
   .product-details-block { box-shadow: none !important; }
   .product-details-related-section { grid-area: related; }
