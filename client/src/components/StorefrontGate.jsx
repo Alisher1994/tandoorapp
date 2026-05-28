@@ -41,8 +41,15 @@ function StorefrontGate() {
             payme_enabled: infoRes.data?.payme_enabled === true,
             promo_codes_enabled: infoRes.data?.promo_codes_enabled === true,
             is_scheduled_date_delivery_enabled: infoRes.data?.is_scheduled_date_delivery_enabled === true,
-            scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(infoRes.data?.scheduled_delivery_max_days) || 7))
+            scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(infoRes.data?.scheduled_delivery_max_days) || 7)),
+            ui_theme: String(infoRes.data?.ui_theme || 'classic').trim().toLowerCase(),
+            ui_font_family: String(infoRes.data?.ui_font_family || 'sans').trim().toLowerCase()
           };
+          // Применяем стиль/шрифт магазина к корню документа, чтобы CSS-переменные подхватились.
+          if (typeof document !== 'undefined') {
+            document.documentElement.setAttribute('data-ui-theme', meta.ui_theme);
+            document.documentElement.setAttribute('data-ui-font', meta.ui_font_family);
+          }
         } catch (_) { /* CTA просто не появится, не критично */ }
         if (!cancelled) setState({ status: 'ready', restaurantId, botHref, meta });
       } catch (error) {
