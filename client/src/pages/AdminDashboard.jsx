@@ -13686,7 +13686,7 @@ function AdminDashboard() {
                       { key: 'telegram', icon: '✈️', label: 'Telegram' },
                       { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov tizimlari" : 'Платежные системы' },
                       { key: 'delivery', icon: '🚚', label: language === 'uz' ? 'Yetkazib berish' : 'Доставка' },
-                      { key: 'promo_codes', icon: '🎟', label: language === 'uz' ? 'Promokodlar' : 'Промокоды' },
+                      { key: 'promo_codes', icon: '🎁', label: language === 'uz' ? 'Promokodlar' : 'Промокоды' },
                       { key: 'reports', icon: '📊', label: language === 'uz' ? 'Hisobotlar' : 'Отчёты' },
                       { key: 'operators', icon: '👨‍💻', label: language === 'uz' ? 'Operatorlar' : 'Операторы' }
                     ].map((tab) => {
@@ -15994,7 +15994,7 @@ function AdminDashboard() {
                           <Card.Body className="p-4">
                             <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                               <div>
-                                <h5 className="fw-bold mb-1">🎟 {language === 'uz' ? 'Promokodlar' : 'Промокоды'}</h5>
+                                <h5 className="fw-bold mb-1">🎁 {language === 'uz' ? 'Promokodlar' : 'Промокоды'}</h5>
                                 <div className="text-muted small">
                                   {language === 'uz'
                                     ? "Mijoz savatda kiritadigan chegirma kodlari. Faqat shu do'kon uchun amal qiladi."

@@ -1873,7 +1873,7 @@ function Cart() {
           <Card className="border-0 shadow-sm mb-3">
             <Card.Body>
               <div className="small fw-semibold mb-2">
-                🎟 {language === 'uz' ? 'Promokod' : 'Промокод'}
+                🎁 {language === 'uz' ? 'Promokod' : 'Промокод'}
               </div>
               {appliedPromo ? (
                 <div className="d-flex justify-content-between align-items-center">
@@ -2252,7 +2252,7 @@ function Cart() {
               )}
               {appliedPromo && promoDiscountAmount > 0 ? (
                 <div className="d-flex justify-content-between text-danger">
-                  <span>🎟 {language === 'uz' ? 'Promokod' : 'Промокод'} {appliedPromo.code}:</span>
+                  <span>🎁 {language === 'uz' ? 'Promokod' : 'Промокод'} {appliedPromo.code}:</span>
                   <span>−{formatPrice(promoDiscountAmount)} {t('sum')}</span>
                 </div>
               ) : null}
