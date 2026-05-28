@@ -11,18 +11,29 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 // Открывается без входа. Разрешает slug в id магазина и отдаёт его в каталог (гостевой режим).
 function StorefrontGate() {
   const { slug } = useParams();
-  const [state, setState] = useState({ status: 'loading', restaurantId: null, botHref: '', meta: null });
+  const [state, setState] = useState({ status: 'loading', restaurantId: null, botHref: '', meta: null, logoUrl: '' });
 
   useEffect(() => {
     let cancelled = false;
     const resolve = async () => {
-      setState({ status: 'loading', restaurantId: null, botHref: '', meta: null });
+      setState({ status: 'loading', restaurantId: null, botHref: '', meta: null, logoUrl: '' });
       try {
         const resolveRes = await axios.get(`${API_URL}/products/storefront-resolve/${encodeURIComponent(slug)}`);
         const restaurantId = Number(resolveRes.data?.restaurant_id);
         if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
-          if (!cancelled) setState({ status: 'not_found', restaurantId: null, botHref: '', meta: null });
+          if (!cancelled) setState({ status: 'not_found', restaurantId: null, botHref: '', meta: null, logoUrl: '' });
           return;
+        }
+        // Логотип и тему получаем уже из resolve — показываем магазин в лоадере, пока качается остальная инфа.
+        const earlyLogo = String(resolveRes.data?.logo_url || '').trim();
+        const earlyTheme = String(resolveRes.data?.ui_theme || 'classic').trim().toLowerCase();
+        const earlyFont = String(resolveRes.data?.ui_font_family || 'sans').trim().toLowerCase();
+        if (typeof document !== 'undefined') {
+          document.documentElement.setAttribute('data-ui-theme', earlyTheme);
+          document.documentElement.setAttribute('data-ui-font', earlyFont);
+        }
+        if (!cancelled) {
+          setState((prev) => ({ ...prev, restaurantId, logoUrl: earlyLogo }));
         }
         // Ссылка на бот магазина + публичные настройки (сервис/доставка) для модалки оформления.
         let botHref = '';
@@ -52,11 +63,11 @@ function StorefrontGate() {
             document.documentElement.setAttribute('data-ui-font', meta.ui_font_family);
           }
         } catch (_) { /* CTA просто не появится, не критично */ }
-        if (!cancelled) setState({ status: 'ready', restaurantId, botHref, meta });
+        if (!cancelled) setState({ status: 'ready', restaurantId, botHref, meta, logoUrl: meta?.logo_url || '' });
       } catch (error) {
         if (!cancelled) {
           const code = error?.response?.status;
-          setState({ status: code === 404 ? 'not_found' : 'error', restaurantId: null, botHref: '', meta: null });
+          setState({ status: code === 404 ? 'not_found' : 'error', restaurantId: null, botHref: '', meta: null, logoUrl: '' });
         }
       }
     };
@@ -65,8 +76,8 @@ function StorefrontGate() {
   }, [slug]);
 
   if (state.status === 'loading') {
-    // Логотип магазина ещё не получили — показываем дефолтный (Talablar) с пульсацией.
-    return <StorefrontLoader fullscreen label="Загрузка витрины" />;
+    // Если успели получить логотип магазина из resolve — показываем его, иначе дефолтный.
+    return <StorefrontLoader fullscreen logoUrl={state.logoUrl} label="Загрузка" />;
   }
 
   if (state.status === 'not_found' || state.status === 'error') {
@@ -85,7 +96,7 @@ function StorefrontGate() {
   }
 
   return (
-    <Suspense fallback={<StorefrontLoader fullscreen logoUrl={state.meta?.logo_url || ''} label="Подготовка витрины" />}>
+    <Suspense fallback={<StorefrontLoader fullscreen logoUrl={state.logoUrl} label="Загрузка" />}>
       <Catalog publicStorefront publicRestaurantId={state.restaurantId} publicBotHref={state.botHref} publicRestaurantMeta={state.meta} />
     </Suspense>
   );
