@@ -7,6 +7,7 @@ import Col from 'react-bootstrap/Col';
 import Card from 'react-bootstrap/Card';
 import Button from 'react-bootstrap/Button';
 import Modal from 'react-bootstrap/Modal';
+import Form from 'react-bootstrap/Form';
 import Navbar from 'react-bootstrap/Navbar';
 import { useAuth } from '../context/AuthContext';
 import { useCart, formatPrice, formatQuantity, resolveQuantityStep } from '../context/CartContext';
@@ -112,6 +113,7 @@ const UserLucideIcon = ({ size = 18, color = 'currentColor' }) => (
     <circle cx="12" cy="7" r="4" />
   </svg>
 );
+
 
 const ShareLucideIcon = ({ size = 18, color = 'currentColor' }) => (
   <svg
@@ -267,6 +269,58 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   // На публичной витрине заказ всегда идёт через Telegram, даже если в localStorage
   // осталась чужая сессия (актуально для встроенного браузера Telegram на мобиле).
   const isGuestStorefront = isPublicStorefront;
+  // Гостевое оформление заказа с витрины (без авторизации, без SMS).
+  const [showStorefrontCartModal, setShowStorefrontCartModal] = useState(false);
+  const [storefrontOrderForm, setStorefrontOrderForm] = useState({
+    customer_name: '',
+    customer_phone: '',
+    delivery_address: '',
+    comment: ''
+  });
+  const [storefrontOrderSubmitting, setStorefrontOrderSubmitting] = useState(false);
+  const [storefrontOrderError, setStorefrontOrderError] = useState('');
+  const [storefrontOrderSuccess, setStorefrontOrderSuccess] = useState(''); // order_number
+  const submitStorefrontOrder = useCallback(async () => {
+    if (storefrontOrderSubmitting) return;
+    if (!cart || cart.length === 0) {
+      setStorefrontOrderError('Корзина пуста');
+      return;
+    }
+    const name = String(storefrontOrderForm.customer_name || '').trim();
+    const phone = String(storefrontOrderForm.customer_phone || '').trim();
+    const address = String(storefrontOrderForm.delivery_address || '').trim();
+    if (!name) { setStorefrontOrderError('Введите ФИО'); return; }
+    if (!phone || phone.replace(/\D/g, '').length < 7) { setStorefrontOrderError('Введите корректный телефон'); return; }
+    if (!address) { setStorefrontOrderError('Введите адрес доставки'); return; }
+
+    setStorefrontOrderSubmitting(true);
+    setStorefrontOrderError('');
+    try {
+      const payloadItems = cart.map((item) => ({
+        product_id: Number(item.id),
+        quantity: Number(item.quantity) || 1,
+        selected_variant: item.selected_variant || null
+      }));
+      const response = await axios.post(`${API_URL}/products/storefront-orders`, {
+        restaurant_id: Number(publicRestaurantId) || Number(selectedRestaurant),
+        items: payloadItems,
+        customer_name: name,
+        customer_phone: phone,
+        delivery_address: address,
+        comment: String(storefrontOrderForm.comment || '').trim() || undefined
+      });
+      const orderNumber = String(response?.data?.order_number || '');
+      setStorefrontOrderSuccess(orderNumber);
+      clearCart();
+      setStorefrontOrderForm({ customer_name: '', customer_phone: '', delivery_address: '', comment: '' });
+    } catch (err) {
+      const message = err?.response?.data?.error || 'Не удалось отправить заказ. Попробуйте ещё раз.';
+      setStorefrontOrderError(String(message));
+    } finally {
+      setStorefrontOrderSubmitting(false);
+    }
+  }, [cart, storefrontOrderForm, storefrontOrderSubmitting, publicRestaurantId, selectedRestaurant, clearCart]);
+
   const promptTelegramOrder = useCallback(() => {
     const href = String(publicBotHref || '').trim();
     if (href) {
@@ -3295,7 +3349,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       <div className="mt-2 mb-0">
         <button
           type="button"
-          onClick={() => { if (isGuestStorefront) { promptTelegramOrder(); return; } navigate('/cart'); }}
+          onClick={() => { if (isGuestStorefront) { setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setShowStorefrontCartModal(true); return; } navigate('/cart'); }}
           style={{
             width: '100%',
             border: '1px solid rgba(71, 85, 105,0.22)',
@@ -4217,6 +4271,55 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
           )}
 
           <div className="d-flex align-items-center justify-content-end gap-2">
+            {/* На публичной витрине показываем кнопку корзины с бейджем */}
+            {isPublicStorefront && (
+              <button
+                type="button"
+                onClick={() => { setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setShowStorefrontCartModal(true); }}
+                aria-label={language === 'uz' ? 'Savat' : 'Корзина'}
+                title={language === 'uz' ? 'Savat' : 'Корзина'}
+                style={{
+                  position: 'relative',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: 12,
+                  border: cart.length > 0 ? '1px solid rgba(71, 85, 105, 0.22)' : '1px solid transparent',
+                  background: cart.length > 0 ? 'rgba(255,255,255,0.7)' : 'transparent',
+                  color: '#4b5563',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.22s ease'
+                }}
+              >
+                <CartLucideIcon size={17} color="#4b5563" />
+                {cart.length > 0 && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      minWidth: 18,
+                      height: 18,
+                      padding: '0 5px',
+                      borderRadius: 9,
+                      background: '#ef4444',
+                      color: '#fff',
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      lineHeight: 1
+                    }}
+                  >
+                    {cart.length > 99 ? '99+' : cart.length}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleOpenAccountModal}
@@ -5574,7 +5677,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         <Button
                           type="button"
                           className="product-details-bottom-cta"
-                          onClick={() => { if (isGuestStorefront) { promptTelegramOrder(); return; } navigate('/cart'); }}
+                          onClick={() => { if (isGuestStorefront) { setStorefrontOrderError(''); setStorefrontOrderSuccess(''); setShowStorefrontCartModal(true); return; } navigate('/cart'); }}
                         >
                           {language === 'uz' ? "Savatga o'tish" : 'В корзину'}
                         </Button>
@@ -5779,6 +5882,130 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
       {/* Spacer for bottom nav */}
       {!isOperator() && <div style={{ height: '70px' }} />}
+
+      {/* Гостевое оформление заказа с публичной витрины */}
+      {isPublicStorefront && (
+        <Modal
+          show={showStorefrontCartModal}
+          onHide={() => setShowStorefrontCartModal(false)}
+          centered
+          size="md"
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {storefrontOrderSuccess ? 'Заказ принят' : 'Оформление заказа'}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {storefrontOrderSuccess ? (
+              <div className="text-center py-3">
+                <div style={{ fontSize: 56, marginBottom: 12 }}>✅</div>
+                <h5 className="mb-2">Спасибо! Заказ оформлен.</h5>
+                <div className="text-muted mb-3">
+                  Номер заказа: <strong>#{storefrontOrderSuccess}</strong>
+                </div>
+                <p className="text-muted small mb-4">
+                  Магазин свяжется с вами по указанному номеру телефона.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary w-100"
+                  onClick={() => { setShowStorefrontCartModal(false); setStorefrontOrderSuccess(''); }}
+                >
+                  Закрыть
+                </button>
+              </div>
+            ) : cart.length === 0 ? (
+              <div className="text-center py-4 text-muted">
+                <div style={{ fontSize: 56, marginBottom: 8 }}>🛒</div>
+                <div>Корзина пуста</div>
+              </div>
+            ) : (
+              <>
+                <div className="mb-3" style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid rgba(71,85,105,0.15)', borderRadius: 10, padding: 8 }}>
+                  {cart.map((item) => {
+                    const name = (language === 'uz' ? item.name_uz : item.name_ru) || item.name || `#${item.id}`;
+                    const qty = Number(item.quantity) || 0;
+                    const price = Number(item.price) || 0;
+                    const lineTotal = qty * price;
+                    return (
+                      <div key={`${item.id}-${item.selected_variant || ''}`} className="d-flex justify-content-between align-items-center py-1" style={{ borderBottom: '1px solid rgba(71,85,105,0.08)' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="text-truncate" style={{ fontWeight: 600 }}>{name}</div>
+                          <div className="small text-muted">{qty} {item.unit || 'шт'} × {price.toLocaleString('ru-RU')}</div>
+                        </div>
+                        <div className="ms-2" style={{ fontWeight: 700 }}>{lineTotal.toLocaleString('ru-RU')}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="d-flex justify-content-between mb-3" style={{ fontSize: '1.05rem' }}>
+                  <span className="text-muted">Итого:</span>
+                  <strong>{Number(cartTotal || 0).toLocaleString('ru-RU')} сум</strong>
+                </div>
+
+                <Form.Group className="mb-2">
+                  <Form.Label className="small mb-1">ФИО</Form.Label>
+                  <Form.Control
+                    type="text"
+                    placeholder="Иванов Иван"
+                    value={storefrontOrderForm.customer_name}
+                    onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, customer_name: e.target.value })}
+                    autoComplete="name"
+                  />
+                </Form.Group>
+                <Form.Group className="mb-2">
+                  <Form.Label className="small mb-1">Телефон</Form.Label>
+                  <Form.Control
+                    type="tel"
+                    placeholder="+998 90 123 45 67"
+                    value={storefrontOrderForm.customer_phone}
+                    onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, customer_phone: e.target.value })}
+                    autoComplete="tel"
+                  />
+                </Form.Group>
+                <Form.Group className="mb-2">
+                  <Form.Label className="small mb-1">Адрес доставки</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    placeholder="Город, улица, дом, кв."
+                    value={storefrontOrderForm.delivery_address}
+                    onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, delivery_address: e.target.value })}
+                    autoComplete="street-address"
+                  />
+                </Form.Group>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small mb-1">Комментарий (необязательно)</Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={2}
+                    placeholder="Пожелания к заказу"
+                    value={storefrontOrderForm.comment}
+                    onChange={(e) => setStorefrontOrderForm({ ...storefrontOrderForm, comment: e.target.value })}
+                  />
+                </Form.Group>
+
+                {storefrontOrderError && (
+                  <div className="alert alert-danger py-2 small mb-3">{storefrontOrderError}</div>
+                )}
+
+                <button
+                  type="button"
+                  className="btn btn-primary w-100"
+                  onClick={submitStorefrontOrder}
+                  disabled={storefrontOrderSubmitting}
+                >
+                  {storefrontOrderSubmitting ? 'Отправка...' : 'Отправить заказ'}
+                </button>
+                <div className="text-center text-muted small mt-2">
+                  Оплата — наличными при получении.
+                </div>
+              </>
+            )}
+          </Modal.Body>
+        </Modal>
+      )}
     </>
   );
 }
