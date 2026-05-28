@@ -19,6 +19,7 @@ import ClientAccountModal from '../components/ClientAccountModal';
 import ClientLocationPicker from '../components/ClientLocationPicker';
 import HeartIcon from '../components/HeartIcon';
 import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
+import StorefrontLoader from '../components/StorefrontLoader';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
@@ -4207,6 +4208,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   };
 
   if (loading && restaurants.length === 0) {
+    if (isPublicStorefront) {
+      return (
+        <StorefrontLoader
+          fullscreen
+          logoUrl={currentRestaurant?.logo_url || ''}
+          label={language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+        />
+      );
+    }
     return <PageSkeleton fullscreen label="Загрузка магазинов" cards={8} />;
   }
 
@@ -4703,9 +4713,16 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
             {/* Loading */}
             {loading && (
-              <div className="py-3">
-                <ListSkeleton count={6} label="Загрузка товаров" />
-              </div>
+              isPublicStorefront ? (
+                <StorefrontLoader
+                  logoUrl={currentRestaurant?.logo_url || ''}
+                  label={language === 'uz' ? 'Mahsulotlar yuklanmoqda...' : 'Загрузка товаров...'}
+                />
+              ) : (
+                <div className="py-3">
+                  <ListSkeleton count={6} label="Загрузка товаров" />
+                </div>
+              )
             )}
 
             {!loading && renderCartTotalBanner()}

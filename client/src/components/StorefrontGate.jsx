@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { PageSkeleton } from './SkeletonUI';
+import StorefrontLoader from './StorefrontLoader';
 
 const Catalog = lazy(() => import('../pages/Catalog'));
 
@@ -43,7 +43,8 @@ function StorefrontGate() {
             is_scheduled_date_delivery_enabled: infoRes.data?.is_scheduled_date_delivery_enabled === true,
             scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(infoRes.data?.scheduled_delivery_max_days) || 7)),
             ui_theme: String(infoRes.data?.ui_theme || 'classic').trim().toLowerCase(),
-            ui_font_family: String(infoRes.data?.ui_font_family || 'sans').trim().toLowerCase()
+            ui_font_family: String(infoRes.data?.ui_font_family || 'sans').trim().toLowerCase(),
+            logo_url: String(infoRes.data?.logo_url || '').trim()
           };
           // Применяем стиль/шрифт магазина к корню документа, чтобы CSS-переменные подхватились.
           if (typeof document !== 'undefined') {
@@ -64,7 +65,8 @@ function StorefrontGate() {
   }, [slug]);
 
   if (state.status === 'loading') {
-    return <PageSkeleton fullscreen label="Загрузка витрины" cards={8} />;
+    // Логотип магазина ещё не получили — показываем дефолтный (Talablar) с пульсацией.
+    return <StorefrontLoader fullscreen label="Загрузка витрины" />;
   }
 
   if (state.status === 'not_found' || state.status === 'error') {
@@ -83,7 +85,7 @@ function StorefrontGate() {
   }
 
   return (
-    <Suspense fallback={<PageSkeleton fullscreen label="Подготовка витрины" cards={8} />}>
+    <Suspense fallback={<StorefrontLoader fullscreen logoUrl={state.meta?.logo_url || ''} label="Подготовка витрины" />}>
       <Catalog publicStorefront publicRestaurantId={state.restaurantId} publicBotHref={state.botHref} publicRestaurantMeta={state.meta} />
     </Suspense>
   );
