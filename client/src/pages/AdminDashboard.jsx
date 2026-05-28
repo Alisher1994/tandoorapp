@@ -14127,22 +14127,22 @@ function AdminDashboard() {
 
                             </Row>
 
-                            <div className="mt-4 pt-3 border-top text-end">
-                              <Button
-                                variant="primary"
-                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
-                                onClick={saveRestaurantSettings}
-                                disabled={isRestaurantSettingsSaveDisabled}
-                              >
-                                {savingSettings
-                                  ? 'Сохранение...'
-                                  : isTokenSaveLocked
-                                    ? `Подождите ${tokenSaveCountdown}с...`
-                                    : isRestaurantSettingsDirty
-                                      ? 'Сохранить изменения'
-                                      : 'Нет изменений'}
-                              </Button>
-                            </div>
+                            {(isRestaurantSettingsDirty || savingSettings) && (
+                              <div className="mt-4 pt-3 border-top text-end">
+                                <Button
+                                  variant="primary"
+                                  className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                  onClick={saveRestaurantSettings}
+                                  disabled={savingSettings || isTokenSaveLocked || restaurantIdentityAvailability.loading || isNameTaken || isTokenTaken || isGroupIdTaken || isSlugTaken}
+                                >
+                                  {savingSettings
+                                    ? 'Сохранение...'
+                                    : isTokenSaveLocked
+                                      ? `Подождите ${tokenSaveCountdown}с...`
+                                      : 'Сохранить изменения'}
+                                </Button>
+                              </div>
+                            )}
                           </Card.Body>
                         </Card>
                       )}
@@ -15190,22 +15190,22 @@ function AdminDashboard() {
                               </Col>
                             </Row>
 
-                            <div className="mt-4 pt-3 border-top text-end">
-                              <Button
-                                variant="primary"
-                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
-                                onClick={saveRestaurantSettings}
-                                disabled={isRestaurantSettingsSaveDisabled}
-                              >
-                                {savingSettings
-                                  ? 'Сохранение...'
-                                  : isTokenSaveLocked
-                                    ? `Подождите ${tokenSaveCountdown}с...`
-                                    : isRestaurantSettingsDirty
-                                      ? 'Сохранить изменения'
-                                      : 'Нет изменений'}
-                              </Button>
-                            </div>
+                            {(isRestaurantSettingsDirty || savingSettings) && (
+                              <div className="mt-4 pt-3 border-top text-end">
+                                <Button
+                                  variant="primary"
+                                  className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                  onClick={saveRestaurantSettings}
+                                  disabled={savingSettings || isTokenSaveLocked || restaurantIdentityAvailability.loading || isNameTaken || isTokenTaken || isGroupIdTaken || isSlugTaken}
+                                >
+                                  {savingSettings
+                                    ? 'Сохранение...'
+                                    : isTokenSaveLocked
+                                      ? `Подождите ${tokenSaveCountdown}с...`
+                                      : 'Сохранить изменения'}
+                                </Button>
+                              </div>
+                            )}
                           </Card.Body>
                         </Card>
                       )}
@@ -15562,22 +15562,22 @@ function AdminDashboard() {
                               ))}
                             </Accordion>
 
-                            <div className="mt-4 pt-3 border-top text-end">
-                              <Button
-                                variant="primary"
-                                className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
-                                onClick={saveRestaurantSettings}
-                                disabled={isRestaurantSettingsSaveDisabled}
-                              >
-                                {savingSettings
-                                  ? 'Сохранение...'
-                                  : isTokenSaveLocked
-                                    ? `Подождите ${tokenSaveCountdown}с...`
-                                    : isRestaurantSettingsDirty
-                                      ? 'Сохранить изменения'
-                                      : 'Нет изменений'}
-                              </Button>
-                            </div>
+                            {(isRestaurantSettingsDirty || savingSettings) && (
+                              <div className="mt-4 pt-3 border-top text-end">
+                                <Button
+                                  variant="primary"
+                                  className="px-5 py-2 rounded-pill fw-bold btn-primary-custom"
+                                  onClick={saveRestaurantSettings}
+                                  disabled={savingSettings || isTokenSaveLocked || restaurantIdentityAvailability.loading || isNameTaken || isTokenTaken || isGroupIdTaken || isSlugTaken}
+                                >
+                                  {savingSettings
+                                    ? 'Сохранение...'
+                                    : isTokenSaveLocked
+                                      ? `Подождите ${tokenSaveCountdown}с...`
+                                      : 'Сохранить изменения'}
+                                </Button>
+                              </div>
+                            )}
                           </Card.Body>
                         </Card>
                       )}
