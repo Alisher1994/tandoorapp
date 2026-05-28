@@ -1022,8 +1022,16 @@ router.post('/storefront-orders', async (req, res) => {
       customer_name,
       customer_phone,
       delivery_address,
+      delivery_coordinates,
       comment
     } = req.body || {};
+    const coordinatesClean = (() => {
+      const raw = String(delivery_coordinates || '').trim();
+      if (!raw) return null;
+      const parts = raw.split(',').map((p) => Number.parseFloat(p));
+      if (parts.length !== 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return null;
+      return `${parts[0]},${parts[1]}`;
+    })();
 
     const restaurantId = Number.parseInt(restaurant_id, 10);
     if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
@@ -1064,7 +1072,10 @@ router.post('/storefront-orders', async (req, res) => {
       return res.status(400).json({ error: 'Нет валидных товаров' });
     }
     const prodRes = await client.query(
-      `SELECT id, name, name_ru, name_uz, price, unit
+      `SELECT id, name, name_ru, name_uz, price, unit,
+              COALESCE(container_name, '') AS container_name,
+              COALESCE(container_price, 0) AS container_price,
+              COALESCE(container_norm, 1) AS container_norm
        FROM products
        WHERE id = ANY($1::int[]) AND restaurant_id = $2`,
       [productIds, restaurantId]
@@ -1080,13 +1091,21 @@ router.post('/storefront-orders', async (req, res) => {
       const qty = Number.parseFloat(it?.quantity || 1);
       if (!Number.isFinite(qty) || qty <= 0) continue;
       const price = Number.parseFloat(product.price) || 0;
-      totalAmount += price * qty;
+      const containerPrice = Number.parseFloat(product.container_price) || 0;
+      const containerNorm = Number.parseFloat(product.container_norm) || 1;
+      const containerUnits = containerNorm > 0 ? Math.ceil(qty / containerNorm) : 0;
+      const containerLine = containerPrice * containerUnits;
+      const lineTotal = price * qty + containerLine;
+      totalAmount += lineTotal;
       normalizedItems.push({
         product_id: pid,
         product_name: product.name_ru || product.name || `#${pid}`,
         quantity: qty,
         unit: product.unit || 'шт',
         price,
+        container_name: product.container_name || null,
+        container_price: containerPrice,
+        container_norm: containerNorm,
         selected_variant: it?.selected_variant ? String(it.selected_variant).slice(0, 120) : null
       });
     }
@@ -1098,20 +1117,24 @@ router.post('/storefront-orders', async (req, res) => {
     const orderNumber = String(Math.floor(10000 + Math.random() * 90000));
     const orderInsert = await client.query(
       `INSERT INTO orders
-        (restaurant_id, user_id, order_number, total_amount, delivery_address,
+        (restaurant_id, user_id, order_number, total_amount, delivery_address, delivery_coordinates,
          customer_name, customer_phone, payment_method, payment_status, comment, status)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, 'cash', 'unpaid', $7, 'new')
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, 'cash', 'unpaid', $8, 'new')
        RETURNING *`,
-      [restaurantId, orderNumber, totalAmount, addressClean, nameClean, phoneClean, comment ? String(comment).slice(0, 1000) : null]
+      [restaurantId, orderNumber, totalAmount, addressClean, coordinatesClean, nameClean, phoneClean, comment ? String(comment).slice(0, 1000) : null]
     );
     const order = orderInsert.rows[0];
 
     for (const it of normalizedItems) {
+      const containerUnits = it.container_norm > 0 ? Math.ceil(it.quantity / it.container_norm) : 0;
+      const lineTotal = it.price * it.quantity + (it.container_price || 0) * containerUnits;
       await client.query(
         `INSERT INTO order_items
-          (order_id, product_id, product_name, selected_variant, quantity, unit, price, total)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [order.id, it.product_id, it.product_name, it.selected_variant, it.quantity, it.unit, it.price, it.price * it.quantity]
+          (order_id, product_id, product_name, selected_variant, quantity, unit, price, total,
+           container_name, container_price, container_norm)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [order.id, it.product_id, it.product_name, it.selected_variant, it.quantity, it.unit, it.price, lineTotal,
+         it.container_name, it.container_price, it.container_norm]
       );
     }
 
