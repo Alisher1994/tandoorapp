@@ -63,7 +63,7 @@ function StorefrontGate() {
             document.documentElement.setAttribute('data-ui-font', meta.ui_font_family);
           }
         } catch (_) { /* CTA просто не появится, не критично */ }
-        if (!cancelled) setState({ status: 'ready', restaurantId, botHref, meta, logoUrl: meta?.logo_url || '' });
+        if (!cancelled) setState({ status: 'ready', restaurantId, botHref, meta, logoUrl: meta?.logo_url || earlyLogo });
       } catch (error) {
         if (!cancelled) {
           const code = error?.response?.status;
