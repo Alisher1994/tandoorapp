@@ -1011,6 +1011,137 @@ router.get('/', async (req, res) => {
 });
 
 // Get restaurant by id (public - for receipt/logo)
+// Public: гостевое оформление заказа с витрины (без авторизации, без SMS).
+// Покупатель заполняет ФИО+телефон+адрес и кладёт корзину — заказ попадает в БД и в Telegram магазина.
+router.post('/storefront-orders', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const {
+      restaurant_id,
+      items,
+      customer_name,
+      customer_phone,
+      delivery_address,
+      comment
+    } = req.body || {};
+
+    const restaurantId = Number.parseInt(restaurant_id, 10);
+    if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Магазин не указан' });
+    }
+    const nameClean = String(customer_name || '').trim();
+    const phoneClean = String(customer_phone || '').trim();
+    const addressClean = String(delivery_address || '').trim();
+    if (!nameClean) return res.status(400).json({ error: 'Введите ФИО' });
+    if (!phoneClean || phoneClean.replace(/\D/g, '').length < 7) {
+      return res.status(400).json({ error: 'Введите корректный телефон' });
+    }
+    if (!addressClean) return res.status(400).json({ error: 'Введите адрес доставки' });
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Корзина пуста' });
+    }
+
+    const restRes = await pool.query(
+      `SELECT id, telegram_bot_token, telegram_group_id
+       FROM restaurants
+       WHERE id = $1 AND COALESCE(is_active, true) = true
+       LIMIT 1`,
+      [restaurantId]
+    );
+    if (restRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Магазин не найден' });
+    }
+    const restaurant = restRes.rows[0];
+
+    await client.query('BEGIN');
+
+    // Цены и названия берём с сервера, клиенту не доверяем.
+    const productIds = items
+      .map((it) => Number.parseInt(it?.product_id ?? it?.id, 10))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    if (productIds.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Нет валидных товаров' });
+    }
+    const prodRes = await client.query(
+      `SELECT id, name, name_ru, name_uz, price, unit
+       FROM products
+       WHERE id = ANY($1::int[]) AND restaurant_id = $2`,
+      [productIds, restaurantId]
+    );
+    const productMap = new Map(prodRes.rows.map((p) => [Number(p.id), p]));
+
+    const normalizedItems = [];
+    let totalAmount = 0;
+    for (const it of items) {
+      const pid = Number.parseInt(it?.product_id ?? it?.id, 10);
+      const product = productMap.get(pid);
+      if (!product) continue;
+      const qty = Number.parseFloat(it?.quantity || 1);
+      if (!Number.isFinite(qty) || qty <= 0) continue;
+      const price = Number.parseFloat(product.price) || 0;
+      totalAmount += price * qty;
+      normalizedItems.push({
+        product_id: pid,
+        product_name: product.name_ru || product.name || `#${pid}`,
+        quantity: qty,
+        unit: product.unit || 'шт',
+        price,
+        selected_variant: it?.selected_variant ? String(it.selected_variant).slice(0, 120) : null
+      });
+    }
+    if (normalizedItems.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Нет валидных товаров' });
+    }
+
+    const orderNumber = String(Math.floor(10000 + Math.random() * 90000));
+    const orderInsert = await client.query(
+      `INSERT INTO orders
+        (restaurant_id, user_id, order_number, total_amount, delivery_address,
+         customer_name, customer_phone, payment_method, payment_status, comment, status)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, 'cash', 'unpaid', $7, 'new')
+       RETURNING *`,
+      [restaurantId, orderNumber, totalAmount, addressClean, nameClean, phoneClean, comment ? String(comment).slice(0, 1000) : null]
+    );
+    const order = orderInsert.rows[0];
+
+    for (const it of normalizedItems) {
+      await client.query(
+        `INSERT INTO order_items
+          (order_id, product_id, product_name, selected_variant, quantity, unit, price, total)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [order.id, it.product_id, it.product_name, it.selected_variant, it.quantity, it.unit, it.price, it.price * it.quantity]
+      );
+    }
+
+    await client.query(
+      'INSERT INTO order_status_history (order_id, status, changed_by) VALUES ($1, $2, NULL)',
+      [order.id, 'new']
+    ).catch(() => {});
+
+    await client.query('COMMIT');
+
+    // Уведомление магазину через его собственный бот/группу — как и для обычных заказов.
+    if (restaurant.telegram_group_id) {
+      try {
+        const { sendOrderNotification } = require('../bot/notifications');
+        await sendOrderNotification(order, normalizedItems, restaurant.telegram_group_id, restaurant.telegram_bot_token);
+      } catch (notifyErr) {
+        console.error('Storefront order notify failed:', notifyErr);
+      }
+    }
+
+    return res.json({ ok: true, order_number: order.order_number, total: totalAmount });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch (_) { /* no-op */ }
+    console.error('Storefront order create error:', error);
+    return res.status(500).json({ error: 'Ошибка создания заказа' });
+  } finally {
+    client.release();
+  }
+});
+
 // Public: resolve a storefront slug (talablar.up.railway.app/<slug>) to a restaurant id
 router.get('/storefront-resolve/:slug', async (req, res) => {
   try {
