@@ -479,6 +479,55 @@
   background: rgba(255, 255, 255, 0.12) !important;
   border-color: rgba(255, 255, 255, 0.22) !important;
 }
+
+/* Модалка деталей товара (.product-details-modal-fullscreen) — внутри
+   .product-details-block (#ffffff) и .product-details-review-item (#f8fafc)
+   рендерятся как светлые карточки. Переводим в стекло, светлый текст. */
+:root[data-ui-theme="verdant_glass"] .product-details-block {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #f0fdf4;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-block .text-muted,
+:root[data-ui-theme="verdant_glass"] .product-details-block .small {
+  color: rgba(240, 253, 244, 0.7) !important;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-review-item {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f0fdf4;
+}
+/* Нижний qty-степпер на модалке деталей — белый pill с тёмной цифрой,
+   чтобы число «8 / 3» нормально читалось (как в WebApp). */
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-stepper {
+  background: rgba(255, 255, 255, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-stepper span,
+:root[data-ui-theme="verdant_glass"] .product-details-bottom-stepper button {
+  color: #0f172a !important;
+}
+
+/* Pill-счётчик qty в storefront cart-modal (.bg-light.rounded-pill внутри портала). */
+:root[data-ui-theme="verdant_glass"] .modal-content .bg-light.rounded-pill {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  color: #0f172a !important;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content .bg-light.rounded-pill * {
+  color: #0f172a !important;
+}
+
+/* Cart-step 1 inline-степпер: outer div { background: #f1f5f9; borderRadius: 999 } —
+   делаем pill белым, цифру и кнопки тёмными, чтобы число читалось. */
+:root[data-ui-theme="verdant_glass"] .modal-content div[style*="background: rgb(241, 245, 249)"],
+:root[data-ui-theme="verdant_glass"] .modal-content div[style*="background: #f1f5f9"] {
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+:root[data-ui-theme="verdant_glass"] .modal-content div[style*="background: rgb(241, 245, 249)"] *,
+:root[data-ui-theme="verdant_glass"] .modal-content div[style*="background: #f1f5f9"] * {
+  color: #0f172a !important;
+}
+
 /* Топбар каталога — полупрозрачное зелёное стекло поверх фона. */
 :root[data-ui-theme="verdant_glass"] .client-surface .navbar {
   background: rgba(13, 46, 28, 0.7) !important;
