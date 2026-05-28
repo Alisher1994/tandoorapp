@@ -406,6 +406,79 @@
   background: rgba(255, 255, 255, 0.1) !important;
   border-color: rgba(255, 255, 255, 0.32) !important;
 }
+
+/* Поисковая строка в шапке каталога — белый фон inline → стекло, текст светлый. */
+:root[data-ui-theme="verdant_glass"] .client-surface div[style*="background: rgba(255,255,255,0.95)"],
+:root[data-ui-theme="verdant_glass"] .client-surface div[style*="background: rgba(255, 255, 255, 0.95)"],
+:root[data-ui-theme="verdant_glass"] .client-surface div[style*="background: rgb(255, 255, 255)"][style*="border-radius: 12"] {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface input[type="search"] {
+  color: #f0fdf4 !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface input[type="search"]::placeholder {
+  color: rgba(240, 253, 244, 0.55) !important;
+}
+
+/* Иконки шапки витрины (аккаунт, поиск) — белый stroke у lucide-SVG.
+   color="#4b5563" в JSX становится stroke-атрибутом; CSS-присваивание
+   stroke с !important переопределяет presentation-атрибут SVG. */
+:root[data-ui-theme="verdant_glass"] .client-surface button[aria-label="Аккаунт"] svg,
+:root[data-ui-theme="verdant_glass"] .client-surface button[aria-label="Поиск"] svg,
+:root[data-ui-theme="verdant_glass"] .client-surface button[aria-label="Akkaunt"] svg,
+:root[data-ui-theme="verdant_glass"] .client-surface button[aria-label="Qidiruv"] svg,
+:root[data-ui-theme="verdant_glass"] .client-surface .client-topbar-side svg {
+  stroke: #f0fdf4 !important;
+  color: #f0fdf4 !important;
+}
+/* Лупа в поиске тоже */
+:root[data-ui-theme="verdant_glass"] .client-surface span[style*="color: #475569"] svg {
+  stroke: rgba(240, 253, 244, 0.85) !important;
+  color: rgba(240, 253, 244, 0.85) !important;
+}
+
+/* Счётчик количества в корзине — pill белый, цифра тёмная, чтобы число читалось. */
+:root[data-ui-theme="verdant_glass"] .client-content .bg-light.rounded-pill {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  color: #0f172a !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-content .bg-light.rounded-pill * {
+  color: #0f172a !important;
+}
+
+/* WebApp шапка — стилизуем кнопку «Назад» и переключатель языка под тему. */
+:root[data-ui-theme="verdant_glass"] .client-topbar-back-btn,
+:root[data-ui-theme="verdant_glass"] .client-language-toggle {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  color: #f0fdf4 !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+:root[data-ui-theme="verdant_glass"] .client-topbar-back-btn:hover,
+:root[data-ui-theme="verdant_glass"] .client-language-toggle:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
+}
+
+/* Кнопка «Назад» в шапке каталога (inline-стиль rgba(255,255,255,0.82) + dark text). */
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: rgba(255,255,255,0.82)"],
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: rgba(255, 255, 255, 0.82)"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #f0fdf4 !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: rgba(255,255,255,0.82)"] span,
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: rgba(255, 255, 255, 0.82)"] span {
+  color: #f0fdf4 !important;
+}
+/* Кнопки аккаунта/поиска с inline-фоном rgba(255,255,255,0.7) когда модалка открыта. */
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: rgba(255,255,255,0.7)"],
+:root[data-ui-theme="verdant_glass"] .client-surface button[style*="background: rgba(255, 255, 255, 0.7)"] {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
 /* Топбар каталога — полупрозрачное зелёное стекло поверх фона. */
 :root[data-ui-theme="verdant_glass"] .client-surface .navbar {
   background: rgba(13, 46, 28, 0.7) !important;
