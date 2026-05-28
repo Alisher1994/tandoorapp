@@ -355,73 +355,73 @@
 
 /* Превью в админке (вкладка «Оформление и стиль») — копируем стеклянный стиль так,
    чтобы оператор видел итог, а не светлую сетку. */
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-viewport {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-preview-viewport {
   background: linear-gradient(180deg, #0d2e1c 0%, #082417 100%);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-header {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-preview-header {
   background: rgba(13, 46, 28, 0.82);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-topbar {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-preview-topbar {
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-brand,
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-top-icons {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-preview-brand,
+[data-preview-theme="verdant_glass"] .admin-appearance-live-preview-top-icons {
   color: #f0fdf4;
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-logo-wrap {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-preview-logo-wrap {
   background: rgba(255, 255, 255, 0.06);
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-section-title {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-section-title {
   color: #f0fdf4;
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-category-card,
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-card {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-category-card,
+[data-preview-theme="verdant_glass"] .admin-appearance-live-product-card {
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-category-card span,
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-name {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-category-card span,
+[data-preview-theme="verdant_glass"] .admin-appearance-live-product-name {
   color: #f0fdf4;
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-unit {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-product-unit {
   color: rgba(240, 253, 244, 0.65);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-image-wrap {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-product-image-wrap {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-product-heart {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-product-heart {
   background: rgba(13, 46, 28, 0.7);
   color: #f0fdf4;
   border-color: rgba(255, 255, 255, 0.2);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-nav {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-preview-nav {
   background: rgba(13, 46, 28, 0.78);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   border-color: rgba(255, 255, 255, 0.1);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-nav-item {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-preview-nav-item {
   color: rgba(240, 253, 244, 0.7);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-preview-nav-item.is-active {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-preview-nav-item.is-active {
   background: rgba(45, 212, 191, 0.18);
   color: #5eead4;
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-title,
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-price,
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-meta {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-detail-title,
+[data-preview-theme="verdant_glass"] .admin-appearance-live-detail-price,
+[data-preview-theme="verdant_glass"] .admin-appearance-live-detail-meta {
   color: #f0fdf4;
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-meta {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-detail-meta {
   color: rgba(240, 253, 244, 0.65);
 }
-:root[data-ui-theme="verdant_glass"] .admin-appearance-live-detail-back {
+[data-preview-theme="verdant_glass"] .admin-appearance-live-detail-back {
   color: #f0fdf4;
 }
 

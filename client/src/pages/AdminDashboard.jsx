@@ -14603,7 +14603,7 @@ function AdminDashboard() {
 
                               <aside className="admin-appearance-preview-column">
                                 <div className="admin-appearance-live-preview-sticky">
-                                  <div className="admin-appearance-live-preview-card" style={appearancePreviewRootStyle}>
+                                  <div className="admin-appearance-live-preview-card" data-preview-theme={appearancePreviewThemeKey} style={appearancePreviewRootStyle}>
                                     <div className="admin-appearance-live-preview-device">
                                       <div className="admin-appearance-live-preview-viewport">
                                         <div className="admin-appearance-live-preview-header">

@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   close_report_last_sent_at TIMESTAMP,
   payment_placeholders JSONB DEFAULT '{}'::jsonb,
   logo_display_mode VARCHAR(20) DEFAULT 'square' CHECK (logo_display_mode IN ('square', 'horizontal')),
-  ui_theme VARCHAR(20) DEFAULT 'classic' CHECK (ui_theme IN ('classic', 'modern', 'talablar_blue', 'mint_fresh', 'sunset_pop', 'berry_blast', 'violet_wave', 'rainbow')),
+  ui_theme VARCHAR(24) DEFAULT 'classic' CHECK (ui_theme IN ('classic', 'modern', 'talablar_blue', 'mint_fresh', 'sunset_pop', 'berry_blast', 'violet_wave', 'rainbow', 'verdant_glass')),
   ui_font_family VARCHAR(32) DEFAULT 'sans' CHECK (
     ui_font_family IN (
       'sans',
