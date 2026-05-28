@@ -11,31 +11,37 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 // Открывается без входа. Разрешает slug в id магазина и отдаёт его в каталог (гостевой режим).
 function StorefrontGate() {
   const { slug } = useParams();
-  const [state, setState] = useState({ status: 'loading', restaurantId: null, botHref: '' });
+  const [state, setState] = useState({ status: 'loading', restaurantId: null, botHref: '', meta: null });
 
   useEffect(() => {
     let cancelled = false;
     const resolve = async () => {
-      setState({ status: 'loading', restaurantId: null, botHref: '' });
+      setState({ status: 'loading', restaurantId: null, botHref: '', meta: null });
       try {
         const resolveRes = await axios.get(`${API_URL}/products/storefront-resolve/${encodeURIComponent(slug)}`);
         const restaurantId = Number(resolveRes.data?.restaurant_id);
         if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
-          if (!cancelled) setState({ status: 'not_found', restaurantId: null, botHref: '' });
+          if (!cancelled) setState({ status: 'not_found', restaurantId: null, botHref: '', meta: null });
           return;
         }
-        // Ссылка на бот магазина — для CTA «Заказать в Telegram».
+        // Ссылка на бот магазина + публичные настройки (сервис/доставка) для модалки оформления.
         let botHref = '';
+        let meta = null;
         try {
           const infoRes = await axios.get(`${API_URL}/products/restaurant/${restaurantId}`);
           const username = String(infoRes.data?.telegram_bot_username || '').trim().replace(/^@+/, '');
           if (username) botHref = `https://t.me/${username}`;
+          meta = {
+            service_fee: Number(infoRes.data?.service_fee) || 0,
+            is_delivery_enabled: infoRes.data?.is_delivery_enabled !== false,
+            currency_code: infoRes.data?.currency_code || 'uz'
+          };
         } catch (_) { /* CTA просто не появится, не критично */ }
-        if (!cancelled) setState({ status: 'ready', restaurantId, botHref });
+        if (!cancelled) setState({ status: 'ready', restaurantId, botHref, meta });
       } catch (error) {
         if (!cancelled) {
           const code = error?.response?.status;
-          setState({ status: code === 404 ? 'not_found' : 'error', restaurantId: null, botHref: '' });
+          setState({ status: code === 404 ? 'not_found' : 'error', restaurantId: null, botHref: '', meta: null });
         }
       }
     };
@@ -64,7 +70,7 @@ function StorefrontGate() {
 
   return (
     <Suspense fallback={<PageSkeleton fullscreen label="Подготовка витрины" cards={8} />}>
-      <Catalog publicStorefront publicRestaurantId={state.restaurantId} publicBotHref={state.botHref} />
+      <Catalog publicStorefront publicRestaurantId={state.restaurantId} publicBotHref={state.botHref} publicRestaurantMeta={state.meta} />
     </Suspense>
   );
 }

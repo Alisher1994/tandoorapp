@@ -1023,6 +1023,9 @@ router.post('/storefront-orders', async (req, res) => {
       customer_phone,
       delivery_address,
       delivery_coordinates,
+      delivery_cost: rawDeliveryCost,
+      delivery_distance_km: rawDeliveryDistance,
+      service_fee: rawServiceFee,
       comment
     } = req.body || {};
     const coordinatesClean = (() => {
@@ -1032,6 +1035,13 @@ router.post('/storefront-orders', async (req, res) => {
       if (parts.length !== 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1])) return null;
       return `${parts[0]},${parts[1]}`;
     })();
+    const safeNonNegative = (v) => {
+      const n = Number.parseFloat(v);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    const deliveryCostNum = safeNonNegative(rawDeliveryCost);
+    const deliveryDistanceNum = safeNonNegative(rawDeliveryDistance);
+    const serviceFeeClient = safeNonNegative(rawServiceFee);
 
     const restaurantId = Number.parseInt(restaurant_id, 10);
     if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
@@ -1050,7 +1060,9 @@ router.post('/storefront-orders', async (req, res) => {
     }
 
     const restRes = await pool.query(
-      `SELECT id, telegram_bot_token, telegram_group_id
+      `SELECT id, telegram_bot_token, telegram_group_id,
+              COALESCE(service_fee, 0) AS service_fee,
+              COALESCE(is_delivery_enabled, true) AS is_delivery_enabled
        FROM restaurants
        WHERE id = $1 AND COALESCE(is_active, true) = true
        LIMIT 1`,
@@ -1060,6 +1072,12 @@ router.post('/storefront-orders', async (req, res) => {
       return res.status(404).json({ error: 'Магазин не найден' });
     }
     const restaurant = restRes.rows[0];
+    // Сервисный сбор — берём из БД магазина; клиент мог прислать справочно, но истина — DB.
+    const serviceFeeFinal = Number.parseFloat(restaurant.service_fee) > 0
+      ? Number.parseFloat(restaurant.service_fee)
+      : serviceFeeClient;
+    // Доставка отключена в магазине -> 0.
+    const deliveryCostFinal = restaurant.is_delivery_enabled === false ? 0 : deliveryCostNum;
 
     await client.query('BEGIN');
 
@@ -1114,14 +1132,19 @@ router.post('/storefront-orders', async (req, res) => {
       return res.status(400).json({ error: 'Нет валидных товаров' });
     }
 
+    // Итоговая сумма заказа = товары+упаковка + сервисный сбор + доставка.
+    const grandTotal = totalAmount + serviceFeeFinal + deliveryCostFinal;
     const orderNumber = String(Math.floor(10000 + Math.random() * 90000));
     const orderInsert = await client.query(
       `INSERT INTO orders
         (restaurant_id, user_id, order_number, total_amount, delivery_address, delivery_coordinates,
-         customer_name, customer_phone, payment_method, payment_status, comment, status)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, 'cash', 'unpaid', $8, 'new')
+         customer_name, customer_phone, payment_method, payment_status, comment, status,
+         service_fee, delivery_cost, delivery_distance_km)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, 'cash', 'unpaid', $8, 'new', $9, $10, $11)
        RETURNING *`,
-      [restaurantId, orderNumber, totalAmount, addressClean, coordinatesClean, nameClean, phoneClean, comment ? String(comment).slice(0, 1000) : null]
+      [restaurantId, orderNumber, grandTotal, addressClean, coordinatesClean, nameClean, phoneClean,
+       comment ? String(comment).slice(0, 1000) : null,
+       serviceFeeFinal, deliveryCostFinal, deliveryDistanceNum]
     );
     const order = orderInsert.rows[0];
 
@@ -1155,7 +1178,14 @@ router.post('/storefront-orders', async (req, res) => {
       }
     }
 
-    return res.json({ ok: true, order_number: order.order_number, total: totalAmount });
+    return res.json({
+      ok: true,
+      order_number: order.order_number,
+      total: grandTotal,
+      products_total: totalAmount,
+      service_fee: serviceFeeFinal,
+      delivery_cost: deliveryCostFinal
+    });
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch (_) { /* no-op */ }
     console.error('Storefront order create error:', error);
