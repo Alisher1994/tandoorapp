@@ -610,7 +610,9 @@ router.post('/', authenticate, async (req, res) => {
     let restaurantSettings = null;
     if (finalRestaurantId) {
       const hoursResult = await client.query(
-        `SELECT start_time, end_time, is_delivery_enabled, delivery_zone,
+        `SELECT start_time, end_time, is_delivery_enabled,
+                COALESCE(is_pickup_enabled, true) AS is_pickup_enabled,
+                delivery_zone,
                 latitude, longitude,
                 delivery_base_radius, delivery_base_price, delivery_price_per_km,
                 delivery_pricing_mode, delivery_fixed_price,
@@ -756,7 +758,19 @@ router.post('/', authenticate, async (req, res) => {
     });
 
     const requestedFulfillmentType = normalizeFulfillmentType(fulfillment_type, 'delivery');
-    const effectiveFulfillmentType = (isDeliveryEnabled && requestedFulfillmentType !== 'pickup') ? 'delivery' : 'pickup';
+    const isPickupEnabled = restaurantSettings?.is_pickup_enabled !== false;
+    // Магазин запретил самовывоз и оставил доставку — принудительно doставка.
+    // Если оба выключены — заказ не примем дальше по обычной валидации (не должно случиться через UI).
+    if (!isDeliveryEnabled && !isPickupEnabled) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Магазин сейчас не принимает заказы' });
+    }
+    let effectiveFulfillmentType;
+    if (requestedFulfillmentType === 'pickup') {
+      effectiveFulfillmentType = isPickupEnabled ? 'pickup' : 'delivery';
+    } else {
+      effectiveFulfillmentType = isDeliveryEnabled ? 'delivery' : 'pickup';
+    }
     const isPickupOrder = effectiveFulfillmentType === 'pickup';
     const normalizedDeliveryAddress = isPickupOrder
       ? 'Самовывоз'

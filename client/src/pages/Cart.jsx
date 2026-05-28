@@ -524,6 +524,10 @@ function Cart() {
     const flag = restaurant?.is_delivery_enabled ?? user?.active_restaurant_is_delivery_enabled;
     return toEnabledFlag(flag);
   }, [restaurant?.is_delivery_enabled, user?.active_restaurant_is_delivery_enabled]);
+  const isPickupEnabled = useMemo(() => {
+    // По умолчанию самовывоз был всегда; считаем выключенным только если магазин явно выставил false.
+    return restaurant?.is_pickup_enabled !== false;
+  }, [restaurant?.is_pickup_enabled]);
   const isDeliverySelected = isDeliveryEnabled && fulfillmentType === 'delivery';
   const effectiveDeliveryCost = isDeliverySelected ? deliveryCost : 0;
   const effectiveDeliveryDistance = isDeliverySelected ? deliveryDistance : 0;
@@ -642,12 +646,17 @@ function Cart() {
   }, []);
 
   useEffect(() => {
-    if (!isDeliveryEnabled) {
+    // Магазин явно запретил самовывоз — не даём оставить fulfillment='pickup'.
+    if (!isPickupEnabled && isDeliveryEnabled) {
+      setFulfillmentType('delivery');
+      return;
+    }
+    if (!isDeliveryEnabled && isPickupEnabled) {
       setFulfillmentType('pickup');
       return;
     }
     setFulfillmentType((prev) => (prev === 'pickup' || prev === 'delivery' ? prev : 'delivery'));
-  }, [isDeliveryEnabled]);
+  }, [isDeliveryEnabled, isPickupEnabled]);
 
   useEffect(() => () => {
     if (cardCopyTimeoutRef.current) {
@@ -1471,7 +1480,7 @@ function Cart() {
                     <Form.Label className="small text-muted mb-1">
                       {language === 'uz' ? 'Buyurtma turi' : 'Тип заказа'}
                     </Form.Label>
-                    {isDeliveryEnabled ? (
+                    {isDeliveryEnabled && isPickupEnabled ? (
                       <div className="cart-segmented-switch">
                         <Button
                           type="button"
@@ -1492,9 +1501,19 @@ function Cart() {
                           🚶‍♂️ {language === 'uz' ? "O'zingiz olib ketish" : 'Самовывоз'}
                         </Button>
                       </div>
-                    ) : (
+                    ) : isDeliveryEnabled ? (
+                      <div className="small text-muted px-3 py-2 cart-surface-panel">
+                        🚚 {language === 'uz' ? "Faqat yetkazib berish mavjud" : 'Доступна только доставка'}
+                      </div>
+                    ) : isPickupEnabled ? (
                       <div className="small text-muted px-3 py-2 cart-surface-panel">
                         🚶‍♂️ {language === 'uz' ? "Faqat o'zingiz olib ketish mavjud" : 'Доступен только самовывоз'}
+                      </div>
+                    ) : (
+                      <div className="small text-danger px-3 py-2 cart-surface-panel">
+                        {language === 'uz'
+                          ? "Magazin hozircha buyurtmalarni qabul qilmaydi"
+                          : 'Магазин сейчас не принимает заказы'}
                       </div>
                     )}
                   </div>
