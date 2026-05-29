@@ -14031,7 +14031,14 @@ div.form-select.admin-global-import-field {
 }
 
 /* Вкладки формы товара + кастомный тонкий скроллбар модалки */
-.admin-product-form-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border-color); margin-bottom: 18px; flex-wrap: wrap; }
+.admin-product-form-tabs { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border-color); margin-bottom: 18px; flex-wrap: wrap; }
+.admin-product-form-tabs-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.admin-product-form-tabs-actions { display: flex; align-items: center; gap: 16px; padding-bottom: 6px; flex-wrap: wrap; }
+.admin-product-form-tabs-actions .admin-product-switch { margin: 0; }
+.admin-variants-enable-row { padding: 4px 2px 14px; margin-bottom: 6px; border-bottom: 1px dashed var(--border-color); }
+.admin-variants-simple-head { display: none !important; }
+.admin-variant-row.admin-variants-simple-row { border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 14px; padding: 12px; margin-bottom: 12px; background: #fff; }
+.admin-variant-row .admin-variant-table-col { padding: 4px 6px; }
 .admin-product-form-tab { border: none; background: transparent; padding: 10px 16px; border-radius: 10px 10px 0 0;
     font-size: 0.95rem; font-weight: 600; color: #64748b; cursor: pointer; position: relative;
     display: inline-flex; align-items: center; gap: 8px; }
