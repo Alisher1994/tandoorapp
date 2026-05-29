@@ -515,7 +515,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       ? Number.parseInt(publicRestaurantId, 10)
       : Number.parseInt(user?.active_restaurant_id, 10);
     if (!restaurantId) return;
-    loadShowcase(restaurantId);
+    loadShowcase(restaurantId, isPublicStorefront);
   }, [isPublicStorefront, publicRestaurantId, user?.active_restaurant_id, loadShowcase]);
 
   // Публичная витрина: при первой загрузке открываем «Витрину», если она настроена и видима;
