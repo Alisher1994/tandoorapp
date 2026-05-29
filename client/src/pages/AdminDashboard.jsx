@@ -18602,7 +18602,7 @@ function AdminDashboard() {
               )}
               </>)}
 
-              {productFormTab === 'main' && (<>
+              {productFormTab === 'extra' && (<>
               <Row>
                 {restaurantSettings?.product_field_season_enabled !== false && (
                 <Col md={6}>
@@ -18678,6 +18678,42 @@ function AdminDashboard() {
               )}
 
               </>)}
+
+              {productFormTab === 'extra' && !productForm.size_enabled
+                && (restaurantSettings?.product_field_barcode_enabled !== false || restaurantSettings?.product_field_ikpu_enabled !== false) && (
+                <Row className="g-3">
+                  {restaurantSettings?.product_field_barcode_enabled !== false && (
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
+                        <Form.Control
+                          className="admin-product-compact-field"
+                          type="text"
+                          value={productForm.barcode}
+                          onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value.slice(0, 120) })}
+                          placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
+                          maxLength={120}
+                        />
+                      </Form.Group>
+                    </Col>
+                  )}
+                  {restaurantSettings?.product_field_ikpu_enabled !== false && (
+                    <Col md={6}>
+                      <Form.Group className="mb-3">
+                        <Form.Label>ИКПУ</Form.Label>
+                        <Form.Control
+                          className="admin-product-compact-field"
+                          type="text"
+                          value={productForm.ikpu || ''}
+                          onChange={(e) => setProductForm({ ...productForm, ikpu: e.target.value.slice(0, 64) })}
+                          placeholder={language === 'uz' ? 'Ixtiyoriy' : 'Необязательно'}
+                          maxLength={64}
+                        />
+                      </Form.Group>
+                    </Col>
+                  )}
+                </Row>
+              )}
 
               {productFormTab === 'variants' && (<>
               {Boolean(restaurantSettings?.size_variants_enabled) && (
@@ -19077,34 +19113,6 @@ function AdminDashboard() {
 
               {productFormTab === 'main' && (<>
               <div className={`admin-product-main-fields-grid ${productForm.size_enabled ? 'variants-mode' : (productForm.container_id ? 'has-container-norm' : '')}`}>
-                {!productForm.size_enabled && restaurantSettings?.product_field_barcode_enabled !== false && (
-                  <Form.Group className="mb-0">
-                    <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
-                    <Form.Control
-                      className="admin-product-compact-field"
-                      type="text"
-                      value={productForm.barcode}
-                      onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value.slice(0, 120) })}
-                      placeholder={language === 'uz' ? 'Asosiy shtrix-kod' : 'Основной штрихкод'}
-                      maxLength={120}
-                    />
-                  </Form.Group>
-                )}
-
-                {!productForm.size_enabled && restaurantSettings?.product_field_ikpu_enabled !== false && (
-                  <Form.Group className="mb-0">
-                    <Form.Label>ИКПУ</Form.Label>
-                    <Form.Control
-                      className="admin-product-compact-field"
-                      type="text"
-                      value={productForm.ikpu || ''}
-                      onChange={(e) => setProductForm({ ...productForm, ikpu: e.target.value.slice(0, 64) })}
-                      placeholder="Необязательно"
-                      maxLength={64}
-                    />
-                  </Form.Group>
-                )}
-
                 <Form.Group className="mb-0">
                   <Form.Label>{t('sortOrderLabel')}</Form.Label>
                   <div className="admin-product-sort-input-wrap" ref={productSortHintsRef}>
