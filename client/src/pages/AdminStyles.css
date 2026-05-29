@@ -2947,7 +2947,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-balance-modal-compact .modal-dialog {
-    max-width: min(760px, calc(100vw - 20px));
+    max-width: min(940px, calc(100vw - 20px));
 }
 
 .admin-balance-modal-redesign .modal-content {
