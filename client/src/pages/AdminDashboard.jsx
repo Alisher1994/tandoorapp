@@ -15096,51 +15096,49 @@ function AdminDashboard() {
                                         </div>
                                         {/* Миниатюры в одну строку */}
                                         <div className="d-flex gap-2 align-items-start">
-                                          {renderSlot('desktop', 'ПК (широкий)', banner.image_url, 176, 54, 'bi-image')}
-                                          {renderSlot('mobile', 'Моб.', banner.image_url_mobile, 96, 54, 'bi-phone')}
+                                          {renderSlot('desktop', 'ПК · 1200×400', banner.image_url, 176, 54, 'bi-image')}
+                                          {renderSlot('mobile', 'Моб · 800×500', banner.image_url_mobile, 96, 54, 'bi-phone')}
                                         </div>
                                         {/* Поля справа */}
                                         <div className="flex-grow-1" style={{ minWidth: 240 }}>
                                           <Form.Label className="small fw-bold text-muted text-uppercase mb-1">
                                             {language === 'uz' ? 'Bosilganda havola (ixtiyoriy)' : 'Ссылка при клике (необязательно)'}
                                           </Form.Label>
-                                          <Form.Control
-                                            type="url"
-                                            size="sm"
-                                            placeholder="https://..."
-                                            value={banner.target_url || ''}
-                                            onChange={(e) => updateStoreAdBanner(idx, { target_url: e.target.value })}
-                                          />
-                                          <div className="d-flex gap-2 align-items-center mt-2 flex-wrap">
+                                          <div className="d-flex gap-2 align-items-center flex-wrap">
+                                            <Form.Control
+                                              type="url"
+                                              size="sm"
+                                              placeholder="https://..."
+                                              style={{ flex: '1 1 200px', minWidth: 160 }}
+                                              value={banner.target_url || ''}
+                                              onChange={(e) => updateStoreAdBanner(idx, { target_url: e.target.value })}
+                                            />
                                             <Form.Select
                                               size="sm"
-                                              style={{ maxWidth: 190 }}
+                                              style={{ flex: '0 0 auto', maxWidth: 200 }}
                                               value={banner.transition_effect || 'fade'}
                                               onChange={(e) => updateStoreAdBanner(idx, { transition_effect: e.target.value })}
                                             >
-                                              <option value="fade">{language === 'uz' ? 'Paydo bo‘lish' : 'Анимация: появление'}</option>
-                                              <option value="slide">{language === 'uz' ? 'Slayd' : 'Анимация: слайд'}</option>
+                                              <option value="fade">{language === 'uz' ? 'Animatsiya: paydo bo‘lish' : 'Анимация: появление'}</option>
+                                              <option value="slide">{language === 'uz' ? 'Animatsiya: slayd' : 'Анимация: слайд'}</option>
                                               <option value="none">{language === 'uz' ? 'Animatsiyasiz' : 'Без анимации'}</option>
                                             </Form.Select>
-                                            <Button
+                                            <Form.Select
                                               size="sm"
-                                              variant={isEnabled ? 'primary' : 'outline-secondary'}
-                                              onClick={() => updateStoreAdBanner(idx, { enabled: !isEnabled })}
-                                              title={isEnabled ? 'Показывается на витрине' : 'Скрыт'}
+                                              style={{ flex: '0 0 auto', maxWidth: 150 }}
+                                              value={isEnabled ? 'on' : 'off'}
+                                              onChange={(e) => updateStoreAdBanner(idx, { enabled: e.target.value === 'on' })}
                                             >
-                                              <i className={`bi ${isEnabled ? 'bi-eye' : 'bi-eye-slash'} me-1`} />
-                                              {isEnabled ? 'Показывать' : 'Скрыт'}
-                                            </Button>
-                                            <Button variant="outline-danger" size="sm" className="ms-auto" onClick={() => removeStoreAdBanner(idx)}>
+                                              <option value="on">{language === 'uz' ? 'Ko‘rsatiladi' : 'Отображается'}</option>
+                                              <option value="off">{language === 'uz' ? 'Yashirilgan' : 'Скрыто'}</option>
+                                            </Form.Select>
+                                            <Button variant="outline-danger" size="sm" style={{ flex: '0 0 auto' }} onClick={() => removeStoreAdBanner(idx)}>
                                               <i className="bi bi-trash me-1" />{language === 'uz' ? 'O‘chirish' : 'Удалить'}
                                             </Button>
                                           </div>
                                           {uploadingStoreBannerIndex === idx && (
                                             <div className="small text-muted mt-1">Загрузка...</div>
                                           )}
-                                          <div className="small text-muted mt-1" style={{ fontSize: '0.72rem' }}>
-                                            Клик по миниатюре — выбрать/заменить, при наведении — удалить. Если моб. фото не задано — покажем фото для ПК.
-                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -15157,11 +15155,6 @@ function AdminDashboard() {
                               >
                                 + {language === 'uz' ? 'Banner qo‘shish' : 'Добавить баннер'}
                               </Button>
-                              <div className="small text-muted mt-2">
-                                {language === 'uz'
-                                  ? 'Tavsiya etilgan o‘lcham: 1200×400 px. O‘zgarishlarni saqlash uchun pastdagi tugmani bosing.'
-                                  : 'Рекомендуемый размер: 1200×400 px. Не забудьте нажать «Сохранить изменения».'}
-                              </div>
                             </div>
 
                             {(isRestaurantSettingsDirty || savingSettings) && (
