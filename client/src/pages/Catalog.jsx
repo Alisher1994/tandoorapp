@@ -175,6 +175,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [catalogQtyOpen, setCatalogQtyOpen] = useState({});
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
   const [isHeaderSearchOpen, setIsHeaderSearchOpen] = useState(false);
+  const [showCatalogMenu, setShowCatalogMenu] = useState(false);
   const [catalogHeaderHeight, setCatalogHeaderHeight] = useState(56);
   const [catalogSearchPlaceholderPhraseIndex, setCatalogSearchPlaceholderPhraseIndex] = useState(0);
   const [catalogSearchPlaceholderCharIndex, setCatalogSearchPlaceholderCharIndex] = useState(0);
@@ -1817,6 +1818,16 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     }
     scrollStorefrontToTop();
   }, [scrollStorefrontToTop]);
+
+  // Выбор категории из меню «Каталог» (веб): переходим в каталог и фильтруем по категории.
+  const handleCatalogMenuSelect = useCallback((categoryId) => {
+    setShowCatalogMenu(false);
+    if (isPublicStorefront) setStorefrontView('menu');
+    const id = Number.parseInt(categoryId, 10);
+    setSelectedCategory(Number.isInteger(id) && id > 0 ? id : null);
+    setActiveSubcategoryTab(null);
+    scrollStorefrontToTop();
+  }, [isPublicStorefront, scrollStorefrontToTop]);
 
   const catalogSearchPlaceholderPhrases = useMemo(() => (
     language === 'uz'
@@ -4564,6 +4575,37 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                 ) : (
                   <span style={{ fontSize: '1.7rem' }}>🏪</span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setShowCatalogMenu((prev) => !prev)}
+                  aria-label={language === 'uz' ? 'Katalog' : 'Каталог'}
+                  title={language === 'uz' ? 'Katalog' : 'Каталог'}
+                  className="client-catalog-menu-btn"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    height: 40,
+                    padding: '0 16px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: 'var(--primary-color, #2563eb)',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '0.95rem',
+                    flex: '0 0 auto',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <span aria-hidden="true" style={{ display: 'inline-flex' }}>
+                    {showCatalogMenu ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+                    )}
+                  </span>
+                  {language === 'uz' ? 'Katalog' : 'Каталог'}
+                </button>
               </>
             ) : shouldShowHeaderBackButton ? (
               <button
@@ -4924,6 +4966,86 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
           />
         </div>
       </Navbar>
+
+      {/* Меню «Каталог» (веб) — выпадающий список категорий для быстрого перехода */}
+      {isDesktopViewport && showCatalogMenu && (
+        <>
+          <div
+            onClick={() => setShowCatalogMenu(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 1008, background: 'rgba(15, 23, 42, 0.28)' }}
+          />
+          <div style={{ position: 'fixed', top: catalogHeaderHeight, left: 0, right: 0, zIndex: 1009 }}>
+            <div className="px-3 mx-auto" style={{ maxWidth: isDesktopViewport ? 1440 : 1280 }}>
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: 16,
+                  boxShadow: '0 18px 44px rgba(15, 23, 42, 0.18)',
+                  border: '1px solid rgba(148, 163, 184, 0.2)',
+                  padding: '18px 20px',
+                  marginTop: 8,
+                  maxHeight: '72vh',
+                  overflowY: 'auto'
+                }}
+              >
+                {level1Categories.length === 0 ? (
+                  <div className="text-muted">{language === 'uz' ? 'Kategoriyalar yoʻq' : 'Категорий нет'}</div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '18px 28px' }}>
+                    {level1Categories.map((level1) => {
+                      const subs = level2ByLevel1.get(level1.id) || [];
+                      return (
+                        <div key={`catmenu-${level1.id}`}>
+                          <button
+                            type="button"
+                            onClick={() => handleCatalogMenuSelect(level1.id)}
+                            style={{
+                              border: 'none',
+                              background: 'transparent',
+                              padding: 0,
+                              fontWeight: 700,
+                              fontSize: '1rem',
+                              color: '#0f172a',
+                              marginBottom: subs.length > 0 ? 10 : 0,
+                              textAlign: 'left',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {getCategoryName(level1)}
+                          </button>
+                          {subs.length > 0 && (
+                            <div className="d-flex flex-column" style={{ gap: 6 }}>
+                              {subs.map((sub) => (
+                                <button
+                                  key={`catmenu-sub-${sub.id}`}
+                                  type="button"
+                                  onClick={() => handleCatalogMenuSelect(sub.id)}
+                                  className="client-catalog-menu-link"
+                                  style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    padding: 0,
+                                    fontSize: '0.9rem',
+                                    color: '#475569',
+                                    textAlign: 'left',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {getCategoryName(sub)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {renderCatalogSeasonOverlay()}
 

@@ -5310,3 +5310,10 @@ body:has(.service-lock-overlay) #root > *:not(.service-lock-overlay) {
   color: #fde68a;
   font-weight: 800;
 }
+
+/* Кнопка и ссылки меню «Каталог» (веб-витрина) */
+.client-catalog-menu-btn { transition: filter 0.18s ease, transform 0.18s ease; }
+.client-catalog-menu-btn:hover { filter: brightness(0.94); }
+.client-catalog-menu-btn:active { transform: translateY(1px); }
+.client-catalog-menu-link { transition: color 0.15s ease; }
+.client-catalog-menu-link:hover { color: var(--primary-color, #2563eb) !important; }
