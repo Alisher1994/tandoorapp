@@ -4476,9 +4476,12 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const activeProductUnitLabel = language === 'uz' && activeProduct?.unit_uz
     ? activeProduct.unit_uz
     : (activeProduct?.unit || (language === 'uz' ? 'dona' : 'шт'));
+  // Лимит остатка учитываем ТОЛЬКО если включён «Учёт остатков» (как на карточке каталога).
+  // Иначе «+» блокировался даже при выключенном учёте, если у товара задано stock_quantity.
+  const activeProductStockLimit = resolveProductStockLimit(activeProduct, activeProductSelectedVariant);
   const activeProductIsAtStockLimit = (
-    Number.isFinite(activeProductStockQuantity)
-    && Number(activeProductQty || 0) >= activeProductStockQuantity
+    Number.isFinite(activeProductStockLimit)
+    && Number(activeProductQty || 0) >= activeProductStockLimit
   );
 
   return (
