@@ -3582,7 +3582,6 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
             } : undefined}
             style={{
               position: 'relative',
-              minHeight: '150px',
               background: '#fff',
               animation,
               cursor: banner.click_url ? 'pointer' : 'default'
@@ -3597,7 +3596,10 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
               alt={banner.title || 'Реклама'}
               style={{
                 width: '100%',
-                height: '150px',
+                // ПК-баннер 1200×400 (3:1), мобильный 800×500 (8:5) — показываем в своих пропорциях,
+                // а не обрезаем до фиксированной высоты.
+                aspectRatio: isDesktopViewport ? '1200 / 400' : '800 / 500',
+                height: 'auto',
                 objectFit: 'cover',
                 display: 'block',
                 background: '#fff'
