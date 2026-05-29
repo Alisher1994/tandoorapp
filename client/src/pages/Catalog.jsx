@@ -4592,7 +4592,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     border: '1px solid rgba(71, 85, 105, 0.2)',
                     background: catalogHeaderBackground,
                     color: '#334155',
-                    fontWeight: 700,
+                    fontWeight: 500,
                     fontSize: '0.95rem',
                     flex: '0 0 auto',
                     whiteSpace: 'nowrap'
