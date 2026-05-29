@@ -608,6 +608,7 @@ router.post('/', authenticate, async (req, res) => {
     let isDeliveryEnabled = true;
     let restaurantDeliveryZone = null;
     let restaurantSettings = null;
+    let forcedDeliveryDate = null;
     if (finalRestaurantId) {
       const hoursResult = await client.query(
         `SELECT start_time, end_time, is_delivery_enabled,
@@ -618,7 +619,9 @@ router.post('/', authenticate, async (req, res) => {
                 delivery_pricing_mode, delivery_fixed_price,
                 payme_enabled, payme_merchant_id, payme_api_login, payme_api_password,
                 card_receipt_target, cash_enabled, minimum_order_amount,
-                is_scheduled_date_delivery_enabled, scheduled_delivery_max_days
+                is_scheduled_date_delivery_enabled, scheduled_delivery_max_days,
+                COALESCE(delivery_lead_enabled, false) AS delivery_lead_enabled,
+                COALESCE(delivery_lead_days, 1) AS delivery_lead_days
          FROM restaurants
          WHERE id = $1`,
         [finalRestaurantId]
@@ -626,6 +629,13 @@ router.post('/', authenticate, async (req, res) => {
       restaurantSettings = hoursResult.rows[0] || null;
       isDeliveryEnabled = isEnabledFlag(restaurantSettings?.is_delivery_enabled);
       restaurantDeliveryZone = restaurantSettings?.delivery_zone || null;
+      // Срок изготовления/доставки: форсируем дату доставки на сегодня + N дней для всего заказа.
+      if (restaurantSettings?.delivery_lead_enabled === true) {
+        const leadDays = Math.max(1, Math.trunc(Number(restaurantSettings.delivery_lead_days) || 1));
+        const leadDate = getNowInRestaurantTimezone();
+        leadDate.setDate(leadDate.getDate() + leadDays);
+        forcedDeliveryDate = `${leadDate.getFullYear()}-${String(leadDate.getMonth() + 1).padStart(2, '0')}-${String(leadDate.getDate()).padStart(2, '0')}`;
+      }
       console.log('📦 Restaurant hours:', restaurantSettings);
 
       const isFutureDate = (() => {
@@ -974,7 +984,7 @@ router.post('/', authenticate, async (req, res) => {
       [
         finalRestaurantId, req.user.id, orderNumber, totalAmount, normalizedDeliveryAddress,
         normalizedDeliveryCoordinates, customer_name || req.user.full_name || 'Клиент', customer_phone,
-        normalizedPaymentMethod, initialPaymentStatus, comment, delivery_date, dbDeliveryTime, 'new', serviceFee,
+        normalizedPaymentMethod, initialPaymentStatus, comment, (forcedDeliveryDate || delivery_date), dbDeliveryTime, 'new', serviceFee,
         deliveryCost, deliveryDistanceKm, inventoryReserved,
         promoCodeApplied, promoDiscountAmount
       ]

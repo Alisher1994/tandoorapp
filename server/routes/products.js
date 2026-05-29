@@ -1109,7 +1109,7 @@ router.post('/storefront-orders', async (req, res) => {
     } = req.body || {};
     const fulfillmentType = String(rawFulfillment || 'delivery').toLowerCase() === 'pickup' ? 'pickup' : 'delivery';
     const deliveryTimeType = String(rawDeliveryTimeType || 'asap').toLowerCase() === 'scheduled' ? 'scheduled' : 'asap';
-    const deliveryDate = (deliveryTimeType === 'scheduled' && /^\d{4}-\d{2}-\d{2}$/.test(String(rawDeliveryDate || ''))) ? String(rawDeliveryDate) : null;
+    let deliveryDate = (deliveryTimeType === 'scheduled' && /^\d{4}-\d{2}-\d{2}$/.test(String(rawDeliveryDate || ''))) ? String(rawDeliveryDate) : null;
     const paymentMethod = ['cash', 'card', 'click'].includes(String(rawPaymentMethod || '').toLowerCase())
       ? String(rawPaymentMethod).toLowerCase() : 'cash';
     const promoCodeClean = String(rawPromoCode || '').trim().slice(0, 64);
@@ -1151,7 +1151,9 @@ router.post('/storefront-orders', async (req, res) => {
       `SELECT id, telegram_bot_token, telegram_group_id,
               COALESCE(service_fee, 0) AS service_fee,
               COALESCE(is_delivery_enabled, true) AS is_delivery_enabled,
-              COALESCE(is_pickup_enabled, true) AS is_pickup_enabled
+              COALESCE(is_pickup_enabled, true) AS is_pickup_enabled,
+              COALESCE(delivery_lead_enabled, false) AS delivery_lead_enabled,
+              COALESCE(delivery_lead_days, 1) AS delivery_lead_days
        FROM restaurants
        WHERE id = $1 AND COALESCE(is_active, true) = true
        LIMIT 1`,
@@ -1161,6 +1163,14 @@ router.post('/storefront-orders', async (req, res) => {
       return res.status(404).json({ error: 'Магазин не найден' });
     }
     const restaurant = restRes.rows[0];
+    // Срок изготовления/доставки: если включён — дату доставки форсируем на сегодня + N дней
+    // для всего заказа (клиентский выбор даты игнорируется).
+    if (restaurant.delivery_lead_enabled === true) {
+      const leadDays = Math.max(1, Math.trunc(Number(restaurant.delivery_lead_days) || 1));
+      const leadDate = new Date();
+      leadDate.setDate(leadDate.getDate() + leadDays);
+      deliveryDate = leadDate.toISOString().split('T')[0];
+    }
     // Магазин запретил самовывоз — гость не может оформить самовывоз с витрины.
     if (fulfillmentType === 'pickup' && restaurant.is_pickup_enabled === false) {
       return res.status(400).json({ error: 'Магазин не принимает самовывоз' });
@@ -1500,7 +1510,9 @@ router.get('/restaurant/:id', async (req, res) => {
       scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(r.scheduled_delivery_max_days) || 7)),
       is_asap_delivery_enabled: r.is_asap_delivery_enabled === false ? false : true,
       is_scheduled_time_delivery_enabled: r.is_scheduled_time_delivery_enabled === false ? false : true,
-      promo_codes_enabled: r.promo_codes_enabled === true
+      promo_codes_enabled: r.promo_codes_enabled === true,
+      delivery_lead_enabled: r.delivery_lead_enabled === true,
+      delivery_lead_days: Math.max(1, Math.trunc(Number(r.delivery_lead_days) || 1))
     });
   } catch (error) {
     console.error('Restaurant error:', error);
