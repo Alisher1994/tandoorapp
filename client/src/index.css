@@ -639,15 +639,18 @@
   color: #d7fbf0 !important;
 }
 /* Скроллбар модалки на тёмно-зелёном фоне — берём яркую бирюзу для контраста. */
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen .modal-content,
 :root[data-ui-theme="verdant_glass"] .product-details-modal-body,
 :root[data-ui-theme="verdant_glass"] .product-details-scroll {
   scrollbar-color: rgba(45, 212, 191, 0.7) transparent;
 }
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen .modal-content::-webkit-scrollbar-thumb,
 :root[data-ui-theme="verdant_glass"] .product-details-modal-body::-webkit-scrollbar-thumb,
 :root[data-ui-theme="verdant_glass"] .product-details-scroll::-webkit-scrollbar-thumb {
   background: rgba(45, 212, 191, 0.7);
   background-clip: padding-box;
 }
+:root[data-ui-theme="verdant_glass"] .product-details-modal-fullscreen .modal-content::-webkit-scrollbar-thumb:hover,
 :root[data-ui-theme="verdant_glass"] .product-details-modal-body::-webkit-scrollbar-thumb:hover,
 :root[data-ui-theme="verdant_glass"] .product-details-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(94, 234, 212, 0.9);
@@ -1272,15 +1275,18 @@
   color: #fbe6cf !important;
 }
 /* Скроллбар модалки на тёмно-зелёном фоне — берём яркую бирюзу для контраста. */
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen .modal-content,
 :root[data-ui-theme="golden_crust"] .product-details-modal-body,
 :root[data-ui-theme="golden_crust"] .product-details-scroll {
   scrollbar-color: rgba(217, 138, 43, 0.7) transparent;
 }
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen .modal-content::-webkit-scrollbar-thumb,
 :root[data-ui-theme="golden_crust"] .product-details-modal-body::-webkit-scrollbar-thumb,
 :root[data-ui-theme="golden_crust"] .product-details-scroll::-webkit-scrollbar-thumb {
   background: rgba(217, 138, 43, 0.7);
   background-clip: padding-box;
 }
+:root[data-ui-theme="golden_crust"] .product-details-modal-fullscreen .modal-content::-webkit-scrollbar-thumb:hover,
 :root[data-ui-theme="golden_crust"] .product-details-modal-body::-webkit-scrollbar-thumb:hover,
 :root[data-ui-theme="golden_crust"] .product-details-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(245, 196, 81, 0.9);
@@ -2426,12 +2432,14 @@ h6 {
    Вертикальный (модалка на ПК) делаем чуть заметнее, горизонтальный (related) тоньше. */
 /* Bootstrap fullscreen-модалка скроллит .modal-body, поэтому стилизуем и его,
    и .product-details-scroll (на ПК) — иначе остаётся нативный широкий бар. */
+.product-details-modal-fullscreen .modal-content,
 .product-details-modal-body,
 .product-details-scroll,
 .product-details-related-scroll {
   scrollbar-width: thin;
   scrollbar-color: var(--primary-color, #94a3b8) transparent;
 }
+.product-details-modal-fullscreen .modal-content::-webkit-scrollbar,
 .product-details-modal-body::-webkit-scrollbar,
 .product-details-scroll::-webkit-scrollbar {
   width: 8px;
@@ -2443,6 +2451,7 @@ h6 {
   height: 5px;
   display: block;
 }
+.product-details-modal-fullscreen .modal-content::-webkit-scrollbar-thumb,
 .product-details-modal-body::-webkit-scrollbar-thumb,
 .product-details-scroll::-webkit-scrollbar-thumb,
 .product-details-related-scroll::-webkit-scrollbar-thumb {
@@ -2451,12 +2460,14 @@ h6 {
   border: 2px solid transparent;
   background-clip: padding-box;
 }
+.product-details-modal-fullscreen .modal-content::-webkit-scrollbar-thumb:hover,
 .product-details-modal-body::-webkit-scrollbar-thumb:hover,
 .product-details-scroll::-webkit-scrollbar-thumb:hover,
 .product-details-related-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--primary-dark, rgba(148, 163, 184, 0.75));
   background-clip: padding-box;
 }
+.product-details-modal-fullscreen .modal-content::-webkit-scrollbar-track,
 .product-details-modal-body::-webkit-scrollbar-track,
 .product-details-scroll::-webkit-scrollbar-track,
 .product-details-related-scroll::-webkit-scrollbar-track {
