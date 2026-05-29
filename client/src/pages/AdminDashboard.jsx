@@ -948,6 +948,8 @@ const buildRestaurantSettingsSignature = (settings) => {
     is_asap_delivery_enabled: normalizeSettingsBoolean(settings.is_asap_delivery_enabled, true),
     is_scheduled_time_delivery_enabled: normalizeSettingsBoolean(settings.is_scheduled_time_delivery_enabled, true),
     is_operator_delivery_later_enabled: normalizeSettingsBoolean(settings.is_operator_delivery_later_enabled, false),
+    delivery_lead_enabled: normalizeSettingsBoolean(settings.delivery_lead_enabled, false),
+    delivery_lead_days: Math.max(1, Math.trunc(normalizeSettingsNumber(settings.delivery_lead_days, 1))),
     send_balance_after_confirm: normalizeSettingsBoolean(settings.send_balance_after_confirm, true),
     send_daily_close_report: normalizeSettingsBoolean(settings.send_daily_close_report, true),
     msg_new: normalizeSettingsText(settings.msg_new),
@@ -5794,6 +5796,8 @@ function AdminDashboard() {
           ? Number(response.data?.inventory_min_threshold)
           : 0,
         is_operator_delivery_later_enabled: response.data?.is_operator_delivery_later_enabled === true,
+        delivery_lead_enabled: response.data?.delivery_lead_enabled === true,
+        delivery_lead_days: Math.max(1, Math.trunc(Number(response.data?.delivery_lead_days) || 1)),
         promo_codes_enabled: response.data?.promo_codes_enabled === true,
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
@@ -5836,6 +5840,10 @@ function AdminDashboard() {
         is_operator_delivery_later_enabled: savedSettings?.is_operator_delivery_later_enabled === true
           ? true
           : Boolean(restaurantSettings?.is_operator_delivery_later_enabled),
+        delivery_lead_enabled: savedSettings?.delivery_lead_enabled === true
+          ? true
+          : Boolean(restaurantSettings?.delivery_lead_enabled),
+        delivery_lead_days: Math.max(1, Math.trunc(Number(savedSettings?.delivery_lead_days || restaurantSettings?.delivery_lead_days || 1))),
         currency_code: savedSettings?.currency_code || restaurantSettings?.currency_code || 'uz',
         logo_display_mode: (savedSettings?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
@@ -16296,6 +16304,64 @@ function AdminDashboard() {
                                     Учитывается только стоимость товаров (без доставки, сервиса и фасовки). 0 — без ограничения.
                                   </Form.Text>
                                 </Form.Group>
+                              </div>
+
+                              <div className="admin-settings-surface-block">
+                                <div className="fw-bold mb-1">
+                                  {language === 'uz' ? 'Yetkazib berish muddati' : 'Срок доставки заказа'}
+                                </div>
+                                <div className="small text-muted mb-3">
+                                  {language === 'uz'
+                                    ? "Yoqilganda mahsulot kartochkasidagi tugma «savat + kun» koʻrinishini oladi, buyurtma sanasi esa avtomatik «bugun + N kun» qilib belgilanadi (barcha mahsulotlar uchun)."
+                                    : 'При включении кнопка на карточке товара показывает срок доставки, а дата заказа автоматически выставляется «сегодня + N дней» (для всех товаров).'}
+                                </div>
+                                <Form.Check
+                                  type="switch"
+                                  id="delivery-lead-enabled-switch"
+                                  className="fw-semibold mb-3"
+                                  label={language === 'uz' ? 'Yetkazib berish muddatini koʻrsatish' : 'Показывать срок доставки'}
+                                  checked={Boolean(restaurantSettings.delivery_lead_enabled)}
+                                  onChange={(e) => setRestaurantSettings({
+                                    ...restaurantSettings,
+                                    delivery_lead_enabled: e.target.checked
+                                  })}
+                                />
+                                {Boolean(restaurantSettings.delivery_lead_enabled) && (
+                                  <Row className="g-3 align-items-start">
+                                    <Col md={6}>
+                                      <Form.Group>
+                                        <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                          {language === 'uz' ? 'Necha kunda yetkaziladi' : 'Через сколько дней доставка'}
+                                        </Form.Label>
+                                        <Form.Control
+                                          type="number"
+                                          min={1}
+                                          max={90}
+                                          className="form-control-custom"
+                                          value={restaurantSettings.delivery_lead_days ?? 1}
+                                          onChange={(e) => setRestaurantSettings({
+                                            ...restaurantSettings,
+                                            delivery_lead_days: Math.max(1, Math.min(90, Math.trunc(Number(e.target.value) || 1)))
+                                          })}
+                                        />
+                                      </Form.Group>
+                                    </Col>
+                                    <Col md={6}>
+                                      <div className="admin-product-stock-hint is-ok">
+                                        <div className="fw-semibold mb-1">
+                                          {language === 'uz' ? 'Tugmada koʻrinadi' : 'На кнопке отобразится'}
+                                        </div>
+                                        <div className="small">
+                                          🛒 {(() => {
+                                            const n = Math.max(1, Math.trunc(Number(restaurantSettings.delivery_lead_days) || 1));
+                                            if (n === 1) return language === 'uz' ? 'Ertaga' : 'Завтра';
+                                            return language === 'uz' ? `bugun + ${n}` : `сегодня + ${n}`;
+                                          })()}
+                                        </div>
+                                      </div>
+                                    </Col>
+                                  </Row>
+                                )}
                               </div>
                             </div>
 

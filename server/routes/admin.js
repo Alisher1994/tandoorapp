@@ -2076,6 +2076,7 @@ router.put('/restaurant', async (req, res) => {
       is_scheduled_date_delivery_enabled, scheduled_delivery_max_days,
       is_asap_delivery_enabled, is_scheduled_time_delivery_enabled,
       is_operator_delivery_later_enabled,
+      delivery_lead_enabled, delivery_lead_days,
       receipt_logo_url, receipt_header_text, receipt_footer_text
     } = req.body;
     const normalizedBotTokenRaw = telegram_bot_token === undefined || telegram_bot_token === null
@@ -2160,6 +2161,11 @@ router.put('/restaurant', async (req, res) => {
     const normalizedAsapDelivery = normalizeOptionalBoolean(is_asap_delivery_enabled);
     const normalizedScheduledTimeDelivery = normalizeOptionalBoolean(is_scheduled_time_delivery_enabled);
     const normalizedOperatorDeliveryLaterEnabled = normalizeOptionalBoolean(is_operator_delivery_later_enabled);
+    const normalizedDeliveryLeadEnabled = normalizeOptionalBoolean(delivery_lead_enabled);
+    const normalizedDeliveryLeadDays = Math.max(
+      1,
+      Math.min(90, Math.trunc(Number(delivery_lead_days) || 1))
+    );
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -2304,8 +2310,10 @@ router.put('/restaurant', async (req, res) => {
           menu_height_lock_enabled = COALESCE($65, menu_height_lock_enabled),
           menu_liquid_glass_opacity = $66,
           menu_liquid_glass_blur = $67,
+          delivery_lead_enabled = COALESCE($68, delivery_lead_enabled),
+          delivery_lead_days = $69,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $68
+      WHERE id = $70
       RETURNING *
     `, [
       nextNameForCheck, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -2356,6 +2364,8 @@ router.put('/restaurant', async (req, res) => {
       normalizedMenuHeightLockEnabled,
       normalizedMenuLiquidGlassOpacity,
       normalizedMenuLiquidGlassBlur,
+      normalizedDeliveryLeadEnabled,
+      normalizedDeliveryLeadDays,
       restaurantId
     ]);
     await pool.query(

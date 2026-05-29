@@ -94,6 +94,8 @@ function StorefrontGate() {
             promo_codes_enabled: infoRes.data?.promo_codes_enabled === true,
             is_scheduled_date_delivery_enabled: infoRes.data?.is_scheduled_date_delivery_enabled === true,
             scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(infoRes.data?.scheduled_delivery_max_days) || 7)),
+            delivery_lead_enabled: infoRes.data?.delivery_lead_enabled === true,
+            delivery_lead_days: Math.max(1, Math.trunc(Number(infoRes.data?.delivery_lead_days) || 1)),
             ui_theme: String(infoRes.data?.ui_theme || 'classic').trim().toLowerCase(),
             ui_font_family: String(infoRes.data?.ui_font_family || 'sans').trim().toLowerCase(),
             logo_url: String(infoRes.data?.logo_url || '').trim()

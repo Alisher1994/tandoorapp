@@ -283,6 +283,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   // 'menu' — обычный каталог; 'showcase' — витрина из конструктора; 'favorites' — избранное.
   const [storefrontView, setStorefrontView] = useState('menu');
   const storefrontViewInitedRef = useRef(false);
+  // Срок доставки (сегодня + N дней) — конфиг магазина; влияет на кнопку карточки товара.
+  const [deliveryLead, setDeliveryLead] = useState({ enabled: false, days: 1 });
   const [storefrontOrderForm, setStorefrontOrderForm] = useState({
     customer_name: '',
     customer_phone: '',
@@ -508,6 +510,30 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // Подтягиваем конфиг «срока доставки» магазина: на витрине — из meta, в WebApp — запросом.
+  useEffect(() => {
+    if (isPublicStorefront) {
+      setDeliveryLead({
+        enabled: publicRestaurantMeta?.delivery_lead_enabled === true,
+        days: Math.max(1, Math.trunc(Number(publicRestaurantMeta?.delivery_lead_days) || 1))
+      });
+      return undefined;
+    }
+    const rid = Number.parseInt(user?.active_restaurant_id, 10) || Number.parseInt(selectedRestaurant, 10);
+    if (!rid) return undefined;
+    let cancelled = false;
+    axios.get(`${API_URL}/products/restaurant/${rid}`)
+      .then((res) => {
+        if (cancelled) return;
+        setDeliveryLead({
+          enabled: res.data?.delivery_lead_enabled === true,
+          days: Math.max(1, Math.trunc(Number(res.data?.delivery_lead_days) || 1))
+        });
+      })
+      .catch(() => { /* по умолчанию выключено */ });
+    return () => { cancelled = true; };
+  }, [isPublicStorefront, publicRestaurantMeta, user?.active_restaurant_id, selectedRestaurant]);
 
   useEffect(() => {
     // На публичной витрине магазин берём из slug (publicRestaurantId), иначе — из сессии.
@@ -3303,8 +3329,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
             <HeartIcon size={16} filled={favoriteActive} color={favoriteActive ? '#ffffff' : '#475569'} />
           </button>
 
-          {/* Quantity controls on image */}
-          {isAvailable && productSizeOptions.length === 0 && (
+          {/* Quantity controls on image (скрываем, если включён режим «срока доставки» — там кнопка внизу) */}
+          {isAvailable && productSizeOptions.length === 0 && !deliveryLead.enabled && (
             <>
               {/* Plus button or Quantity circle */}
               {!isOpen && (
@@ -3460,6 +3486,49 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
               {formatPrice(productDisplayPrice)} {t('sum')}
             </span>
           </div>
+          {/* Кнопка «срока доставки» внизу карточки (вместо круглого «+») */}
+          {deliveryLead.enabled && productSizeOptions.length === 0 && isAvailable && (
+            <div className="mt-2">
+              {!hasQty ? (
+                <button
+                  type="button"
+                  className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2 rounded-3 fw-bold"
+                  style={{ minHeight: 38, fontSize: '0.78rem', padding: '6px 8px', touchAction: 'manipulation' }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToCart(product); }}
+                >
+                  <CartLucideIcon size={15} />
+                  <span>
+                    {Math.max(1, Math.trunc(Number(deliveryLead.days) || 1)) === 1
+                      ? (language === 'uz' ? 'Ertaga' : 'Завтра')
+                      : (language === 'uz'
+                        ? `bugun + ${Math.trunc(Number(deliveryLead.days) || 1)}`
+                        : `сегодня + ${Math.trunc(Number(deliveryLead.days) || 1)}`)}
+                  </span>
+                </button>
+              ) : (
+                <div
+                  className="d-flex align-items-center justify-content-between rounded-pill px-1"
+                  style={{ background: 'rgba(148,163,184,0.16)', minHeight: 38 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
+                    style={{ width: 32, height: 32, fontSize: '18px', touchAction: 'manipulation' }}
+                    onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, qty - quantityStep, selectedVariant); }}
+                  >−</button>
+                  <span className="fw-bold" style={{ fontSize: '14px' }}>{formatQuantity(qty)}</span>
+                  <button
+                    type="button"
+                    className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
+                    style={{ width: 32, height: 32, fontSize: '18px', touchAction: 'manipulation', opacity: isAtStockLimit ? 0.45 : 1 }}
+                    disabled={isAtStockLimit}
+                    onClick={(e) => { e.stopPropagation(); updateProductQuantityWithinStock(product, qty, quantityStep, selectedVariant); }}
+                  >+</button>
+                </div>
+              )}
+            </div>
+          )}
         </Card.Body>
       </Card>
     );
