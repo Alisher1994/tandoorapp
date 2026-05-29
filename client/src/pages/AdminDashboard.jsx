@@ -6977,19 +6977,42 @@ function AdminDashboard() {
       { key: 'extra', label: language === 'uz' ? "Qo'shimcha" : 'Дополнительные' },
       { key: 'variants', label: language === 'uz' ? 'Variantlar' : 'Варианты товара', badge: (productForm.size_enabled && variantCount > 0) ? variantCount : null }
     ];
+    const autoStock = Boolean(restaurantSettings?.inventory_tracking_enabled) && !productForm.size_enabled;
     return (
       <div className="admin-product-form-tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            className={`admin-product-form-tab ${productFormTab === tab.key ? 'is-active' : ''}`}
-            onClick={() => setProductFormTab(tab.key)}
-          >
-            {tab.label}
-            {tab.badge ? <span className="admin-product-form-tab-badge">{tab.badge}</span> : null}
-          </button>
-        ))}
+        <div className="admin-product-form-tabs-list">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={`admin-product-form-tab ${productFormTab === tab.key ? 'is-active' : ''}`}
+              onClick={() => setProductFormTab(tab.key)}
+            >
+              {tab.label}
+              {tab.badge ? <span className="admin-product-form-tab-badge">{tab.badge}</span> : null}
+            </button>
+          ))}
+        </div>
+        <div className="admin-product-form-tabs-actions">
+          <Form.Check
+            type="switch"
+            id="pf-instock-switch"
+            className="admin-product-switch"
+            label={language === 'uz' ? 'Yoʻq' : 'Нет в наличии'}
+            checked={!productForm.in_stock}
+            disabled={autoStock}
+            title={autoStock ? (language === 'uz' ? 'Avto: qoldiq boʻyicha' : 'Авто: по остатку') : ''}
+            onChange={(e) => setProductForm((prev) => ({ ...prev, in_stock: !e.target.checked }))}
+          />
+          <Form.Check
+            type="switch"
+            id="pf-hidden-switch"
+            className="admin-product-switch"
+            label={language === 'uz' ? 'Yashirish' : 'Скрыть'}
+            checked={!!productForm.is_hidden_catalog}
+            onChange={(e) => setProductForm((prev) => ({ ...prev, is_hidden_catalog: e.target.checked }))}
+          />
+        </div>
       </div>
     );
   };
@@ -18493,12 +18516,6 @@ function AdminDashboard() {
                 </Alert>
               )}
 
-              <div className="small text-muted mb-2">
-                {language === 'uz'
-                  ? "Kamida bitta nom maydoni to'ldirilishi kerak: RU yoki UZ."
-                  : 'Обязательно заполните хотя бы одно название: RU или UZ.'}
-              </div>
-
               <Row className="g-3">
                 <Col md={6}>
                   <Form.Group className="mb-3">
@@ -18612,40 +18629,6 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
                 )}
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>{language === 'uz' ? "Mahsulot ko'rinishi" : 'Отображение товара'}</Form.Label>
-                    <div className="admin-product-switch-inline-shell">
-                      <Form.Check
-                        className="admin-product-switch"
-                        type="switch"
-                        label={Boolean(restaurantSettings?.inventory_tracking_enabled) && !productForm.size_enabled
-                          ? 'Нет в наличии (авто)'
-                          : 'Нет в наличии'}
-                        checked={!productForm.in_stock}
-                        disabled={Boolean(restaurantSettings?.inventory_tracking_enabled) && !productForm.size_enabled}
-                        onChange={(e) => setProductForm({ ...productForm, in_stock: !e.target.checked })}
-                      />
-                      <Form.Check
-                        className="admin-product-switch"
-                        type="switch"
-                        label="Скрыть из каталога"
-                        checked={!!productForm.is_hidden_catalog}
-                        onChange={(e) => setProductForm({ ...productForm, is_hidden_catalog: e.target.checked })}
-                      />
-                      {Boolean(restaurantSettings?.size_variants_enabled) && (
-                        <Form.Check
-                          className="admin-product-switch"
-                          type="switch"
-                          id="product-size-enabled-switch"
-                          label={language === 'uz' ? 'Variantlar' : 'Варианты товара'}
-                          checked={Boolean(productForm.size_enabled)}
-                          onChange={(e) => toggleProductVariantsEnabled(e.target.checked)}
-                        />
-                      )}
-                    </div>
-                  </Form.Group>
-                </Col>
               </Row>
 
               </>)}
@@ -18697,6 +18680,23 @@ function AdminDashboard() {
               </>)}
 
               {productFormTab === 'variants' && (<>
+              {Boolean(restaurantSettings?.size_variants_enabled) && (
+                <div className="admin-variants-enable-row">
+                  <Form.Check
+                    type="switch"
+                    id="product-size-enabled-switch"
+                    className="admin-product-switch fw-semibold"
+                    label={language === 'uz' ? 'Variantlardan foydalanish' : 'Использовать варианты товара'}
+                    checked={Boolean(productForm.size_enabled)}
+                    onChange={(e) => toggleProductVariantsEnabled(e.target.checked)}
+                  />
+                  <div className="small text-muted mt-1">
+                    {language === 'uz'
+                      ? 'Masalan: 0.5 kg / 1 kg yoki hajm. Odatda 2–5 variant.'
+                      : 'Например: 0.5 кг / 1 кг или объём. Норма обычно 2–5 вариантов.'}
+                  </div>
+                </div>
+              )}
               {Boolean(restaurantSettings?.size_variants_enabled) && productForm.size_enabled && (
                 <Row className="g-3 mt-1">
                   <Col xs={12}>
@@ -19066,11 +19066,11 @@ function AdminDashboard() {
                 </Row>
               )}
 
-              {!productForm.size_enabled && (
+              {Boolean(restaurantSettings?.size_variants_enabled) && !productForm.size_enabled && (
                 <div className="text-muted" style={{ padding: '10px 2px' }}>
                   {language === 'uz'
-                    ? "Variantlarni qo'shish uchun «Asosiy» yorlig'ida «Variantlar» ni yoqing."
-                    : 'Чтобы добавить варианты, включите «Варианты товара» во вкладке «Основные».'}
+                    ? "Variantlar oʻchirilgan. Yuqoridagi tugmani yoqing."
+                    : 'Варианты выключены. Включите переключатель выше.'}
                 </div>
               )}
               </>)}
