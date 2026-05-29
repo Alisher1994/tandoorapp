@@ -7,6 +7,42 @@ const Catalog = lazy(() => import('../pages/Catalog'));
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+// Сдвиг яркости hex-цвета (percent<0 — темнее, >0 — светлее) для derived оттенков.
+const shadeHex = (hex, percent) => {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return null;
+  const num = parseInt(m[1], 16);
+  let r = (num >> 16) & 255;
+  let g = (num >> 8) & 255;
+  let b = num & 255;
+  const t = percent < 0 ? 0 : 255;
+  const p = Math.min(1, Math.abs(percent) / 100);
+  r = Math.round((t - r) * p) + r;
+  g = Math.round((t - g) * p) + g;
+  b = Math.round((t - b) * p) + b;
+  return { r, g, b, hex: `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}` };
+};
+
+// Применяет кастомный основной цвет магазина поверх темы (фон темы не трогаем).
+// Пустой/невалидный цвет => снимаем оверрайды, остаётся стоковый цвет темы.
+const applyStorePrimaryColor = (color) => {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  const overrideVars = ['--primary-color', '--primary-dark', '--primary-light', '--bs-primary', '--bs-primary-rgb'];
+  const base = shadeHex(color, 0);
+  if (!base) {
+    overrideVars.forEach((v) => root.style.removeProperty(v));
+    return;
+  }
+  const dark = shadeHex(color, -16) || base;
+  const light = shadeHex(color, 16) || base;
+  root.style.setProperty('--primary-color', base.hex);
+  root.style.setProperty('--primary-dark', dark.hex);
+  root.style.setProperty('--primary-light', light.hex);
+  root.style.setProperty('--bs-primary', base.hex);
+  root.style.setProperty('--bs-primary-rgb', `${base.r}, ${base.g}, ${base.b}`);
+};
+
 // Публичная витрина магазина: talablar.app/<slug>
 // Открывается без входа. Разрешает slug в id магазина и отдаёт его в каталог (гостевой режим).
 function StorefrontGate() {
@@ -31,6 +67,7 @@ function StorefrontGate() {
         if (typeof document !== 'undefined') {
           document.documentElement.setAttribute('data-ui-theme', earlyTheme);
           document.documentElement.setAttribute('data-ui-font', earlyFont);
+          applyStorePrimaryColor(resolveRes.data?.ui_primary_color);
         }
         if (!cancelled) {
           setState((prev) => ({ ...prev, restaurantId, logoUrl: earlyLogo }));
@@ -62,6 +99,7 @@ function StorefrontGate() {
           if (typeof document !== 'undefined') {
             document.documentElement.setAttribute('data-ui-theme', meta.ui_theme);
             document.documentElement.setAttribute('data-ui-font', meta.ui_font_family);
+            applyStorePrimaryColor(infoRes.data?.ui_primary_color);
           }
         } catch (_) { /* CTA просто не появится, не критично */ }
         if (!cancelled) setState({ status: 'ready', restaurantId, botHref, meta, logoUrl: meta?.logo_url || earlyLogo });

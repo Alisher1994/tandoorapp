@@ -410,7 +410,8 @@ const UI_THEME_VALUES = new Set([
   'violet_wave',
   'rainbow',
   'verdant_glass',
-  'golden_crust'
+  'golden_crust',
+  'light_gray'
 ]);
 
 // Рекламные баннеры магазина: админ задаёт массив {image_url, target_url,
@@ -2461,6 +2462,23 @@ router.put('/restaurant', async (req, res) => {
       }
     } else if (result.rows[0] && (result.rows[0].store_ad_banners == null)) {
       result.rows[0].store_ad_banners = [];
+    }
+
+    // Кастомный основной цвет (акцент). null => стоковый цвет темы.
+    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ui_primary_color VARCHAR(9)').catch(() => {});
+    if (req.body?.ui_primary_color !== undefined) {
+      const rawColor = String(req.body.ui_primary_color || '').trim().toLowerCase();
+      const normalizedColor = /^#[0-9a-f]{6}$/.test(rawColor) ? rawColor : null;
+      const colorResult = await pool.query(
+        `UPDATE restaurants
+           SET ui_primary_color = $1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2
+           RETURNING ui_primary_color`,
+        [normalizedColor, restaurantId]
+      );
+      if (result.rows[0]) {
+        result.rows[0].ui_primary_color = colorResult.rows[0]?.ui_primary_color || null;
+      }
     }
 
     try {
