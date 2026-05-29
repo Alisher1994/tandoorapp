@@ -14337,7 +14337,7 @@ function AdminDashboard() {
                                               '--theme-slot-c3': themeOption.preview[2]
                                             }}
                                           />
-                                          <span className="admin-theme-slot-title">{themeOption.label}</span>
+                                          <span className="admin-theme-slot-title">{themeOption.label.replace(/\s*\([^)]*\)\s*/g, '').trim()}</span>
                                         </button>
                                       );
                                     })}
@@ -14439,8 +14439,7 @@ function AdminDashboard() {
                                           }}
                                         >
                                           <span className="admin-font-slot-top">
-                                            <span className="admin-font-slot-name">{fontOption.label}</span>
-                                            <span className="admin-font-slot-group">{fontOption.group}</span>
+                                            <span className="admin-font-slot-name">{fontOption.label.replace(/\s*\([^)]*\)\s*/g, '').trim()}</span>
                                           </span>
                                           <span className="admin-font-slot-sample">{fontOption.sample}</span>
                                         </button>

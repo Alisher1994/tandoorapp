@@ -10296,12 +10296,21 @@ body::-webkit-scrollbar,
 }
 
 .admin-theme-slots {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
     gap: 0.6rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) transparent;
 }
+.admin-theme-slots::-webkit-scrollbar { height: 7px; }
+.admin-theme-slots::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 999px; }
+.admin-theme-slots::-webkit-scrollbar-track { background: transparent; }
 
 .admin-theme-slot {
+    flex: 0 0 116px;
     border: 1px solid var(--border-color);
     border-radius: 12px;
     background: var(--surface-color);
@@ -10355,12 +10364,21 @@ body::-webkit-scrollbar,
 }
 
 .admin-font-slots {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
     gap: 0.7rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) transparent;
 }
+.admin-font-slots::-webkit-scrollbar { height: 7px; }
+.admin-font-slots::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 999px; }
+.admin-font-slots::-webkit-scrollbar-track { background: transparent; }
 
 .admin-font-slot {
+    flex: 0 0 196px;
     border: 1px solid var(--border-color);
     border-radius: 12px;
     background: var(--surface-color);
@@ -10370,7 +10388,7 @@ body::-webkit-scrollbar,
     flex-direction: column;
     gap: 0.45rem;
     text-align: left;
-    min-height: 108px;
+    min-height: 96px;
     transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease, transform 0.16s ease;
 }
 
