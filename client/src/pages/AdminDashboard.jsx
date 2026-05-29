@@ -2947,7 +2947,11 @@ function AdminDashboard() {
   const isGroupIdTaken = normalizedCurrentTelegramGroupId.length > 0 && restaurantIdentityAvailability.groupAvailable === false;
   const normalizedCurrentRestaurantSlug = String(restaurantSettings?.slug || '').trim();
   const isSlugTaken = normalizedCurrentRestaurantSlug.length > 0 && restaurantIdentityAvailability.slugAvailable === false;
-  const isRestaurantSettingsSaveDisabled = savingSettings || isTokenSaveLocked || !isRestaurantSettingsDirty || restaurantIdentityAvailability.loading || isNameTaken || isTokenTaken || isGroupIdTaken || isSlugTaken;
+  // Кнопка сохранения (оформление/товары/баннеры) активна при наличии изменений.
+  // Занятость имени/Bot Token/slug проверяется уже в самом saveRestaurantSettings,
+  // поэтому не блокируем кнопку из-за полей других вкладок (это вызывало
+  // «сохранение работает через раз»).
+  const isRestaurantSettingsSaveDisabled = savingSettings || isTokenSaveLocked || !isRestaurantSettingsDirty;
 
   useEffect(() => {
     const name = String(restaurantSettings?.name || '').trim();
@@ -14316,7 +14320,7 @@ function AdminDashboard() {
                                 <div className="admin-settings-single-column admin-settings-single-column--appearance">
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль интерфейса магазина</Form.Label>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Do'kon interfeysi uslubi" : 'Стиль интерфейса магазина'}</Form.Label>
                                   <div className="admin-theme-slots" role="radiogroup" aria-label="Стиль интерфейса магазина">
                                     {UI_THEME_OPTIONS.map((themeOption) => {
                                       const isActive = normalizeUiTheme(restaurantSettings.ui_theme, 'classic') === themeOption.value;
@@ -14343,14 +14347,14 @@ function AdminDashboard() {
                                     })}
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
-                                    Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
+                                    {language === 'uz' ? "Tanlangan uslub admin paneliga va shu do'kon mijoz qismiga qo'llanadi." : 'Выбранный стиль применяется к вашей админке и клиентской части этого магазина.'}
                                   </Form.Text>
                                 </Form.Group>
                               </div>
 
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Основной цвет (кнопки, акценты)</Form.Label>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Asosiy rang (tugmalar, aksentlar)" : 'Основной цвет (кнопки, акценты)'}</Form.Label>
                                   {(() => {
                                     const themeKey = normalizeUiTheme(restaurantSettings.ui_theme, 'classic');
                                     const stockColor = UI_THEME_STOCK_PRIMARY[themeKey] || '#475569';
@@ -14393,12 +14397,12 @@ function AdminDashboard() {
                                               onChange={(e) => setRestaurantSettings({ ...restaurantSettings, ui_primary_color: String(e.target.value || '').toLowerCase() })}
                                               style={{ width: 34, height: 30, border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
                                             />
-                                            <span className="small text-muted">Свой</span>
+                                            <span className="small text-muted">{language === 'uz' ? "Boshqa" : 'Свой'}</span>
                                           </label>
                                         </div>
                                         <div className="d-flex align-items-center gap-2 mt-2">
                                           <span className="small text-muted">
-                                            {isStock ? `Стоковый цвет темы (${stockColor})` : `Выбран: ${customColor}`}
+                                            {isStock ? (language === 'uz' ? `Standart rang (${stockColor})` : `Стоковый цвет темы (${stockColor})`) : (language === 'uz' ? `Tanlangan: ${customColor}` : `Выбран: ${customColor}`)}
                                           </span>
                                           {!isStock && (
                                             <Button
@@ -14407,12 +14411,12 @@ function AdminDashboard() {
                                               className="p-0 text-decoration-none"
                                               onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_primary_color: null })}
                                             >
-                                              Сбросить к стоковому
+                                              {language === 'uz' ? "Standartga qaytarish" : 'Сбросить к стоковому'}
                                             </Button>
                                           )}
                                         </div>
                                         <Form.Text className="text-muted d-block mt-1">
-                                          Цвет применяется к кнопкам и основным акцентам витрины. Фон задаётся темой и не меняется. При смене темы цвет сбрасывается на стоковый.
+                                          {language === 'uz' ? "Rang tugmalar va vitrina aksentlariga qo'llanadi. Fon mavzu bilan beriladi va o'zgarmaydi. Mavzu almashtirilganda rang standartga qaytadi." : 'Цвет применяется к кнопкам и основным акцентам витрины. Фон задаётся темой и не меняется. При смене темы цвет сбрасывается на стоковый.'}
                                         </Form.Text>
                                       </>
                                     );
@@ -14422,7 +14426,7 @@ function AdminDashboard() {
 
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Шрифт системы</Form.Label>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Tizim shrifti" : 'Шрифт системы'}</Form.Label>
                                   <div className="admin-font-slots" role="radiogroup" aria-label="Шрифт системы">
                                     {UI_FONT_FAMILY_OPTIONS.map((fontOption) => {
                                       const isActive = normalizeUiFontFamily(restaurantSettings.ui_font_family, 'sans') === fontOption.value;
@@ -14447,14 +14451,14 @@ function AdminDashboard() {
                                     })}
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
-                                    Выбранный шрифт применяется к админке и витрине этого магазина.
+                                    {language === 'uz' ? "Tanlangan shrift admin paneli va shu do'kon vitrinasiga qo'llanadi." : 'Выбранный шрифт применяется к админке и витрине этого магазина.'}
                                   </Form.Text>
                                 </Form.Group>
                               </div>
 
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим отображения каталога</Form.Label>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Katalog ko'rinishi rejimi" : 'Режим отображения каталога'}</Form.Label>
                                   <div className="admin-menu-mode-preview-grid">
                                     <button
                                       type="button"
@@ -14484,8 +14488,8 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">Каталог</span>
-                                      <span className="admin-menu-mode-preview-desc">Категории плиткой, затем товары</span>
+                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Katalog" : 'Каталог'}</span>
+                                      <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Kategoriyalar plitka, keyin mahsulotlar" : 'Категории плиткой, затем товары'}</span>
                                     </button>
                                     <button
                                       type="button"
@@ -14527,8 +14531,8 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">Карточный режим</span>
-                                      <span className="admin-menu-mode-preview-desc">Все товары по категориям на одном экране</span>
+                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Kartochka rejimi" : 'Карточный режим'}</span>
+                                      <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Barcha mahsulotlar kategoriyalar bo'yicha bitta ekranda" : 'Все товары по категориям на одном экране'}</span>
                                     </button>
                                     <button
                                       type="button"
@@ -14558,19 +14562,19 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">Папки категорий</span>
-                                      <span className="admin-menu-mode-preview-desc">Категория → Категория → Категория → товары</span>
+                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Kategoriya papkalari" : 'Папки категорий'}</span>
+                                      <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Kategoriya → Kategoriya → Kategoriya → mahsulotlar" : 'Категория → Категория → Категория → товары'}</span>
                                     </button>
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
-                                    Выберите один режим отображения без выпадающего списка.
+                                    {language === 'uz' ? "Bitta ko'rinish rejimini tanlang (ochiluvchi ro'yxatsiz)." : 'Выберите один режим отображения без выпадающего списка.'}
                                   </Form.Text>
                                 </Form.Group>
                               </div>
 
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Режим карточек товара</Form.Label>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Mahsulot kartochkasi rejimi" : 'Режим карточек товара'}</Form.Label>
                                   <div className="admin-menu-mode-preview-grid">
                                     <button
                                       type="button"
@@ -14612,8 +14616,8 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">Широкий</span>
-                                      <span className="admin-menu-mode-preview-desc">Картинка 4:3, компактная карточка</span>
+                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Keng" : 'Широкий'}</span>
+                                      <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Rasm 4:3, ixcham kartochka" : 'Картинка 4:3, компактная карточка'}</span>
                                     </button>
                                     <button
                                       type="button"
@@ -14655,19 +14659,19 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">Книжный</span>
-                                      <span className="admin-menu-mode-preview-desc">Картинка 3:4, акцент на фото</span>
+                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Kitob" : 'Книжный'}</span>
+                                      <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Rasm 3:4, fotoga urg'u" : 'Картинка 3:4, акцент на фото'}</span>
                                     </button>
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
-                                    Влияет на карточки товаров в меню и в витрине клиента.
+                                    {language === 'uz' ? "Menyu va mijoz vitrinasidagi mahsulot kartochkalariga ta'sir qiladi." : 'Влияет на карточки товаров в меню и в витрине клиента.'}
                                   </Form.Text>
                                 </Form.Group>
                               </div>
 
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
-                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Стиль меню</Form.Label>
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Menyu uslubi" : 'Стиль меню'}</Form.Label>
                                   <div className="d-flex flex-column gap-3">
                                     <Form.Check
                                       type="switch"
@@ -14809,7 +14813,7 @@ function AdminDashboard() {
                                     </Row>
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
-                                    При включении Liquid Glass нижнее меню и круг избранного становятся полупрозрачными. Отдельно можно выбрать уровень прозрачности и blur.
+                                    {language === 'uz' ? "Liquid Glass yoqilganda pastki menyu va sevimlilar doirasi yarim shaffof bo'ladi. Shaffoflik va blur darajasini alohida tanlash mumkin." : 'При включении Liquid Glass нижнее меню и круг избранного становятся полупрозрачными. Отдельно можно выбрать уровень прозрачности и blur.'}
                                   </Form.Text>
                                 </Form.Group>
                               </div>
@@ -14823,12 +14827,12 @@ function AdminDashboard() {
                                 disabled={isRestaurantSettingsSaveDisabled}
                               >
                                 {savingSettings
-                                  ? 'Сохранение...'
+                                  ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
                                   : isTokenSaveLocked
-                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    ? (language === 'uz' ? `Kuting ${tokenSaveCountdown}s...` : `Подождите ${tokenSaveCountdown}с...`)
                                     : isRestaurantSettingsDirty
-                                      ? 'Сохранить изменения'
-                                      : 'Нет изменений'}
+                                      ? (language === 'uz' ? "O'zgarishlarni saqlash" : 'Сохранить изменения')
+                                      : (language === 'uz' ? "O'zgarishlar yo'q" : 'Нет изменений')}
                               </Button>
                             </div>
                                 </div>
@@ -16201,12 +16205,12 @@ function AdminDashboard() {
                                 disabled={isRestaurantSettingsSaveDisabled}
                               >
                                 {savingSettings
-                                  ? 'Сохранение...'
+                                  ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
                                   : isTokenSaveLocked
-                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    ? (language === 'uz' ? `Kuting ${tokenSaveCountdown}s...` : `Подождите ${tokenSaveCountdown}с...`)
                                     : isRestaurantSettingsDirty
-                                      ? 'Сохранить изменения'
-                                      : 'Нет изменений'}
+                                      ? (language === 'uz' ? "O'zgarishlarni saqlash" : 'Сохранить изменения')
+                                      : (language === 'uz' ? "O'zgarishlar yo'q" : 'Нет изменений')}
                               </Button>
                             </div>
                           </Card.Body>
@@ -16302,12 +16306,12 @@ function AdminDashboard() {
                                 disabled={isRestaurantSettingsSaveDisabled}
                               >
                                 {savingSettings
-                                  ? 'Сохранение...'
+                                  ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
                                   : isTokenSaveLocked
-                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    ? (language === 'uz' ? `Kuting ${tokenSaveCountdown}s...` : `Подождите ${tokenSaveCountdown}с...`)
                                     : isRestaurantSettingsDirty
-                                      ? 'Сохранить изменения'
-                                      : 'Нет изменений'}
+                                      ? (language === 'uz' ? "O'zgarishlarni saqlash" : 'Сохранить изменения')
+                                      : (language === 'uz' ? "O'zgarishlar yo'q" : 'Нет изменений')}
                               </Button>
                             </div>
                           </Card.Body>
@@ -16368,12 +16372,12 @@ function AdminDashboard() {
                                 disabled={isRestaurantSettingsSaveDisabled}
                               >
                                 {savingSettings
-                                  ? 'Сохранение...'
+                                  ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
                                   : isTokenSaveLocked
-                                    ? `Подождите ${tokenSaveCountdown}с...`
+                                    ? (language === 'uz' ? `Kuting ${tokenSaveCountdown}s...` : `Подождите ${tokenSaveCountdown}с...`)
                                     : isRestaurantSettingsDirty
-                                      ? 'Сохранить изменения'
-                                      : 'Нет изменений'}
+                                      ? (language === 'uz' ? "O'zgarishlarni saqlash" : 'Сохранить изменения')
+                                      : (language === 'uz' ? "O'zgarishlar yo'q" : 'Нет изменений')}
                               </Button>
                             </div>
                           </Card.Body>
