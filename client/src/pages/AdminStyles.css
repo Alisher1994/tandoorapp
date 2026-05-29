@@ -3106,9 +3106,9 @@ body::-webkit-scrollbar,
     text-transform: none !important;
     letter-spacing: normal !important;
     line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
 }
 
 .admin-balance-modal-redesign .admin-balance-info-label {
