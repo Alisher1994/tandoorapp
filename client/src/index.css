@@ -5317,3 +5317,8 @@ body:has(.service-lock-overlay) #root > *:not(.service-lock-overlay) {
 .client-catalog-menu-btn:active { transform: translateY(1px); }
 .client-catalog-menu-link { transition: color 0.15s ease; }
 .client-catalog-menu-link:hover { color: var(--primary-color, #2563eb) !important; }
+
+/* Модалка меню «Каталог» (drill-down по категориям) */
+.client-catalog-menu-dialog { max-width: 520px; }
+.client-catalog-menu-row { transition: border-color 0.15s ease, background 0.15s ease; }
+.client-catalog-menu-row:hover { border-color: var(--primary-color, #2563eb) !important; background: rgba(148, 163, 184, 0.08) !important; }
