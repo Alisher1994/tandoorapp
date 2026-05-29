@@ -253,6 +253,10 @@
 :root[data-ui-theme="verdant_glass"] .client-content .card h5 {
   color: #f0fdf4;
 }
+:root[data-ui-theme="verdant_glass"] .client-surface .category-card-outside-title,
+:root[data-ui-theme="verdant_glass"] .client-content .category-card-outside-title {
+  color: #f0fdf4;
+}
 :root[data-ui-theme="verdant_glass"] .client-surface .card .text-muted,
 :root[data-ui-theme="verdant_glass"] .client-content .card .text-muted,
 :root[data-ui-theme="verdant_glass"] .client-surface .text-muted,
@@ -887,6 +891,10 @@
 :root[data-ui-theme="golden_crust"] .client-content .card h3,
 :root[data-ui-theme="golden_crust"] .client-content .card h4,
 :root[data-ui-theme="golden_crust"] .client-content .card h5 {
+  color: #f7efe3;
+}
+:root[data-ui-theme="golden_crust"] .client-surface .category-card-outside-title,
+:root[data-ui-theme="golden_crust"] .client-content .category-card-outside-title {
   color: #f7efe3;
 }
 :root[data-ui-theme="golden_crust"] .client-surface .card .text-muted,

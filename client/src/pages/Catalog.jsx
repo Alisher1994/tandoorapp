@@ -37,6 +37,22 @@ const PENDING_PRODUCT_REVIEW_SNOOZE_MS = 24 * 60 * 60 * 1000;
 const LANGUAGE_STORAGE_KEY = 'language';
 const CATALOG_CARD_SWIPE_THRESHOLD_PX = 34;
 const CATALOG_CARD_SWIPE_BLOCK_CLICK_MS = 320;
+
+// Подпись срока доставки на кнопке карточки: N=1 → «Завтра/Ertaga», иначе — реальная дата
+// (RU: «2 июня», UZ: «2-iyun»), вычисляется как сегодня + N дней.
+const DELIVERY_LEAD_MONTHS_RU = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+const DELIVERY_LEAD_MONTHS_UZ = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr'];
+const formatDeliveryLeadLabel = (days, language = 'ru') => {
+  const n = Math.max(1, Math.trunc(Number(days) || 1));
+  if (n === 1) return language === 'uz' ? 'Ertaga' : 'Завтра';
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const day = d.getDate();
+  const month = d.getMonth();
+  return language === 'uz'
+    ? `${day}-${DELIVERY_LEAD_MONTHS_UZ[month]}`
+    : `${day} ${DELIVERY_LEAD_MONTHS_RU[month]}`;
+};
 const normalizeCatalogAnimationSeason = (value, fallback = 'off') => {
   const normalized = String(value || '').trim().toLowerCase();
   return CATALOG_ANIMATION_SEASONS.includes(normalized) ? normalized : fallback;
@@ -3497,13 +3513,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAddToCart(product); }}
                 >
                   <CartLucideIcon size={15} />
-                  <span>
-                    {Math.max(1, Math.trunc(Number(deliveryLead.days) || 1)) === 1
-                      ? (language === 'uz' ? 'Ertaga' : 'Завтра')
-                      : (language === 'uz'
-                        ? `bugun + ${Math.trunc(Number(deliveryLead.days) || 1)}`
-                        : `сегодня + ${Math.trunc(Number(deliveryLead.days) || 1)}`)}
-                  </span>
+                  <span>{formatDeliveryLeadLabel(deliveryLead.days, language)}</span>
                 </button>
               ) : (
                 <div
@@ -4581,7 +4591,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
           {/* Центральная колонка: на мобиле — логотип; на ПК — инлайн-поиск */}
           {isDesktopViewport ? (
-            <div className="w-100" style={{ maxWidth: 640, justifySelf: 'center' }}>
+            <div className="w-100" style={{ maxWidth: 440, justifySelf: 'center' }}>
               {renderCatalogSearch({ compact: true })}
             </div>
           ) : (
@@ -4912,7 +4922,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
       {renderCatalogSeasonOverlay()}
 
-      <Container style={{ display: storefrontCatalogVisible ? undefined : 'none' }}>
+      <Container fluid className="px-3 mx-auto" style={{ maxWidth: isDesktopViewport ? 1440 : 1280, display: storefrontCatalogVisible ? undefined : 'none' }}>
         {/* No restaurants */}
         {restaurants.length === 0 && (
           <div className="text-center py-5">
@@ -5313,7 +5323,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
       {/* Публичная витрина — вкладка «Витрина» (showcase из конструктора меню) */}
       {storefrontShowcaseActive && (
-        <Container>
+        <Container fluid className="px-3 mx-auto" style={{ maxWidth: isDesktopViewport ? 1440 : 1280 }}>
           {loading ? (
             <StorefrontLoader
               logoUrl={currentRestaurant?.logo_url || publicRestaurantMeta?.logo_url || ''}
@@ -5341,7 +5351,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
       {/* Публичная витрина — вкладка «Избранные» */}
       {storefrontFavoritesActive && (
-        <Container>
+        <Container fluid className="px-3 mx-auto" style={{ maxWidth: isDesktopViewport ? 1440 : 1280 }}>
           {loading ? (
             <StorefrontLoader
               logoUrl={currentRestaurant?.logo_url || publicRestaurantMeta?.logo_url || ''}
