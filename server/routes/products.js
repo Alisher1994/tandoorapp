@@ -396,6 +396,32 @@ const ensureRestaurantMinimumOrderSchema = async () => {
   ).catch(() => {});
 };
 
+// Колонки, которые использует INSERT гостевого заказа. На некоторых БД основная
+// миграция могла не добавить часть из них (код ошибки 42703 — undefined_column),
+// поэтому добиваем их «на лету» перед оформлением.
+const ensureStorefrontOrderColumns = async () => {
+  const ordersCols = [
+    "service_fee DECIMAL(15, 2) DEFAULT 0",
+    "delivery_cost DECIMAL(15, 2) DEFAULT 0",
+    "delivery_distance_km DECIMAL(10, 2)",
+    "delivery_date DATE",
+    "promo_code VARCHAR(64)",
+    "promo_discount_amount DECIMAL(15, 2) NOT NULL DEFAULT 0"
+  ];
+  for (const col of ordersCols) {
+    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
+  }
+  const itemCols = [
+    "selected_variant VARCHAR(120)",
+    "container_name VARCHAR(255)",
+    "container_price DECIMAL(15, 2) DEFAULT 0",
+    "container_norm DECIMAL(10, 2) DEFAULT 1"
+  ];
+  for (const col of itemCols) {
+    await pool.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
+  }
+};
+
 const ensureRestaurantCurrencySchema = async () => {
   if (restaurantCurrencySchemaReady) return;
   if (restaurantCurrencySchemaPromise) {
@@ -1048,6 +1074,7 @@ router.post('/storefront-promo/validate', async (req, res) => {
 // Public: гостевое оформление заказа с витрины (без авторизации, без SMS).
 // Покупатель заполняет ФИО+телефон+адрес и кладёт корзину — заказ попадает в БД и в Telegram магазина.
 router.post('/storefront-orders', async (req, res) => {
+  await ensureStorefrontOrderColumns().catch(() => {});
   const client = await pool.connect();
   try {
     const {
