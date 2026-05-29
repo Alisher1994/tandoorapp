@@ -5090,9 +5090,18 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                               <button
                                 type="button"
                                 onClick={() => handleCatalogMenuSelect(l2.id)}
-                                style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', textAlign: 'left', marginBottom: l3.length > 0 ? 8 : 0, display: 'block' }}
+                                className="d-flex align-items-center"
+                                style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', textAlign: 'left', marginBottom: l3.length > 0 ? 8 : 0, gap: 8 }}
                               >
-                                {getCategoryName(l2)}
+                                {(() => {
+                                  const l2Img = resolveImageUrl(l2.image_url);
+                                  return l2Img ? (
+                                    <img src={l2Img} alt="" loading="lazy" style={{ width: 26, height: 26, borderRadius: 7, objectFit: 'cover', flexShrink: 0, background: '#fff' }} />
+                                  ) : (
+                                    <span style={{ width: 26, height: 26, borderRadius: 7, background: 'rgba(148,163,184,0.18)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }} aria-hidden="true">🏷️</span>
+                                  );
+                                })()}
+                                <span>{getCategoryName(l2)}</span>
                               </button>
                               {l3.length > 0 && (
                                 <div className="d-flex flex-column" style={{ gap: 6 }}>
