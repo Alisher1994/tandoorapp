@@ -426,6 +426,7 @@ const ensureStorefrontOrderColumns = async () => {
     "is_pickup_enabled BOOLEAN DEFAULT true"
   ]);
   await add('products', [
+    "name VARCHAR(255)",
     "name_ru VARCHAR(255)",
     "name_uz VARCHAR(255)",
     "container_name VARCHAR(255)",
@@ -1209,7 +1210,7 @@ router.post('/storefront-orders', async (req, res) => {
       totalAmount += lineTotal;
       normalizedItems.push({
         product_id: pid,
-        product_name: product.name_ru || product.name || `#${pid}`,
+        product_name: product.name_ru || product.name_uz || product.name || `#${pid}`,
         quantity: qty,
         unit: product.unit || 'шт',
         price,
