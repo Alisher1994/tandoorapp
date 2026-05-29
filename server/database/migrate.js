@@ -121,7 +121,11 @@ async function migrate() {
       `store_ad_banners JSONB NOT NULL DEFAULT '[]'::jsonb`,
       'ui_primary_color VARCHAR(9)',
       'delivery_lead_enabled BOOLEAN DEFAULT false',
-      'delivery_lead_days INTEGER DEFAULT 1'
+      'delivery_lead_days INTEGER DEFAULT 1',
+      'product_field_description_enabled BOOLEAN DEFAULT true',
+      'product_field_season_enabled BOOLEAN DEFAULT true',
+      'product_field_barcode_enabled BOOLEAN DEFAULT true',
+      'product_field_ikpu_enabled BOOLEAN DEFAULT true'
     ];
 
     for (const col of restaurantColumns) {
