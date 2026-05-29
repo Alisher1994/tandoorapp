@@ -333,6 +333,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [storefrontOrderSubmitting, setStorefrontOrderSubmitting] = useState(false);
   const [storefrontOrderError, setStorefrontOrderError] = useState('');
   const [storefrontOrderSuccess, setStorefrontOrderSuccess] = useState(''); // order_number
+  const [storefrontCardCopied, setStorefrontCardCopied] = useState(false);
   // Услуги и доставка — как в Telegram WebApp корзине
   const [storefrontDeliveryCost, setStorefrontDeliveryCost] = useState(0);
   const [storefrontDeliveryDistance, setStorefrontDeliveryDistance] = useState(0);
@@ -6529,6 +6530,42 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         </Button>
                       )}
                     </div>
+
+                    {/* Реквизиты карты — как в WebApp: показываем при выборе оплаты картой */}
+                    {storefrontOrderForm.payment_method === 'card' && publicRestaurantMeta?.card_payment_enabled && (
+                      <div className="p-3 mb-3" style={{ background: '#f8fafc', borderRadius: 12 }}>
+                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                          <span className="fw-bold font-monospace" style={{ fontSize: '1.05rem', letterSpacing: '0.5px' }}>
+                            {publicRestaurantMeta?.card_payment_number || '—'}
+                          </span>
+                          {publicRestaurantMeta?.card_payment_number && (
+                            <Button
+                              variant="outline-secondary"
+                              size="sm"
+                              onClick={() => {
+                                try {
+                                  navigator.clipboard?.writeText(String(publicRestaurantMeta.card_payment_number));
+                                  setStorefrontCardCopied(true);
+                                  setTimeout(() => setStorefrontCardCopied(false), 1500);
+                                } catch (_) { /* noop */ }
+                              }}
+                            >
+                              {storefrontCardCopied
+                                ? (language === 'uz' ? 'Nusxalandi' : 'Скопировано')
+                                : (language === 'uz' ? 'Nusxalash' : 'Копировать')}
+                            </Button>
+                          )}
+                        </div>
+                        {publicRestaurantMeta?.card_payment_holder && (
+                          <div className="mt-1">{publicRestaurantMeta.card_payment_holder}</div>
+                        )}
+                        <div className="small text-danger mt-2">
+                          {language === 'uz'
+                            ? "To'lovdan so'ng chekni saqlang — do'kon tasdiqlash uchun bog'lanadi."
+                            : 'После оплаты сохраните чек — магазин свяжется для подтверждения.'}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Промокод — показываем всегда; если магазин не включил, сервер вернёт ошибку */}
                     {(
