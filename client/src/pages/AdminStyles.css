@@ -2093,8 +2093,9 @@ body::-webkit-scrollbar,
 }
 
 .admin-payment-accordion {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
     gap: 14px;
 }
 
@@ -2224,6 +2225,10 @@ body::-webkit-scrollbar,
 }
 
 @media (max-width: 768px) {
+    .admin-payment-accordion {
+        grid-template-columns: 1fr;
+    }
+
     .admin-payment-accordion-header {
         align-items: flex-start;
         flex-direction: column;

@@ -13987,11 +13987,17 @@ function AdminDashboard() {
                                         </Form.Group>
 
                                         <div className="admin-general-qr-panel">
-                                          <div className="admin-general-qr-head">
+                                          <div className="admin-general-qr-head d-flex align-items-center justify-content-between gap-2">
                                             <div className="small fw-bold text-muted text-uppercase">QR-код магазина</div>
-                                            <div className="small text-muted">
-                                              Быстрый доступ к QR-коду регистрации прямо во вкладке «Общие».
-                                            </div>
+                                            <Button
+                                              variant="outline-primary"
+                                              size="sm"
+                                              className="flex-shrink-0 rounded-3 fw-bold"
+                                              onClick={downloadRestaurantRegistrationQr}
+                                              disabled={downloadingRegistrationQr || !String(restaurantSettings.telegram_bot_token || '').trim()}
+                                            >
+                                              {downloadingRegistrationQr ? '⌛ Подготовка...' : '⬇️ Скачать QR'}
+                                            </Button>
                                           </div>
                                           <div className="admin-general-qr-preview">
                                             {loadingRegistrationQrPreview ? (
@@ -14102,14 +14108,6 @@ function AdminDashboard() {
                                               </div>
                                             );
                                           })()}
-                                          <Button
-                                            variant="outline-primary"
-                                            className="w-100"
-                                            onClick={downloadRestaurantRegistrationQr}
-                                            disabled={downloadingRegistrationQr || !String(restaurantSettings.telegram_bot_token || '').trim()}
-                                          >
-                                            {downloadingRegistrationQr ? '⌛ Подготовка QR...' : '⬇️ Скачать QR'}
-                                          </Button>
                                         </div>
 
                                       </div>
@@ -16281,15 +16279,18 @@ function AdminDashboard() {
                                     Сумма минимального заказа ({t('sum')})
                                   </Form.Label>
                                   <Form.Control
-                                    type="number"
-                                    min={0}
-                                    step="0.01"
+                                    type="text"
+                                    inputMode="numeric"
                                     className="form-control-custom"
-                                    value={restaurantSettings.minimum_order_amount ?? 0}
+                                    value={(() => {
+                                      const n = Math.trunc(Number(String(restaurantSettings.minimum_order_amount ?? '').replace(/\s/g, '').replace(',', '.')) || 0);
+                                      return n > 0 ? n.toLocaleString('ru-RU') : '';
+                                    })()}
                                     onChange={(e) => setRestaurantSettings({
                                       ...restaurantSettings,
-                                      minimum_order_amount: e.target.value
+                                      minimum_order_amount: e.target.value.replace(/\D/g, '')
                                     })}
+                                    placeholder="0"
                                   />
                                   <Form.Text className="text-muted">
                                     Учитывается только стоимость товаров (без доставки, сервиса и фасовки). 0 — без ограничения.
