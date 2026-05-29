@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
       'serif_merriweather',
       'serif_playfair',
       'serif_garamond',
-      'serif_baskerville'
+      'serif_baskerville', 'racing_sans', 'faster_one', 'orbitron', 'audiowide', 'oswald', 'bebas_neue', 'archivo_narrow'
     )
   ),
   currency_code VARCHAR(8) DEFAULT 'uz',

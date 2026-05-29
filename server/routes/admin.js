@@ -461,7 +461,7 @@ const UI_FONT_FAMILY_VALUES = new Set([
   'serif_merriweather',
   'serif_playfair',
   'serif_garamond',
-  'serif_baskerville'
+  'serif_baskerville', 'racing_sans', 'faster_one', 'orbitron', 'audiowide', 'oswald', 'bebas_neue', 'archivo_narrow'
 ]);
 const normalizeUiFontFamily = (value, fallback = 'sans') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -573,7 +573,7 @@ const ensureRestaurantCurrencySchema = async () => {
            'serif_merriweather',
            'serif_playfair',
            'serif_garamond',
-           'serif_baskerville'
+           'serif_baskerville', 'racing_sans', 'faster_one', 'orbitron', 'audiowide', 'oswald', 'bebas_neue', 'archivo_narrow'
          )
     `).catch(() => {});
     await pool.query(
@@ -670,7 +670,7 @@ const ensureRestaurantCurrencySchema = async () => {
           'serif_merriweather',
           'serif_playfair',
           'serif_garamond',
-          'serif_baskerville'
+          'serif_baskerville', 'racing_sans', 'faster_one', 'orbitron', 'audiowide', 'oswald', 'bebas_neue', 'archivo_narrow'
         )
       )
     `).catch(() => {});
