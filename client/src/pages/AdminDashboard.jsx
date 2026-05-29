@@ -15049,134 +15049,104 @@ function AdminDashboard() {
                               </div>
                             ) : (
                               <div className="d-flex flex-column gap-3">
-                                {getStoreAdBanners().map((banner, idx) => (
-                                  <div key={idx} className="border rounded-4 p-3">
-                                    <Row className="g-3 align-items-start">
-                                      <Col md={4}>
-                                        {/* Слот ПК (широкий) */}
-                                        <div className="small fw-bold text-muted text-uppercase mb-1" style={{ fontSize: '0.7rem' }}>Для ПК (широкий)</div>
-                                        <div
-                                          style={{
-                                            width: '100%',
-                                            aspectRatio: '4 / 1',
-                                            borderRadius: 10,
-                                            overflow: 'hidden',
-                                            background: '#f1f5f9',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            border: '1px solid rgba(71,85,105,0.18)'
-                                          }}
-                                        >
-                                          {banner.image_url ? (
-                                            <img
-                                              src={toAbsoluteFileUrl(banner.image_url)}
-                                              alt={banner.title || 'Баннер ПК'}
-                                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                            />
+                                {getStoreAdBanners().map((banner, idx) => {
+                                  const isEnabled = banner.enabled !== false;
+                                  const totalBanners = getStoreAdBanners().length;
+                                  const renderSlot = (target, label, img, w, h, icon) => (
+                                    <div className="store-banner-thumb">
+                                      <div className="store-banner-thumb-label">{label}</div>
+                                      <div className="store-banner-pick-wrap" style={{ width: w, height: h }}>
+                                        <label className="store-banner-pick" style={{ width: w, height: h }} title="Выбрать / заменить фото">
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            hidden
+                                            disabled={uploadingStoreBannerIndex === idx}
+                                            onChange={(e) => pickStoreAdBannerImage(idx, target, e)}
+                                          />
+                                          {img ? (
+                                            <img src={toAbsoluteFileUrl(img)} alt={banner.title || label} />
                                           ) : (
-                                            <span className="text-muted small"><i className="bi bi-image fs-5" /></span>
+                                            <span className="store-banner-empty"><i className={`bi ${icon}`} /><span>Добавить</span></span>
                                           )}
-                                        </div>
-                                        <Form.Control
-                                          type="file"
-                                          accept="image/*"
-                                          size="sm"
-                                          className="mt-1"
-                                          disabled={uploadingStoreBannerIndex === idx}
-                                          onChange={(e) => pickStoreAdBannerImage(idx, 'desktop', e)}
-                                        />
-
-                                        {/* Слот мобильный */}
-                                        <div className="small fw-bold text-muted text-uppercase mb-1 mt-3" style={{ fontSize: '0.7rem' }}>Для мобильных</div>
-                                        <div
-                                          style={{
-                                            width: '70%',
-                                            aspectRatio: '1.8 / 1',
-                                            borderRadius: 10,
-                                            overflow: 'hidden',
-                                            background: '#f1f5f9',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            border: '1px solid rgba(71,85,105,0.18)'
-                                          }}
-                                        >
-                                          {banner.image_url_mobile ? (
-                                            <img
-                                              src={toAbsoluteFileUrl(banner.image_url_mobile)}
-                                              alt={banner.title || 'Баннер моб.'}
-                                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                                            />
-                                          ) : (
-                                            <span className="text-muted small"><i className="bi bi-phone fs-5" /></span>
-                                          )}
-                                        </div>
-                                        <Form.Control
-                                          type="file"
-                                          accept="image/*"
-                                          size="sm"
-                                          className="mt-1"
-                                          disabled={uploadingStoreBannerIndex === idx}
-                                          onChange={(e) => pickStoreAdBannerImage(idx, 'mobile', e)}
-                                        />
-                                        <div className="small text-muted mt-1" style={{ fontSize: '0.72rem' }}>
-                                          Если мобильное фото не задано — покажем фото для ПК.
-                                        </div>
-                                        {uploadingStoreBannerIndex === idx && (
-                                          <div className="small text-muted mt-1">Загрузка...</div>
+                                          <span className="store-banner-overlay">
+                                            <i className="bi bi-arrow-repeat" /> {img ? 'Заменить' : 'Выбрать'}
+                                          </span>
+                                        </label>
+                                        {img && (
+                                          <button
+                                            type="button"
+                                            className="store-banner-remove"
+                                            title="Удалить фото"
+                                            aria-label="Удалить фото"
+                                            onClick={() => updateStoreAdBanner(idx, target === 'mobile' ? { image_url_mobile: '' } : { image_url: '' })}
+                                          >
+                                            <i className="bi bi-x-lg" />
+                                          </button>
                                         )}
-                                      </Col>
-                                      <Col md={8}>
-                                        <Form.Group className="mb-2">
+                                      </div>
+                                    </div>
+                                  );
+                                  return (
+                                    <div key={idx} className="border rounded-4 p-3">
+                                      <div className="d-flex gap-3 align-items-start flex-wrap">
+                                        {/* Сортировка слева */}
+                                        <div className="d-flex flex-column gap-1">
+                                          <Button variant="outline-secondary" size="sm" style={{ width: 34 }} onClick={() => moveStoreAdBanner(idx, -1)} disabled={idx === 0} aria-label="Вверх">↑</Button>
+                                          <Button variant="outline-secondary" size="sm" style={{ width: 34 }} onClick={() => moveStoreAdBanner(idx, 1)} disabled={idx === totalBanners - 1} aria-label="Вниз">↓</Button>
+                                        </div>
+                                        {/* Миниатюры в одну строку */}
+                                        <div className="d-flex gap-2 align-items-start">
+                                          {renderSlot('desktop', 'ПК (широкий)', banner.image_url, 176, 54, 'bi-image')}
+                                          {renderSlot('mobile', 'Моб.', banner.image_url_mobile, 96, 54, 'bi-phone')}
+                                        </div>
+                                        {/* Поля справа */}
+                                        <div className="flex-grow-1" style={{ minWidth: 240 }}>
                                           <Form.Label className="small fw-bold text-muted text-uppercase mb-1">
                                             {language === 'uz' ? 'Bosilganda havola (ixtiyoriy)' : 'Ссылка при клике (необязательно)'}
                                           </Form.Label>
                                           <Form.Control
                                             type="url"
+                                            size="sm"
                                             placeholder="https://..."
                                             value={banner.target_url || ''}
                                             onChange={(e) => updateStoreAdBanner(idx, { target_url: e.target.value })}
                                           />
-                                        </Form.Group>
-                                        <Row className="g-2">
-                                          <Col xs={12} sm={6}>
-                                            <Form.Label className="small fw-bold text-muted text-uppercase mb-1">
-                                              {language === 'uz' ? 'Animatsiya' : 'Анимация'}
-                                            </Form.Label>
+                                          <div className="d-flex gap-2 align-items-center mt-2 flex-wrap">
                                             <Form.Select
+                                              size="sm"
+                                              style={{ maxWidth: 190 }}
                                               value={banner.transition_effect || 'fade'}
                                               onChange={(e) => updateStoreAdBanner(idx, { transition_effect: e.target.value })}
                                             >
-                                              <option value="fade">{language === 'uz' ? 'Paydo bo‘lish' : 'Появление'}</option>
-                                              <option value="slide">{language === 'uz' ? 'Slayd' : 'Слайд'}</option>
+                                              <option value="fade">{language === 'uz' ? 'Paydo bo‘lish' : 'Анимация: появление'}</option>
+                                              <option value="slide">{language === 'uz' ? 'Slayd' : 'Анимация: слайд'}</option>
                                               <option value="none">{language === 'uz' ? 'Animatsiyasiz' : 'Без анимации'}</option>
                                             </Form.Select>
-                                          </Col>
-                                          <Col xs={12} sm={6} className="d-flex align-items-end">
-                                            <Form.Check
-                                              type="switch"
-                                              id={`store-banner-enabled-${idx}`}
-                                              className="fw-semibold mb-1"
-                                              label={banner.enabled !== false
-                                                ? (language === 'uz' ? 'Ko‘rsatiladi' : 'Показывать')
-                                                : (language === 'uz' ? 'Yashirilgan' : 'Скрыт')}
-                                              checked={banner.enabled !== false}
-                                              onChange={(e) => updateStoreAdBanner(idx, { enabled: e.target.checked })}
-                                            />
-                                          </Col>
-                                        </Row>
-                                        <div className="d-flex gap-2 mt-3">
-                                          <Button variant="outline-secondary" size="sm" onClick={() => moveStoreAdBanner(idx, -1)} disabled={idx === 0} aria-label="Вверх">↑</Button>
-                                          <Button variant="outline-secondary" size="sm" onClick={() => moveStoreAdBanner(idx, 1)} disabled={idx === getStoreAdBanners().length - 1} aria-label="Вниз">↓</Button>
-                                          <Button variant="outline-danger" size="sm" className="ms-auto" onClick={() => removeStoreAdBanner(idx)}>
-                                            <i className="bi bi-trash" /> {language === 'uz' ? 'O‘chirish' : 'Удалить'}
-                                          </Button>
+                                            <Button
+                                              size="sm"
+                                              variant={isEnabled ? 'primary' : 'outline-secondary'}
+                                              onClick={() => updateStoreAdBanner(idx, { enabled: !isEnabled })}
+                                              title={isEnabled ? 'Показывается на витрине' : 'Скрыт'}
+                                            >
+                                              <i className={`bi ${isEnabled ? 'bi-eye' : 'bi-eye-slash'} me-1`} />
+                                              {isEnabled ? 'Показывать' : 'Скрыт'}
+                                            </Button>
+                                            <Button variant="outline-danger" size="sm" className="ms-auto" onClick={() => removeStoreAdBanner(idx)}>
+                                              <i className="bi bi-trash me-1" />{language === 'uz' ? 'O‘chirish' : 'Удалить'}
+                                            </Button>
+                                          </div>
+                                          {uploadingStoreBannerIndex === idx && (
+                                            <div className="small text-muted mt-1">Загрузка...</div>
+                                          )}
+                                          <div className="small text-muted mt-1" style={{ fontSize: '0.72rem' }}>
+                                            Клик по миниатюре — выбрать/заменить, при наведении — удалить. Если моб. фото не задано — покажем фото для ПК.
+                                          </div>
                                         </div>
-                                      </Col>
-                                    </Row>
-                                  </div>
-                                ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
 
