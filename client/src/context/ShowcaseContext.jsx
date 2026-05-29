@@ -315,16 +315,18 @@ export function ShowcaseProvider({ children }) {
     };
   }, []);
 
-  // Load showcase layout from server
-  const loadShowcase = useCallback(async (restaurantId) => {
+  // Load showcase layout from server.
+  // isPublic=true → используем публичный (без авторизации) эндпоинт для витрины магазина.
+  const loadShowcase = useCallback(async (restaurantId, isPublic = false) => {
     if (!restaurantId) return;
-    
+
     setShowcaseLoading(true);
     setShowcaseError('');
-    
+
     try {
+      const endpoint = isPublic ? 'public-showcase' : 'showcase';
       const response = await axios.get(
-        `${API_URL}/products/restaurant/${restaurantId}/showcase`
+        `${API_URL}/products/restaurant/${restaurantId}/${endpoint}`
       );
       const normalizedLayout = normalizeShowcaseLayout(response.data?.blocks || []);
       const normalizedPair = normalizeVisibilityPair(

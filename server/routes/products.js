@@ -2667,6 +2667,43 @@ router.get('/restaurant/:restaurantId/showcase', authenticate, async (req, res) 
   }
 });
 
+// GET showcase layout — публичный (без авторизации) для витрины магазина talablar.app/<slug>.
+// Только чтение раскладки витрины: те же данные, что уже видны гостю в Telegram WebApp.
+router.get('/restaurant/:restaurantId/public-showcase', async (req, res) => {
+  try {
+    const restaurantId = Number.parseInt(req.params.restaurantId, 10);
+    if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Invalid restaurant ID' });
+    }
+
+    await ensureShowcaseLayoutsSchema();
+
+    const restaurantResult = await pool.query(
+      'SELECT id FROM restaurants WHERE id = $1 LIMIT 1',
+      [restaurantId]
+    );
+    if (restaurantResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Restaurant not found' });
+    }
+
+    const showcaseResult = await pool.query(
+      'SELECT layout FROM showcase_layouts WHERE restaurant_id = $1 LIMIT 1',
+      [restaurantId]
+    );
+
+    const rawLayout = showcaseResult.rows[0]?.layout;
+    const layout = normalizeShowcaseLayoutFromDb(rawLayout);
+    const isVisible = normalizeShowcaseVisibilityFromDb(rawLayout);
+    const isMenuVisible = normalizeShowcaseMenuVisibilityFromDb(rawLayout);
+    const categoryStyleSettings = normalizeShowcaseCategoryStyleFromDb(rawLayout, layout);
+    const menuIconSettings = normalizeShowcaseMenuIconSettingsFromDb(rawLayout);
+    res.json({ blocks: layout, isVisible, isMenuVisible, categoryStyleSettings, menuIconSettings });
+  } catch (error) {
+    console.error('Public showcase GET error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки витрины' });
+  }
+});
+
 // POST/PUT showcase layout
 router.post('/restaurant/:restaurantId/showcase', authenticate, async (req, res) => {
   try {
