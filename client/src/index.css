@@ -678,8 +678,9 @@
   --bs-btn-disabled-bg: var(--primary-color);
   --bs-btn-disabled-border-color: var(--primary-color);
   --bs-btn-disabled-color: rgba(255, 255, 255, 0.75);
-  background: var(--primary-color);
-  color: #ffffff;
+  background: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+  color: #ffffff !important;
 }
 
 /* Топбар каталога — полупрозрачное зелёное стекло поверх фона. */
@@ -1310,8 +1311,9 @@
   --bs-btn-disabled-bg: var(--primary-color);
   --bs-btn-disabled-border-color: var(--primary-color);
   --bs-btn-disabled-color: rgba(255, 255, 255, 0.75);
-  background: var(--primary-color);
-  color: #ffffff;
+  background: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+  color: #ffffff !important;
 }
 
 /* Топбар каталога — полупрозрачное зелёное стекло поверх фона. */
@@ -1817,6 +1819,16 @@ h6 {
 }
 
 .btn-primary {
+  /* Также задаём Bootstrap-переменные кнопки, чтобы любой .btn-primary (в т.ч.
+     в модалках витрины) брал основной цвет темы/кастома, а не дефолтный. */
+  --bs-btn-bg: var(--primary-color);
+  --bs-btn-border-color: var(--primary-color);
+  --bs-btn-hover-bg: var(--primary-dark);
+  --bs-btn-hover-border-color: var(--primary-dark);
+  --bs-btn-active-bg: var(--primary-dark);
+  --bs-btn-active-border-color: var(--primary-dark);
+  --bs-btn-disabled-bg: var(--primary-color);
+  --bs-btn-disabled-border-color: var(--primary-color);
   background: linear-gradient(135deg, var(--primary-light), var(--primary-color));
   border-color: rgba(71, 85, 105, 0.18);
   box-shadow: 0 10px 22px rgba(71, 85, 105, 0.2);
