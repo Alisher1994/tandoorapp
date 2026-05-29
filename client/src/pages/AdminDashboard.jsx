@@ -2101,6 +2101,7 @@ function AdminDashboard() {
   const [ordersDateFrom, setOrdersDateFrom] = useState(() => getTodayDateKey());
   const [ordersDateTo, setOrdersDateTo] = useState(() => getTodayDateKey());
   const [showProductModal, setShowProductModal] = useState(false);
+  const [productFormTab, setProductFormTab] = useState('main'); // вкладка формы товара: main | extra | variants
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showGlobalImportModal, setShowGlobalImportModal] = useState(false);
   const [globalCatalogProducts, setGlobalCatalogProducts] = useState([]);
@@ -6804,6 +6805,7 @@ function AdminDashboard() {
     }
     setIsGeneratingProductLocalizedText(false);
     setProductContainerLabelWordIndex(0);
+    setProductFormTab('main');
     setShowProductModal(true);
   };
 
@@ -6966,6 +6968,30 @@ function AdminDashboard() {
 
   const addProductImageSlot = () => {
     setVisibleProductImageSlotsCount((prev) => clampProductVisibleSlotsCount(prev + 1));
+  };
+  // Вкладки формы товара: Основные / Дополнительные / Варианты (с количеством вариантов)
+  const renderProductFormTabs = () => {
+    const variantCount = Array.isArray(productForm.variant_options) ? productForm.variant_options.length : 0;
+    const tabs = [
+      { key: 'main', label: language === 'uz' ? 'Asosiy' : 'Основные' },
+      { key: 'extra', label: language === 'uz' ? "Qo'shimcha" : 'Дополнительные' },
+      { key: 'variants', label: language === 'uz' ? 'Variantlar' : 'Варианты товара', badge: (productForm.size_enabled && variantCount > 0) ? variantCount : null }
+    ];
+    return (
+      <div className="admin-product-form-tabs">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            className={`admin-product-form-tab ${productFormTab === tab.key ? 'is-active' : ''}`}
+            onClick={() => setProductFormTab(tab.key)}
+          >
+            {tab.label}
+            {tab.badge ? <span className="admin-product-form-tab-badge">{tab.badge}</span> : null}
+          </button>
+        ))}
+      </div>
+    );
   };
   const toggleProductVariantsEnabled = (isEnabled) => {
     setProductForm((prev) => {
@@ -8142,6 +8168,7 @@ function AdminDashboard() {
       container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
     });
     setVisibleProductImageSlotsCount(isProductImagesMobileLayout ? 1 : PRODUCT_IMAGE_SLOTS_COUNT);
+    setProductFormTab('main');
     setShowProductModal(true);
   };
 
@@ -18344,14 +18371,16 @@ function AdminDashboard() {
         </Modal>
 
         {/* Product Modal */}
-        <Modal show={showProductModal} onHide={() => setShowProductModal(false)} size="xl" dialogClassName="admin-product-modal-dialog">
+        <Modal show={showProductModal} onHide={() => setShowProductModal(false)} size="xl" scrollable dialogClassName="admin-product-modal-dialog">
           <Modal.Header closeButton className="admin-product-modal-header">
             <Modal.Title>
               {selectedProduct ? t('editProduct') : t('addProduct')}
             </Modal.Title>
           </Modal.Header>
           <Form onSubmit={handleProductSubmit}>
-            <Modal.Body ref={productModalBodyRef}>
+            <Modal.Body ref={productModalBodyRef} className="admin-product-modal-body-scroll">
+              {renderProductFormTabs()}
+              {productFormTab === 'main' && (<>
               {(() => {
                 const getCategoryPathIds = (catId) => {
                   const path = [];
@@ -18517,7 +18546,9 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
               </Row>
+              </>)}
 
+              {productFormTab === 'extra' && (<>
               {!productForm.size_enabled && restaurantSettings?.product_field_description_enabled !== false && (
                 <Row>
                   <Col md={6}>
@@ -18552,7 +18583,9 @@ function AdminDashboard() {
                   </Col>
                 </Row>
               )}
+              </>)}
 
+              {productFormTab === 'main' && (<>
               <Row>
                 {restaurantSettings?.product_field_season_enabled !== false && (
                 <Col md={6}>
@@ -18615,6 +18648,9 @@ function AdminDashboard() {
                 </Col>
               </Row>
 
+              </>)}
+
+              {productFormTab === 'extra' && (<>
               {Boolean(restaurantSettings?.inventory_tracking_enabled) && !productForm.size_enabled && (
                 <Row className="g-3">
                   <Col md={6}>
@@ -18658,6 +18694,9 @@ function AdminDashboard() {
                 </Row>
               )}
 
+              </>)}
+
+              {productFormTab === 'variants' && (<>
               {Boolean(restaurantSettings?.size_variants_enabled) && productForm.size_enabled && (
                 <Row className="g-3 mt-1">
                   <Col xs={12}>
@@ -19027,6 +19066,16 @@ function AdminDashboard() {
                 </Row>
               )}
 
+              {!productForm.size_enabled && (
+                <div className="text-muted" style={{ padding: '10px 2px' }}>
+                  {language === 'uz'
+                    ? "Variantlarni qo'shish uchun «Asosiy» yorlig'ida «Variantlar» ni yoqing."
+                    : 'Чтобы добавить варианты, включите «Варианты товара» во вкладке «Основные».'}
+                </div>
+              )}
+              </>)}
+
+              {productFormTab === 'main' && (<>
               <div className={`admin-product-main-fields-grid ${productForm.size_enabled ? 'variants-mode' : (productForm.container_id ? 'has-container-norm' : '')}`}>
                 {!productForm.size_enabled && restaurantSettings?.product_field_barcode_enabled !== false && (
                   <Form.Group className="mb-0">
@@ -19532,6 +19581,7 @@ function AdminDashboard() {
                 </Row>
               )}
 
+              </>)}
             </Modal.Body>
             <Modal.Footer>
               <Button variant="secondary" onClick={() => setShowProductModal(false)}>
