@@ -5322,3 +5322,7 @@ body:has(.service-lock-overlay) #root > *:not(.service-lock-overlay) {
 .client-catalog-menu-dialog { max-width: 520px; }
 .client-catalog-menu-row { transition: border-color 0.15s ease, background 0.15s ease; }
 .client-catalog-menu-row:hover { border-color: var(--primary-color, #2563eb) !important; background: rgba(148, 163, 184, 0.08) !important; }
+
+/* Левая панель меню «Каталог» — подсветка пункта при наведении */
+.client-catalog-l1-item { transition: background 0.12s ease, color 0.12s ease; }
+.client-catalog-l1-item:hover { background: #ffffff !important; color: var(--primary-color, #2563eb) !important; }
