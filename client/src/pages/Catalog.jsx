@@ -1830,6 +1830,21 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     scrollStorefrontToTop();
   }, [isPublicStorefront, scrollStorefrontToTop]);
 
+  // Клик по логотипу — на самый главный экран (витрина, если есть; иначе корень каталога).
+  const goToCatalogHome = useCallback(() => {
+    setShowCatalogMenu(false);
+    setCatalogSearchQuery('');
+    setIsHeaderSearchOpen(false);
+    if (isPublicStorefront) {
+      setStorefrontView(storefrontShowcaseAvailable ? 'showcase' : 'menu');
+      setSelectedCategory(null);
+      setActiveSubcategoryTab(null);
+      scrollStorefrontToTop();
+    } else {
+      navigate('/');
+    }
+  }, [isPublicStorefront, storefrontShowcaseAvailable, scrollStorefrontToTop, navigate]);
+
   const catalogSearchPlaceholderPhrases = useMemo(() => (
     language === 'uz'
       ? [
@@ -4564,7 +4579,12 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                   (() => {
                     const logoFrame = getRestaurantLogoFrame(currentRestaurant?.logo_display_mode);
                     return (
-                      <div style={logoFrame.box}>
+                      <div
+                        style={{ ...logoFrame.box, cursor: 'pointer' }}
+                        onClick={goToCatalogHome}
+                        role="button"
+                        title={language === 'uz' ? 'Bosh sahifa' : 'На главную'}
+                      >
                         <img
                           src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
                           alt={currentRestaurant.name}
@@ -4574,11 +4594,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     );
                   })()
                 ) : (
-                  <span style={{ fontSize: '1.7rem' }}>🏪</span>
+                  <span style={{ fontSize: '1.7rem', cursor: 'pointer' }} onClick={goToCatalogHome} role="button">🏪</span>
                 )}
                 <button
                   type="button"
-                  onClick={() => { setCatalogMenuActiveL1(level1Categories[0]?.id ?? null); setShowCatalogMenu(true); }}
+                  onClick={() => setShowCatalogMenu((prev) => {
+                    if (prev) return false;
+                    setCatalogMenuActiveL1(level1Categories[0]?.id ?? null);
+                    return true;
+                  })}
                   aria-label={language === 'uz' ? 'Katalog' : 'Каталог'}
                   title={language === 'uz' ? 'Katalog' : 'Каталог'}
                   className="client-catalog-menu-btn"
