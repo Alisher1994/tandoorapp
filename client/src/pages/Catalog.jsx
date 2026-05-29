@@ -3288,7 +3288,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
               {/* Expanded controls */}
               {isOpen && (
                 <div
-                  className="d-flex align-items-center justify-content-between rounded-pill px-1 shadow"
+                  className="catalog-card-qty-stepper d-flex align-items-center justify-content-between rounded-pill px-1 shadow"
                   style={{
                     position: 'absolute',
                     right: 8,
@@ -4339,25 +4339,53 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
             gap: isDesktopViewport ? '24px' : '12px'
           }}
         >
-          {/* Левая колонка: на мобиле — кнопка назад/плейсхолдер; на ПК — логотип магазина */}
-          <div className="d-flex align-items-center justify-content-start">
+          {/* Левая колонка: на мобиле — кнопка назад/плейсхолдер; на ПК — кнопка назад (в категории) + логотип */}
+          <div className="d-flex align-items-center justify-content-start gap-2">
             {isDesktopViewport ? (
-              currentRestaurant?.logo_url ? (
-                (() => {
-                  const logoFrame = getRestaurantLogoFrame(currentRestaurant?.logo_display_mode);
-                  return (
-                    <div style={logoFrame.box}>
-                      <img
-                        src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
-                        alt={currentRestaurant.name}
-                        style={logoFrame.img}
-                      />
-                    </div>
-                  );
-                })()
-              ) : (
-                <span style={{ fontSize: '1.7rem' }}>🏪</span>
-              )
+              <>
+                {shouldShowHeaderBackButton && (
+                  <button
+                    type="button"
+                    onClick={handleHeaderBackAction}
+                    aria-label={language === 'uz' ? 'Orqaga' : 'Назад'}
+                    title={language === 'uz' ? 'Orqaga' : 'Назад'}
+                    className="client-topbar-back-btn"
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: 12,
+                      border: '1px solid rgba(71, 85, 105, 0.18)',
+                      background: 'rgba(255,255,255,0.82)',
+                      color: '#334155',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      fontSize: '1rem',
+                      fontWeight: 700,
+                      flex: '0 0 auto'
+                    }}
+                  >
+                    <span aria-hidden="true" style={{ fontSize: '1rem', lineHeight: 1 }}>←</span>
+                  </button>
+                )}
+                {currentRestaurant?.logo_url ? (
+                  (() => {
+                    const logoFrame = getRestaurantLogoFrame(currentRestaurant?.logo_display_mode);
+                    return (
+                      <div style={logoFrame.box}>
+                        <img
+                          src={currentRestaurant.logo_url.startsWith('http') ? currentRestaurant.logo_url : `${API_URL.replace('/api', '')}${currentRestaurant.logo_url}`}
+                          alt={currentRestaurant.name}
+                          style={logoFrame.img}
+                        />
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <span style={{ fontSize: '1.7rem' }}>🏪</span>
+                )}
+              </>
             ) : shouldShowHeaderBackButton ? (
               <button
                 type="button"
@@ -4759,9 +4787,16 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                   const level2Categories = level2ByLevel1.get(level1Category.id) || [];
                   if (level2Categories.length === 0) return null;
 
+                  // Заголовок группы показываем только если групп несколько —
+                  // иначе он дублирует смысл (одна группа = это сам магазин).
+                  const renderedLevel1Groups = level1Categories.filter(
+                    (c) => (level2ByLevel1.get(c.id) || []).length > 0
+                  ).length;
                   return (
                     <section key={level1Category.id} className="mb-4">
-                      <h5 className="mb-3 fw-bold" style={{ fontSize: '1.1rem' }}>{getCategoryName(level1Category)}</h5>
+                      {renderedLevel1Groups > 1 && (
+                        <h5 className="mb-3 fw-bold" style={{ fontSize: '1.1rem' }}>{getCategoryName(level1Category)}</h5>
+                      )}
                       <Row className="g-3">
                         {level2Categories.map((level2Category) => {
                           const categoryImage = resolveImageUrl(level2Category.image_url);
@@ -5009,11 +5044,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                 <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                   {renderAdBannerCarousel()}
                   <>
-                    {!isSingleListMode && selectedLevel2Category && (
-                      <div className="mb-3">
-                        <h6 className="mb-0 fw-bold text-dark">{getCategoryName(selectedLevel2Category)}</h6>
-                      </div>
-                    )}
+                    {/* Заголовок выбранной категории уже выводится секцией ниже
+                        (section.title), отдельный дублирующий заголовок убран. */}
                     {!isSingleListMode && level3Categories.length > 0 && (
                       <section className="mb-4">
                         <Row className="g-2 g-lg-3">

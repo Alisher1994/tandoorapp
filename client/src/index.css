@@ -1555,6 +1555,21 @@
   --app-font-family: 'Archivo Narrow', 'Arial Narrow', system-ui, sans-serif;
 }
 
+/* Степпер «− n +» на карточке товара: inline-фон rgba(255,255,255,0.95)
+   перебивался стеклянным правилом тёмных тем (как у строки поиска) и становился
+   прозрачным. Возвращаем сплошной светлый pill с тёмными цифрами. */
+:root[data-ui-theme="verdant_glass"] .client-surface div.catalog-card-qty-stepper,
+:root[data-ui-theme="golden_crust"] .client-surface div.catalog-card-qty-stepper {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+}
+:root[data-ui-theme="verdant_glass"] .client-surface div.catalog-card-qty-stepper .btn,
+:root[data-ui-theme="verdant_glass"] .client-surface div.catalog-card-qty-stepper span,
+:root[data-ui-theme="golden_crust"] .client-surface div.catalog-card-qty-stepper .btn,
+:root[data-ui-theme="golden_crust"] .client-surface div.catalog-card-qty-stepper span {
+  color: #0f172a !important;
+}
+
 /* Миниатюры слотов рекламных баннеров в админке: выбор файла внутри слота,
    оверлей «Заменить» и кнопка удаления — по наведению. */
 .store-banner-thumb-label {
