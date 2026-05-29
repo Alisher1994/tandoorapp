@@ -20,8 +20,11 @@ import ClientLocationPicker from '../components/ClientLocationPicker';
 import HeartIcon from '../components/HeartIcon';
 import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 import StorefrontLoader from '../components/StorefrontLoader';
+import PublicShowcaseView from '../components/PublicShowcaseView';
+import { DEFAULT_MENU_ICON_SETTINGS, isImageIconValue, normalizeMenuIconSettings } from '../constants/menuIcons';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+const CLIENT_APP_BASE_URL = API_URL.replace('/api', '');
 const CATALOG_ANIMATION_SEASONS = ['off', 'spring', 'summer', 'autumn', 'winter'];
 const MENU_VIEW_MODES = ['grid_categories', 'single_list', 'nested_categories'];
 const CATALOG_CARD_MODES = ['wide', 'portrait'];
@@ -213,9 +216,9 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   });
   const { user, isOperator, logout } = useAuth();
   const { addToCart, updateQuantity, removeFromCart, clearCart, cart, cartTotal, productTotal, containerTotal, setOverrideRestaurantId: setCartOverrideRestaurantId } = useCart();
-  const { toggleFavorite, isFavorite, setOverrideRestaurantId: setFavoritesOverrideRestaurantId } = useFavorites();
+  const { toggleFavorite, isFavorite, favoriteCount, setOverrideRestaurantId: setFavoritesOverrideRestaurantId } = useFavorites();
   const { language, t, setCountryCurrency, setLanguage } = useLanguage();
-  const { menuVisible, categoryStyleSettings, loadShowcase } = useShowcase();
+  const { showcaseLayout, showcaseVisible, menuVisible, menuIconSettings, categoryStyleSettings, loadShowcase } = useShowcase();
   const navigate = useNavigate();
   const location = useLocation();
   const [isDesktopViewport, setIsDesktopViewport] = useState(() => (
@@ -276,6 +279,10 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   // Шаги мастера: 1) Корзина 2) Адрес (карта) 3) Контакты + отправка.
   const [showStorefrontCartModal, setShowStorefrontCartModal] = useState(false);
   const [storefrontStep, setStorefrontStep] = useState(1);
+  // Активная вкладка нижнего меню публичной витрины: 'showcase' | 'menu' | 'favorites'.
+  // 'menu' — обычный каталог; 'showcase' — витрина из конструктора; 'favorites' — избранное.
+  const [storefrontView, setStorefrontView] = useState('menu');
+  const storefrontViewInitedRef = useRef(false);
   const [storefrontOrderForm, setStorefrontOrderForm] = useState({
     customer_name: '',
     customer_phone: '',
@@ -503,10 +510,27 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   }, []);
 
   useEffect(() => {
-    const restaurantId = Number.parseInt(user?.active_restaurant_id, 10);
+    // На публичной витрине магазин берём из slug (publicRestaurantId), иначе — из сессии.
+    const restaurantId = isPublicStorefront
+      ? Number.parseInt(publicRestaurantId, 10)
+      : Number.parseInt(user?.active_restaurant_id, 10);
     if (!restaurantId) return;
     loadShowcase(restaurantId);
-  }, [user?.active_restaurant_id, loadShowcase]);
+  }, [isPublicStorefront, publicRestaurantId, user?.active_restaurant_id, loadShowcase]);
+
+  // Публичная витрина: при первой загрузке открываем «Витрину», если она настроена и видима;
+  // иначе остаёмся в «Меню». После первичной инициализации вкладку не трогаем (управляет юзер).
+  useEffect(() => {
+    if (!isPublicStorefront) return;
+    if (storefrontViewInitedRef.current) return;
+    if (loading) return;
+    storefrontViewInitedRef.current = true;
+    if (showcaseVisible && Array.isArray(showcaseLayout) && showcaseLayout.length > 0) {
+      setStorefrontView('showcase');
+    } else {
+      setStorefrontView('menu');
+    }
+  }, [isPublicStorefront, loading, showcaseVisible, showcaseLayout]);
 
   useEffect(() => {
     if (menuVisible) return;
@@ -1683,6 +1707,74 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     [catalogSearchQuery]
   );
   const deferredCatalogSearch = useDeferredValue(normalizedCatalogSearch);
+
+  // ===== Публичная витрина: нижнее меню (Витрина / Меню / Избранные / Корзина) =====
+  const storefrontShowcaseAvailable = isPublicStorefront
+    && showcaseVisible
+    && Array.isArray(showcaseLayout)
+    && showcaseLayout.length > 0;
+  const storefrontMenuAvailable = !isPublicStorefront || menuVisible;
+  // Во время поиска всегда показываем каталог (результаты), независимо от вкладки.
+  const storefrontCatalogVisible = !isPublicStorefront
+    || storefrontView === 'menu'
+    || Boolean(normalizedCatalogSearch);
+  const storefrontShowcaseActive = isPublicStorefront
+    && storefrontView === 'showcase'
+    && !normalizedCatalogSearch;
+  const storefrontFavoritesActive = isPublicStorefront
+    && storefrontView === 'favorites'
+    && !normalizedCatalogSearch;
+  const storefrontFavoriteProducts = useMemo(
+    () => (isPublicStorefront ? products.filter((p) => isFavorite(p?.id)) : []),
+    [isPublicStorefront, products, isFavorite]
+  );
+  const storefrontCartCount = cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const storefrontMenuIcons = useMemo(
+    () => normalizeMenuIconSettings(menuIconSettings, DEFAULT_MENU_ICON_SETTINGS),
+    [menuIconSettings]
+  );
+  const resolveMenuIconUrl = useCallback((value) => {
+    const normalized = String(value || '').trim();
+    if (!normalized) return '';
+    if (normalized.startsWith('http') || normalized.startsWith('data:image/')) return normalized;
+    return `${CLIENT_APP_BASE_URL}${normalized}`;
+  }, []);
+  const scrollStorefrontToTop = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) { /* no-op */ }
+    if (typeof document !== 'undefined') {
+      const rootEl = document.getElementById('root');
+      if (rootEl && typeof rootEl.scrollTo === 'function') {
+        try { rootEl.scrollTo({ top: 0, behavior: 'auto' }); } catch (_) { rootEl.scrollTop = 0; }
+      }
+    }
+  }, []);
+  const selectStorefrontView = useCallback((view) => {
+    setStorefrontView(view);
+    if (view === 'menu') {
+      // «Меню» — на корень каталога.
+      setSelectedCategory(null);
+      setActiveSubcategoryTab(null);
+    }
+    scrollStorefrontToTop();
+  }, [scrollStorefrontToTop]);
+  const openStorefrontCart = useCallback(() => {
+    setShowProductDetailsModal(false);
+    setStorefrontOrderError('');
+    setStorefrontOrderSuccess('');
+    setStorefrontStep(1);
+    setShowStorefrontCartModal(true);
+  }, []);
+  // Клик по категории/товару из витрины: переходим в «Меню» с нужной категорией / открываем товар.
+  const handleStorefrontShowcaseCategoryClick = useCallback((categoryId) => {
+    const id = Number.parseInt(categoryId, 10);
+    setStorefrontView('menu');
+    if (Number.isInteger(id) && id > 0) {
+      setSelectedCategory(id);
+      setActiveSubcategoryTab(null);
+    }
+    scrollStorefrontToTop();
+  }, [scrollStorefrontToTop]);
 
   const catalogSearchPlaceholderPhrases = useMemo(() => (
     language === 'uz'
@@ -4751,7 +4843,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
       {renderCatalogSeasonOverlay()}
 
-      <Container>
+      <Container style={{ display: storefrontCatalogVisible ? undefined : 'none' }}>
         {/* No restaurants */}
         {restaurants.length === 0 && (
           <div className="text-center py-5">
@@ -5149,6 +5241,73 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
           </>
         )}
       </Container>
+
+      {/* Публичная витрина — вкладка «Витрина» (showcase из конструктора меню) */}
+      {storefrontShowcaseActive && (
+        <Container>
+          {loading ? (
+            <StorefrontLoader
+              logoUrl={currentRestaurant?.logo_url || publicRestaurantMeta?.logo_url || ''}
+              label={language === 'uz' ? 'Vitrina yuklanmoqda...' : 'Загрузка витрины...'}
+            />
+          ) : (
+            <>
+              {renderCartTotalBanner()}
+              <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
+                <PublicShowcaseView
+                  layout={showcaseLayout}
+                  categories={categories}
+                  products={products}
+                  cart={cart}
+                  language={language}
+                  categoryImageFallback={currentRestaurant?.logo_url || ''}
+                  onCategoryClick={handleStorefrontShowcaseCategoryClick}
+                  onProductClick={openProductDetailsModal}
+                />
+              </div>
+            </>
+          )}
+        </Container>
+      )}
+
+      {/* Публичная витрина — вкладка «Избранные» */}
+      {storefrontFavoritesActive && (
+        <Container>
+          {loading ? (
+            <StorefrontLoader
+              logoUrl={currentRestaurant?.logo_url || publicRestaurantMeta?.logo_url || ''}
+              label={language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+            />
+          ) : (
+            <>
+              {renderCartTotalBanner()}
+              {storefrontFavoriteProducts.length > 0 ? (
+                <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
+                  <h6 className="mb-3 text-muted fw-bold">
+                    {language === 'uz' ? 'Tanlanganlar' : 'Избранные'}
+                  </h6>
+                  <Row className="g-3">
+                    {storefrontFavoriteProducts.map((product) => (
+                      <Col key={product.id} xs={6} md={4} lg={3} xxl={2}>
+                        {renderProductCard(product)}
+                      </Col>
+                    ))}
+                  </Row>
+                </div>
+              ) : (
+                <div className="text-center py-5">
+                  <div style={{ fontSize: '4rem', opacity: 0.5 }}>❤️</div>
+                  <p className="text-muted mt-3">
+                    {language === 'uz'
+                      ? 'Tanlanganlar roʻyxati boʻsh'
+                      : 'В избранном пока пусто'}
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </Container>
+      )}
 
       <Modal
         show={showLanguageSetupModal}
@@ -6167,13 +6326,82 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
         </Modal.Body>
       </Modal>
 
-      {/* Bottom navigation — скрываем на публичной витрине, иначе пункты ведут на /cart, /favorites
-         и т.д., которые защищены PrivateRoute и редиректят гостя на /login. Корзина у гостя доступна
-         через иконку в шапке. */}
+      {/* Bottom navigation для авторизованного клиента / WebApp (ведёт по роутам). */}
       {!isOperator() && !isPublicStorefront && <BottomNav />}
-
-      {/* Spacer for bottom nav */}
       {!isOperator() && !isPublicStorefront && <div style={{ height: '70px' }} />}
+
+      {/* Нижнее меню публичной витрины (как в Telegram WebApp): Витрина / Меню / Избранные / Корзина.
+         Без роутинга — переключает вкладки внутри витрины и открывает корзину модалкой. */}
+      {isPublicStorefront && (() => {
+        const navItems = [
+          ...(storefrontShowcaseAvailable ? [{
+            key: 'showcase',
+            icon: storefrontMenuIcons.showcase,
+            label: language === 'uz' ? 'Vitrina' : 'Витрина',
+            active: storefrontView === 'showcase',
+            onClick: () => selectStorefrontView('showcase')
+          }] : []),
+          ...(storefrontMenuAvailable ? [{
+            key: 'menu',
+            icon: storefrontMenuIcons.catalog,
+            label: language === 'uz' ? 'Menyu' : 'Меню',
+            active: storefrontView === 'menu',
+            onClick: () => selectStorefrontView('menu')
+          }] : []),
+          {
+            key: 'favorites',
+            icon: storefrontMenuIcons.favorites,
+            label: language === 'uz' ? 'Tanlangan' : 'Избранные',
+            active: storefrontView === 'favorites',
+            badge: favoriteCount,
+            onClick: () => selectStorefrontView('favorites')
+          },
+          {
+            key: 'cart',
+            icon: storefrontMenuIcons.cart,
+            label: language === 'uz' ? 'Savat' : 'Корзина',
+            active: showStorefrontCartModal,
+            badge: storefrontCartCount,
+            onClick: openStorefrontCart
+          }
+        ];
+        return (
+          <nav className={['client-bottom-nav', isDesktopViewport ? 'is-desktop' : ''].filter(Boolean).join(' ')}>
+            {navItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={item.onClick}
+                title={item.label}
+                aria-label={item.label}
+                className={['client-bottom-nav-item', item.active ? 'is-active' : ''].filter(Boolean).join(' ')}
+              >
+                <span className="client-bottom-nav-icon">
+                  {isImageIconValue(item.icon) ? (
+                    <img
+                      src={resolveMenuIconUrl(item.icon)}
+                      alt=""
+                      className="client-bottom-nav-icon-image"
+                      loading="lazy"
+                      draggable={false}
+                    />
+                  ) : (
+                    item.icon
+                  )}
+                </span>
+                <span className="client-bottom-nav-label">{item.label}</span>
+                {item.badge > 0 && (
+                  <span className="client-bottom-nav-badge">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
+        );
+      })()}
+      {/* Отступ под фиксированное нижнее меню витрины */}
+      {isPublicStorefront && <div style={{ height: '84px' }} />}
 
       {/* Гостевое оформление заказа с публичной витрины (мастер 3 шага, как в WebApp) */}
       {isPublicStorefront && (
