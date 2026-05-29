@@ -9876,6 +9876,20 @@ body::-webkit-scrollbar,
     font-weight: 700;
     color: #0f172a;
     line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.admin-menu-mode-preview-icon {
+    flex-shrink: 0;
+    font-size: 0.95rem;
+    line-height: 1;
+    color: var(--primary-color, #4f46e5);
+}
+
+.admin-menu-mode-preview-card.is-active .admin-menu-mode-preview-icon {
+    color: var(--primary-color, #4f46e5);
 }
 
 .admin-menu-mode-preview-desc {
