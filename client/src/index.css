@@ -2478,23 +2478,29 @@ h6 {
   .product-details-reviews-section {
     padding: 0 14px;
   }
-  /* Sticky-фото (.product-details-hero, z-index:1) просвечивало сквозь секции
-     «Похожие товары» и «Отзывы», т.к. они шли ниже листа и не перекрывали фото.
-     Поднимаем их над фото (z-index:2) и делаем фон непрозрачным под цвет листа. */
+  /* На мобиле поверхность модалки светло-серая — секции под неё. */
   .product-details-related-section,
   .product-details-reviews-section {
-    position: relative;
-    z-index: 2;
     background: #f3f4f6;
   }
-  :root[data-ui-theme="verdant_glass"] .product-details-related-section,
-  :root[data-ui-theme="verdant_glass"] .product-details-reviews-section {
-    background: #0c2c1b;
-  }
-  :root[data-ui-theme="golden_crust"] .product-details-related-section,
-  :root[data-ui-theme="golden_crust"] .product-details-reviews-section {
-    background: #14100b;
-  }
+}
+
+/* Sticky-фото (.product-details-hero, z-index:1) просвечивало сквозь секции
+   «Похожие товары» и «Отзывы» (они идут ниже листа). Поднимаем их над фото
+   (z-index:2) и делаем фон непрозрачным под поверхность модалки — и на ПК, и на
+   мобиле. Светлый фон задаётся медиа-запросами (мобайл #f3f4f6 / ПК #fff). */
+.product-details-related-section,
+.product-details-reviews-section {
+  position: relative;
+  z-index: 2;
+}
+:root[data-ui-theme="verdant_glass"] .product-details-related-section,
+:root[data-ui-theme="verdant_glass"] .product-details-reviews-section {
+  background: #0c2c1b;
+}
+:root[data-ui-theme="golden_crust"] .product-details-related-section,
+:root[data-ui-theme="golden_crust"] .product-details-reviews-section {
+  background: #14100b;
 }
 
 /* Стрелки листания фото на главном изображении */
@@ -2562,11 +2568,15 @@ h6 {
     min-height: 0;
     max-height: calc(100vh - 64px);
     border-radius: 18px;
-    overflow: hidden;
+    /* На ПК скроллит сам .modal-content (у него есть max-height) — иначе контент
+       ниже сгиба (похожие товары, отзывы) обрезался и не прокручивался. */
+    overflow-y: auto;
+    overflow-x: hidden;
     background: #ffffff;
     box-shadow: none;
     border: 1px solid #e5e7eb;
   }
+  .product-details-modal-fullscreen .product-details-modal-body { overflow: visible !important; }
   .product-details-modal-body { background: #ffffff; }
   /* 3-зонный grid: hero | info, затем related во всю ширину */
   .product-details-scroll {
@@ -2581,6 +2591,8 @@ h6 {
     padding: 24px 32px 16px;
     align-items: start;
     background: #ffffff;
+    overflow: visible;
+    min-height: 0;
   }
   .product-details-hero {
     grid-area: hero;
@@ -2608,6 +2620,11 @@ h6 {
   .product-details-block { box-shadow: none !important; }
   .product-details-related-section { grid-area: related; }
   .product-details-reviews-section { grid-area: reviews; }
+  /* На ПК поверхность модалки белая — секции (перекрывающие sticky-фото) тоже. */
+  .product-details-related-section,
+  .product-details-reviews-section {
+    background: #ffffff;
+  }
 
   /* Инлайн «В корзину»/кол-во сразу после цены */
   .product-details-inline-actions {
