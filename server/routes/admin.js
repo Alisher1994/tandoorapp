@@ -2077,6 +2077,8 @@ router.put('/restaurant', async (req, res) => {
       is_asap_delivery_enabled, is_scheduled_time_delivery_enabled,
       is_operator_delivery_later_enabled,
       delivery_lead_enabled, delivery_lead_days,
+      product_field_description_enabled, product_field_season_enabled,
+      product_field_barcode_enabled, product_field_ikpu_enabled,
       receipt_logo_url, receipt_header_text, receipt_footer_text
     } = req.body;
     const normalizedBotTokenRaw = telegram_bot_token === undefined || telegram_bot_token === null
@@ -2166,6 +2168,10 @@ router.put('/restaurant', async (req, res) => {
       1,
       Math.min(90, Math.trunc(Number(delivery_lead_days) || 1))
     );
+    const normalizedProductFieldDescriptionEnabled = normalizeOptionalBoolean(product_field_description_enabled);
+    const normalizedProductFieldSeasonEnabled = normalizeOptionalBoolean(product_field_season_enabled);
+    const normalizedProductFieldBarcodeEnabled = normalizeOptionalBoolean(product_field_barcode_enabled);
+    const normalizedProductFieldIkpuEnabled = normalizeOptionalBoolean(product_field_ikpu_enabled);
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -2312,8 +2318,12 @@ router.put('/restaurant', async (req, res) => {
           menu_liquid_glass_blur = $67,
           delivery_lead_enabled = COALESCE($68, delivery_lead_enabled),
           delivery_lead_days = $69,
+          product_field_description_enabled = COALESCE($70, product_field_description_enabled),
+          product_field_season_enabled = COALESCE($71, product_field_season_enabled),
+          product_field_barcode_enabled = COALESCE($72, product_field_barcode_enabled),
+          product_field_ikpu_enabled = COALESCE($73, product_field_ikpu_enabled),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $70
+      WHERE id = $74
       RETURNING *
     `, [
       nextNameForCheck, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -2366,6 +2376,10 @@ router.put('/restaurant', async (req, res) => {
       normalizedMenuLiquidGlassBlur,
       normalizedDeliveryLeadEnabled,
       normalizedDeliveryLeadDays,
+      normalizedProductFieldDescriptionEnabled,
+      normalizedProductFieldSeasonEnabled,
+      normalizedProductFieldBarcodeEnabled,
+      normalizedProductFieldIkpuEnabled,
       restaurantId
     ]);
     await pool.query(

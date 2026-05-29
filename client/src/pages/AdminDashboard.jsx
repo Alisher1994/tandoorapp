@@ -950,6 +950,10 @@ const buildRestaurantSettingsSignature = (settings) => {
     is_operator_delivery_later_enabled: normalizeSettingsBoolean(settings.is_operator_delivery_later_enabled, false),
     delivery_lead_enabled: normalizeSettingsBoolean(settings.delivery_lead_enabled, false),
     delivery_lead_days: Math.max(1, Math.trunc(normalizeSettingsNumber(settings.delivery_lead_days, 1))),
+    product_field_description_enabled: normalizeSettingsBoolean(settings.product_field_description_enabled, true),
+    product_field_season_enabled: normalizeSettingsBoolean(settings.product_field_season_enabled, true),
+    product_field_barcode_enabled: normalizeSettingsBoolean(settings.product_field_barcode_enabled, true),
+    product_field_ikpu_enabled: normalizeSettingsBoolean(settings.product_field_ikpu_enabled, true),
     send_balance_after_confirm: normalizeSettingsBoolean(settings.send_balance_after_confirm, true),
     send_daily_close_report: normalizeSettingsBoolean(settings.send_daily_close_report, true),
     msg_new: normalizeSettingsText(settings.msg_new),
@@ -5798,6 +5802,10 @@ function AdminDashboard() {
         is_operator_delivery_later_enabled: response.data?.is_operator_delivery_later_enabled === true,
         delivery_lead_enabled: response.data?.delivery_lead_enabled === true,
         delivery_lead_days: Math.max(1, Math.trunc(Number(response.data?.delivery_lead_days) || 1)),
+        product_field_description_enabled: response.data?.product_field_description_enabled !== false,
+        product_field_season_enabled: response.data?.product_field_season_enabled !== false,
+        product_field_barcode_enabled: response.data?.product_field_barcode_enabled !== false,
+        product_field_ikpu_enabled: response.data?.product_field_ikpu_enabled !== false,
         promo_codes_enabled: response.data?.promo_codes_enabled === true,
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
@@ -5844,6 +5852,10 @@ function AdminDashboard() {
           ? true
           : Boolean(restaurantSettings?.delivery_lead_enabled),
         delivery_lead_days: Math.max(1, Math.trunc(Number(savedSettings?.delivery_lead_days || restaurantSettings?.delivery_lead_days || 1))),
+        product_field_description_enabled: (savedSettings?.product_field_description_enabled ?? restaurantSettings?.product_field_description_enabled) !== false,
+        product_field_season_enabled: (savedSettings?.product_field_season_enabled ?? restaurantSettings?.product_field_season_enabled) !== false,
+        product_field_barcode_enabled: (savedSettings?.product_field_barcode_enabled ?? restaurantSettings?.product_field_barcode_enabled) !== false,
+        product_field_ikpu_enabled: (savedSettings?.product_field_ikpu_enabled ?? restaurantSettings?.product_field_ikpu_enabled) !== false,
         currency_code: savedSettings?.currency_code || restaurantSettings?.currency_code || 'uz',
         logo_display_mode: (savedSettings?.logo_display_mode === 'horizontal') ? 'horizontal' : 'square',
         ui_theme: normalizeUiTheme(savedSettings?.ui_theme, restaurantSettings?.ui_theme || 'classic'),
@@ -16369,6 +16381,36 @@ function AdminDashboard() {
                                   </Row>
                                 )}
                               </div>
+
+                              <div className="admin-settings-surface-block">
+                                <div className="fw-bold mb-1">
+                                  {language === 'uz' ? 'Tovar formasi maydonlari' : 'Поля формы товара'}
+                                </div>
+                                <div className="small text-muted mb-3">
+                                  {language === 'uz'
+                                    ? 'Oʻchirilgan maydonlar tovar qoʻshish formasida (va variantlarda) koʻrinmaydi. Importga taʼsir qilmaydi.'
+                                    : 'Выключенные поля скрываются в форме добавления товара (и в вариантах). На импорт не влияет.'}
+                                </div>
+                                {[
+                                  { key: 'product_field_description_enabled', ru: 'Описание (RU/UZ)', uz: 'Tavsif (RU/UZ)' },
+                                  { key: 'product_field_season_enabled', ru: 'Сезонность товара', uz: 'Tovar mavsumiyligi' },
+                                  { key: 'product_field_barcode_enabled', ru: 'Штрихкод', uz: 'Shtrix-kod' },
+                                  { key: 'product_field_ikpu_enabled', ru: 'ИКПУ', uz: 'IKPU' }
+                                ].map((field) => (
+                                  <Form.Check
+                                    key={field.key}
+                                    type="switch"
+                                    id={`product-field-switch-${field.key}`}
+                                    className="fw-semibold mb-2"
+                                    label={language === 'uz' ? field.uz : field.ru}
+                                    checked={restaurantSettings[field.key] !== false}
+                                    onChange={(e) => setRestaurantSettings({
+                                      ...restaurantSettings,
+                                      [field.key]: e.target.checked
+                                    })}
+                                  />
+                                ))}
+                              </div>
                             </div>
 
                             <div className="mt-4 pt-3 border-top text-end">
@@ -18476,7 +18518,7 @@ function AdminDashboard() {
                 </Col>
               </Row>
 
-              {!productForm.size_enabled && (
+              {!productForm.size_enabled && restaurantSettings?.product_field_description_enabled !== false && (
                 <Row>
                   <Col md={6}>
                     <Form.Group className="mb-3">
@@ -18512,6 +18554,7 @@ function AdminDashboard() {
               )}
 
               <Row>
+                {restaurantSettings?.product_field_season_enabled !== false && (
                 <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="d-flex align-items-center gap-2">
@@ -18535,6 +18578,7 @@ function AdminDashboard() {
                     </Form.Select>
                   </Form.Group>
                 </Col>
+                )}
                 <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label>{language === 'uz' ? "Mahsulot ko'rinishi" : 'Отображение товара'}</Form.Label>
@@ -18643,16 +18687,16 @@ function AdminDashboard() {
                         <div className={`admin-variants-simple-head ${productForm.unit === 'кг' ? 'is-kg' : 'is-not-kg'}`}>
                           <span>№</span>
                           <span>{language === 'uz' ? 'Nomi' : 'Название варианта'}</span>
-                          <span>Описание RU</span>
-                          <span>Описание UZ</span>
+                          {restaurantSettings?.product_field_description_enabled !== false && <span>Описание RU</span>}
+                          {restaurantSettings?.product_field_description_enabled !== false && <span>Описание UZ</span>}
                           <span>{language === 'uz' ? 'Narxi' : 'Цена'}</span>
                           <span>{language === 'uz' ? 'Chegirma' : 'Скидка'}</span>
                           <span>{Boolean(restaurantSettings?.inventory_tracking_enabled)
                             ? (language === 'uz' ? 'Qoldiq' : 'Остаток')
                             : (language === 'uz' ? 'Mavjud' : 'В наличии')}
                           </span>
-                          <span>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод варианта'}</span>
-                          <span>ИКПУ</span>
+                          {restaurantSettings?.product_field_barcode_enabled !== false && <span>{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод варианта'}</span>}
+                          {restaurantSettings?.product_field_ikpu_enabled !== false && <span>ИКПУ</span>}
                           <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
                           <span>{language === 'uz' ? 'Qadoqlash normasi' : 'Норма фасовки'}</span>
                           {productForm.unit === 'кг' && <span>{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</span>}
@@ -18698,6 +18742,7 @@ function AdminDashboard() {
                                                   maxLength={60}
                                                 />
                                               </Col>
+                                              {restaurantSettings?.product_field_description_enabled !== false && (
                                               <Col xl={2} md={6} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18707,6 +18752,8 @@ function AdminDashboard() {
                                                   maxLength={1500}
                                                 />
                                               </Col>
+                                              )}
+                                              {restaurantSettings?.product_field_description_enabled !== false && (
                                               <Col xl={2} md={6} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18716,6 +18763,7 @@ function AdminDashboard() {
                                                   maxLength={1500}
                                                 />
                                               </Col>
+                                              )}
                                               <Col xl={2} md={4} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18768,6 +18816,7 @@ function AdminDashboard() {
                                                   />
                                                 )}
                                               </Col>
+                                              {restaurantSettings?.product_field_barcode_enabled !== false && (
                                               <Col xl={3} md={6} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18778,6 +18827,8 @@ function AdminDashboard() {
                                                   maxLength={120}
                                                 />
                                               </Col>
+                                              )}
+                                              {restaurantSettings?.product_field_ikpu_enabled !== false && (
                                               <Col xl={2} md={6} className="admin-variant-table-col">
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18788,6 +18839,7 @@ function AdminDashboard() {
                                                   maxLength={64}
                                                 />
                                               </Col>
+                                              )}
                                               <Col xl={2} md={6} className="admin-variant-table-col">
                                                 <Form.Select
                                                   className="form-control-custom"
@@ -18976,7 +19028,7 @@ function AdminDashboard() {
               )}
 
               <div className={`admin-product-main-fields-grid ${productForm.size_enabled ? 'variants-mode' : (productForm.container_id ? 'has-container-norm' : '')}`}>
-                {!productForm.size_enabled && (
+                {!productForm.size_enabled && restaurantSettings?.product_field_barcode_enabled !== false && (
                   <Form.Group className="mb-0">
                     <Form.Label>{language === 'uz' ? 'Tovar shtrix-kodi' : 'Штрихкод товара'}</Form.Label>
                     <Form.Control
@@ -18990,7 +19042,7 @@ function AdminDashboard() {
                   </Form.Group>
                 )}
 
-                {!productForm.size_enabled && (
+                {!productForm.size_enabled && restaurantSettings?.product_field_ikpu_enabled !== false && (
                   <Form.Group className="mb-0">
                     <Form.Label>ИКПУ</Form.Label>
                     <Form.Control
