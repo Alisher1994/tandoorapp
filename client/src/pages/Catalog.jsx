@@ -5049,7 +5049,17 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             gap: 8
                           }}
                         >
-                          <span className="text-truncate">{getCategoryName(l1)}</span>
+                          <span className="d-inline-flex align-items-center text-truncate" style={{ gap: 10, minWidth: 0 }}>
+                            {(() => {
+                              const catImg = resolveImageUrl(l1.image_url);
+                              return catImg ? (
+                                <img src={catImg} alt="" loading="lazy" style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', flexShrink: 0, background: '#fff' }} />
+                              ) : (
+                                <span style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(148,163,184,0.18)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }} aria-hidden="true">🏷️</span>
+                              );
+                            })()}
+                            <span className="text-truncate">{getCategoryName(l1)}</span>
+                          </span>
                           {hasChildren && <span aria-hidden="true" style={{ color: '#94a3b8', flexShrink: 0 }}>›</span>}
                         </button>
                       );
