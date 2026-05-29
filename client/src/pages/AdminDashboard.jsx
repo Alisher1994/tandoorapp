@@ -15454,11 +15454,11 @@ function AdminDashboard() {
                                 </Form.Group>
                               </Col>
                               <Col md={4}>
-                                <Form.Group className="h-100 d-flex flex-column">
+                                <Form.Group>
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Проверка</Form.Label>
                                   <Button
                                     variant="outline-primary"
-                                    className="w-100 px-3 py-2 rounded-3 fw-bold mt-auto"
+                                    className="w-100 px-3 py-2 rounded-3 fw-bold"
                                     onClick={testBot}
                                     disabled={testingBot}
                                   >
