@@ -14486,7 +14486,7 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Katalog" : 'Каталог'}</span>
+                                      <span className="admin-menu-mode-preview-title"><i className="bi bi-grid-3x3-gap-fill admin-menu-mode-preview-icon" aria-hidden="true" />{language === 'uz' ? "Katalog" : 'Каталог'}</span>
                                       <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Kategoriyalar plitka, keyin mahsulotlar" : 'Категории плиткой, затем товары'}</span>
                                     </button>
                                     <button
@@ -14529,7 +14529,7 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Kartochka rejimi" : 'Карточный режим'}</span>
+                                      <span className="admin-menu-mode-preview-title"><i className="bi bi-grid-1x2-fill admin-menu-mode-preview-icon" aria-hidden="true" />{language === 'uz' ? "Kartochka rejimi" : 'Карточный режим'}</span>
                                       <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Barcha mahsulotlar kategoriyalar bo'yicha bitta ekranda" : 'Все товары по категориям на одном экране'}</span>
                                     </button>
                                     <button
@@ -14560,7 +14560,7 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Kategoriya papkalari" : 'Папки категорий'}</span>
+                                      <span className="admin-menu-mode-preview-title"><i className="bi bi-folder-fill admin-menu-mode-preview-icon" aria-hidden="true" />{language === 'uz' ? "Kategoriya papkalari" : 'Папки категорий'}</span>
                                       <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Kategoriya → Kategoriya → Kategoriya → mahsulotlar" : 'Категория → Категория → Категория → товары'}</span>
                                     </button>
                                   </div>
@@ -14614,7 +14614,7 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Keng" : 'Широкий'}</span>
+                                      <span className="admin-menu-mode-preview-title"><i className="bi bi-aspect-ratio-fill admin-menu-mode-preview-icon" aria-hidden="true" />{language === 'uz' ? "Keng" : 'Широкий'}</span>
                                       <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Rasm 4:3, ixcham kartochka" : 'Картинка 4:3, компактная карточка'}</span>
                                     </button>
                                     <button
@@ -14657,7 +14657,7 @@ function AdminDashboard() {
                                           </span>
                                         </span>
                                       </span>
-                                      <span className="admin-menu-mode-preview-title">{language === 'uz' ? "Kitob" : 'Книжный'}</span>
+                                      <span className="admin-menu-mode-preview-title"><i className="bi bi-book-fill admin-menu-mode-preview-icon" aria-hidden="true" />{language === 'uz' ? "Kitob" : 'Книжный'}</span>
                                       <span className="admin-menu-mode-preview-desc">{language === 'uz' ? "Rasm 3:4, fotoga urg'u" : 'Картинка 3:4, акцент на фото'}</span>
                                     </button>
                                   </div>
