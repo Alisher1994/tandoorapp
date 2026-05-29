@@ -141,7 +141,14 @@ const UI_FONT_FAMILY_VALUES = new Set([
   'serif_merriweather',
   'serif_playfair',
   'serif_garamond',
-  'serif_baskerville'
+  'serif_baskerville',
+  'racing_sans',
+  'faster_one',
+  'orbitron',
+  'audiowide',
+  'oswald',
+  'bebas_neue',
+  'archivo_narrow'
 ]);
 const UI_FONT_FAMILY_OPTIONS = [
   {
@@ -227,6 +234,48 @@ const UI_FONT_FAMILY_OPTIONS = [
     label: 'Baskerville',
     group: 'Serif',
     sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'racing_sans',
+    label: 'Racing Sans One',
+    group: 'Дисплей / тюнинг',
+    sample: 'TUNING GARAGE · 2025'
+  },
+  {
+    value: 'faster_one',
+    label: 'Faster One',
+    group: 'Дисплей / тюнинг',
+    sample: 'SPEED · NFS UNDERGROUND'
+  },
+  {
+    value: 'orbitron',
+    label: 'Orbitron',
+    group: 'Дисплей / тюнинг',
+    sample: 'AUTO TUNING CENTER'
+  },
+  {
+    value: 'audiowide',
+    label: 'Audiowide',
+    group: 'Дисплей / тюнинг',
+    sample: 'DRIFT CLUB GARAGE'
+  },
+  {
+    value: 'oswald',
+    label: 'Oswald (узкий)',
+    group: 'Узкие / минимал',
+    sample: 'Быстрый заказ и удобный каталог'
+  },
+  {
+    value: 'bebas_neue',
+    label: 'Bebas Neue (узкий)',
+    group: 'Узкие / минимал',
+    sample: 'FAST ORDER · MINIMAL MENU'
+  },
+  {
+    value: 'archivo_narrow',
+    label: 'Archivo Narrow (узкий)',
+    group: 'Узкие / минимал',
+    sample: 'Быстрый заказ и удобный каталог'
   }
 ];
 const UI_FONT_FAMILY_PREVIEW_STYLES = Object.freeze({
@@ -243,7 +292,14 @@ const UI_FONT_FAMILY_PREVIEW_STYLES = Object.freeze({
   serif_merriweather: "'Merriweather', Georgia, 'Times New Roman', serif",
   serif_playfair: "'Playfair Display', Georgia, 'Times New Roman', serif",
   serif_garamond: "Garamond, 'Palatino Linotype', 'Book Antiqua', Palatino, serif",
-  serif_baskerville: "Baskerville, 'Times New Roman', Georgia, serif"
+  serif_baskerville: "Baskerville, 'Times New Roman', Georgia, serif",
+  racing_sans: "'Racing Sans One', 'Oswald', system-ui, sans-serif",
+  faster_one: "'Faster One', 'Racing Sans One', system-ui, sans-serif",
+  orbitron: "'Orbitron', 'Audiowide', system-ui, sans-serif",
+  audiowide: "'Audiowide', 'Orbitron', system-ui, sans-serif",
+  oswald: "'Oswald', 'Arial Narrow', system-ui, sans-serif",
+  bebas_neue: "'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif",
+  archivo_narrow: "'Archivo Narrow', 'Arial Narrow', system-ui, sans-serif"
 });
 const MENU_MODE_PREVIEW_MEDIA = Object.freeze({
   categoryPhoto: "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='900' viewBox='0 0 1200 900'%3E%3Crect width='1200' height='900' rx='24' fill='%23eef2f7'/%3E%3Crect x='60' y='80' width='1080' height='740' rx='28' fill='%23dde5ef'/%3E%3Cpath d='M260 640h680l-70 120H330z' fill='%23c5ceda'/%3E%3Ccircle cx='420' cy='420' r='118' fill='%23b6c2d2'/%3E%3Ccircle cx='780' cy='420' r='118' fill='%23b6c2d2'/%3E%3C/svg%3E",

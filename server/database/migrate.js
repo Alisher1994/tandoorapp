@@ -176,7 +176,7 @@ async function migrate() {
            'serif_merriweather',
            'serif_playfair',
            'serif_garamond',
-           'serif_baskerville'
+           'serif_baskerville', 'racing_sans', 'faster_one', 'orbitron', 'audiowide', 'oswald', 'bebas_neue', 'archivo_narrow'
          )
     `).catch(() => {});
     await client.query(`
@@ -298,7 +298,7 @@ async function migrate() {
           'serif_merriweather',
           'serif_playfair',
           'serif_garamond',
-          'serif_baskerville'
+          'serif_baskerville', 'racing_sans', 'faster_one', 'orbitron', 'audiowide', 'oswald', 'bebas_neue', 'archivo_narrow'
         )
       )
     `).catch(() => {});

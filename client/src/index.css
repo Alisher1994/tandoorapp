@@ -1524,6 +1524,37 @@
   --app-font-family: Baskerville, 'Times New Roman', Georgia, serif;
 }
 
+/* Дисплейные «тюнинг»-шрифты (NFS-стиль) и узкие минималистичные. Грузятся из
+   Google Fonts в index.html. Латинские дисплейные без кириллицы — для кириллицы
+   возьмётся системный фолбэк. */
+:root[data-ui-font="racing_sans"] {
+  --app-font-family: 'Racing Sans One', 'Oswald', system-ui, sans-serif;
+}
+
+:root[data-ui-font="faster_one"] {
+  --app-font-family: 'Faster One', 'Racing Sans One', system-ui, sans-serif;
+}
+
+:root[data-ui-font="orbitron"] {
+  --app-font-family: 'Orbitron', 'Audiowide', system-ui, sans-serif;
+}
+
+:root[data-ui-font="audiowide"] {
+  --app-font-family: 'Audiowide', 'Orbitron', system-ui, sans-serif;
+}
+
+:root[data-ui-font="oswald"] {
+  --app-font-family: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
+}
+
+:root[data-ui-font="bebas_neue"] {
+  --app-font-family: 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif;
+}
+
+:root[data-ui-font="archivo_narrow"] {
+  --app-font-family: 'Archivo Narrow', 'Arial Narrow', system-ui, sans-serif;
+}
+
 * {
   margin: 0;
   padding: 0;
