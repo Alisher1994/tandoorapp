@@ -400,26 +400,38 @@ const ensureRestaurantMinimumOrderSchema = async () => {
 // миграция могла не добавить часть из них (код ошибки 42703 — undefined_column),
 // поэтому добиваем их «на лету» перед оформлением.
 const ensureStorefrontOrderColumns = async () => {
-  const ordersCols = [
+  const add = async (table, defs) => {
+    for (const def of defs) {
+      await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${def}`).catch(() => {});
+    }
+  };
+  await add('orders', [
     "service_fee DECIMAL(15, 2) DEFAULT 0",
     "delivery_cost DECIMAL(15, 2) DEFAULT 0",
     "delivery_distance_km DECIMAL(10, 2)",
     "delivery_date DATE",
     "promo_code VARCHAR(64)",
     "promo_discount_amount DECIMAL(15, 2) NOT NULL DEFAULT 0"
-  ];
-  for (const col of ordersCols) {
-    await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
-  }
-  const itemCols = [
+  ]);
+  await add('order_items', [
     "selected_variant VARCHAR(120)",
     "container_name VARCHAR(255)",
     "container_price DECIMAL(15, 2) DEFAULT 0",
     "container_norm DECIMAL(10, 2) DEFAULT 1"
-  ];
-  for (const col of itemCols) {
-    await pool.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS ${col}`).catch(() => {});
-  }
+  ]);
+  // Колонки restaurants/products, которые читает оформление заказа.
+  await add('restaurants', [
+    "service_fee DECIMAL(10, 2) DEFAULT 0",
+    "is_delivery_enabled BOOLEAN DEFAULT true",
+    "is_pickup_enabled BOOLEAN DEFAULT true"
+  ]);
+  await add('products', [
+    "name_ru VARCHAR(255)",
+    "name_uz VARCHAR(255)",
+    "container_name VARCHAR(255)",
+    "container_price DECIMAL(15, 2) DEFAULT 0",
+    "container_norm DECIMAL(10, 2) DEFAULT 1"
+  ]);
 };
 
 const ensureRestaurantCurrencySchema = async () => {
@@ -1314,9 +1326,13 @@ router.post('/storefront-orders', async (req, res) => {
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch (_) { /* no-op */ }
     console.error('Storefront order create error:', error?.code, error?.message, error?.detail, error);
-    // Код БД (напр. 23502/22003/42703) помогает диагностировать реальную причину
-    // без доступа к логам сервера; для клиента он безвреден.
-    return res.status(500).json({ error: 'Ошибка создания заказа', code: error?.code || null });
+    // Код + краткое сообщение БД помогают понять причину без доступа к логам.
+    // Для 42703 (undefined_column) сообщение содержит имя недостающей колонки.
+    return res.status(500).json({
+      error: 'Ошибка создания заказа',
+      code: error?.code || null,
+      detail: String(error?.message || '').slice(0, 180) || null
+    });
   } finally {
     client.release();
   }

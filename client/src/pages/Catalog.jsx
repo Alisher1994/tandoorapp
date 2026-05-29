@@ -443,7 +443,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     } catch (err) {
       const message = err?.response?.data?.error || 'Не удалось отправить заказ. Попробуйте ещё раз.';
       const code = err?.response?.data?.code;
-      setStorefrontOrderError(String(message) + (code ? ` (код: ${code})` : ''));
+      const detail = err?.response?.data?.detail;
+      setStorefrontOrderError(String(message) + (code ? ` (код: ${code})` : '') + (detail ? ` — ${detail}` : ''));
     } finally {
       setStorefrontOrderSubmitting(false);
     }
