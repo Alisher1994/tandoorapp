@@ -16355,7 +16355,13 @@ function AdminDashboard() {
                                           🛒 {(() => {
                                             const n = Math.max(1, Math.trunc(Number(restaurantSettings.delivery_lead_days) || 1));
                                             if (n === 1) return language === 'uz' ? 'Ertaga' : 'Завтра';
-                                            return language === 'uz' ? `bugun + ${n}` : `сегодня + ${n}`;
+                                            const d = new Date();
+                                            d.setDate(d.getDate() + n);
+                                            const day = d.getDate();
+                                            const month = d.getMonth();
+                                            const ru = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+                                            const uz = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr'];
+                                            return language === 'uz' ? `${day}-${uz[month]}` : `${day} ${ru[month]}`;
                                           })()}
                                         </div>
                                       </div>
