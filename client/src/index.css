@@ -537,23 +537,23 @@
 :root[data-ui-theme="verdant_glass"] .product-details-bottom-cta,
 :root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn,
 :root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn-primary {
-  --bs-btn-bg: #0d9488;
-  --bs-btn-border-color: #0d9488;
-  --bs-btn-hover-bg: #0f766e;
-  --bs-btn-hover-border-color: #0f766e;
-  --bs-btn-active-bg: #0f766e;
-  --bs-btn-active-border-color: #0f766e;
-  --bs-btn-disabled-bg: rgba(13, 148, 136, 0.55);
-  --bs-btn-disabled-border-color: rgba(13, 148, 136, 0.55);
-  background: #0d9488 !important;
-  border-color: #0d9488 !important;
+  --bs-btn-bg: var(--primary-color);
+  --bs-btn-border-color: var(--primary-color);
+  --bs-btn-hover-bg: var(--primary-dark);
+  --bs-btn-hover-border-color: var(--primary-dark);
+  --bs-btn-active-bg: var(--primary-dark);
+  --bs-btn-active-border-color: var(--primary-dark);
+  --bs-btn-disabled-bg: var(--primary-color);
+  --bs-btn-disabled-border-color: var(--primary-color);
+  background: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
   color: #fff !important;
 }
 :root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn:hover,
 :root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn:focus,
 :root[data-ui-theme="verdant_glass"] .product-details-bottom-cta.btn:active {
-  background: #0f766e !important;
-  border-color: #0f766e !important;
+  background: var(--primary-dark) !important;
+  border-color: var(--primary-dark) !important;
   color: #fff !important;
 }
 
@@ -666,18 +666,19 @@
 :root[data-ui-theme="verdant_glass"] .client-surface .btn-primary,
 :root[data-ui-theme="verdant_glass"] .client-content .btn-primary,
 :root[data-ui-theme="verdant_glass"] .modal-content .btn-primary {
-  --bs-btn-bg: #0d9488;
-  --bs-btn-border-color: #0d9488;
+  --bs-btn-bg: var(--primary-color);
+  --bs-btn-border-color: var(--primary-color);
   --bs-btn-color: #ffffff;
-  --bs-btn-hover-bg: #0f766e;
-  --bs-btn-hover-border-color: #0f766e;
+  --bs-btn-hover-bg: var(--primary-dark);
+  --bs-btn-hover-border-color: var(--primary-dark);
   --bs-btn-hover-color: #ffffff;
-  --bs-btn-active-bg: #0f766e;
-  --bs-btn-active-border-color: #0f766e;
+  --bs-btn-active-bg: var(--primary-dark);
+  --bs-btn-active-border-color: var(--primary-dark);
   --bs-btn-active-color: #ffffff;
-  --bs-btn-disabled-bg: rgba(13, 148, 136, 0.55);
-  --bs-btn-disabled-border-color: rgba(13, 148, 136, 0.55);
+  --bs-btn-disabled-bg: var(--primary-color);
+  --bs-btn-disabled-border-color: var(--primary-color);
   --bs-btn-disabled-color: rgba(255, 255, 255, 0.75);
+  background: var(--primary-color);
   color: #ffffff;
 }
 
@@ -1168,23 +1169,23 @@
 :root[data-ui-theme="golden_crust"] .product-details-bottom-cta,
 :root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn,
 :root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn-primary {
-  --bs-btn-bg: #d98a2b;
-  --bs-btn-border-color: #d98a2b;
-  --bs-btn-hover-bg: #b06f1f;
-  --bs-btn-hover-border-color: #b06f1f;
-  --bs-btn-active-bg: #b06f1f;
-  --bs-btn-active-border-color: #b06f1f;
-  --bs-btn-disabled-bg: rgba(217, 138, 43, 0.55);
-  --bs-btn-disabled-border-color: rgba(217, 138, 43, 0.55);
-  background: #d98a2b !important;
-  border-color: #d98a2b !important;
+  --bs-btn-bg: var(--primary-color);
+  --bs-btn-border-color: var(--primary-color);
+  --bs-btn-hover-bg: var(--primary-dark);
+  --bs-btn-hover-border-color: var(--primary-dark);
+  --bs-btn-active-bg: var(--primary-dark);
+  --bs-btn-active-border-color: var(--primary-dark);
+  --bs-btn-disabled-bg: var(--primary-color);
+  --bs-btn-disabled-border-color: var(--primary-color);
+  background: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
   color: #fff !important;
 }
 :root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn:hover,
 :root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn:focus,
 :root[data-ui-theme="golden_crust"] .product-details-bottom-cta.btn:active {
-  background: #b06f1f !important;
-  border-color: #b06f1f !important;
+  background: var(--primary-dark) !important;
+  border-color: var(--primary-dark) !important;
   color: #fff !important;
 }
 
@@ -1297,18 +1298,19 @@
 :root[data-ui-theme="golden_crust"] .client-surface .btn-primary,
 :root[data-ui-theme="golden_crust"] .client-content .btn-primary,
 :root[data-ui-theme="golden_crust"] .modal-content .btn-primary {
-  --bs-btn-bg: #d98a2b;
-  --bs-btn-border-color: #d98a2b;
+  --bs-btn-bg: var(--primary-color);
+  --bs-btn-border-color: var(--primary-color);
   --bs-btn-color: #ffffff;
-  --bs-btn-hover-bg: #b06f1f;
-  --bs-btn-hover-border-color: #b06f1f;
+  --bs-btn-hover-bg: var(--primary-dark);
+  --bs-btn-hover-border-color: var(--primary-dark);
   --bs-btn-hover-color: #ffffff;
-  --bs-btn-active-bg: #b06f1f;
-  --bs-btn-active-border-color: #b06f1f;
+  --bs-btn-active-bg: var(--primary-dark);
+  --bs-btn-active-border-color: var(--primary-dark);
   --bs-btn-active-color: #ffffff;
-  --bs-btn-disabled-bg: rgba(217, 138, 43, 0.55);
-  --bs-btn-disabled-border-color: rgba(217, 138, 43, 0.55);
+  --bs-btn-disabled-bg: var(--primary-color);
+  --bs-btn-disabled-border-color: var(--primary-color);
   --bs-btn-disabled-color: rgba(255, 255, 255, 0.75);
+  background: var(--primary-color);
   color: #ffffff;
 }
 
@@ -1692,7 +1694,7 @@ h6 {
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #475569, var(--primary-dark));
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
   border-color: rgba(71, 85, 105, 0.24);
 }
 
