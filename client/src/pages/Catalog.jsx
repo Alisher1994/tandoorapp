@@ -442,7 +442,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       setStorefrontOrderForm({ customer_name: '', customer_phone: '', delivery_address: '', comment: '' });
     } catch (err) {
       const message = err?.response?.data?.error || 'Не удалось отправить заказ. Попробуйте ещё раз.';
-      setStorefrontOrderError(String(message));
+      const code = err?.response?.data?.code;
+      setStorefrontOrderError(String(message) + (code ? ` (код: ${code})` : ''));
     } finally {
       setStorefrontOrderSubmitting(false);
     }
