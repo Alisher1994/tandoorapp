@@ -24,8 +24,8 @@ body::-webkit-scrollbar,
     --border-color: #d1d5db;
     --text-main: #111827;
     --text-muted: #6b7280;
-    --card-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
-    --card-shadow-lg: 0 22px 48px rgba(15, 23, 42, 0.14);
+    --card-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+    --card-shadow-lg: 0 8px 22px rgba(15, 23, 42, 0.07);
     --radius-md: 12px;
     --radius-lg: 16px;
     --admin-btn-height: 38px;
@@ -70,7 +70,7 @@ body::-webkit-scrollbar,
     z-index: 1050;
     overflow: hidden;
     isolation: isolate;
-    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
 }
 
 .admin-navbar .admin-navbar-container.container,
@@ -698,7 +698,7 @@ body::-webkit-scrollbar,
     background: #ffffff;
     border: 1px solid #d7dee8;
     border-radius: 12px;
-    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
     padding: 6px;
     z-index: 1300;
     max-height: 320px;
@@ -934,7 +934,7 @@ body::-webkit-scrollbar,
     background: rgba(255, 255, 255, 0.94);
     border: 1px solid #bdcbf1;
     border-radius: 18px;
-    box-shadow: 0 12px 30px rgba(71, 85, 105, 0.08);
+    box-shadow: 0 5px 14px rgba(71, 85, 105, 0.06);
     overflow: visible;
     position: relative;
     z-index: 8;
@@ -1318,7 +1318,7 @@ body::-webkit-scrollbar,
 
 .admin-sidebar-mobile-modal-content {
     border: 1px solid #d7e1fb !important;
-    border-radius: 24px !important;
+    border-radius: 18px !important;
     overflow: hidden;
     box-shadow: 0 24px 60px rgba(71, 85, 105, 0.18);
 }
@@ -1901,7 +1901,7 @@ body::-webkit-scrollbar,
     border: 1px solid rgba(148, 163, 184, 0.34);
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
     padding: 10px;
     display: flex;
     flex-direction: column;
@@ -2101,7 +2101,7 @@ body::-webkit-scrollbar,
 
 .admin-payment-accordion .accordion-item {
     border: 1px solid rgba(148, 163, 184, 0.24);
-    border-radius: 22px;
+    border-radius: 18px;
     overflow: hidden;
     background: #ffffff;
     box-shadow: none;
@@ -2489,7 +2489,7 @@ body::-webkit-scrollbar,
 .admin-help-list-item.is-active {
     border-color: #93c5fd;
     background: #eff6ff;
-    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.14);
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.1);
 }
 
 .admin-help-list-item.is-active::before {
@@ -2519,7 +2519,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-help-item-thumb-shell--table {
-    border-radius: 9px;
+    border-radius: 10px;
 }
 
 .admin-help-item-thumb-shell.is-empty {
@@ -3847,7 +3847,7 @@ body::-webkit-scrollbar,
     width: 24px;
     height: 24px;
     min-width: 24px;
-    border-radius: 7px;
+    border-radius: 8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -4606,7 +4606,7 @@ body::-webkit-scrollbar,
     justify-content: center;
     width: 24px;
     height: 24px;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 11px;
     font-weight: 800;
     background: #e2e8f0;
@@ -5107,7 +5107,7 @@ body::-webkit-scrollbar,
     min-width: 34px !important;
     min-height: 34px !important;
     padding: 0 !important;
-    border-radius: 9px !important;
+    border-radius: 10px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -5348,7 +5348,7 @@ body::-webkit-scrollbar,
 }
 
 .sa-telegram-check-item {
-    border-radius: 11px;
+    border-radius: 12px;
     border: 1px solid transparent;
     background: #ffffff;
     padding: 10px 12px;
@@ -5675,7 +5675,7 @@ body::-webkit-scrollbar,
     border-radius: 12px;
     border: 1px solid #dbe2ea;
     background: #ffffff;
-    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
     padding: 4px;
     overflow-x: hidden;
     scrollbar-width: thin;
@@ -5721,7 +5721,7 @@ body::-webkit-scrollbar,
     border-radius: 12px;
     border: 1px solid #dbe2ea;
     background: #ffffff;
-    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
     padding: 6px;
     overflow-x: hidden;
     scrollbar-width: thin;
@@ -6968,7 +6968,7 @@ body::-webkit-scrollbar,
     border-color: var(--primary-hover) !important;
     color: #ffffff !important;
     transform: translateY(-1px);
-    box-shadow: 0 8px 18px rgba(71, 85, 105, 0.2);
+    box-shadow: 0 4px 12px rgba(71, 85, 105, 0.1);
 }
 
 .action-btn {
@@ -7063,7 +7063,7 @@ body::-webkit-scrollbar,
     border: 1px solid rgba(255, 255, 255, 0.72);
     background: rgba(15, 23, 42, 0.58);
     color: #ffffff;
-    border-radius: 9px;
+    border-radius: 10px;
     height: 30px;
     min-height: 30px;
     padding: 0 12px;
@@ -7082,7 +7082,7 @@ body::-webkit-scrollbar,
     width: 30px;
     height: 30px;
     min-height: 30px;
-    border-radius: 9px;
+    border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.72) !important;
     background: rgba(185, 28, 28, 0.78) !important;
     color: #ffffff !important;
@@ -7840,7 +7840,7 @@ body::-webkit-scrollbar,
 /* Badges */
 .badge-custom {
     padding: 0.5em 0.8em;
-    border-radius: 6px;
+    border-radius: 8px;
     font-weight: 500;
 }
 
@@ -8993,7 +8993,7 @@ body::-webkit-scrollbar,
     width: min(100%, 334px);
     margin: 0 auto;
     background: #2f2f34;
-    border-radius: 28px;
+    border-radius: 18px;
     padding: 10px 8px 8px;
     display: flex;
     flex-direction: column;
@@ -9005,7 +9005,7 @@ body::-webkit-scrollbar,
 .admin-appearance-live-preview-viewport {
     flex: 1;
     min-height: 0;
-    border-radius: 20px;
+    border-radius: 18px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -9601,8 +9601,10 @@ body::-webkit-scrollbar,
 
 .admin-general-qr-head {
     display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
 }
 
 .admin-general-qr-preview {
@@ -9748,7 +9750,7 @@ body::-webkit-scrollbar,
 .admin-menu-mode-preview-visual {
     width: 100%;
     min-height: 44px;
-    border-radius: 9px;
+    border-radius: 10px;
     border: 1px solid #e2e8f0;
     background: #f8fafc;
     padding: 0.36rem;
@@ -9858,7 +9860,7 @@ body::-webkit-scrollbar,
 .admin-menu-mode-preview-visual.is-grid span,
 .admin-menu-mode-preview-visual.is-list span {
     display: block;
-    border-radius: 7px;
+    border-radius: 8px;
     background: #d8e0f4;
     min-height: 12px;
 }
@@ -9912,7 +9914,7 @@ body::-webkit-scrollbar,
 .admin-preview-category-image {
     width: 100%;
     aspect-ratio: 4 / 3;
-    border-radius: 9px;
+    border-radius: 10px;
     object-fit: cover;
     border: 1px solid rgba(148, 163, 184, 0.3);
     background: #fff;
@@ -9940,7 +9942,7 @@ body::-webkit-scrollbar,
     gap: 0.3rem;
     align-items: center;
     padding: 0.18rem 0.22rem;
-    border-radius: 9px;
+    border-radius: 10px;
     border: 1px solid rgba(148, 163, 184, 0.24);
     background: rgba(255, 255, 255, 0.92);
 }
@@ -10071,7 +10073,7 @@ body::-webkit-scrollbar,
 .admin-preview-category-live-image {
     width: 100%;
     aspect-ratio: 4 / 3;
-    border-radius: 11px;
+    border-radius: 12px;
     object-fit: cover;
     border: 1px solid rgba(148, 163, 184, 0.28);
     background: #fff;
@@ -10099,7 +10101,7 @@ body::-webkit-scrollbar,
 
 .admin-preview-live-card {
     border: 1px solid rgba(148, 163, 184, 0.26);
-    border-radius: 11px;
+    border-radius: 12px;
     overflow: hidden;
     background: #fff;
     position: relative;
@@ -10234,7 +10236,7 @@ body::-webkit-scrollbar,
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: center;
     padding: 0.2rem;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
 .admin-menu-glass-preview-item {
@@ -10310,8 +10312,10 @@ body::-webkit-scrollbar,
     scrollbar-width: thin;
     scrollbar-color: var(--primary-color) transparent;
 }
-.admin-theme-slots::-webkit-scrollbar { height: 7px; }
-.admin-theme-slots::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 999px; }
+.admin-theme-slots { scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.45) transparent; }
+.admin-theme-slots::-webkit-scrollbar { height: 4px; }
+.admin-theme-slots::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.45); border-radius: 999px; }
+.admin-theme-slots::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.6); }
 .admin-theme-slots::-webkit-scrollbar-track { background: transparent; }
 
 .admin-theme-slot {
@@ -10378,8 +10382,10 @@ body::-webkit-scrollbar,
     scrollbar-width: thin;
     scrollbar-color: var(--primary-color) transparent;
 }
-.admin-font-slots::-webkit-scrollbar { height: 7px; }
-.admin-font-slots::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 999px; }
+.admin-font-slots { scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.45) transparent; }
+.admin-font-slots::-webkit-scrollbar { height: 4px; }
+.admin-font-slots::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.45); border-radius: 999px; }
+.admin-font-slots::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.6); }
 .admin-font-slots::-webkit-scrollbar-track { background: transparent; }
 
 .admin-font-slot {
@@ -10922,7 +10928,7 @@ body::-webkit-scrollbar,
     color: #111111;
     font-size: 0.76rem;
     line-height: 1.25;
-    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
 .admin-container-help-trigger:hover .admin-container-help-tooltip,
@@ -11672,7 +11678,7 @@ div.form-select.admin-global-import-field {
     color: #1e293b;
     background: #f1f5f9;
     padding: 0.12rem 0.4rem;
-    border-radius: 6px;
+    border-radius: 8px;
     border: 1px solid #e2e8f0;
 }
 
@@ -11994,7 +12000,7 @@ div.form-select.admin-global-import-field {
 
 .admin-product-image-slot-variant-inline {
     padding: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     gap: 0.12rem;
     border: 0;
     background: transparent;
@@ -12010,7 +12016,7 @@ div.form-select.admin-global-import-field {
 .admin-product-image-dropzone-variant-inline {
     height: 36px;
     min-height: 36px;
-    border-radius: 7px;
+    border-radius: 8px;
     border-style: solid;
     border-color: rgba(148, 163, 184, 0.3);
     background: #ffffff;
@@ -12054,7 +12060,7 @@ div.form-select.admin-global-import-field {
     min-width: 36px;
     min-height: 36px;
     border: 1px solid rgba(148, 163, 184, 0.3);
-    border-radius: 7px;
+    border-radius: 8px;
     background: #ffffff;
     color: #475569;
     display: inline-flex;
@@ -12241,7 +12247,7 @@ div.form-select.admin-global-import-field {
     min-width: 22px;
     min-height: 22px;
     border: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     color: #64748b;
     display: inline-flex;
@@ -12269,7 +12275,7 @@ div.form-select.admin-global-import-field {
     border-radius: 10px;
     background: #ffffff;
     padding: 0.55rem 0.6rem;
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+    box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
 }
 
 .admin-product-sort-popup-list {
@@ -13177,7 +13183,7 @@ div.form-select.admin-global-import-field {
     width: 72px;
     height: 72px;
     flex: 0 0 72px;
-    border-radius: 20px;
+    border-radius: 18px;
     background: linear-gradient(135deg, #eef2ff, #dbeafe);
     overflow: hidden;
     border: 1px solid rgba(148, 163, 184, 0.24);
@@ -13720,7 +13726,7 @@ div.form-select.admin-global-import-field {
 .sa-founders-icon-btn {
     width: 34px;
     height: 34px;
-    border-radius: 6px;
+    border-radius: 8px;
     border: 1px solid #cfd9ee !important;
     background: #ffffff !important;
     color: #475569 !important;
@@ -13822,7 +13828,7 @@ div.form-select.admin-global-import-field {
 .admin-printer-token-code {
     background: #f1f5f9;
     border: 1px solid #dbe2ea;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 3px 8px;
     max-width: 180px;
     overflow: hidden;

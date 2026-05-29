@@ -15611,7 +15611,7 @@ function AdminDashboard() {
                               </div>
                             </div>
 
-                            <Accordion defaultActiveKey="payme" alwaysOpen className="admin-payment-accordion">
+                            <Accordion alwaysOpen className="admin-payment-accordion">
                               {paymentSystems.map((system) => (
                                 <Accordion.Item eventKey={system.key} key={system.key} className="admin-payment-accordion-item">
                                   <Accordion.Header>
