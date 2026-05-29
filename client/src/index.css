@@ -2478,6 +2478,23 @@ h6 {
   .product-details-reviews-section {
     padding: 0 14px;
   }
+  /* Sticky-фото (.product-details-hero, z-index:1) просвечивало сквозь секции
+     «Похожие товары» и «Отзывы», т.к. они шли ниже листа и не перекрывали фото.
+     Поднимаем их над фото (z-index:2) и делаем фон непрозрачным под цвет листа. */
+  .product-details-related-section,
+  .product-details-reviews-section {
+    position: relative;
+    z-index: 2;
+    background: #f3f4f6;
+  }
+  :root[data-ui-theme="verdant_glass"] .product-details-related-section,
+  :root[data-ui-theme="verdant_glass"] .product-details-reviews-section {
+    background: #0c2c1b;
+  }
+  :root[data-ui-theme="golden_crust"] .product-details-related-section,
+  :root[data-ui-theme="golden_crust"] .product-details-reviews-section {
+    background: #14100b;
+  }
 }
 
 /* Стрелки листания фото на главном изображении */
