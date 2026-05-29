@@ -1212,22 +1212,39 @@ router.post('/storefront-orders', async (req, res) => {
 
     // Итоговая сумма заказа = товары+упаковка + сервис + доставка − скидка.
     const grandTotal = Math.max(0, totalAmount + serviceFeeFinal + deliveryCostApplied - promoDiscount);
-    const orderNumber = String(Math.floor(10000 + Math.random() * 90000));
-    const orderInsert = await client.query(
-      `INSERT INTO orders
-        (restaurant_id, user_id, order_number, total_amount, delivery_address, delivery_coordinates,
-         customer_name, customer_phone, payment_method, payment_status, comment, status,
-         service_fee, delivery_cost, delivery_distance_km, delivery_date,
-         promo_code, promo_discount_amount)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 'unpaid', $9, 'new', $10, $11, $12, $13, $14, $15)
-       RETURNING *`,
-      [restaurantId, orderNumber, grandTotal, addressClean, coordinatesApplied, nameClean, phoneClean,
-       paymentMethod,
-       comment ? String(comment).slice(0, 1000) : null,
-       serviceFeeFinal, deliveryCostApplied, deliveryDistanceApplied, deliveryDate,
-       promoCodeApplied, promoDiscount]
-    );
-    const order = orderInsert.rows[0];
+    // order_number уникален глобально; короткий 6-значный случайный может совпасть
+    // с уже существующим (платформа накопила много заказов). Повторяем со SAVEPOINT
+    // при коллизии (23505), чтобы заказ не падал с «Ошибка создания заказа».
+    let order = null;
+    for (let attempt = 0; attempt < 8 && !order; attempt += 1) {
+      const orderNumber = String(Math.floor(100000 + Math.random() * 900000));
+      await client.query('SAVEPOINT ord_num');
+      try {
+        const orderInsert = await client.query(
+          `INSERT INTO orders
+            (restaurant_id, user_id, order_number, total_amount, delivery_address, delivery_coordinates,
+             customer_name, customer_phone, payment_method, payment_status, comment, status,
+             service_fee, delivery_cost, delivery_distance_km, delivery_date,
+             promo_code, promo_discount_amount)
+           VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 'unpaid', $9, 'new', $10, $11, $12, $13, $14, $15)
+           RETURNING *`,
+          [restaurantId, orderNumber, grandTotal, addressClean, coordinatesApplied, nameClean, phoneClean,
+           paymentMethod,
+           comment ? String(comment).slice(0, 1000) : null,
+           serviceFeeFinal, deliveryCostApplied, deliveryDistanceApplied, deliveryDate,
+           promoCodeApplied, promoDiscount]
+        );
+        order = orderInsert.rows[0];
+      } catch (insErr) {
+        await client.query('ROLLBACK TO SAVEPOINT ord_num');
+        if (insErr && insErr.code === '23505') continue; // коллизия номера — пробуем снова
+        throw insErr;
+      }
+    }
+    if (!order) {
+      await client.query('ROLLBACK');
+      return res.status(500).json({ error: 'Не удалось присвоить номер заказа, попробуйте ещё раз' });
+    }
 
     for (const it of normalizedItems) {
       const containerUnits = it.container_norm > 0 ? Math.ceil(it.quantity / it.container_norm) : 0;
@@ -1269,8 +1286,10 @@ router.post('/storefront-orders', async (req, res) => {
     });
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch (_) { /* no-op */ }
-    console.error('Storefront order create error:', error);
-    return res.status(500).json({ error: 'Ошибка создания заказа' });
+    console.error('Storefront order create error:', error?.code, error?.message, error?.detail, error);
+    // Код БД (напр. 23502/22003/42703) помогает диагностировать реальную причину
+    // без доступа к логам сервера; для клиента он безвреден.
+    return res.status(500).json({ error: 'Ошибка создания заказа', code: error?.code || null });
   } finally {
     client.release();
   }
