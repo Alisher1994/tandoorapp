@@ -176,7 +176,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
   const [isHeaderSearchOpen, setIsHeaderSearchOpen] = useState(false);
   const [showCatalogMenu, setShowCatalogMenu] = useState(false);
-  const [catalogMenuPath, setCatalogMenuPath] = useState([]); // путь категорий для drill-down в модалке
+  const [catalogMenuActiveL1, setCatalogMenuActiveL1] = useState(null); // активная категория 1-го уровня (раскрытая справа)
   const [catalogHeaderHeight, setCatalogHeaderHeight] = useState(56);
   const [catalogSearchPlaceholderPhraseIndex, setCatalogSearchPlaceholderPhraseIndex] = useState(0);
   const [catalogSearchPlaceholderCharIndex, setCatalogSearchPlaceholderCharIndex] = useState(0);
@@ -4578,7 +4578,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                 )}
                 <button
                   type="button"
-                  onClick={() => { setCatalogMenuPath([]); setShowCatalogMenu(true); }}
+                  onClick={() => { setCatalogMenuActiveL1(level1Categories[0]?.id ?? null); setShowCatalogMenu(true); }}
                   aria-label={language === 'uz' ? 'Katalog' : 'Каталог'}
                   title={language === 'uz' ? 'Katalog' : 'Каталог'}
                   className="client-catalog-menu-btn"
@@ -4964,96 +4964,129 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
         </div>
       </Navbar>
 
-      {/* Меню «Каталог» (веб) — модалка с пошаговым переходом по уровням категорий */}
-      {isDesktopViewport && (
-        <Modal
-          show={showCatalogMenu}
-          onHide={() => setShowCatalogMenu(false)}
-          centered
-          scrollable
-          dialogClassName="client-catalog-menu-dialog"
-        >
-          <Modal.Header closeButton style={{ background: catalogHeaderBackground }}>
-            <Modal.Title style={{ fontSize: '1.05rem', fontWeight: 700 }}>
-              {language === 'uz' ? 'Katalog' : 'Каталог'}
-            </Modal.Title>
-          </Modal.Header>
-          <Modal.Body style={{ padding: '14px 16px' }}>
-            {(() => {
-              const getChildren = (parentId) => (childrenByParent.get(parentId) || [])
-                .filter((category) => nonEmptyCategoryIds.has(category.id));
-              const currentParent = catalogMenuPath.length > 0
-                ? catalogMenuPath[catalogMenuPath.length - 1]
-                : null;
-              const currentCats = currentParent ? getChildren(currentParent.id) : level1Categories;
-              return (
-                <>
-                  {/* Хлебные крошки: Категория › Категория › … */}
-                  <div className="d-flex flex-wrap align-items-center mb-3" style={{ gap: 6, fontSize: '0.9rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => setCatalogMenuPath([])}
-                      className="client-catalog-menu-link"
-                      style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: catalogMenuPath.length === 0 ? '#0f172a' : '#64748b', fontWeight: catalogMenuPath.length === 0 ? 700 : 500 }}
-                    >
-                      {language === 'uz' ? 'Hammasi' : 'Все категории'}
-                    </button>
-                    {catalogMenuPath.map((node, idx) => (
-                      <span key={`crumb-${node.id}`} className="d-inline-flex align-items-center" style={{ gap: 6 }}>
-                        <span aria-hidden="true" style={{ color: '#94a3b8' }}>›</span>
+      {/* Меню «Каталог» (веб) — слой: слева категории 1-го уровня, справа подкатегории активной (по наведению) */}
+      {isDesktopViewport && showCatalogMenu && (() => {
+        const getChildren = (parentId) => (childrenByParent.get(parentId) || [])
+          .filter((category) => nonEmptyCategoryIds.has(category.id));
+        const activeL1 = level1Categories.find((c) => c.id === catalogMenuActiveL1) || level1Categories[0] || null;
+        const activeL2 = activeL1 ? getChildren(activeL1.id) : [];
+        return (
+          <>
+            <div
+              onClick={() => setShowCatalogMenu(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 1008, background: 'rgba(15, 23, 42, 0.28)' }}
+            />
+            <div style={{ position: 'fixed', top: catalogHeaderHeight, left: 0, right: 0, zIndex: 1009 }}>
+              <div className="px-3 mx-auto" style={{ maxWidth: isDesktopViewport ? 1440 : 1280 }}>
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: 16,
+                    boxShadow: '0 18px 44px rgba(15, 23, 42, 0.18)',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    marginTop: 8,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    maxHeight: '74vh'
+                  }}
+                >
+                  {/* Левая панель: категории 1-го уровня */}
+                  <div
+                    style={{
+                      width: 280,
+                      flex: '0 0 280px',
+                      borderRight: '1px solid rgba(148, 163, 184, 0.18)',
+                      background: catalogHeaderBackground,
+                      overflowY: 'auto',
+                      padding: '8px 0'
+                    }}
+                  >
+                    {level1Categories.length === 0 ? (
+                      <div className="text-muted px-3 py-2">{language === 'uz' ? 'Kategoriyalar yoʻq' : 'Категорий нет'}</div>
+                    ) : level1Categories.map((l1) => {
+                      const isActive = activeL1 && l1.id === activeL1.id;
+                      const hasChildren = getChildren(l1.id).length > 0;
+                      return (
                         <button
+                          key={`catmenu-l1-${l1.id}`}
                           type="button"
-                          onClick={() => setCatalogMenuPath(catalogMenuPath.slice(0, idx + 1))}
-                          className="client-catalog-menu-link"
-                          style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: idx === catalogMenuPath.length - 1 ? '#0f172a' : '#64748b', fontWeight: idx === catalogMenuPath.length - 1 ? 700 : 500 }}
+                          onMouseEnter={() => setCatalogMenuActiveL1(l1.id)}
+                          onClick={() => { if (hasChildren) { setCatalogMenuActiveL1(l1.id); } else { handleCatalogMenuSelect(l1.id); } }}
+                          className="w-100 d-flex align-items-center justify-content-between client-catalog-l1-item"
+                          style={{
+                            border: 'none',
+                            background: isActive ? '#ffffff' : 'transparent',
+                            padding: '11px 16px',
+                            cursor: 'pointer',
+                            fontSize: '0.95rem',
+                            fontWeight: isActive ? 600 : 500,
+                            color: isActive ? 'var(--primary-color, #2563eb)' : '#0f172a',
+                            textAlign: 'left',
+                            gap: 8
+                          }}
                         >
-                          {getCategoryName(node)}
+                          <span className="text-truncate">{getCategoryName(l1)}</span>
+                          {hasChildren && <span aria-hidden="true" style={{ color: '#94a3b8', flexShrink: 0 }}>›</span>}
                         </button>
-                      </span>
-                    ))}
+                      );
+                    })}
                   </div>
 
-                  {/* «Показать все товары» текущей категории */}
-                  {currentParent && (
-                    <button
-                      type="button"
-                      onClick={() => handleCatalogMenuSelect(currentParent.id)}
-                      className="w-100 d-flex align-items-center justify-content-between client-catalog-menu-row"
-                      style={{ border: '1px solid rgba(71,85,105,0.16)', background: 'transparent', borderRadius: 12, padding: '12px 14px', marginBottom: 10, cursor: 'pointer', fontWeight: 600, color: 'var(--primary-color, #2563eb)' }}
-                    >
-                      <span>{language === 'uz' ? `«${getCategoryName(currentParent)}» — barcha mahsulotlar` : `Все товары «${getCategoryName(currentParent)}»`}</span>
-                      <span aria-hidden="true">→</span>
-                    </button>
-                  )}
-
-                  {currentCats.length === 0 ? (
-                    <div className="text-muted py-2">{language === 'uz' ? 'Bu boʻlimda kategoriya yoʻq' : 'В этом разделе нет подкатегорий'}</div>
-                  ) : (
-                    <div className="d-flex flex-column" style={{ gap: 8 }}>
-                      {currentCats.map((cat) => {
-                        const children = getChildren(cat.id);
-                        const hasChildren = children.length > 0;
-                        return (
-                          <button
-                            key={`catmenu-row-${cat.id}`}
-                            type="button"
-                            onClick={() => { if (hasChildren) { setCatalogMenuPath([...catalogMenuPath, cat]); } else { handleCatalogMenuSelect(cat.id); } }}
-                            className="w-100 d-flex align-items-center justify-content-between client-catalog-menu-row"
-                            style={{ border: '1px solid rgba(148,163,184,0.2)', background: '#fff', borderRadius: 12, padding: '12px 14px', cursor: 'pointer', fontWeight: 600, color: '#0f172a', textAlign: 'left' }}
-                          >
-                            <span>{getCategoryName(cat)}</span>
-                            {hasChildren && <span aria-hidden="true" style={{ color: '#94a3b8' }}>›</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </Modal.Body>
-        </Modal>
-      )}
+                  {/* Правая панель: подкатегории активной категории 1-го уровня */}
+                  <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '20px 24px' }}>
+                    {activeL1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleCatalogMenuSelect(activeL1.id)}
+                        className="client-catalog-menu-link d-inline-flex align-items-center mb-3"
+                        style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontSize: '1.15rem', fontWeight: 700, color: '#0f172a', gap: 6 }}
+                      >
+                        {getCategoryName(activeL1)}
+                        <span aria-hidden="true" style={{ color: '#94a3b8', fontSize: '1rem' }}>›</span>
+                      </button>
+                    )}
+                    {activeL2.length === 0 ? (
+                      <div className="text-muted">{language === 'uz' ? 'Ichki kategoriyalar yoʻq' : 'Нет подкатегорий'}</div>
+                    ) : (
+                      <div style={{ columnWidth: 240, columnGap: 28 }}>
+                        {activeL2.map((l2) => {
+                          const l3 = getChildren(l2.id);
+                          return (
+                            <div key={`catmenu-l2-${l2.id}`} style={{ breakInside: 'avoid', marginBottom: 22 }}>
+                              <button
+                                type="button"
+                                onClick={() => handleCatalogMenuSelect(l2.id)}
+                                style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', textAlign: 'left', marginBottom: l3.length > 0 ? 8 : 0, display: 'block' }}
+                              >
+                                {getCategoryName(l2)}
+                              </button>
+                              {l3.length > 0 && (
+                                <div className="d-flex flex-column" style={{ gap: 6 }}>
+                                  {l3.map((leaf) => (
+                                    <button
+                                      key={`catmenu-l3-${leaf.id}`}
+                                      type="button"
+                                      onClick={() => handleCatalogMenuSelect(leaf.id)}
+                                      className="client-catalog-menu-link"
+                                      style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontSize: '0.88rem', color: '#64748b', textAlign: 'left' }}
+                                    >
+                                      {getCategoryName(leaf)}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {renderCatalogSeasonOverlay()}
 
