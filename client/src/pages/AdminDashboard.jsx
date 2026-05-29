@@ -86,7 +86,8 @@ const UI_THEME_VALUES = new Set([
   'violet_wave',
   'rainbow',
   'verdant_glass',
-  'golden_crust'
+  'golden_crust',
+  'light_gray'
 ]);
 const UI_THEME_OPTIONS = [
   { value: 'classic', label: 'Текущий (Classic)', preview: ['#64748b', '#475569', '#334155'] },
@@ -98,8 +99,33 @@ const UI_THEME_OPTIONS = [
   { value: 'violet_wave', label: 'Violet Wave (фиолетовый)', preview: ['#8b5cf6', '#6d28d9', '#22d3ee'] },
   { value: 'rainbow', label: 'Rainbow (радужный)', preview: ['#3b82f6', '#f97316', '#8b5cf6'] },
   { value: 'verdant_glass', label: 'Verdant Glass (стеклянный лес)', preview: ['#0d2e1c', '#1f6f4a', '#2dd4bf'] },
-  { value: 'golden_crust', label: 'Golden Crust (тёплый люкс)', preview: ['#0f0c08', '#241810', '#e0962f'] }
+  { value: 'golden_crust', label: 'Golden Crust (тёплый люкс)', preview: ['#0f0c08', '#241810', '#e0962f'] },
+  { value: 'light_gray', label: 'Light Gray (мягкий светло-серый)', preview: ['#eef0f3', '#cbd2da', '#64748b'] }
 ];
+// Стоковый основной цвет каждой темы (= --primary-color в index.css). Используется
+// как значение по умолчанию для палитры и для сброса при смене темы.
+const UI_THEME_STOCK_PRIMARY = Object.freeze({
+  classic: '#475569',
+  modern: '#0f766e',
+  talablar_blue: '#4f46e5',
+  mint_fresh: '#0f766e',
+  sunset_pop: '#ea580c',
+  berry_blast: '#be185d',
+  violet_wave: '#6d28d9',
+  rainbow: '#2563eb',
+  verdant_glass: '#0d9488',
+  golden_crust: '#d98a2b',
+  light_gray: '#64748b'
+});
+// Палитра удобного выбора основного цвета.
+const UI_PRIMARY_COLOR_PRESETS = [
+  '#475569', '#0f766e', '#0891b2', '#2563eb', '#4f46e5', '#7c3aed',
+  '#db2777', '#e11d48', '#ea580c', '#d97706', '#16a34a', '#111827'
+];
+const normalizeUiPrimaryColorValue = (value) => {
+  const s = String(value || '').trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(s) ? s : null;
+};
 const UI_FONT_FAMILY_VALUES = new Set([
   'sans',
   'inter',
@@ -233,7 +259,8 @@ const APPEARANCE_PREVIEW_THEME_TOKENS = Object.freeze({
   violet_wave: { bgStart: '#f2ecff', bgEnd: '#f8f5ff', accent: '#6d28d9', accentSoft: '#ddd6fe' },
   rainbow: { bgStart: '#edf4ff', bgEnd: '#fff7ef', accent: '#2563eb', accentSoft: '#bfdbfe' },
   verdant_glass: { bgStart: '#0d2e1c', bgEnd: '#082417', accent: '#2dd4bf', accentSoft: 'rgba(45, 212, 191, 0.22)' },
-  golden_crust: { bgStart: '#0f0c08', bgEnd: '#0a0805', accent: '#e0962f', accentSoft: 'rgba(217, 138, 43, 0.22)' }
+  golden_crust: { bgStart: '#0f0c08', bgEnd: '#0a0805', accent: '#e0962f', accentSoft: 'rgba(217, 138, 43, 0.22)' },
+  light_gray: { bgStart: '#f7f8fa', bgEnd: '#e4e7ec', accent: '#64748b', accentSoft: '#e2e6ea' }
 });
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -871,6 +898,7 @@ const buildRestaurantSettingsSignature = (settings) => {
     msg_delivering: normalizeSettingsText(settings.msg_delivering),
     msg_delivered: normalizeSettingsText(settings.msg_delivered),
     msg_cancelled: normalizeSettingsText(settings.msg_cancelled),
+    ui_primary_color: normalizeUiPrimaryColorValue(settings.ui_primary_color) || '',
     payment_placeholders: normalizedPlaceholders,
     store_ad_banners: (Array.isArray(settings.store_ad_banners) ? settings.store_ad_banners : []).map((b) => ({
       image_url: normalizeSettingsText(b?.image_url),
@@ -2779,13 +2807,14 @@ function AdminDashboard() {
   const appearancePreviewOpenedProduct = useMemo(() => (
     appearancePreviewProducts.find((item) => Number(item.id) === Number(appearancePreviewOpenedProductId)) || null
   ), [appearancePreviewProducts, appearancePreviewOpenedProductId]);
+  const appearancePreviewCustomPrimary = normalizeUiPrimaryColorValue(restaurantSettings?.ui_primary_color);
   const appearancePreviewRootStyle = useMemo(() => ({
     '--appearance-preview-bg-start': appearancePreviewTheme.bgStart,
     '--appearance-preview-bg-end': appearancePreviewTheme.bgEnd,
-    '--appearance-preview-accent': appearancePreviewTheme.accent,
+    '--appearance-preview-accent': appearancePreviewCustomPrimary || appearancePreviewTheme.accent,
     '--appearance-preview-accent-soft': appearancePreviewTheme.accentSoft,
     fontFamily: appearancePreviewFontFamily
-  }), [appearancePreviewTheme, appearancePreviewFontFamily]);
+  }), [appearancePreviewTheme, appearancePreviewFontFamily, appearancePreviewCustomPrimary]);
   useEffect(() => {
     if (!appearancePreviewNavItems.length) return;
     if (!appearancePreviewNavItems.some((item) => item.key === appearancePreviewActiveTab)) {
@@ -14214,7 +14243,7 @@ function AdminDashboard() {
                                           role="radio"
                                           aria-checked={isActive}
                                           className={`admin-theme-slot${isActive ? ' is-active' : ''}`}
-                                          onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_theme: themeOption.value })}
+                                          onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_theme: themeOption.value, ui_primary_color: null })}
                                         >
                                           <span
                                             className="admin-theme-slot-preview"
@@ -14232,6 +14261,78 @@ function AdminDashboard() {
                                   <Form.Text className="text-muted d-block mt-2">
                                     Выбранный стиль применяется к вашей админке и клиентской части этого магазина.
                                   </Form.Text>
+                                </Form.Group>
+                              </div>
+
+                              <div className="admin-settings-surface-block">
+                                <Form.Group className="mb-0">
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">Основной цвет (кнопки, акценты)</Form.Label>
+                                  {(() => {
+                                    const themeKey = normalizeUiTheme(restaurantSettings.ui_theme, 'classic');
+                                    const stockColor = UI_THEME_STOCK_PRIMARY[themeKey] || '#475569';
+                                    const customColor = normalizeUiPrimaryColorValue(restaurantSettings.ui_primary_color);
+                                    const effectiveColor = customColor || stockColor;
+                                    const isStock = !customColor;
+                                    return (
+                                      <>
+                                        <div className="d-flex flex-wrap align-items-center gap-2">
+                                          {UI_PRIMARY_COLOR_PRESETS.map((preset) => {
+                                            const active = effectiveColor.toLowerCase() === preset.toLowerCase();
+                                            return (
+                                              <button
+                                                key={preset}
+                                                type="button"
+                                                aria-label={preset}
+                                                title={preset}
+                                                onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_primary_color: preset })}
+                                                style={{
+                                                  width: 30,
+                                                  height: 30,
+                                                  borderRadius: '50%',
+                                                  background: preset,
+                                                  border: active ? '3px solid #0f172a' : '2px solid rgba(15,23,42,0.15)',
+                                                  boxShadow: active ? '0 0 0 2px #fff inset' : 'none',
+                                                  cursor: 'pointer',
+                                                  padding: 0
+                                                }}
+                                              />
+                                            );
+                                          })}
+                                          <label
+                                            className="d-inline-flex align-items-center gap-1"
+                                            style={{ cursor: 'pointer', marginLeft: 4 }}
+                                            title="Свой цвет из палитры"
+                                          >
+                                            <input
+                                              type="color"
+                                              value={effectiveColor}
+                                              onChange={(e) => setRestaurantSettings({ ...restaurantSettings, ui_primary_color: String(e.target.value || '').toLowerCase() })}
+                                              style={{ width: 34, height: 30, border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}
+                                            />
+                                            <span className="small text-muted">Свой</span>
+                                          </label>
+                                        </div>
+                                        <div className="d-flex align-items-center gap-2 mt-2">
+                                          <span className="small text-muted">
+                                            {isStock ? `Стоковый цвет темы (${stockColor})` : `Выбран: ${customColor}`}
+                                          </span>
+                                          {!isStock && (
+                                            <Button
+                                              variant="link"
+                                              size="sm"
+                                              className="p-0 text-decoration-none"
+                                              onClick={() => setRestaurantSettings({ ...restaurantSettings, ui_primary_color: null })}
+                                            >
+                                              Сбросить к стоковому
+                                            </Button>
+                                          )}
+                                        </div>
+                                        <Form.Text className="text-muted d-block mt-1">
+                                          Цвет применяется к кнопкам и основным акцентам витрины. Фон задаётся темой и не меняется. При смене темы цвет сбрасывается на стоковый.
+                                        </Form.Text>
+                                      </>
+                                    );
+                                  })()}
                                 </Form.Group>
                               </div>
 

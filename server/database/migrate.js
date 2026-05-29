@@ -118,7 +118,8 @@ async function migrate() {
       'is_scheduled_time_delivery_enabled BOOLEAN DEFAULT true',
       'is_operator_delivery_later_enabled BOOLEAN DEFAULT false',
       'promo_codes_enabled BOOLEAN DEFAULT false',
-      `store_ad_banners JSONB NOT NULL DEFAULT '[]'::jsonb`
+      `store_ad_banners JSONB NOT NULL DEFAULT '[]'::jsonb`,
+      'ui_primary_color VARCHAR(9)'
     ];
 
     for (const col of restaurantColumns) {
@@ -273,7 +274,7 @@ async function migrate() {
     await client.query(`
       ALTER TABLE restaurants
       ADD CONSTRAINT restaurants_ui_theme_check
-      CHECK (ui_theme IN ('classic', 'modern', 'talablar_blue', 'mint_fresh', 'sunset_pop', 'berry_blast', 'violet_wave', 'rainbow', 'verdant_glass', 'golden_crust'))
+      CHECK (ui_theme IN ('classic', 'modern', 'talablar_blue', 'mint_fresh', 'sunset_pop', 'berry_blast', 'violet_wave', 'rainbow', 'verdant_glass', 'golden_crust', 'light_gray'))
     `).catch(() => {});
     await client.query(`
       ALTER TABLE restaurants

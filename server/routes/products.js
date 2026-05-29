@@ -22,13 +22,19 @@ const UI_THEME_VALUES = new Set([
   'violet_wave',
   'rainbow',
   'verdant_glass',
-  'golden_crust'
+  'golden_crust',
+  'light_gray'
 ]);
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (UI_THEME_VALUES.has(normalized)) return normalized;
   const normalizedFallback = String(fallback || '').trim().toLowerCase();
   return UI_THEME_VALUES.has(normalizedFallback) ? normalizedFallback : 'classic';
+};
+// Кастомный основной цвет магазина: валидный #rrggbb или null (значит — стоковый цвет темы).
+const normalizeUiPrimaryColor = (value) => {
+  const s = String(value || '').trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(s) ? s : null;
 };
 const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us']);
 const normalizeRestaurantCurrencyCode = (value, fallback = 'uz') => {
@@ -1278,7 +1284,7 @@ router.get('/storefront-resolve/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Витрина не найдена' });
     }
     const result = await pool.query(
-      `SELECT id, name, logo_url, ui_theme, ui_font_family, COALESCE(is_active, true) AS is_active
+      `SELECT *
        FROM restaurants
        WHERE LOWER(slug) = $1
        LIMIT 1`,
@@ -1297,7 +1303,8 @@ router.get('/storefront-resolve/:slug', async (req, res) => {
       slug: normalized,
       logo_url: String(row.logo_url || ''),
       ui_theme: String(row.ui_theme || 'classic').trim().toLowerCase(),
-      ui_font_family: String(row.ui_font_family || 'sans').trim().toLowerCase()
+      ui_font_family: String(row.ui_font_family || 'sans').trim().toLowerCase(),
+      ui_primary_color: normalizeUiPrimaryColor(row.ui_primary_color)
     });
   } catch (error) {
     console.error('Storefront resolve error:', error);
@@ -1383,6 +1390,7 @@ router.get('/restaurant/:id', async (req, res) => {
       logo_url: r.logo_url,
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: normalizeUiTheme(r.ui_theme, 'classic'),
+      ui_primary_color: normalizeUiPrimaryColor(r.ui_primary_color),
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       catalog_card_mode: normalizeCatalogCardMode(r.catalog_card_mode, 'wide'),
       menu_liquid_glass_enabled: normalizeBooleanFlag(r.menu_liquid_glass_enabled, false),
@@ -2332,6 +2340,7 @@ router.get('/restaurants/list', async (req, res) => {
       logo_url: r.logo_url,
       logo_display_mode: r.logo_display_mode || 'square',
       ui_theme: normalizeUiTheme(r.ui_theme, 'classic'),
+      ui_primary_color: normalizeUiPrimaryColor(r.ui_primary_color),
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       catalog_card_mode: normalizeCatalogCardMode(r.catalog_card_mode, 'wide'),
       menu_liquid_glass_enabled: normalizeBooleanFlag(r.menu_liquid_glass_enabled, false),

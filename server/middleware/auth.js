@@ -11,7 +11,8 @@ const UI_THEME_VALUES = new Set([
   'violet_wave',
   'rainbow',
   'verdant_glass',
-  'golden_crust'
+  'golden_crust',
+  'light_gray'
 ]);
 const normalizeUiTheme = (value, fallback = 'classic') => {
   const normalized = String(value || '').trim().toLowerCase();

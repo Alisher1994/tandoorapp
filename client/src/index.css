@@ -180,6 +180,30 @@
   --bs-secondary: #f97316;
 }
 
+/* Light Gray — мягкий светло-серый фон, белые карточки, нейтральный акцент.
+   Стоковый основной цвет можно переопределить вручную (ui_primary_color). */
+:root[data-ui-theme="light_gray"] {
+  --primary-color: #64748b;
+  --primary-dark: #475569;
+  --primary-light: #94a3b8;
+  --accent-color: #94a3b8;
+  --accent-soft: #eef1f4;
+  --background-color: #eef0f3;
+  --app-shell-background:
+    radial-gradient(circle at 16% 8%, rgba(100, 116, 139, 0.08), transparent 44%),
+    radial-gradient(circle at 84% 16%, rgba(148, 163, 184, 0.08), transparent 40%),
+    linear-gradient(180deg, #f7f8fa 0%, var(--background-color) 55%, #e4e7ec 100%);
+  --surface-color: #ffffff;
+  --text-color: #1f2937;
+  --text-secondary: #6b7280;
+  --border-color: #e2e6ea;
+  --shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+  --shadow-hover: 0 18px 42px rgba(15, 23, 42, 0.12);
+  --bs-primary: #64748b;
+  --bs-primary-rgb: 100, 116, 139;
+  --bs-secondary: #94a3b8;
+}
+
 /* Verdant Glass — тёмно-зелёный фон + матовое стекло на карточках, белый текст.
    Применяется к публичной витрине (.client-surface) и WebApp-корзине (.client-content). */
 :root[data-ui-theme="verdant_glass"] {
