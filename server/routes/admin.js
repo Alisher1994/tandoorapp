@@ -426,10 +426,12 @@ const normalizeStoreAdBanners = (value) => {
   return arr
     .map((item) => {
       const image = String(item?.image_url || '').trim();
-      if (!image) return null;
+      const imageMobile = String(item?.image_url_mobile || '').trim();
+      if (!image && !imageMobile) return null;
       const effect = String(item?.transition_effect || 'fade').toLowerCase();
       return {
         image_url: image.slice(0, 1000),
+        image_url_mobile: imageMobile.slice(0, 1000),
         target_url: String(item?.target_url || '').trim().slice(0, 1000),
         transition_effect: STORE_AD_BANNER_EFFECTS.has(effect) ? effect : 'fade',
         enabled: item?.enabled !== false,
