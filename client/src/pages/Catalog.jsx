@@ -3415,7 +3415,11 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
             }}
           >
             <img
-              src={resolveImageUrl(banner.image_url)}
+              src={resolveImageUrl(
+                isDesktopViewport
+                  ? (banner.image_url || banner.image_url_mobile)
+                  : (banner.image_url_mobile || banner.image_url)
+              )}
               alt={banner.title || 'Реклама'}
               style={{
                 width: '100%',

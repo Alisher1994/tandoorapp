@@ -1517,15 +1517,18 @@ router.get('/ads-banners', async (req, res) => {
     }
     const STORE_AD_EFFECTS = new Set(['none', 'fade', 'slide']);
     const storeBanners = (Array.isArray(storeAdBannersRaw) ? storeAdBannersRaw : [])
-      .filter((b) => b && b.enabled !== false && String(b.image_url || '').trim())
+      .filter((b) => b && b.enabled !== false && (String(b.image_url || '').trim() || String(b.image_url_mobile || '').trim()))
       .slice(0, 8)
       .map((b, idx) => {
         const link = String(b.target_url || '').trim();
         const effect = String(b.transition_effect || 'fade').toLowerCase();
+        const wide = String(b.image_url || '').trim();
+        const mobile = String(b.image_url_mobile || '').trim();
         return {
           id: `store-${idx}`,
           title: String(b.title || '').slice(0, 200),
-          image_url: b.image_url,
+          image_url: wide || mobile,
+          image_url_mobile: mobile || wide,
           button_text: 'Открыть',
           ad_type: 'banner',
           slot_order: idx + 1,

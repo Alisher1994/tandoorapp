@@ -38,6 +38,7 @@ import YandexAnalyticsMap from '../components/YandexAnalyticsMap';
 import { AdminDashboardSkeleton, ListSkeleton, TableSkeleton } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 import HeaderGlowBackground from '../components/HeaderGlowBackground';
+import BannerCropModal from '../components/BannerCropModal';
 import ShowcaseBuilder from './ShowcaseBuilder';
 import {
   getLeafletTileLayerConfig,
@@ -902,6 +903,7 @@ const buildRestaurantSettingsSignature = (settings) => {
     payment_placeholders: normalizedPlaceholders,
     store_ad_banners: (Array.isArray(settings.store_ad_banners) ? settings.store_ad_banners : []).map((b) => ({
       image_url: normalizeSettingsText(b?.image_url),
+      image_url_mobile: normalizeSettingsText(b?.image_url_mobile),
       target_url: normalizeSettingsText(b?.target_url),
       transition_effect: String(b?.transition_effect || 'fade').trim().toLowerCase(),
       enabled: normalizeSettingsBoolean(b?.enabled, true),
@@ -2087,6 +2089,8 @@ function AdminDashboard() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
   const [uploadingStoreBannerIndex, setUploadingStoreBannerIndex] = useState(null);
+  const [bannerCrop, setBannerCrop] = useState({ open: false, index: -1, target: 'desktop', file: null, src: '' });
+  const [bannerCropBusy, setBannerCropBusy] = useState(false);
   const [alertMessage, setAlertMessage] = useState({ type: '', text: '' });
   const [restaurantIdentityAvailability, setRestaurantIdentityAvailability] = useState({
     loading: false,
@@ -7839,36 +7843,60 @@ function AdminDashboard() {
     [list[index], list[target]] = [list[target], list[index]];
     setStoreAdBanners(list);
   };
-  const handleStoreAdBannerImageUpload = async (index, e) => {
+  // Выбор файла открывает модалку кадрирования (для ПК или мобильного слота).
+  const pickStoreAdBannerImage = (index, target, e) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     if (!file.type?.startsWith('image/')) {
       setAlertMessage({ type: 'warning', text: 'Можно загружать только изображения' });
-      e.target.value = '';
       return;
     }
     if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
       setAlertMessage({ type: 'warning', text: 'Файл слишком большой. Максимум 12MB' });
-      e.target.value = '';
       return;
     }
+    if (bannerCrop.src) { try { URL.revokeObjectURL(bannerCrop.src); } catch (_) { /* noop */ } }
+    setBannerCrop({ open: true, index, target, file, src: URL.createObjectURL(file) });
+  };
+
+  const uploadStoreAdBannerImage = async (index, target, fileOrBlob, fileName = 'banner.jpg') => {
     setUploadingStoreBannerIndex(index);
+    setBannerCropBusy(true);
     try {
       const formData = new FormData();
-      formData.append('image', file);
+      formData.append('image', fileOrBlob, fileName);
       const response = await axios.post(`${API_URL}/upload/image`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       const imageUrl = toAbsoluteFileUrl(response.data?.url || response.data?.imageUrl);
-      updateStoreAdBanner(index, { image_url: imageUrl });
+      updateStoreAdBanner(index, target === 'mobile' ? { image_url_mobile: imageUrl } : { image_url: imageUrl });
       setAlertMessage({ type: 'success', text: 'Картинка баннера загружена. Нажмите "Сохранить изменения".' });
+      return true;
     } catch (error) {
       console.error('Store banner upload error:', error);
       setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка загрузки картинки' });
+      return false;
     } finally {
       setUploadingStoreBannerIndex(null);
-      e.target.value = '';
+      setBannerCropBusy(false);
     }
+  };
+
+  const closeBannerCrop = () => {
+    if (bannerCrop.src) { try { URL.revokeObjectURL(bannerCrop.src); } catch (_) { /* noop */ } }
+    setBannerCrop({ open: false, index: -1, target: 'desktop', file: null, src: '' });
+  };
+  const confirmBannerCrop = async (blob) => {
+    const { index, target } = bannerCrop;
+    const ok = await uploadStoreAdBannerImage(index, target, blob, 'banner.jpg');
+    if (ok) closeBannerCrop();
+  };
+  const useBannerImageAsIs = async () => {
+    const { index, target, file } = bannerCrop;
+    if (!file) { closeBannerCrop(); return; }
+    const ok = await uploadStoreAdBannerImage(index, target, file, file.name || 'banner.jpg');
+    if (ok) closeBannerCrop();
   };
 
   const applyUpdatedCategoryImageCategory = useCallback((updatedCategory) => {
@@ -14969,11 +14997,13 @@ function AdminDashboard() {
                                   <div key={idx} className="border rounded-4 p-3">
                                     <Row className="g-3 align-items-start">
                                       <Col md={4}>
+                                        {/* Слот ПК (широкий) */}
+                                        <div className="small fw-bold text-muted text-uppercase mb-1" style={{ fontSize: '0.7rem' }}>Для ПК (широкий)</div>
                                         <div
                                           style={{
                                             width: '100%',
-                                            aspectRatio: '3 / 1',
-                                            borderRadius: 12,
+                                            aspectRatio: '4 / 1',
+                                            borderRadius: 10,
                                             overflow: 'hidden',
                                             background: '#f1f5f9',
                                             display: 'flex',
@@ -14985,21 +15015,58 @@ function AdminDashboard() {
                                           {banner.image_url ? (
                                             <img
                                               src={toAbsoluteFileUrl(banner.image_url)}
-                                              alt={banner.title || 'Баннер'}
+                                              alt={banner.title || 'Баннер ПК'}
                                               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                                             />
                                           ) : (
-                                            <span className="text-muted small"><i className="bi bi-image fs-4" /></span>
+                                            <span className="text-muted small"><i className="bi bi-image fs-5" /></span>
                                           )}
                                         </div>
                                         <Form.Control
                                           type="file"
                                           accept="image/*"
                                           size="sm"
-                                          className="mt-2"
+                                          className="mt-1"
                                           disabled={uploadingStoreBannerIndex === idx}
-                                          onChange={(e) => handleStoreAdBannerImageUpload(idx, e)}
+                                          onChange={(e) => pickStoreAdBannerImage(idx, 'desktop', e)}
                                         />
+
+                                        {/* Слот мобильный */}
+                                        <div className="small fw-bold text-muted text-uppercase mb-1 mt-3" style={{ fontSize: '0.7rem' }}>Для мобильных</div>
+                                        <div
+                                          style={{
+                                            width: '70%',
+                                            aspectRatio: '1.8 / 1',
+                                            borderRadius: 10,
+                                            overflow: 'hidden',
+                                            background: '#f1f5f9',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            border: '1px solid rgba(71,85,105,0.18)'
+                                          }}
+                                        >
+                                          {banner.image_url_mobile ? (
+                                            <img
+                                              src={toAbsoluteFileUrl(banner.image_url_mobile)}
+                                              alt={banner.title || 'Баннер моб.'}
+                                              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                                            />
+                                          ) : (
+                                            <span className="text-muted small"><i className="bi bi-phone fs-5" /></span>
+                                          )}
+                                        </div>
+                                        <Form.Control
+                                          type="file"
+                                          accept="image/*"
+                                          size="sm"
+                                          className="mt-1"
+                                          disabled={uploadingStoreBannerIndex === idx}
+                                          onChange={(e) => pickStoreAdBannerImage(idx, 'mobile', e)}
+                                        />
+                                        <div className="small text-muted mt-1" style={{ fontSize: '0.72rem' }}>
+                                          Если мобильное фото не задано — покажем фото для ПК.
+                                        </div>
                                         {uploadingStoreBannerIndex === idx && (
                                           <div className="small text-muted mt-1">Загрузка...</div>
                                         )}
@@ -15091,6 +15158,16 @@ function AdminDashboard() {
                           </Card.Body>
                         </Card>
                       )}
+
+                      <BannerCropModal
+                        show={bannerCrop.open}
+                        src={bannerCrop.src}
+                        mode={bannerCrop.target}
+                        busy={bannerCropBusy}
+                        onCancel={closeBannerCrop}
+                        onConfirm={confirmBannerCrop}
+                        onUseAsIs={useBannerImageAsIs}
+                      />
 
                       {settingsTab === 'category_images' && (
                         <Card className="admin-settings-card border-0 rounded-4 overflow-hidden">
