@@ -2186,6 +2186,8 @@ h6 {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
+  position: relative;
+  z-index: 6;
 }
 
 .product-details-bottom-stepper button {
@@ -2194,6 +2196,10 @@ h6 {
   font-size: 22px;
   color: #334155;
   line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
 }
 
 .product-details-bottom-stepper span {

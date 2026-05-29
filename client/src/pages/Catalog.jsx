@@ -5844,7 +5844,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             <button
                               type="button"
                               className="btn btn-sm p-0 border-0 bg-transparent"
-                              onClick={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant)}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant); }}
                               aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
                             >−</button>
                             <span>{formatQuantity(activeProductQty)}</span>
@@ -5853,12 +5853,12 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                               className="btn btn-sm p-0 border-0 bg-transparent"
                               style={{ opacity: activeProductIsAtStockLimit ? 0.45 : 1 }}
                               disabled={activeProductIsAtStockLimit}
-                              onClick={() => updateProductQuantityWithinStock(
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateProductQuantityWithinStock(
                                 activeProduct,
                                 activeProductQty,
                                 activeProductQuantityStep,
                                 activeProductSelectedVariant
-                              )}
+                              ); }}
                               aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
                             >+</button>
                           </div>
@@ -6180,7 +6180,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                           <button
                             type="button"
                             className="btn btn-sm p-0 border-0 bg-transparent"
-                            onClick={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant)}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant); }}
                             aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
                           >
                             −
@@ -6191,12 +6191,12 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             className="btn btn-sm p-0 border-0 bg-transparent"
                             style={{ opacity: activeProductIsAtStockLimit ? 0.45 : 1 }}
                             disabled={activeProductIsAtStockLimit}
-                            onClick={() => updateProductQuantityWithinStock(
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateProductQuantityWithinStock(
                               activeProduct,
                               activeProductQty,
                               activeProductQuantityStep,
                               activeProductSelectedVariant
-                            )}
+                            ); }}
                             aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
                           >
                             +
