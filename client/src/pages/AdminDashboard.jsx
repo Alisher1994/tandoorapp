@@ -18828,7 +18828,7 @@ function AdminDashboard() {
                                                 />
                                               </Col>
                                               {restaurantSettings?.product_field_description_enabled !== false && (
-                                              <Col xl={2} md={6} className="admin-variant-table-col">
+                                              <Col xl={2} md={6} className="admin-variant-table-col admin-variant-col-description-ru">
                                                 <Form.Label className="admin-variant-field-label">Описание RU</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18840,7 +18840,7 @@ function AdminDashboard() {
                                               </Col>
                                               )}
                                               {restaurantSettings?.product_field_description_enabled !== false && (
-                                              <Col xl={2} md={6} className="admin-variant-table-col">
+                                              <Col xl={2} md={6} className="admin-variant-table-col admin-variant-col-description-uz">
                                                 <Form.Label className="admin-variant-field-label">Описание UZ</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18907,7 +18907,7 @@ function AdminDashboard() {
                                                 )}
                                               </Col>
                                               {restaurantSettings?.product_field_barcode_enabled !== false && (
-                                              <Col xl={3} md={6} className="admin-variant-table-col">
+                                              <Col xl={3} md={6} className="admin-variant-table-col admin-variant-col-barcode">
                                                 <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18920,7 +18920,7 @@ function AdminDashboard() {
                                               </Col>
                                               )}
                                               {restaurantSettings?.product_field_ikpu_enabled !== false && (
-                                              <Col xl={2} md={6} className="admin-variant-table-col">
+                                              <Col xl={2} md={6} className="admin-variant-table-col admin-variant-col-ikpu">
                                                 <Form.Label className="admin-variant-field-label">ИКПУ</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"

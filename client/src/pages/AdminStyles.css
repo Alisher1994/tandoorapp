@@ -14073,14 +14073,24 @@ div.form-select.admin-global-import-field {
     flex: 1 1 200px; max-width: none; width: auto; padding: 0 !important;
 }
 .admin-variant-row .admin-variant-row-number { font-weight: 700; color: #0f172a; }
-.admin-variant-row .admin-variant-col-name { flex: 2 1 360px !important; }
-.admin-variant-row .admin-variant-col-price,
-.admin-variant-row .admin-variant-col-stock,
-.admin-variant-row .admin-variant-col-discount { flex: 1 1 160px !important; }
-.admin-variant-row .admin-variant-col-container,
-.admin-variant-row .admin-variant-col-container-norm,
-.admin-variant-row .admin-variant-col-order-step { flex: 1 1 220px !important; }
-.admin-variant-row .admin-variant-table-col-images { flex: 1 1 100% !important; }
+.admin-variant-row .admin-variant-table-input-row {
+    display: grid !important;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 12px;
+}
+.admin-variant-row .admin-variant-table-input-row > .admin-variant-table-col { min-width: 0; }
+.admin-variant-row .admin-variant-col-name { grid-column: span 6; }
+.admin-variant-row .admin-variant-col-price { grid-column: span 3; }
+.admin-variant-row .admin-variant-col-stock { grid-column: span 3; }
+.admin-variant-row .admin-variant-col-discount { grid-column: span 3; }
+.admin-variant-row .admin-variant-col-container { grid-column: span 4; }
+.admin-variant-row .admin-variant-col-container-norm { grid-column: span 4; }
+.admin-variant-row .admin-variant-col-order-step { grid-column: span 4; }
+.admin-variant-row .admin-variant-col-description-ru { grid-column: span 6; }
+.admin-variant-row .admin-variant-col-description-uz { grid-column: span 6; }
+.admin-variant-row .admin-variant-col-barcode { grid-column: span 6; }
+.admin-variant-row .admin-variant-col-ikpu { grid-column: span 6; }
+.admin-variant-row .admin-variant-table-col-images { grid-column: 1 / -1; }
 .admin-variants-simple-toolbar {
     margin-top: 8px;
     margin-bottom: 12px;
@@ -14093,4 +14103,46 @@ div.form-select.admin-global-import-field {
 }
 
 /* Подписи полей в карточке варианта */
-.admin-variant-field-label { display: block; font-size: 0.72rem; font-weight: 600; color: #64748b; margin-bottom: 4px; }
+.admin-variant-field-label { display: block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 6px; }
+.admin-variants-simple-row .form-control-custom,
+.admin-variants-simple-row .form-select.form-control-custom {
+    min-height: 42px;
+    border-radius: 10px;
+    border-color: rgba(148, 163, 184, 0.45);
+    background: #ffffff;
+}
+.admin-variants-simple-row .form-control-custom:focus,
+.admin-variants-simple-row .form-select.form-control-custom:focus {
+    border-color: var(--primary-color, #2563eb);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.admin-variant-stock-inline-note { font-size: 0.72rem; margin-top: 4px; }
+
+@media (max-width: 1100px) {
+    .admin-variant-row .admin-variant-col-name,
+    .admin-variant-row .admin-variant-col-description-ru,
+    .admin-variant-row .admin-variant-col-description-uz,
+    .admin-variant-row .admin-variant-col-barcode,
+    .admin-variant-row .admin-variant-col-ikpu { grid-column: span 12; }
+    .admin-variant-row .admin-variant-col-price,
+    .admin-variant-row .admin-variant-col-stock,
+    .admin-variant-row .admin-variant-col-discount,
+    .admin-variant-row .admin-variant-col-container,
+    .admin-variant-row .admin-variant-col-container-norm,
+    .admin-variant-row .admin-variant-col-order-step { grid-column: span 6; }
+}
+@media (max-width: 768px) {
+    .admin-variant-row .admin-variant-table-input-row { grid-template-columns: 1fr; }
+    .admin-variant-row .admin-variant-col-name,
+    .admin-variant-row .admin-variant-col-price,
+    .admin-variant-row .admin-variant-col-stock,
+    .admin-variant-row .admin-variant-col-discount,
+    .admin-variant-row .admin-variant-col-container,
+    .admin-variant-row .admin-variant-col-container-norm,
+    .admin-variant-row .admin-variant-col-order-step,
+    .admin-variant-row .admin-variant-col-description-ru,
+    .admin-variant-row .admin-variant-col-description-uz,
+    .admin-variant-row .admin-variant-col-barcode,
+    .admin-variant-row .admin-variant-col-ikpu,
+    .admin-variant-row .admin-variant-table-col-images { grid-column: auto; }
+}
