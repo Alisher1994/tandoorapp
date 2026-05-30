@@ -1961,6 +1961,7 @@ function SuperAdminDashboard() {
     payme_link: '',
     catalog_animation_season: 'off',
     ai_enabled: true,
+    ai_category_suggest_enabled: false,
     print_form_background_url: '',
     print_form_qr_position: 'center',
     print_form_caption_ru: 'Сканируй и заказывай',
@@ -5109,6 +5110,7 @@ function SuperAdminDashboard() {
           server_stats_interval_ms: normalizeServerStatsIntervalMs(response.data.server_stats_interval_ms, 30 * 60 * 1000),
           server_railway_projects: String(response.data.server_railway_projects || ''),
           ai_enabled: response.data.ai_enabled !== false,
+          ai_category_suggest_enabled: response.data.ai_category_suggest_enabled === true,
           print_form_background_url: String(response.data.print_form_background_url || '').trim(),
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
           print_form_caption_ru: String(response.data.print_form_caption_ru || 'Сканируй и заказывай'),
@@ -5148,6 +5150,7 @@ function SuperAdminDashboard() {
           server_stats_interval_ms: normalizeServerStatsIntervalMs(response.data.server_stats_interval_ms, 30 * 60 * 1000),
           server_railway_projects: String(response.data.server_railway_projects || ''),
           ai_enabled: response.data.ai_enabled !== false,
+          ai_category_suggest_enabled: response.data.ai_category_suggest_enabled === true,
           print_form_background_url: String(response.data.print_form_background_url || '').trim(),
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
           print_form_caption_ru: String(response.data.print_form_caption_ru || 'Сканируй и заказывай'),
@@ -5191,6 +5194,7 @@ function SuperAdminDashboard() {
           server_stats_interval_ms: normalizeServerStatsIntervalMs(response.data.server_stats_interval_ms, 30 * 60 * 1000),
           server_railway_projects: String(response.data.server_railway_projects || ''),
           ai_enabled: response.data.ai_enabled !== false,
+          ai_category_suggest_enabled: response.data.ai_category_suggest_enabled === true,
           print_form_background_url: String(response.data.print_form_background_url || '').trim(),
           print_form_qr_position: String(response.data.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
           print_form_caption_ru: String(response.data.print_form_caption_ru || 'Сканируй и заказывай'),
@@ -5205,6 +5209,46 @@ function SuperAdminDashboard() {
         ai_enabled: !nextEnabled
       }));
       setError('Ошибка сохранения переключателя AI');
+    }
+  };
+
+  const saveAiCategorySuggestFlag = async (nextEnabled) => {
+    setBillingSettings((prev) => ({
+      ...prev,
+      ai_category_suggest_enabled: !!nextEnabled
+    }));
+    try {
+      const payload = {
+        ...billingSettings,
+        card_number: String(billingSettings.card_number || '').replace(/\D/g, ''),
+        catalog_animation_season: normalizeCatalogAnimationSeason(billingSettings.catalog_animation_season, 'off'),
+        server_stats_interval_ms: normalizeServerStatsIntervalMs(billingSettings.server_stats_interval_ms, 30 * 60 * 1000),
+        server_railway_projects: String(billingSettings.server_railway_projects || '').trim(),
+        ai_category_suggest_enabled: !!nextEnabled,
+        print_form_background_url: String(billingSettings.print_form_background_url || '').trim(),
+        print_form_qr_position: String(billingSettings.print_form_qr_position || 'center').trim().toLowerCase() === 'lower' ? 'lower' : 'center',
+        print_form_caption_ru: String(billingSettings.print_form_caption_ru || '').trim(),
+        print_form_caption_uz: String(billingSettings.print_form_caption_uz || '').trim(),
+        default_starting_balance: String(billingSettings.default_starting_balance || '').replace(/\D/g, '')
+      };
+      const response = await axios.put(`${API_URL}/superadmin/billing/settings`, payload);
+      if (response.data) {
+        setBillingSettings((prev) => ({
+          ...prev,
+          ...response.data,
+          card_number: String(response.data.card_number || '').replace(/\D/g, ''),
+          ai_enabled: response.data.ai_enabled !== false,
+          ai_category_suggest_enabled: response.data.ai_category_suggest_enabled === true,
+          default_starting_balance: normalizeMoneyFieldValue(response.data.default_starting_balance)
+        }));
+      }
+      setSuccess(nextEnabled ? 'ИИ-подбор категории включён' : 'ИИ-подбор категории выключен');
+    } catch (err) {
+      setBillingSettings((prev) => ({
+        ...prev,
+        ai_category_suggest_enabled: !nextEnabled
+      }));
+      setError('Ошибка сохранения переключателя ИИ-подбора категории');
     }
   };
 
@@ -13062,6 +13106,35 @@ function SuperAdminDashboard() {
               : (language === 'uz' ? "AI o'chirilgan" : 'AI выключен')}
             checked={isAiFeatureEnabled}
             onChange={(e) => saveAiFeatureFlag(!!e.target.checked)}
+          />
+        </div>
+      </Alert>
+
+      <Alert
+        variant={billingSettings.ai_category_suggest_enabled ? 'light' : 'secondary'}
+        className="superadmin-setting-surface mb-4"
+        style={{ background: 'var(--surface-color)', color: 'var(--text-main)' }}
+      >
+        <div className="d-flex flex-column flex-lg-row align-items-start align-items-lg-center justify-content-between gap-3">
+          <div>
+            <div className="fw-bold">
+              {language === 'uz' ? 'AI: kategoriya tavsiyasi (do‘kon)' : 'ИИ-подбор категории (магазины)'}
+            </div>
+            <div className="small text-muted">
+              {language === 'uz'
+                ? "O‘chirilsa, do‘kon admin panelida “AI: kategoriya tavsiyasi” tugmasi yashiriladi. Avtomatik aniqlash baribir ishlaydi."
+                : 'При выключении в админке магазина скрывается кнопка «ИИ: подобрать категорию». Автоматическое определение категории продолжит работать.'}
+            </div>
+          </div>
+          <Form.Check
+            type="switch"
+            id="superadmin-ai-category-suggest-switch"
+            className="fw-semibold"
+            label={billingSettings.ai_category_suggest_enabled
+              ? (language === 'uz' ? 'Yoqilgan' : 'Включено')
+              : (language === 'uz' ? "O‘chirilgan" : 'Выключено')}
+            checked={billingSettings.ai_category_suggest_enabled === true}
+            onChange={(e) => saveAiCategorySuggestFlag(!!e.target.checked)}
           />
         </div>
       </Alert>

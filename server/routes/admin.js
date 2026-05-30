@@ -1864,9 +1864,22 @@ router.get('/restaurant', async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Ресторан не найден' });
     const row = result.rows[0];
+    // Global (superadmin-controlled) flag: whether the per-product "AI: suggest
+    // category" button is available. Read defensively so a fresh DB without the
+    // column still works (button hidden by default).
+    let aiCategorySuggestEnabled = false;
+    try {
+      const flagResult = await pool.query(
+        'SELECT ai_category_suggest_enabled FROM billing_settings WHERE id = 1 LIMIT 1'
+      );
+      aiCategorySuggestEnabled = flagResult.rows[0]?.ai_category_suggest_enabled === true;
+    } catch (flagError) {
+      aiCategorySuggestEnabled = false;
+    }
     res.json({
       ...row,
-      reservation_enabled: row.reservation_enabled_setting === true || row.reservation_enabled_setting === 'true'
+      reservation_enabled: row.reservation_enabled_setting === true || row.reservation_enabled_setting === 'true',
+      ai_category_suggest_enabled: aiCategorySuggestEnabled
     });
   } catch (error) {
     console.error('Get restaurant settings error:', error);
@@ -4140,6 +4153,16 @@ router.post('/products/suggest-category-ai', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     console.log('[suggest-category] AI hit', JSON.stringify({ restaurantId, name_ru: req.body?.name_ru, name_uz: req.body?.name_uz }));
     if (!restaurantId) return res.status(400).json({ error: 'Выберите магазин' });
+    // Gated by the superadmin global flag; the button is hidden when off, this is
+    // defense in depth. The automatic (statistical) suggestion is NOT gated.
+    try {
+      const flagResult = await pool.query('SELECT ai_category_suggest_enabled FROM billing_settings WHERE id = 1 LIMIT 1');
+      if (flagResult.rows[0]?.ai_category_suggest_enabled !== true) {
+        return res.status(403).json({ error: 'ИИ-подбор категории отключён', code: 'category_ai_disabled' });
+      }
+    } catch (flagError) {
+      return res.status(403).json({ error: 'ИИ-подбор категории отключён', code: 'category_ai_disabled' });
+    }
     const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
     const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
     if (!nameRu && !nameUz) {

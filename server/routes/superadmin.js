@@ -799,6 +799,12 @@ const ensureBillingSettingsSchema = async () => {
     await pool.query(`ALTER TABLE billing_settings ALTER COLUMN catalog_animation_season SET DEFAULT 'off'`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN DEFAULT true`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ALTER COLUMN ai_enabled SET DEFAULT true`).catch(() => {});
+    // Controls the per-product "AI: suggest category" button in the store admin.
+    // Off by default: the automatic (statistical) suggestion always works; the AI
+    // button is opt-in and toggled here in the superadmin.
+    await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS ai_category_suggest_enabled BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE billing_settings ALTER COLUMN ai_category_suggest_enabled SET DEFAULT false`).catch(() => {});
+    await pool.query(`UPDATE billing_settings SET ai_category_suggest_enabled = false WHERE ai_category_suggest_enabled IS NULL`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS server_group_chat_id VARCHAR(64)`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ADD COLUMN IF NOT EXISTS server_stats_interval_ms INTEGER DEFAULT 1800000`).catch(() => {});
     await pool.query(`ALTER TABLE billing_settings ALTER COLUMN server_stats_interval_ms SET DEFAULT 1800000`).catch(() => {});
@@ -4897,6 +4903,7 @@ router.put('/billing-settings', async (req, res) => {
       server_railway_projects,
       catalog_animation_season,
       ai_enabled,
+      ai_category_suggest_enabled,
       print_form_background_url,
       print_form_qr_position,
       print_form_caption_ru,
@@ -4910,6 +4917,7 @@ router.put('/billing-settings', async (req, res) => {
     const normalizedServerRailwayProjects = String(server_railway_projects || '').trim();
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
+    const normalizedAiCategorySuggestEnabled = normalizeBooleanFlag(ai_category_suggest_enabled, false);
     const normalizedPrintFormSettings = normalizePrintFormSettingsPayload({
       print_form_background_url,
       print_form_qr_position,
@@ -4957,6 +4965,7 @@ router.put('/billing-settings', async (req, res) => {
           print_form_qr_position = $17,
           print_form_caption_ru = $18,
           print_form_caption_uz = $19,
+          ai_category_suggest_enabled = $20,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
@@ -4979,7 +4988,8 @@ router.put('/billing-settings', async (req, res) => {
       normalizedPrintFormSettings.print_form_background_url,
       normalizedPrintFormSettings.print_form_qr_position,
       normalizedPrintFormSettings.print_form_caption_ru,
-      normalizedPrintFormSettings.print_form_caption_uz
+      normalizedPrintFormSettings.print_form_caption_uz,
+      normalizedAiCategorySuggestEnabled
     ]);
     await appendBillingSettingsHistory({
       before: previousSettingsRow,
@@ -12537,6 +12547,7 @@ router.put('/billing/settings', async (req, res) => {
       server_railway_projects,
       catalog_animation_season,
       ai_enabled,
+      ai_category_suggest_enabled,
       print_form_background_url,
       print_form_qr_position,
       print_form_caption_ru,
@@ -12550,6 +12561,7 @@ router.put('/billing/settings', async (req, res) => {
     const normalizedServerRailwayProjects = String(server_railway_projects || '').trim();
     const normalizedCatalogAnimationSeason = normalizeCatalogAnimationSeason(catalog_animation_season, 'off');
     const normalizedAiEnabled = normalizeBooleanFlag(ai_enabled, true);
+    const normalizedAiCategorySuggestEnabled = normalizeBooleanFlag(ai_category_suggest_enabled, false);
     const normalizedPrintFormSettings = normalizePrintFormSettingsPayload({
       print_form_background_url,
       print_form_qr_position,
@@ -12597,6 +12609,7 @@ router.put('/billing/settings', async (req, res) => {
           print_form_qr_position = $17,
           print_form_caption_ru = $18,
           print_form_caption_uz = $19,
+          ai_category_suggest_enabled = $20,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
       RETURNING *
@@ -12613,7 +12626,8 @@ router.put('/billing/settings', async (req, res) => {
       normalizedPrintFormSettings.print_form_background_url,
       normalizedPrintFormSettings.print_form_qr_position,
       normalizedPrintFormSettings.print_form_caption_ru,
-      normalizedPrintFormSettings.print_form_caption_uz
+      normalizedPrintFormSettings.print_form_caption_uz,
+      normalizedAiCategorySuggestEnabled
     ]);
     await appendBillingSettingsHistory({
       before: previousSettingsRow,

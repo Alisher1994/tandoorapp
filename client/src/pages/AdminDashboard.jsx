@@ -5949,6 +5949,7 @@ function AdminDashboard() {
         product_field_barcode_enabled: response.data?.product_field_barcode_enabled !== false,
         product_field_ikpu_enabled: response.data?.product_field_ikpu_enabled !== false,
         promo_codes_enabled: response.data?.promo_codes_enabled === true,
+        ai_category_suggest_enabled: response.data?.ai_category_suggest_enabled === true,
         payment_placeholders: normalizePaymentPlaceholders(response.data?.payment_placeholders)
       };
       setRestaurantSettings(settings);
@@ -18798,6 +18799,53 @@ function AdminDashboard() {
             <Modal.Body ref={productModalBodyRef} className="admin-product-modal-body-scroll">
               {renderProductFormTabs()}
               {productFormTab === 'main' && (<>
+              <Row className="g-3">
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label className="d-flex align-items-center gap-2">
+                      <span>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</span>
+                      <span className="admin-lang-flag-icon"><RussiaFlagIcon /></span>
+                    </Form.Label>
+                    <div className="admin-product-name-ai-wrap">
+                      <Form.Control
+                        type="text"
+                        className="admin-product-name-ai-input"
+                        value={productForm.name_ru}
+                        onChange={(e) => setProductForm({ ...productForm, name_ru: e.target.value })}
+                      />
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="admin-product-ai-generate-inline-btn"
+                        title={language === 'uz'
+                          ? 'AI: RU/UZ nom va tavsifni generatsiya qilish'
+                          : 'AI: сгенерировать RU/UZ название и описание'}
+                        onClick={handleGenerateProductLocalizedText}
+                        disabled={isGeneratingProductLocalizedText}
+                      >
+                        {isGeneratingProductLocalizedText ? (
+                          <Spinner animation="border" size="sm" />
+                        ) : (
+                          <i className="bi bi-stars" aria-hidden="true" />
+                        )}
+                      </Button>
+                    </div>
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label className="d-flex align-items-center gap-2">
+                      <span>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</span>
+                      <span className="admin-lang-flag-icon"><UzbekistanFlagIcon /></span>
+                    </Form.Label>
+                    <Form.Control
+                      type="text"
+                      value={productForm.name_uz}
+                      onChange={(e) => setProductForm({ ...productForm, name_uz: e.target.value })}
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
               {(() => {
                 const getCategoryPathIds = (catId) => {
                   const path = [];
@@ -18915,20 +18963,22 @@ function AdminDashboard() {
 
               <div className="admin-category-suggest-bar mb-3">
                 <div className="d-flex flex-wrap align-items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline-primary"
-                    size="sm"
-                    onClick={handleSuggestCategoryAi}
-                    disabled={categoryAiLoading}
-                    title={language === 'uz'
-                      ? 'AI yordamida kategoriyani aniqlash'
-                      : 'Подобрать категорию с помощью ИИ'}
-                  >
-                    {categoryAiLoading
-                      ? <Spinner animation="border" size="sm" />
-                      : `✨ ${language === 'uz' ? 'AI: kategoriya tavsiyasi' : 'ИИ: подобрать категорию'}`}
-                  </Button>
+                  {restaurantSettings?.ai_category_suggest_enabled && (
+                    <Button
+                      type="button"
+                      variant="outline-primary"
+                      size="sm"
+                      onClick={handleSuggestCategoryAi}
+                      disabled={categoryAiLoading}
+                      title={language === 'uz'
+                        ? 'AI yordamida kategoriyani aniqlash'
+                        : 'Подобрать категорию с помощью ИИ'}
+                    >
+                      {categoryAiLoading
+                        ? <Spinner animation="border" size="sm" />
+                        : `✨ ${language === 'uz' ? 'AI: kategoriya tavsiyasi' : 'ИИ: подобрать категорию'}`}
+                    </Button>
+                  )}
                   {!categoryManuallySet
                     && categoryAutoSuggestionId
                     && Number(productForm.category_id) === Number(categoryAutoSuggestionId) && (
@@ -18965,53 +19015,6 @@ function AdminDashboard() {
                 )}
               </div>
 
-              <Row className="g-3">
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label className="d-flex align-items-center gap-2">
-                      <span>{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'}</span>
-                      <span className="admin-lang-flag-icon"><RussiaFlagIcon /></span>
-                    </Form.Label>
-                    <div className="admin-product-name-ai-wrap">
-                      <Form.Control
-                        type="text"
-                        className="admin-product-name-ai-input"
-                        value={productForm.name_ru}
-                        onChange={(e) => setProductForm({ ...productForm, name_ru: e.target.value })}
-                      />
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="admin-product-ai-generate-inline-btn"
-                        title={language === 'uz'
-                          ? 'AI: RU/UZ nom va tavsifni generatsiya qilish'
-                          : 'AI: сгенерировать RU/UZ название и описание'}
-                        onClick={handleGenerateProductLocalizedText}
-                        disabled={isGeneratingProductLocalizedText}
-                      >
-                        {isGeneratingProductLocalizedText ? (
-                          <Spinner animation="border" size="sm" />
-                        ) : (
-                          <i className="bi bi-stars" aria-hidden="true" />
-                        )}
-                      </Button>
-                    </div>
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label className="d-flex align-items-center gap-2">
-                      <span>{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</span>
-                      <span className="admin-lang-flag-icon"><UzbekistanFlagIcon /></span>
-                    </Form.Label>
-                    <Form.Control
-                      type="text"
-                      value={productForm.name_uz}
-                      onChange={(e) => setProductForm({ ...productForm, name_uz: e.target.value })}
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
               </>)}
 
               {productFormTab === 'extra' && (<>
