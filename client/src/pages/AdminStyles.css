@@ -15687,3 +15687,133 @@ h1, h2, h3, h4, h5, h6,
     color: #1e293b !important;
     font-weight: 700 !important;
 }
+
+/* =====================================================================
+   FRESH CHROME — Dark sidebar rail + clean white header
+   Applies to the shared admin shell (header + left menu) on all screens.
+   ===================================================================== */
+
+/* --- HEADER: clean white --- */
+.admin-navbar-shell,
+.admin-navbar {
+    background: #ffffff !important;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.10) !important;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+/* Hide the colored glow orbs (meant for a dark navbar) */
+.admin-navbar-shell > .themed-header-glow {
+    display: none !important;
+}
+
+/* Brand block on white */
+.admin-brand-title { color: #1e293b !important; }
+.admin-brand-chevron { color: var(--primary-color) !important; }
+.admin-brand-subtitle { color: #94a3b8 !important; }
+.admin-brand-icon {
+    background: linear-gradient(135deg, var(--primary-light, #6366f1), var(--primary-color, #4f46e5)) !important;
+}
+.admin-brand-logo-shell { border-color: rgba(99, 102, 241, 0.18) !important; }
+
+/* Mobile hamburger visible on white */
+.admin-navbar-toggle svg { stroke: var(--primary-color) !important; }
+
+/* Header action pills on white */
+.admin-navbar-shell .admin-nav-link { color: #475569 !important; }
+.admin-navbar-shell .admin-nav-link:hover {
+    background: color-mix(in srgb, var(--primary-color) 9%, #ffffff) !important;
+    color: var(--primary-color) !important;
+}
+.admin-header-pill {
+    background: #f4f5fb !important;
+    border: 1px solid rgba(99, 102, 241, 0.12) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    color: #334155 !important;
+}
+.admin-header-action-pill:hover,
+.admin-header-action-pill:focus-visible,
+.admin-user-pill:hover {
+    background: color-mix(in srgb, var(--primary-color) 10%, #ffffff) !important;
+    border-color: rgba(99, 102, 241, 0.28) !important;
+    color: var(--primary-color) !important;
+}
+.admin-collapsible-pill,
+.admin-balance-pill,
+.admin-user-pill {
+    border: 1px solid rgba(99, 102, 241, 0.12) !important;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.06) !important;
+    color: #334155 !important;
+}
+.admin-pill-icon {
+    background: color-mix(in srgb, var(--primary-color) 12%, #ffffff) !important;
+    color: var(--primary-color) !important;
+}
+.admin-pill-icon i { color: var(--primary-color) !important; }
+.admin-balance-icon { color: var(--primary-color) !important; }
+.admin-balance-caption { color: #94a3b8 !important; }
+.admin-balance-content,
+.admin-balance-amount,
+.admin-user-pill .admin-pill-expand { color: #1e293b !important; }
+
+/* --- SIDEBAR: dark navy/indigo rail --- */
+.admin-sidebar-column {
+    background:
+        radial-gradient(circle at 28% -4%, color-mix(in srgb, var(--primary-color) 42%, transparent), transparent 58%),
+        linear-gradient(185deg, #1b2040 0%, #141729 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.22) !important;
+}
+
+/* Nav items */
+.admin-sidebar-column .admin-tabs.admin-tabs-sidebar .nav-link {
+    color: rgba(255, 255, 255, 0.66) !important;
+    font-weight: 500 !important;
+}
+.admin-sidebar-column .admin-tabs.admin-tabs-sidebar .nav-link .admin-side-tab-icon {
+    color: rgba(255, 255, 255, 0.72) !important;
+    opacity: 1;
+}
+.admin-sidebar-column .admin-tabs.admin-tabs-sidebar .nav-link:hover {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #ffffff !important;
+}
+.admin-sidebar-column .admin-tabs.admin-tabs-sidebar .nav-link:hover .admin-side-tab-icon {
+    color: #ffffff !important;
+}
+/* Active = glowing accent pill */
+.admin-sidebar-column .admin-tabs.admin-tabs-sidebar .nav-link.active {
+    background: linear-gradient(135deg, var(--primary-light, #6366f1), var(--primary-color, #4f46e5)) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--primary-color) 55%, transparent) !important;
+}
+.admin-sidebar-column .admin-tabs.admin-tabs-sidebar .nav-link.active .admin-side-tab-icon {
+    color: #ffffff !important;
+}
+
+/* Sidebar footer (account / language / collapse) on dark */
+.admin-sidebar-footer-control {
+    color: rgba(255, 255, 255, 0.74) !important;
+}
+.admin-sidebar-footer-control:hover,
+.admin-sidebar-footer-control:focus-visible,
+.admin-sidebar-footer-dropdown.show .admin-sidebar-footer-control {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+}
+.admin-sidebar-footer-iconbox {
+    background: rgba(255, 255, 255, 0.10) !important;
+    color: #ffffff !important;
+}
+.admin-sidebar-footer-title { color: #ffffff !important; }
+.admin-sidebar-footer-subtitle { color: rgba(255, 255, 255, 0.55) !important; }
+.admin-sidebar-footer-actions { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.admin-sidebar-toggle-btn {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+.admin-sidebar-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+}
