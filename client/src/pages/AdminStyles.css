@@ -178,6 +178,12 @@ body::-webkit-scrollbar,
     border-color: var(--primary-color) !important;
 }
 
+/* Availability switch: red when checked (out of stock) to match the status badge. */
+.admin-panel .admin-stock-switch .form-check-input:checked {
+    background-color: #dc2626 !important;
+    border-color: #dc2626 !important;
+}
+
 /* Sticky header */
 .admin-navbar {
     position: sticky !important;

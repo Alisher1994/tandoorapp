@@ -13270,7 +13270,7 @@ function AdminDashboard() {
                                 aria-label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
                                 checked={!product.in_stock}
                                 disabled={productStockUpdatingIds.includes(product.id)}
-                                className="small mb-2 admin-product-mobile-stock-switch"
+                                className="small mb-2 admin-product-mobile-stock-switch admin-stock-switch"
                                 onChange={(e) => handleProductStockToggle(product, e.target.checked)}
                               />
                               <div className="d-inline-flex flex-nowrap gap-1 product-table-actions admin-product-mobile-actions">
@@ -13456,7 +13456,7 @@ function AdminDashboard() {
                                   aria-label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
                                   checked={!product.in_stock}
                                   disabled={productStockUpdatingIds.includes(product.id)}
-                                  className="small mb-0"
+                                  className="small mb-0 admin-stock-switch"
                                   onClick={(e) => e.stopPropagation()}
                                   onTouchEnd={(e) => e.stopPropagation()}
                                   onChange={(e) => handleProductStockToggle(product, e.target.checked)}
