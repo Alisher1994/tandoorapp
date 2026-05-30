@@ -12993,6 +12993,228 @@ router.get('/sessions/login-attempts', async (req, res) => {
   }
 });
 
+// =====================================================
+// Printer drivers catalog (Производитель → Модель → Версии драйверов)
+// Files live on the uploads volume; the current non-hidden version is what
+// store admins download. Old versions stay in history; outdated ones can be
+// hidden without deleting.
+// =====================================================
+const DRIVER_UPLOADS_BASE = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.join(__dirname, '..', '..', 'uploads');
+const DRIVER_FILES_DIR = path.join(DRIVER_UPLOADS_BASE, 'driver-files');
+
+let printerDriversSchemaReady = false;
+async function ensurePrinterDriversSchema() {
+  if (printerDriversSchemaReady) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS printer_drivers (
+      id SERIAL PRIMARY KEY,
+      manufacturer VARCHAR(120) NOT NULL,
+      model VARCHAR(160) NOT NULL,
+      photo_url TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS printer_driver_versions (
+      id SERIAL PRIMARY KEY,
+      driver_id INTEGER NOT NULL REFERENCES printer_drivers(id) ON DELETE CASCADE,
+      version_label VARCHAR(80),
+      original_filename VARCHAR(255),
+      stored_filename VARCHAR(255) NOT NULL,
+      size BIGINT DEFAULT 0,
+      uploaded_by INTEGER,
+      uploaded_by_name VARCHAR(255),
+      is_current BOOLEAN DEFAULT false,
+      is_hidden BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_printer_driver_versions_driver ON printer_driver_versions(driver_id)`).catch(() => {});
+  printerDriversSchemaReady = true;
+}
+
+const printerDriverUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      try { fs.mkdirSync(DRIVER_FILES_DIR, { recursive: true }); cb(null, DRIVER_FILES_DIR); }
+      catch (e) { cb(e); }
+    },
+    filename: (req, file, cb) => {
+      const ext = String(path.extname(file.originalname || '')).slice(0, 12);
+      cb(null, `driver-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+    }
+  }),
+  limits: { fileSize: 300 * 1024 * 1024 }
+});
+
+const resolveDriverActorName = (user) => String(
+  user?.name || user?.full_name || user?.email || user?.username || (user?.id ? `#${user.id}` : 'superadmin')
+).slice(0, 255);
+
+async function fetchPrinterDriversWithVersions() {
+  const drivers = (await pool.query('SELECT * FROM printer_drivers ORDER BY manufacturer ASC, model ASC')).rows;
+  const versions = (await pool.query('SELECT * FROM printer_driver_versions ORDER BY created_at DESC, id DESC')).rows;
+  const byDriver = new Map();
+  for (const v of versions) {
+    if (!byDriver.has(v.driver_id)) byDriver.set(v.driver_id, []);
+    byDriver.get(v.driver_id).push(v);
+  }
+  return drivers.map((d) => ({ ...d, versions: byDriver.get(d.id) || [] }));
+}
+
+router.get('/printer-drivers', async (req, res) => {
+  try {
+    await ensurePrinterDriversSchema();
+    return res.json(await fetchPrinterDriversWithVersions());
+  } catch (error) {
+    console.error('List printer drivers error:', error?.message || error);
+    return res.status(500).json({ error: 'Ошибка загрузки каталога драйверов' });
+  }
+});
+
+router.post('/printer-drivers', async (req, res) => {
+  try {
+    await ensurePrinterDriversSchema();
+    const manufacturer = String(req.body?.manufacturer || '').trim().slice(0, 120);
+    const model = String(req.body?.model || '').trim().slice(0, 160);
+    const photoUrl = String(req.body?.photo_url || '').trim().slice(0, 1000) || null;
+    if (!manufacturer || !model) return res.status(400).json({ error: 'Укажите производителя и модель' });
+    const result = await pool.query(
+      `INSERT INTO printer_drivers (manufacturer, model, photo_url) VALUES ($1, $2, $3) RETURNING *`,
+      [manufacturer, model, photoUrl]
+    );
+    return res.json({ ...result.rows[0], versions: [] });
+  } catch (error) {
+    console.error('Create printer driver error:', error?.message || error);
+    return res.status(500).json({ error: 'Ошибка добавления принтера' });
+  }
+});
+
+router.put('/printer-drivers/:id', async (req, res) => {
+  try {
+    await ensurePrinterDriversSchema();
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID' });
+    const manufacturer = String(req.body?.manufacturer || '').trim().slice(0, 120);
+    const model = String(req.body?.model || '').trim().slice(0, 160);
+    const photoUrl = req.body?.photo_url === undefined ? undefined : (String(req.body?.photo_url || '').trim().slice(0, 1000) || null);
+    if (!manufacturer || !model) return res.status(400).json({ error: 'Укажите производителя и модель' });
+    const result = await pool.query(
+      `UPDATE printer_drivers
+          SET manufacturer = $1, model = $2,
+              photo_url = COALESCE($3, photo_url),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4 RETURNING *`,
+      [manufacturer, model, photoUrl === undefined ? null : photoUrl, id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Принтер не найден' });
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update printer driver error:', error?.message || error);
+    return res.status(500).json({ error: 'Ошибка сохранения принтера' });
+  }
+});
+
+router.delete('/printer-drivers/:id', async (req, res) => {
+  try {
+    await ensurePrinterDriversSchema();
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID' });
+    const versions = (await pool.query('SELECT stored_filename FROM printer_driver_versions WHERE driver_id = $1', [id])).rows;
+    await pool.query('DELETE FROM printer_drivers WHERE id = $1', [id]);
+    for (const v of versions) {
+      try { fs.unlinkSync(path.join(DRIVER_FILES_DIR, v.stored_filename)); } catch (_) {}
+    }
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Delete printer driver error:', error?.message || error);
+    return res.status(500).json({ error: 'Ошибка удаления принтера' });
+  }
+});
+
+router.post('/printer-drivers/:id/versions', (req, res) => {
+  printerDriverUpload.single('file')(req, res, async (uploadErr) => {
+    if (uploadErr) {
+      console.error('Driver version upload error:', uploadErr?.message || uploadErr);
+      return res.status(400).json({ error: `Ошибка загрузки файла: ${uploadErr.message}` });
+    }
+    try {
+      await ensurePrinterDriversSchema();
+      const id = Number.parseInt(req.params.id, 10);
+      if (!Number.isInteger(id) || id <= 0) {
+        if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+        return res.status(400).json({ error: 'Некорректный ID принтера' });
+      }
+      const driver = (await pool.query('SELECT id FROM printer_drivers WHERE id = $1 LIMIT 1', [id])).rows[0];
+      if (!driver) {
+        if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+        return res.status(404).json({ error: 'Принтер не найден' });
+      }
+      if (!req.file || !req.file.path) return res.status(400).json({ error: 'Файл не передан (поле "file")' });
+      const versionLabel = String(req.body?.version || '').trim().slice(0, 80) || null;
+      await pool.query('UPDATE printer_driver_versions SET is_current = false WHERE driver_id = $1 AND is_current = true', [id]);
+      await pool.query(
+        `INSERT INTO printer_driver_versions
+           (driver_id, version_label, original_filename, stored_filename, size, uploaded_by, uploaded_by_name, is_current)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
+        [
+          id, versionLabel,
+          String(req.file.originalname || '').slice(0, 255),
+          req.file.filename,
+          Number(req.file.size) || 0,
+          req.user?.id || null,
+          resolveDriverActorName(req.user)
+        ]
+      );
+      return res.json(await fetchPrinterDriversWithVersions());
+    } catch (error) {
+      if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch (_) {} }
+      console.error('Save driver version error:', error?.message || error);
+      return res.status(500).json({ error: 'Ошибка загрузки версии драйвера' });
+    }
+  });
+});
+
+router.post('/printer-drivers/:id/versions/:vid/activate', async (req, res) => {
+  try {
+    await ensurePrinterDriversSchema();
+    const id = Number.parseInt(req.params.id, 10);
+    const vid = Number.parseInt(req.params.vid, 10);
+    if (!Number.isInteger(id) || !Number.isInteger(vid)) return res.status(400).json({ error: 'Некорректный ID' });
+    const row = (await pool.query('SELECT id FROM printer_driver_versions WHERE id = $1 AND driver_id = $2 LIMIT 1', [vid, id])).rows[0];
+    if (!row) return res.status(404).json({ error: 'Версия не найдена' });
+    await pool.query('UPDATE printer_driver_versions SET is_current = false WHERE driver_id = $1 AND is_current = true', [id]);
+    await pool.query('UPDATE printer_driver_versions SET is_current = true, is_hidden = false WHERE id = $1', [vid]);
+    return res.json(await fetchPrinterDriversWithVersions());
+  } catch (error) {
+    console.error('Activate driver version error:', error?.message || error);
+    return res.status(500).json({ error: 'Ошибка активации версии' });
+  }
+});
+
+router.patch('/printer-drivers/:id/versions/:vid', async (req, res) => {
+  try {
+    await ensurePrinterDriversSchema();
+    const id = Number.parseInt(req.params.id, 10);
+    const vid = Number.parseInt(req.params.vid, 10);
+    if (!Number.isInteger(id) || !Number.isInteger(vid)) return res.status(400).json({ error: 'Некорректный ID' });
+    const isHidden = normalizeBooleanFlag(req.body?.is_hidden, false);
+    // Don't hide the current version (it must stay downloadable).
+    const row = (await pool.query('SELECT is_current FROM printer_driver_versions WHERE id = $1 AND driver_id = $2 LIMIT 1', [vid, id])).rows[0];
+    if (!row) return res.status(404).json({ error: 'Версия не найдена' });
+    if (isHidden && row.is_current) return res.status(400).json({ error: 'Нельзя скрыть актуальную версию' });
+    await pool.query('UPDATE printer_driver_versions SET is_hidden = $1 WHERE id = $2', [isHidden, vid]);
+    return res.json(await fetchPrinterDriversWithVersions());
+  } catch (error) {
+    console.error('Update driver version error:', error?.message || error);
+    return res.status(500).json({ error: 'Ошибка обновления версии' });
+  }
+});
+
 module.exports = router;
 module.exports.generateGlobalProductLocalizedText = generateGlobalProductLocalizedText;
 module.exports.suggestProductCategoryWithAI = suggestProductCategoryWithAI;

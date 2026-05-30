@@ -7291,6 +7291,97 @@ router.post('/printer-agent/versions/:id/activate', async (req, res) => {
   }
 });
 
+// =====================================================
+// Printer drivers catalog — read-only access for store admins + downloads.
+// Managed by the superadmin; here we expose the catalog (only printers that
+// have a visible current version) and serve the driver files.
+// =====================================================
+const ADMIN_DRIVER_UPLOADS_BASE = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.join(__dirname, '..', '..', 'uploads');
+const ADMIN_DRIVER_FILES_DIR = path.join(ADMIN_DRIVER_UPLOADS_BASE, 'driver-files');
+
+// Catalog for the store admin: each printer with its current version (if any)
+// and the visible history.
+router.get('/printer-drivers', async (req, res) => {
+  try {
+    const drivers = (await pool.query('SELECT * FROM printer_drivers ORDER BY manufacturer ASC, model ASC')).rows;
+    const versions = (await pool.query(
+      `SELECT id, driver_id, version_label, original_filename, size, is_current, is_hidden, created_at
+         FROM printer_driver_versions
+        WHERE is_hidden = false
+        ORDER BY created_at DESC, id DESC`
+    )).rows;
+    const byDriver = new Map();
+    for (const v of versions) {
+      if (!byDriver.has(v.driver_id)) byDriver.set(v.driver_id, []);
+      byDriver.get(v.driver_id).push(v);
+    }
+    const catalog = drivers
+      .map((d) => {
+        const list = byDriver.get(d.id) || [];
+        const current = list.find((v) => v.is_current) || list[0] || null;
+        return { ...d, current_version: current, versions: list };
+      })
+      .filter((d) => d.current_version); // only printers that have something to download
+    return res.json(catalog);
+  } catch (error) {
+    // Table may not exist yet (no drivers uploaded) — return empty catalog.
+    return res.json([]);
+  }
+});
+
+const streamDriverVersionDownload = async (req, res, versionRow, driverRow) => {
+  if (!versionRow) return res.status(404).json({ error: 'Версия драйвера не найдена' });
+  const filePath = path.join(ADMIN_DRIVER_FILES_DIR, versionRow.stored_filename);
+  if (!fs.existsSync(filePath)) return res.status(410).json({ error: 'Файл драйвера отсутствует на диске' });
+  const ext = path.extname(versionRow.original_filename || versionRow.stored_filename || '') || '';
+  const safeBase = `${driverRow?.manufacturer || 'driver'}-${driverRow?.model || ''}`.replace(/[^\p{L}\p{N}_.-]+/gu, '_').slice(0, 80);
+  const downloadName = versionRow.original_filename || `${safeBase}${ext}`;
+  return res.download(filePath, downloadName, (err) => {
+    if (err && !res.headersSent) res.status(500).json({ error: 'Ошибка скачивания драйвера' });
+  });
+};
+
+// Download the current version for a printer.
+router.get('/printer-drivers/:id/download', async (req, res) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID' });
+    const driver = (await pool.query('SELECT * FROM printer_drivers WHERE id = $1 LIMIT 1', [id])).rows[0];
+    if (!driver) return res.status(404).json({ error: 'Принтер не найден' });
+    const version = (await pool.query(
+      `SELECT * FROM printer_driver_versions
+        WHERE driver_id = $1 AND is_hidden = false
+        ORDER BY is_current DESC, created_at DESC, id DESC
+        LIMIT 1`,
+      [id]
+    )).rows[0];
+    return streamDriverVersionDownload(req, res, version, driver);
+  } catch (error) {
+    console.error('Download driver (current) error:', error?.message || error);
+    return res.status(500).json({ error: 'Ошибка скачивания драйвера' });
+  }
+});
+
+// Download a specific (visible) version from history.
+router.get('/printer-driver-versions/:vid/download', async (req, res) => {
+  try {
+    const vid = Number.parseInt(req.params.vid, 10);
+    if (!Number.isInteger(vid) || vid <= 0) return res.status(400).json({ error: 'Некорректный ID' });
+    const version = (await pool.query(
+      'SELECT * FROM printer_driver_versions WHERE id = $1 AND is_hidden = false LIMIT 1',
+      [vid]
+    )).rows[0];
+    if (!version) return res.status(404).json({ error: 'Версия драйвера не найдена' });
+    const driver = (await pool.query('SELECT * FROM printer_drivers WHERE id = $1 LIMIT 1', [version.driver_id])).rows[0];
+    return streamDriverVersionDownload(req, res, version, driver);
+  } catch (error) {
+    console.error('Download driver (version) error:', error?.message || error);
+    return res.status(500).json({ error: 'Ошибка скачивания драйвера' });
+  }
+});
+
 // Get all printers for current restaurant
 router.get('/printers', async (req, res) => {
   try {
