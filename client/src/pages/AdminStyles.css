@@ -9135,20 +9135,20 @@ body::-webkit-scrollbar,
     color: #ffffff !important;
 }
 
-.admin-panel .btn-primary,
-.admin-panel .btn-secondary,
-.admin-panel .btn-success,
-.admin-panel .btn-info,
-.admin-panel .btn-warning,
-.admin-panel .btn-danger,
-.admin-panel .btn-dark {
+.admin-panel .btn-primary:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn),
+.admin-panel .btn-secondary:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn),
+.admin-panel .btn-success:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)),
+.admin-panel .btn-info:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)),
+.admin-panel .btn-warning:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)),
+.admin-panel .btn-danger:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)),
+.admin-panel .btn-dark:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)) {
     background-color: var(--primary-color) !important;
     border-color: var(--primary-color) !important;
     color: #ffffff !important;
     box-shadow: none !important;
 }
 
-.admin-panel .btn:not(.action-btn):not(.btn-link):not(.btn-close):not(.admin-help-list-item):not(.admin-analytics-map-list-item) {
+.admin-panel .btn:not(.action-btn):not(.btn-link):not(.btn-close):not(.admin-help-list-item):not(.admin-analytics-map-list-item):not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):not(.admin-printer-icon-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn) {
     height: var(--admin-btn-height);
     min-height: var(--admin-btn-height);
     padding: 0 1rem;
@@ -9162,13 +9162,13 @@ body::-webkit-scrollbar,
     white-space: nowrap;
 }
 
-.admin-panel .btn-primary:hover,
-.admin-panel .btn-secondary:hover,
-.admin-panel .btn-success:hover,
-.admin-panel .btn-info:hover,
-.admin-panel .btn-warning:hover,
-.admin-panel .btn-danger:hover,
-.admin-panel .btn-dark:hover {
+.admin-panel .btn-primary:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):hover,
+.admin-panel .btn-secondary:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):hover,
+.admin-panel .btn-success:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover,
+.admin-panel .btn-info:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover,
+.admin-panel .btn-warning:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover,
+.admin-panel .btn-danger:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover,
+.admin-panel .btn-dark:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover {
     background-color: var(--primary-hover) !important;
     border-color: var(--primary-hover) !important;
     color: #ffffff !important;
@@ -16001,19 +16001,22 @@ h1, h2, h3, h4, h5, h6,
     border-radius: 10px !important;
     font-weight: 600 !important;
 }
+/* Theme the primary buttons via bootstrap's own CSS variables (NOT a direct
+   !important background) so icon-only buttons and (i) badges — which set their
+   own background:#fff !important — are never clobbered by this rule. */
 .btn-primary,
 .btn-primary-custom {
-    background-color: var(--primary-color) !important;
-    border-color: var(--primary-color) !important;
-    color: #ffffff !important;
-}
-.btn-primary:hover,
-.btn-primary:focus-visible,
-.btn-primary-custom:hover,
-.btn-primary-custom:focus-visible {
-    background-color: var(--primary-hover, var(--primary-color)) !important;
-    border-color: var(--primary-hover, var(--primary-color)) !important;
-    color: #ffffff !important;
+    --bs-btn-bg: var(--primary-color);
+    --bs-btn-border-color: var(--primary-color);
+    --bs-btn-color: #ffffff;
+    --bs-btn-hover-bg: var(--primary-hover, var(--primary-color));
+    --bs-btn-hover-border-color: var(--primary-hover, var(--primary-color));
+    --bs-btn-hover-color: #ffffff;
+    --bs-btn-active-bg: var(--primary-hover, var(--primary-color));
+    --bs-btn-active-border-color: var(--primary-hover, var(--primary-color));
+    --bs-btn-active-color: #ffffff;
+    --bs-btn-disabled-bg: var(--primary-color);
+    --bs-btn-disabled-border-color: var(--primary-color);
 }
 
 /* =====================================================================
