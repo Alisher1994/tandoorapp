@@ -1270,6 +1270,20 @@ const getAnalyticsShopIcon = () => L.divIcon({
   iconAnchor: [15, 15]
 });
 
+// Leaflet projects to NaN when the map container has no size (e.g. it's on a
+// hidden tab / behind a modal). Guard every map movement against that.
+const isLeafletMapRenderable = (map) => {
+  if (!map) return false;
+  try {
+    const container = map.getContainer && map.getContainer();
+    if (container && container.offsetParent === null) return false;
+    const size = map.getSize();
+    return Boolean(size) && size.x > 0 && size.y > 0;
+  } catch (error) {
+    return false;
+  }
+};
+
 const AnalyticsMapAutoBounds = ({ points }) => {
   const map = useMap();
   const wasFittedRef = useRef(false);
@@ -1288,6 +1302,7 @@ const AnalyticsMapAutoBounds = ({ points }) => {
     clearIdleTimeout();
     idleResetTimeoutRef.current = setTimeout(() => {
       isUserActiveRef.current = false;
+      if (!isLeafletMapRenderable(map)) return;
       map.flyTo(ANALYTICS_DEFAULT_MAP_CENTER, ANALYTICS_DEFAULT_MAP_ZOOM, { duration: 0.5 });
     }, ANALYTICS_MAP_IDLE_RESET_MS);
   }, [clearIdleTimeout, map]);
@@ -1314,6 +1329,7 @@ const AnalyticsMapAutoBounds = ({ points }) => {
 
   useEffect(() => {
     if (!map) return;
+    if (!isLeafletMapRenderable(map)) return;
 
     if (isUserActiveRef.current) return;
 
@@ -1349,6 +1365,7 @@ const AnalyticsMapFocus = ({ selectedPoint }) => {
 
   useEffect(() => {
     if (!map || !selectedPoint) return;
+    if (!isLeafletMapRenderable(map)) return;
     if (typeof selectedPoint.lat !== 'number' || isNaN(selectedPoint.lat) || typeof selectedPoint.lng !== 'number' || isNaN(selectedPoint.lng)) return;
     map.flyTo([selectedPoint.lat, selectedPoint.lng], Math.max(map.getZoom(), 14), { duration: 0.45 });
   }, [map, selectedPoint]);

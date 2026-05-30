@@ -3950,63 +3950,68 @@ async function loadLeafCategoriesWithPath(restaurantId) {
 
 // Mode 1 (OLX-like, no generative AI): suggest a category purely from the
 // store's existing products that share name tokens with the typed name.
+// Shared statistical (OLX-like) category match from the store's existing products.
+async function computeStatCategorySuggestion(restaurantId, name, leavesArg = null) {
+  const trimmed = String(name || '').trim();
+  if (!restaurantId || trimmed.length < 2) return null;
+  const tokens = Array.from(new Set(
+    trimmed.toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 2)
+  )).slice(0, 12);
+  if (!tokens.length) return null;
+
+  const leaves = leavesArg || await loadLeafCategoriesWithPath(restaurantId);
+  const leafIds = new Set(leaves.map((c) => c.id));
+  if (!leafIds.size) return null;
+
+  const likeParams = tokens.map((token) => `%${token}%`);
+  const productsResult = await pool.query(
+    `SELECT category_id, name_ru, name_uz FROM products
+     WHERE restaurant_id = $1 AND category_id IS NOT NULL
+       AND (name_ru ILIKE ANY($2) OR name_uz ILIKE ANY($2))
+     LIMIT 800`,
+    [restaurantId, likeParams]
+  );
+
+  const scoreByCategory = new Map();
+  const countByCategory = new Map();
+  for (const product of productsResult.rows) {
+    const cid = Number(product.category_id);
+    if (!leafIds.has(cid)) continue; // only suggest leaf categories
+    const productName = `${product.name_ru || ''} ${product.name_uz || ''}`.toLowerCase();
+    let overlap = 0;
+    for (const token of tokens) {
+      if (productName.includes(token)) overlap += 1;
+    }
+    if (overlap <= 0) continue;
+    scoreByCategory.set(cid, (scoreByCategory.get(cid) || 0) + overlap);
+    countByCategory.set(cid, (countByCategory.get(cid) || 0) + 1);
+  }
+  if (!scoreByCategory.size) return null;
+
+  let bestId = null;
+  let bestScore = -1;
+  let bestCount = -1;
+  for (const [cid, score] of scoreByCategory.entries()) {
+    const count = countByCategory.get(cid) || 0;
+    if (score > bestScore || (score === bestScore && count > bestCount)) {
+      bestScore = score;
+      bestCount = count;
+      bestId = cid;
+    }
+  }
+  return bestId;
+}
+
 router.get('/products/suggest-category', async (req, res) => {
   try {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.json({ category_id: null });
-    const name = String(req.query.name || '').trim();
-    if (name.length < 2) return res.json({ category_id: null });
-
-    const tokens = Array.from(new Set(
-      name.toLowerCase()
-        .replace(/[^\p{L}\p{N}]+/gu, ' ')
-        .split(/\s+/)
-        .map((token) => token.trim())
-        .filter((token) => token.length >= 2)
-    )).slice(0, 12);
-    if (!tokens.length) return res.json({ category_id: null });
-
-    const leaves = await loadLeafCategoriesWithPath(restaurantId);
-    const leafIds = new Set(leaves.map((c) => c.id));
-    if (!leafIds.size) return res.json({ category_id: null });
-
-    const likeParams = tokens.map((token) => `%${token}%`);
-    const productsResult = await pool.query(
-      `SELECT category_id, name_ru, name_uz FROM products
-       WHERE restaurant_id = $1 AND category_id IS NOT NULL
-         AND (name_ru ILIKE ANY($2) OR name_uz ILIKE ANY($2))
-       LIMIT 800`,
-      [restaurantId, likeParams]
-    );
-
-    const scoreByCategory = new Map();
-    const countByCategory = new Map();
-    for (const product of productsResult.rows) {
-      const cid = Number(product.category_id);
-      if (!leafIds.has(cid)) continue; // only suggest leaf categories
-      const productName = `${product.name_ru || ''} ${product.name_uz || ''}`.toLowerCase();
-      let overlap = 0;
-      for (const token of tokens) {
-        if (productName.includes(token)) overlap += 1;
-      }
-      if (overlap <= 0) continue;
-      scoreByCategory.set(cid, (scoreByCategory.get(cid) || 0) + overlap);
-      countByCategory.set(cid, (countByCategory.get(cid) || 0) + 1);
-    }
-    if (!scoreByCategory.size) return res.json({ category_id: null });
-
-    let bestId = null;
-    let bestScore = -1;
-    let bestCount = -1;
-    for (const [cid, score] of scoreByCategory.entries()) {
-      const count = countByCategory.get(cid) || 0;
-      if (score > bestScore || (score === bestScore && count > bestCount)) {
-        bestScore = score;
-        bestCount = count;
-        bestId = cid;
-      }
-    }
-    return res.json({ category_id: bestId });
+    const categoryId = await computeStatCategorySuggestion(restaurantId, req.query.name);
+    return res.json({ category_id: categoryId });
   } catch (error) {
     console.error('Suggest category (stats) error:', error);
     return res.json({ category_id: null });
@@ -4028,14 +4033,26 @@ router.post('/products/suggest-category-ai', async (req, res) => {
     }
     const leaves = await loadLeafCategoriesWithPath(restaurantId);
     if (!leaves.length) return res.json({ primary_id: null, alternative_id: null });
-    const suggestion = await suggestProductCategoryWithAI({
-      nameRu,
-      nameUz,
-      categories: leaves.map((c) => ({ id: c.id, path: c.path }))
-    });
+    let suggestion = null;
+    try {
+      suggestion = await suggestProductCategoryWithAI({
+        nameRu,
+        nameUz,
+        categories: leaves.map((c) => ({ id: c.id, path: c.path }))
+      });
+    } catch (aiError) {
+      console.warn('AI category suggestion failed, falling back to stats:', aiError?.message || aiError);
+    }
+    let primaryId = suggestion?.primary_id ?? null;
+    const alternativeId = suggestion?.alternative_id ?? null;
+    // Fallback: when the AI provider chain returns nothing, use the statistical
+    // (existing-products) match so the button still gives a useful result.
+    if (!primaryId) {
+      primaryId = await computeStatCategorySuggestion(restaurantId, `${nameRu} ${nameUz}`.trim(), leaves);
+    }
     return res.json({
-      primary_id: suggestion?.primary_id ?? null,
-      alternative_id: suggestion?.alternative_id ?? null
+      primary_id: primaryId,
+      alternative_id: alternativeId && alternativeId !== primaryId ? alternativeId : null
     });
   } catch (error) {
     console.error('Suggest category (AI) error:', error);
