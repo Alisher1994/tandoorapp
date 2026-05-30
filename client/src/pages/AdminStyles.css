@@ -15563,3 +15563,127 @@ h1, h2, h3, h4, h5, h6,
 .leaflet-bar a {
     background: rgba(255, 255, 255, 0.85) !important;
 }
+
+/* =====================================================================
+   DESIGN SYSTEM v2 — PILOT: Settings screen (.admin-settings-content)
+   Clean, light reference look: opaque white cards with soft indigo shadows
+   (dials back the heavy glass on this screen), refined fields/labels/buttons.
+   Scoped to settings so the rest of the system stays untouched until rollout.
+   ===================================================================== */
+
+.admin-settings-content {
+    background: #f5f6fb !important;
+    padding: 1.5rem !important;
+}
+
+/* Outer + inner cards: opaque white, soft indigo shadow, subtle border */
+.admin-settings-content .card,
+.admin-settings-content .admin-settings-card {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1px solid rgba(99, 102, 241, 0.10) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 10px 30px rgba(79, 70, 229, 0.05) !important;
+}
+
+.admin-settings-content .admin-settings-card > .card-body {
+    padding: 1.6rem !important;
+}
+
+/* Inner surface blocks (sections within a settings card) */
+.admin-settings-content .admin-settings-surface-block {
+    background: #ffffff !important;
+    border: 1px solid rgba(99, 102, 241, 0.10) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.04) !important;
+    padding: 1.15rem 1.2rem !important;
+}
+
+/* Section labels — refined muted uppercase caption */
+.admin-settings-content .form-label.text-uppercase,
+.admin-settings-content .form-label.small {
+    letter-spacing: 0.045em !important;
+    color: #94a3b8 !important;
+    font-weight: 700 !important;
+    font-size: 0.72rem !important;
+}
+
+/* Form fields — clean, opaque, comfortable height, indigo focus */
+.admin-settings-content .form-control,
+.admin-settings-content .form-select {
+    background: #ffffff !important;
+    border: 1px solid rgba(99, 102, 241, 0.16) !important;
+    border-radius: 12px !important;
+    min-height: 44px !important;
+    padding: 0.5rem 0.9rem !important;
+    font-size: 0.92rem !important;
+}
+.admin-settings-content .form-control:focus,
+.admin-settings-content .form-select:focus {
+    border-color: var(--primary-color) !important;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color) 14%, transparent) !important;
+}
+.admin-settings-content textarea.form-control {
+    min-height: 96px !important;
+}
+.admin-settings-content .input-group-text {
+    background: #f8fafc !important;
+    border: 1px solid rgba(99, 102, 241, 0.16) !important;
+    border-radius: 12px 0 0 12px !important;
+    color: #64748b !important;
+}
+
+/* Primary action button (Сохранить и т.п.) — solid indigo with soft glow */
+.admin-settings-content .btn-primary,
+.admin-settings-content .btn-primary-custom,
+.admin-settings-content .btn.btn-success {
+    border: none !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    padding: 0.55rem 1.4rem !important;
+    background: var(--primary-color) !important;
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--primary-color) 24%, transparent) !important;
+}
+.admin-settings-content .btn-primary:hover,
+.admin-settings-content .btn-primary-custom:hover,
+.admin-settings-content .btn.btn-success:hover {
+    background: var(--primary-hover, var(--primary-color)) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Outline / secondary buttons — soft indigo outline */
+.admin-settings-content .btn-outline-primary,
+.admin-settings-content .btn-outline-secondary,
+.admin-settings-content .btn-light {
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    border: 1px solid rgba(99, 102, 241, 0.22) !important;
+    color: var(--primary-color) !important;
+    background: #ffffff !important;
+}
+.admin-settings-content .btn-outline-primary:hover,
+.admin-settings-content .btn-outline-secondary:hover,
+.admin-settings-content .btn-light:hover {
+    background: color-mix(in srgb, var(--primary-color) 8%, #ffffff) !important;
+    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
+}
+
+/* Soft indigo chips / badges within settings */
+.admin-settings-content .badge.bg-light,
+.admin-settings-content .badge.text-bg-light {
+    background: color-mix(in srgb, var(--primary-color) 8%, #ffffff) !important;
+    color: var(--primary-color) !important;
+    border: 1px solid color-mix(in srgb, var(--primary-color) 16%, transparent) !important;
+    border-radius: 999px !important;
+    font-weight: 600 !important;
+}
+
+/* Section headings inside settings — strong slate, Outfit */
+.admin-settings-content h5,
+.admin-settings-content h6,
+.admin-settings-content .admin-settings-section-title {
+    color: #1e293b !important;
+    font-weight: 700 !important;
+}
