@@ -22534,9 +22534,10 @@ function SuperAdminDashboard() {
                             <Button
                               variant={restaurantForm.delivery_zone ? "outline-primary" : "primary"}
                               size="sm"
+                              className="text-nowrap d-inline-flex align-items-center justify-content-center gap-1"
                               onClick={() => setShowMapModal(true)}
                             >
-                              <i className="bi bi-map me-1"></i> {restaurantForm.delivery_zone ? 'Изменить зону' : 'Очертить зону'}
+                              <i className="bi bi-map"></i> {restaurantForm.delivery_zone ? 'Изменить зону' : 'Очертить зону'}
                             </Button>
                             {restaurantForm.delivery_zone && (
                               <Button
