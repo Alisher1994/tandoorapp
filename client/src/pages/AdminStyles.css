@@ -11114,8 +11114,8 @@ body::-webkit-scrollbar,
 .admin-product-image-dropzone {
     height: 144px;
     min-height: 144px;
-    border: 1px solid rgba(148, 163, 184, 0.42);
-    border-style: solid;
+    /* no inner border: the slot already provides the single frame */
+    border: 1px solid transparent;
     border-radius: 12px;
     background: #ffffff;
     display: flex;
@@ -11126,18 +11126,15 @@ body::-webkit-scrollbar,
     overflow: hidden;
     position: relative;
     outline: none;
-    transition: border-color 0.16s ease, background-color 0.16s ease;
+    transition: background-color 0.16s ease;
 }
 
 .admin-product-image-dropzone:hover,
 .admin-product-image-dropzone:focus-visible {
-    border-color: rgba(100, 116, 139, 0.58);
-    background: #ffffff;
+    background: #f8fafc;
 }
 
 .admin-product-image-dropzone.has-image {
-    border-style: solid;
-    border-color: rgba(148, 163, 184, 0.36);
     background: #ffffff;
 }
 
@@ -11172,6 +11169,12 @@ body::-webkit-scrollbar,
     font-size: 1.25rem;
     font-weight: 700;
     color: #94a3b8;
+}
+
+.admin-product-image-placeholder-graphic {
+    width: 48px;
+    height: 48px;
+    opacity: 0.95;
 }
 
 .admin-product-image-slot-overlay {

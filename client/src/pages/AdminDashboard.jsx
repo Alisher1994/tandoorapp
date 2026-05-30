@@ -19989,7 +19989,19 @@ function AdminDashboard() {
                                       />
                                     ) : (
                                       <div className="admin-product-image-placeholder">
-                                        <div className="admin-product-image-placeholder-icon is-add">+</div>
+                                        <svg
+                                          className="admin-product-image-placeholder-graphic"
+                                          viewBox="0 0 80 80"
+                                          width="48"
+                                          height="48"
+                                          fill="none"
+                                          aria-hidden="true"
+                                        >
+                                          <rect x="18" y="20" width="44" height="34" rx="4" transform="rotate(-9 40 37)" fill="#e6e9ed" />
+                                          <rect x="20" y="26" width="40" height="30" rx="4" fill="#f1f3f6" stroke="#d3d8de" strokeWidth="2.5" />
+                                          <circle cx="48" cy="35" r="3.6" fill="#cdd3da" />
+                                          <path d="M24 54 L34 41 L41 48 L48 39 L57 54 Z" fill="#cdd3da" />
+                                        </svg>
                                       </div>
                                     )}
                                     <div className="admin-product-image-slot-overlay">
