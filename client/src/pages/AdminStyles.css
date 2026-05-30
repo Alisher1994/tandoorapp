@@ -753,11 +753,12 @@ body::-webkit-scrollbar,
     background: #ffffff;
     color: #0f172a;
     border-radius: 10px;
-    min-height: 42px;
+    min-height: var(--admin-field-height, 44px);
+    height: var(--admin-field-height, 44px);
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px;
+    padding: 6px 12px;
     font-size: 13px;
     text-align: left;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -9041,11 +9042,12 @@ body::-webkit-scrollbar,
     align-items: center;
     gap: var(--admin-segment-gap) !important;
     padding: 4px !important;
-    margin: 0 0 6px 0 !important;
+    /* inset from the modal edges so the tab bar doesn't stick to the walls */
+    margin: 16px 20px 12px !important;
     border: 1px solid var(--admin-segment-border) !important;
     border-radius: var(--admin-segment-radius) !important;
     background: var(--admin-segment-bg) !important;
-    max-width: 100%;
+    max-width: calc(100% - 40px);
 }
 
 .custom-restaurant-tabs .nav-item {
@@ -16147,4 +16149,36 @@ h1, h2, h3, h4, h5, h6,
     background: #f0fdf4 !important;
     border-color: #bbf7d0 !important;
     color: #15803d !important;
+}
+
+/* =====================================================================
+   UNIFORM FORM FIELD HEIGHT
+   One standard height for every text input and dropdown across all forms,
+   so nothing is taller/shorter than its neighbours. Textareas, file/color
+   inputs and intentionally-small (.form-control-sm) fields are exempt.
+   ===================================================================== */
+:root {
+    --admin-field-height: 44px;
+}
+.form-control:not(textarea):not(.form-control-sm):not([type="file"]):not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+.form-select:not(.form-select-sm),
+.country-currency-trigger {
+    height: var(--admin-field-height) !important;
+    min-height: var(--admin-field-height) !important;
+    padding-top: 0.45rem !important;
+    padding-bottom: 0.45rem !important;
+    line-height: 1.3 !important;
+}
+/* Multi-line controls keep natural sizing */
+textarea.form-control {
+    height: auto !important;
+    min-height: 92px !important;
+}
+/* Align input-group add-ons / buttons to the same height */
+.input-group:not(.input-group-sm) > .form-control,
+.input-group:not(.input-group-sm) > .form-select,
+.input-group:not(.input-group-sm) > .input-group-text,
+.input-group:not(.input-group-sm) > .btn {
+    height: var(--admin-field-height) !important;
+    min-height: var(--admin-field-height) !important;
 }
