@@ -8613,6 +8613,11 @@ function SuperAdminDashboard() {
 
     const allowedExt = ['jpg', 'jpeg', 'png', 'pdf'];
     const allowedMime = ['image/jpeg', 'image/png', 'application/pdf'];
+    const existingFilesCount = getRestaurantGuvohnomaFiles(restaurant).length;
+    if (existingFilesCount + files.length > 5) {
+      setError(`Можно загрузить максимум 5 файлов. Сейчас загружено: ${existingFilesCount}`);
+      return;
+    }
     for (const file of files) {
       const ext = String(file.name || '').split('.').pop()?.toLowerCase() || '';
       const fileMime = String(file.type || '').toLowerCase();
@@ -14661,7 +14666,7 @@ function SuperAdminDashboard() {
                                           <div className="sa-restaurant-file-strip-head">
                                             <div>
                                               <div className="sa-restaurant-file-title">Гувохнома</div>
-                                              <div className="sa-restaurant-file-subtitle">JPG, JPEG, PNG или PDF до 15 MB</div>
+                                              <div className="sa-restaurant-file-subtitle">JPG, JPEG, PNG или PDF до 15 MB. Максимум 5 файлов.</div>
                                             </div>
                                             <input
                                               id={`restaurant-guvohnoma-${r.id}`}
@@ -14674,11 +14679,11 @@ function SuperAdminDashboard() {
                                                 event.target.value = '';
                                                 if (files?.length) handleRestaurantGuvohnomaUpload(r, files);
                                               }}
-                                              disabled={guvohnomaUploading}
+                                              disabled={guvohnomaUploading || guvohnomaFiles.length >= 5}
                                             />
                                             <label
                                               htmlFor={`restaurant-guvohnoma-${r.id}`}
-                                              className={`sa-restaurant-file-upload-btn ${guvohnomaUploading ? 'is-loading' : ''}`}
+                                              className={`sa-restaurant-file-upload-btn ${guvohnomaUploading ? 'is-loading' : ''} ${guvohnomaFiles.length >= 5 ? 'is-disabled' : ''}`}
                                               onClick={(event) => event.stopPropagation()}
                                             >
                                               {guvohnomaUploading ? (
@@ -14689,7 +14694,7 @@ function SuperAdminDashboard() {
                                               ) : (
                                                 <>
                                                   <Upload className="action-btn-icon" aria-hidden="true" />
-                                                  <span>{guvohnomaFiles.length > 0 ? 'Добавить файлы' : 'Загрузить файлы'}</span>
+                                                  <span>{guvohnomaFiles.length >= 5 ? 'Лимит 5 файлов' : (guvohnomaFiles.length > 0 ? 'Добавить файлы' : 'Загрузить файлы')}</span>
                                                 </>
                                               )}
                                             </label>

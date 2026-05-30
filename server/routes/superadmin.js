@@ -131,6 +131,7 @@ const normalizeModeratorPermissions = (value) => {
 };
 const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us']);
 const GUVOHNOMA_MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const GUVOHNOMA_MAX_FILES_PER_RESTAURANT = 5;
 const GUVOHNOMA_ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.pdf']);
 const GUVOHNOMA_ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf']);
 const RESTAURANT_WORKFLOW_STATUS_VALUES = new Set([
@@ -6564,6 +6565,14 @@ router.post('/restaurants/:id(\\d+)/guvohnoma', (req, res) => {
       );
       if (restaurantResult.rows.length === 0) {
         return res.status(404).json({ error: 'Магазин не найден' });
+      }
+      const filesCountResult = await pool.query(
+        'SELECT COUNT(*)::int AS total FROM restaurant_guvohnoma_files WHERE restaurant_id = $1',
+        [restaurantId]
+      );
+      const filesCount = Number(filesCountResult.rows[0]?.total || 0);
+      if (filesCount >= GUVOHNOMA_MAX_FILES_PER_RESTAURANT) {
+        return res.status(400).json({ error: 'Можно загрузить максимум 5 файлов гувохнома' });
       }
 
       const filename = buildGuvohnomaFilename(restaurantId, req.file.originalname);
