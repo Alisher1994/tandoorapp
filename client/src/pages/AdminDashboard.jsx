@@ -18809,6 +18809,7 @@ function AdminDashboard() {
                                                 <span className="admin-variant-row-number">{index + 1}</span>
                                               </Col>
                                               <Col xl={2} md={6} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Variant nomi' : 'Название варианта'}</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   value={variant.name || ''}
@@ -18819,6 +18820,7 @@ function AdminDashboard() {
                                               </Col>
                                               {restaurantSettings?.product_field_description_enabled !== false && (
                                               <Col xl={2} md={6} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">Описание RU</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   value={variant.description_ru || ''}
@@ -18830,6 +18832,7 @@ function AdminDashboard() {
                                               )}
                                               {restaurantSettings?.product_field_description_enabled !== false && (
                                               <Col xl={2} md={6} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">Описание UZ</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   value={variant.description_uz || ''}
@@ -18840,6 +18843,7 @@ function AdminDashboard() {
                                               </Col>
                                               )}
                                               <Col xl={2} md={4} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Narxi' : 'Цена'}</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   type="text"
@@ -18850,6 +18854,7 @@ function AdminDashboard() {
                                                 />
                                               </Col>
                                               <Col xl={2} md={4} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Chegirma narxi' : 'Цена со скидкой'}</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   type="text"
@@ -18860,6 +18865,7 @@ function AdminDashboard() {
                                                 />
                                               </Col>
                                               <Col xl={2} md={4} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">{isInventoryTrackingEnabledForVariants ? (language === 'uz' ? 'Qoldiq' : 'Остаток') : (language === 'uz' ? 'Mavjud' : 'В наличии')}</Form.Label>
                                                 {isInventoryTrackingEnabledForVariants ? (
                                                   <div className="d-flex flex-column w-100">
                                                     <Form.Control
@@ -18893,6 +18899,7 @@ function AdminDashboard() {
                                               </Col>
                                               {restaurantSettings?.product_field_barcode_enabled !== false && (
                                               <Col xl={3} md={6} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Shtrix-kod' : 'Штрихкод'}</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   type="text"
@@ -18905,6 +18912,7 @@ function AdminDashboard() {
                                               )}
                                               {restaurantSettings?.product_field_ikpu_enabled !== false && (
                                               <Col xl={2} md={6} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">ИКПУ</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
                                                   type="text"
@@ -18916,6 +18924,7 @@ function AdminDashboard() {
                                               </Col>
                                               )}
                                               <Col xl={2} md={6} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Fasovka' : 'Фасовка'}</Form.Label>
                                                 <Form.Select
                                                   className="form-control-custom"
                                                   value={variant.container_id || ''}
@@ -18930,6 +18939,7 @@ function AdminDashboard() {
                                                 </Form.Select>
                                               </Col>
                                               <Col xl={1} md={4} className="admin-variant-table-col">
+                                                <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Qadoqlash normasi' : 'Норма фасовки'}</Form.Label>
                                                 {variant.container_id ? (
                                                   <Form.Control
                                                     className="form-control-custom"
@@ -18945,6 +18955,7 @@ function AdminDashboard() {
                                               </Col>
                                               {isKgUnit && (
                                                 <Col xl={1} md={4} className="admin-variant-table-col">
+                                                  <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</Form.Label>
                                                   <Form.Control
                                                     className="form-control-custom"
                                                     type="number"
@@ -18956,6 +18967,7 @@ function AdminDashboard() {
                                                 </Col>
                                               )}
                                               <Col xl={3} md={8} className="admin-variant-table-col admin-variant-table-col-images">
+                                                <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Foto' : 'Фото варианта'}</Form.Label>
                                                 <div
                                                   className="admin-product-variant-inline-images-shell"
                                                   tabIndex={0}
