@@ -140,6 +140,23 @@ async function migrate() {
         await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ${col}`);
       } catch (e) { }
     }
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS restaurant_guvohnoma_files (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        file_url TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        file_mime VARCHAR(120),
+        file_size BIGINT DEFAULT 0,
+        uploaded_by_id INTEGER,
+        uploaded_by_name TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_restaurant_guvohnoma_files_restaurant
+      ON restaurant_guvohnoma_files(restaurant_id, created_at DESC, id DESC)
+    `).catch(() => {});
     // Уникальный slug витрины (talablar.up.railway.app/<slug>). NULL допускается для магазинов без адреса.
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS restaurants_slug_unique_idx

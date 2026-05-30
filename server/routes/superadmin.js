@@ -3685,6 +3685,53 @@ const ensureRestaurantGuvohnomaSchema = async () => {
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_uploaded_at TIMESTAMP`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_uploaded_by_id INTEGER`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_uploaded_by_name TEXT`).catch(() => {});
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS restaurant_guvohnoma_files (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        file_url TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        file_mime VARCHAR(120),
+        file_size BIGINT DEFAULT 0,
+        uploaded_by_id INTEGER,
+        uploaded_by_name TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch(() => {});
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_restaurant_guvohnoma_files_restaurant
+      ON restaurant_guvohnoma_files(restaurant_id, created_at DESC, id DESC)
+    `).catch(() => {});
+    await pool.query(`
+      INSERT INTO restaurant_guvohnoma_files (
+        restaurant_id,
+        file_url,
+        file_name,
+        file_mime,
+        file_size,
+        uploaded_by_id,
+        uploaded_by_name,
+        created_at
+      )
+      SELECT
+        r.id,
+        r.guvohnoma_file_url,
+        COALESCE(NULLIF(BTRIM(r.guvohnoma_file_name), ''), 'Гувохнома'),
+        r.guvohnoma_file_mime,
+        COALESCE(r.guvohnoma_file_size, 0),
+        r.guvohnoma_uploaded_by_id,
+        r.guvohnoma_uploaded_by_name,
+        COALESCE(r.guvohnoma_uploaded_at, r.updated_at, r.created_at, CURRENT_TIMESTAMP)
+      FROM restaurants r
+      WHERE r.guvohnoma_file_url IS NOT NULL
+        AND BTRIM(r.guvohnoma_file_url) <> ''
+        AND NOT EXISTS (
+          SELECT 1
+          FROM restaurant_guvohnoma_files gf
+          WHERE gf.restaurant_id = r.id
+            AND gf.file_url = r.guvohnoma_file_url
+        )
+    `).catch(() => {});
     restaurantGuvohnomaSchemaReady = true;
   })();
 
@@ -4361,13 +4408,31 @@ router.get('/restaurants', async (req, res) => {
         COALESCE(orc.orders_count, 0) AS orders_count,
         COALESCE(pc.products_count, 0) AS products_count,
         oc.latest_operator_activity_at,
-        COALESCE(oc.active_operators_count, 0) AS active_operators_count
+        COALESCE(oc.active_operators_count, 0) AS active_operators_count,
+        COALESCE(gf.guvohnoma_files, '[]'::jsonb) AS guvohnoma_files
       FROM r_page
       LEFT JOIN business_activity_types bat ON bat.id = r_page.activity_type_id
       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r_page.id
       LEFT JOIN operator_counts oc ON oc.restaurant_id = r_page.id
       LEFT JOIN order_counts orc ON orc.restaurant_id = r_page.id
       LEFT JOIN product_counts pc ON pc.restaurant_id = r_page.id
+      LEFT JOIN LATERAL (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'id', rgf.id,
+            'file_url', rgf.file_url,
+            'file_name', rgf.file_name,
+            'file_mime', rgf.file_mime,
+            'file_size', rgf.file_size,
+            'uploaded_by_id', rgf.uploaded_by_id,
+            'uploaded_by_name', rgf.uploaded_by_name,
+            'created_at', rgf.created_at
+          )
+          ORDER BY rgf.created_at DESC, rgf.id DESC
+        ) AS guvohnoma_files
+        FROM restaurant_guvohnoma_files rgf
+        WHERE rgf.restaurant_id = r_page.id
+      ) gf ON true
       LEFT JOIN LATERAL (
         SELECT
           u.full_name,
@@ -6494,7 +6559,7 @@ router.post('/restaurants/:id(\\d+)/guvohnoma', (req, res) => {
 
       assertGuvohnomaBufferIsValid(req.file);
       const restaurantResult = await pool.query(
-        'SELECT id, guvohnoma_file_url FROM restaurants WHERE id = $1 LIMIT 1',
+        'SELECT id FROM restaurants WHERE id = $1 LIMIT 1',
         [restaurantId]
       );
       if (restaurantResult.rows.length === 0) {
@@ -6511,7 +6576,39 @@ router.post('/restaurants/:id(\\d+)/guvohnoma', (req, res) => {
       const uploadedByName = sanitizeGuvohnomaOriginalName(
         req.user?.full_name || req.user?.username || 'Суперадмин'
       );
-      const updatedResult = await pool.query(`
+      const insertedResult = await pool.query(`
+        INSERT INTO restaurant_guvohnoma_files (
+          restaurant_id,
+          file_url,
+          file_name,
+          file_mime,
+          file_size,
+          uploaded_by_id,
+          uploaded_by_name
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING
+          id,
+          restaurant_id,
+          file_url,
+          file_name,
+          file_mime,
+          file_size,
+          uploaded_by_id,
+          uploaded_by_name,
+          created_at
+      `, [
+        restaurantId,
+        fileUrl,
+        originalName,
+        String(req.file.mimetype || '').toLowerCase(),
+        Number(req.file.size || req.file.buffer.length || 0),
+        uploadedById,
+        uploadedByName
+      ]);
+
+      const fileRow = insertedResult.rows[0];
+      await pool.query(`
         UPDATE restaurants
         SET guvohnoma_file_url = $1,
             guvohnoma_file_name = $2,
@@ -6522,15 +6619,6 @@ router.post('/restaurants/:id(\\d+)/guvohnoma', (req, res) => {
             guvohnoma_uploaded_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $7
-        RETURNING
-          id,
-          guvohnoma_file_url,
-          guvohnoma_file_name,
-          guvohnoma_file_mime,
-          guvohnoma_file_size,
-          guvohnoma_uploaded_at,
-          guvohnoma_uploaded_by_id,
-          guvohnoma_uploaded_by_name
       `, [
         fileUrl,
         originalName,
@@ -6541,17 +6629,19 @@ router.post('/restaurants/:id(\\d+)/guvohnoma', (req, res) => {
         restaurantId
       ]);
 
-      const previousUrl = String(restaurantResult.rows[0]?.guvohnoma_file_url || '');
-      if (previousUrl.startsWith('/uploads/guvohnoma/')) {
-        const previousPath = path.join(uploadsDir, previousUrl.replace(/^\/uploads\//, ''));
-        if (previousPath.startsWith(guvohnomaUploadsDir)) {
-          fs.promises.unlink(previousPath).catch(() => {});
-        }
-      }
-
       return res.json({
         message: 'Гувохнома загружена',
-        restaurant: updatedResult.rows[0]
+        file: fileRow,
+        restaurant: {
+          id: restaurantId,
+          guvohnoma_file_url: fileRow.file_url,
+          guvohnoma_file_name: fileRow.file_name,
+          guvohnoma_file_mime: fileRow.file_mime,
+          guvohnoma_file_size: fileRow.file_size,
+          guvohnoma_uploaded_at: fileRow.created_at,
+          guvohnoma_uploaded_by_id: fileRow.uploaded_by_id,
+          guvohnoma_uploaded_by_name: fileRow.uploaded_by_name
+        }
       });
     } catch (error) {
       console.error('Restaurant guvohnoma upload error:', error);
@@ -6562,6 +6652,87 @@ router.post('/restaurants/:id(\\d+)/guvohnoma', (req, res) => {
       return res.status(500).json({ error: 'Ошибка загрузки гувохнома' });
     }
   });
+});
+
+router.delete('/restaurants/:id(\\d+)/guvohnoma/:fileId(\\d+)', async (req, res) => {
+  try {
+    await ensureRestaurantGuvohnomaSchema();
+    const restaurantId = Number.parseInt(req.params.id, 10);
+    const fileId = Number.parseInt(req.params.fileId, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0 || !Number.isFinite(fileId) || fileId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID файла' });
+    }
+
+    const fileResult = await pool.query(
+      'SELECT * FROM restaurant_guvohnoma_files WHERE id = $1 AND restaurant_id = $2 LIMIT 1',
+      [fileId, restaurantId]
+    );
+    if (fileResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Файл не найден' });
+    }
+
+    const fileRow = fileResult.rows[0];
+    await pool.query(
+      'DELETE FROM restaurant_guvohnoma_files WHERE id = $1 AND restaurant_id = $2',
+      [fileId, restaurantId]
+    );
+
+    const previousUrl = String(fileRow.file_url || '');
+    if (previousUrl.startsWith('/uploads/guvohnoma/')) {
+      const previousPath = path.join(uploadsDir, previousUrl.replace(/^\/uploads\//, ''));
+      if (previousPath.startsWith(guvohnomaUploadsDir)) {
+        fs.promises.unlink(previousPath).catch(() => {});
+      }
+    }
+
+    const latestResult = await pool.query(`
+      SELECT *
+      FROM restaurant_guvohnoma_files
+      WHERE restaurant_id = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    `, [restaurantId]);
+    const latest = latestResult.rows[0] || null;
+    await pool.query(`
+      UPDATE restaurants
+      SET guvohnoma_file_url = $1,
+          guvohnoma_file_name = $2,
+          guvohnoma_file_mime = $3,
+          guvohnoma_file_size = $4,
+          guvohnoma_uploaded_at = $5,
+          guvohnoma_uploaded_by_id = $6,
+          guvohnoma_uploaded_by_name = $7,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8
+    `, [
+      latest?.file_url || null,
+      latest?.file_name || null,
+      latest?.file_mime || null,
+      latest?.file_size || 0,
+      latest?.created_at || null,
+      latest?.uploaded_by_id || null,
+      latest?.uploaded_by_name || null,
+      restaurantId
+    ]);
+
+    return res.json({
+      message: 'Гувохнома удалена',
+      deleted_file_id: fileId,
+      restaurant: {
+        id: restaurantId,
+        guvohnoma_file_url: latest?.file_url || null,
+        guvohnoma_file_name: latest?.file_name || null,
+        guvohnoma_file_mime: latest?.file_mime || null,
+        guvohnoma_file_size: latest?.file_size || 0,
+        guvohnoma_uploaded_at: latest?.created_at || null,
+        guvohnoma_uploaded_by_id: latest?.uploaded_by_id || null,
+        guvohnoma_uploaded_by_name: latest?.uploaded_by_name || null
+      }
+    });
+  } catch (error) {
+    console.error('Restaurant guvohnoma file delete error:', error);
+    res.status(500).json({ error: 'Ошибка удаления гувохнома' });
+  }
 });
 
 router.delete('/restaurants/:id(\\d+)/guvohnoma', async (req, res) => {
@@ -6579,6 +6750,12 @@ router.delete('/restaurants/:id(\\d+)/guvohnoma', async (req, res) => {
     if (currentResult.rows.length === 0) {
       return res.status(404).json({ error: 'Магазин не найден' });
     }
+
+    const filesResult = await pool.query(
+      'SELECT file_url FROM restaurant_guvohnoma_files WHERE restaurant_id = $1',
+      [restaurantId]
+    );
+    await pool.query('DELETE FROM restaurant_guvohnoma_files WHERE restaurant_id = $1', [restaurantId]);
 
     const updatedResult = await pool.query(`
       UPDATE restaurants
@@ -6603,13 +6780,17 @@ router.delete('/restaurants/:id(\\d+)/guvohnoma', async (req, res) => {
     `, [restaurantId]);
 
     const previousUrl = String(currentResult.rows[0]?.guvohnoma_file_url || '');
-    if (previousUrl.startsWith('/uploads/guvohnoma/')) {
-      const previousPath = path.join(uploadsDir, previousUrl.replace(/^\/uploads\//, ''));
+    const urlsToDelete = [
+      previousUrl,
+      ...(Array.isArray(filesResult.rows) ? filesResult.rows.map((row) => row.file_url) : [])
+    ];
+    for (const rawUrl of new Set(urlsToDelete.map((item) => String(item || '')).filter(Boolean))) {
+      if (!rawUrl.startsWith('/uploads/guvohnoma/')) continue;
+      const previousPath = path.join(uploadsDir, rawUrl.replace(/^\/uploads\//, ''));
       if (previousPath.startsWith(guvohnomaUploadsDir)) {
         fs.promises.unlink(previousPath).catch(() => {});
       }
     }
-
     res.json({
       message: 'Гувохнома удалена',
       restaurant: updatedResult.rows[0]
@@ -6650,10 +6831,28 @@ router.get('/restaurants/:id(\\d+)', async (req, res) => {
           WHERE opr.restaurant_id = r.id
             AND u.role = 'operator'
             AND u.is_active = true
-        ) AS active_operators_count
+        ) AS active_operators_count,
+        COALESCE(gf.guvohnoma_files, '[]'::jsonb) AS guvohnoma_files
       FROM restaurants r
       LEFT JOIN business_activity_types bat ON bat.id = r.activity_type_id
       LEFT JOIN restaurant_reservation_settings rs ON rs.restaurant_id = r.id
+      LEFT JOIN LATERAL (
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'id', rgf.id,
+            'file_url', rgf.file_url,
+            'file_name', rgf.file_name,
+            'file_mime', rgf.file_mime,
+            'file_size', rgf.file_size,
+            'uploaded_by_id', rgf.uploaded_by_id,
+            'uploaded_by_name', rgf.uploaded_by_name,
+            'created_at', rgf.created_at
+          )
+          ORDER BY rgf.created_at DESC, rgf.id DESC
+        ) AS guvohnoma_files
+        FROM restaurant_guvohnoma_files rgf
+        WHERE rgf.restaurant_id = r.id
+      ) gf ON true
       WHERE r.id = $1
     `, [req.params.id]);
 

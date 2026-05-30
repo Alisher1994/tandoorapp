@@ -5600,15 +5600,34 @@ function SuperAdminDashboard() {
   };
 
   const getRestaurantGuvohnomaFiles = (restaurant) => {
-    const url = resolveAdPreviewImageUrl(restaurant?.guvohnoma_file_url || '');
-    if (!url) return [];
+    const rows = Array.isArray(restaurant?.guvohnoma_files) ? restaurant.guvohnoma_files : [];
+    const files = rows
+      .map((item) => {
+        const url = resolveAdPreviewImageUrl(item?.file_url || item?.url || '');
+        if (!url) return null;
+        return {
+          id: item?.id || `${restaurant?.id || 'restaurant'}-${url}`,
+          name: item?.file_name || item?.name || 'Гувохнома',
+          url,
+          mime: item?.file_mime || item?.mime || '',
+          uploadedAt: item?.created_at || item?.uploadedAt || '',
+          uploadedBy: item?.uploaded_by_name || item?.uploadedBy || 'Система'
+        };
+      })
+      .filter(Boolean);
+
+    if (files.length > 0) return files;
+
+    const legacyUrl = resolveAdPreviewImageUrl(restaurant?.guvohnoma_file_url || '');
+    if (!legacyUrl) return [];
     return [{
-      id: `${restaurant?.id || 'restaurant'}-guvohnoma`,
+      id: `legacy-${restaurant?.id || 'restaurant'}-guvohnoma`,
       name: restaurant?.guvohnoma_file_name || 'Гувохнома',
-      url,
+      url: legacyUrl,
       mime: restaurant?.guvohnoma_file_mime || '',
       uploadedAt: restaurant?.guvohnoma_uploaded_at || '',
-      uploadedBy: restaurant?.guvohnoma_uploaded_by_name || 'Система'
+      uploadedBy: restaurant?.guvohnoma_uploaded_by_name || 'Система',
+      isLegacy: true
     }];
   };
 
@@ -8585,33 +8604,49 @@ function SuperAdminDashboard() {
     }
   };
 
-  const handleRestaurantGuvohnomaUpload = async (restaurant, file) => {
+  const handleRestaurantGuvohnomaUpload = async (restaurant, selectedFiles) => {
     const restaurantId = Number.parseInt(restaurant?.id, 10);
-    if (!Number.isFinite(restaurantId) || restaurantId <= 0 || !file) return;
+    const isFileList = typeof FileList !== 'undefined' && selectedFiles instanceof FileList;
+    const files = Array.from(isFileList ? selectedFiles : (Array.isArray(selectedFiles) ? selectedFiles : [selectedFiles]))
+      .filter(Boolean);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0 || files.length === 0) return;
 
-    const ext = String(file.name || '').split('.').pop()?.toLowerCase() || '';
     const allowedExt = ['jpg', 'jpeg', 'png', 'pdf'];
     const allowedMime = ['image/jpeg', 'image/png', 'application/pdf'];
-    const fileMime = String(file.type || '').toLowerCase();
-    if (!allowedExt.includes(ext) || (fileMime && !allowedMime.includes(fileMime))) {
-      setError('Гувохнома должна быть файлом JPG, JPEG, PNG или PDF');
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      setError('Файл слишком большой. Максимальный размер: 15 MB');
-      return;
+    for (const file of files) {
+      const ext = String(file.name || '').split('.').pop()?.toLowerCase() || '';
+      const fileMime = String(file.type || '').toLowerCase();
+      if (!allowedExt.includes(ext) || (fileMime && !allowedMime.includes(fileMime))) {
+        setError('Гувохнома должна быть файлом JPG, JPEG, PNG или PDF');
+        return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        setError('Файл слишком большой. Максимальный размер: 15 MB');
+        return;
+      }
     }
 
     setRestaurantGuvohnomaUploading((prev) => ({ ...prev, [restaurantId]: true }));
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await axios.post(`${API_URL}/superadmin/restaurants/${restaurantId}/guvohnoma`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const uploadedFiles = [];
+      let latestPatch = {};
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await axios.post(`${API_URL}/superadmin/restaurants/${restaurantId}/guvohnoma`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (response.data?.file) uploadedFiles.push(response.data.file);
+        latestPatch = response.data?.restaurant || latestPatch;
+      }
+      updateRestaurantInlineFlagsInState(restaurantId, {
+        ...latestPatch,
+        guvohnoma_files: [
+          ...uploadedFiles,
+          ...(Array.isArray(restaurant?.guvohnoma_files) ? restaurant.guvohnoma_files : [])
+        ]
       });
-      const patch = response.data?.restaurant || {};
-      updateRestaurantInlineFlagsInState(restaurantId, patch);
-      setSuccess('Гувохнома загружена');
+      setSuccess(files.length > 1 ? `Гувохнома загружены: ${files.length}` : 'Гувохнома загружена');
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка загрузки гувохнома');
     } finally {
@@ -8623,20 +8658,28 @@ function SuperAdminDashboard() {
     }
   };
 
-  const handleRestaurantGuvohnomaDelete = async (restaurant) => {
+  const handleRestaurantGuvohnomaDelete = async (restaurant, file = null) => {
     const restaurantId = Number.parseInt(restaurant?.id, 10);
     if (!Number.isFinite(restaurantId) || restaurantId <= 0) return;
-    if (!window.confirm('Удалить загруженную гувохнома?')) return;
+    if (!window.confirm('Удалить файл гувохнома?')) return;
 
     setRestaurantGuvohnomaUploading((prev) => ({ ...prev, [restaurantId]: true }));
     try {
-      const response = await axios.delete(`${API_URL}/superadmin/restaurants/${restaurantId}/guvohnoma`);
-      updateRestaurantInlineFlagsInState(restaurantId, response.data?.restaurant || {
+      const fileId = Number.parseInt(file?.id, 10);
+      const isSingleFileDelete = Number.isFinite(fileId) && fileId > 0 && !file?.isLegacy;
+      const response = await axios.delete(`${API_URL}/superadmin/restaurants/${restaurantId}/guvohnoma${isSingleFileDelete ? `/${fileId}` : ''}`);
+      const nextFiles = isSingleFileDelete
+        ? (Array.isArray(restaurant?.guvohnoma_files) ? restaurant.guvohnoma_files.filter((item) => String(item?.id) !== String(fileId)) : [])
+        : [];
+      updateRestaurantInlineFlagsInState(restaurantId, {
+        ...(response.data?.restaurant || {
         guvohnoma_file_url: null,
         guvohnoma_file_name: null,
         guvohnoma_file_mime: null,
         guvohnoma_file_size: 0,
         guvohnoma_uploaded_at: null
+        }),
+        guvohnoma_files: nextFiles
       });
       setSuccess('Гувохнома удалена');
     } catch (err) {
@@ -14212,7 +14255,6 @@ function SuperAdminDashboard() {
                             const locationPreviewMapUrl = getRestaurantStaticMapUrl(r);
                             const reservationToggleBusy = Boolean(restaurantInlineToggleLoading[`${r.id}:reservation_enabled`]);
                             const variantsToggleBusy = Boolean(restaurantInlineToggleLoading[`${r.id}:size_variants_enabled`]);
-                            const guvohnomaUrl = resolveAdPreviewImageUrl(r.guvohnoma_file_url || '');
                             const guvohnomaUploading = Boolean(restaurantGuvohnomaUploading[r.id]);
                             const guvohnomaFiles = getRestaurantGuvohnomaFiles(r);
                           
@@ -14625,11 +14667,12 @@ function SuperAdminDashboard() {
                                               id={`restaurant-guvohnoma-${r.id}`}
                                               className="sa-guvohnoma-file-input"
                                               type="file"
+                                              multiple
                                               accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
                                               onChange={(event) => {
-                                                const file = event.target.files?.[0];
+                                                const files = event.target.files;
                                                 event.target.value = '';
-                                                if (file) handleRestaurantGuvohnomaUpload(r, file);
+                                                if (files?.length) handleRestaurantGuvohnomaUpload(r, files);
                                               }}
                                               disabled={guvohnomaUploading}
                                             />
@@ -14646,7 +14689,7 @@ function SuperAdminDashboard() {
                                               ) : (
                                                 <>
                                                   <Upload className="action-btn-icon" aria-hidden="true" />
-                                                  <span>{guvohnomaUrl ? 'Заменить файл' : 'Загрузить файл'}</span>
+                                                  <span>{guvohnomaFiles.length > 0 ? 'Добавить файлы' : 'Загрузить файлы'}</span>
                                                 </>
                                               )}
                                             </label>
@@ -14689,7 +14732,7 @@ function SuperAdminDashboard() {
                                                   <Button
                                                     variant="light"
                                                     className="action-btn sa-action-btn-guvohnoma-delete"
-                                                    onClick={() => handleRestaurantGuvohnomaDelete(r)}
+                                                    onClick={() => handleRestaurantGuvohnomaDelete(r, file)}
                                                     disabled={guvohnomaUploading}
                                                     title="Удалить"
                                                     aria-label="Удалить гувохнома"
