@@ -15862,3 +15862,119 @@ h1, h2, h3, h4, h5, h6,
     height: 0 !important;
     display: none !important;
 }
+
+/* =====================================================================
+   UNIFIED BUTTONS
+   (A) Icon-only action buttons (edit / delete / test / add / filter …) —
+       one strictly square style. Semantic color kept via modifier classes.
+   (B) Text buttons — one rectangular family (consistent radius/weight/height).
+   Tabs are excluded (they are .nav-link, not .btn).
+   ===================================================================== */
+
+/* (A) Square icon buttons — unify every dedicated icon-button class */
+.action-btn,
+.admin-printer-icon-btn,
+.sa-founders-icon-btn,
+.admin-store-logo-icon-btn,
+.admin-filter-icon-btn,
+.admin-icon-btn {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
+    border: 1px solid rgba(99, 102, 241, 0.16) !important;
+    background: #ffffff !important;
+    color: #475569 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+    transform: none !important;
+    transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease !important;
+}
+.action-btn:hover,
+.action-btn:focus-visible,
+.admin-printer-icon-btn:hover,
+.admin-printer-icon-btn:focus-visible,
+.sa-founders-icon-btn:hover,
+.sa-founders-icon-btn:focus-visible,
+.admin-store-logo-icon-btn:hover:not(:disabled),
+.admin-store-logo-icon-btn:focus-visible,
+.admin-filter-icon-btn:hover,
+.admin-filter-icon-btn:focus-visible,
+.admin-icon-btn:hover,
+.admin-icon-btn:focus-visible {
+    background: color-mix(in srgb, var(--primary-color) 8%, #ffffff) !important;
+    border-color: color-mix(in srgb, var(--primary-color) 35%, transparent) !important;
+    color: var(--primary-color) !important;
+    outline: none !important;
+}
+.action-btn:disabled,
+.admin-printer-icon-btn:disabled,
+.sa-founders-icon-btn:disabled,
+.admin-store-logo-icon-btn:disabled,
+.admin-filter-icon-btn:disabled {
+    opacity: 0.55 !important;
+    cursor: not-allowed !important;
+}
+
+/* Semantic color modifiers (delete = red, success = green, primary/add = indigo) */
+.action-btn-db-delete,
+.admin-printer-icon-btn-danger,
+.text-danger.action-btn {
+    color: #dc2626 !important;
+    border-color: rgba(220, 38, 38, 0.22) !important;
+}
+.action-btn-db-delete:hover,
+.action-btn-db-delete:focus-visible,
+.admin-printer-icon-btn-danger:hover,
+.admin-printer-icon-btn-danger:focus-visible,
+.text-danger.action-btn:hover {
+    background: #fef2f2 !important;
+    border-color: #fecaca !important;
+    color: #b91c1c !important;
+}
+.admin-printer-icon-btn-success,
+.text-success.action-btn {
+    color: #16a34a !important;
+    border-color: rgba(22, 163, 74, 0.22) !important;
+}
+.admin-printer-icon-btn-success:hover,
+.admin-printer-icon-btn-success:focus-visible,
+.text-success.action-btn:hover {
+    background: #f0fdf4 !important;
+    border-color: #bbf7d0 !important;
+    color: #15803d !important;
+}
+.admin-printer-icon-btn-primary {
+    color: #ffffff !important;
+    background: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+}
+.admin-printer-icon-btn-primary:hover,
+.admin-printer-icon-btn-primary:focus-visible {
+    background: var(--primary-hover, var(--primary-color)) !important;
+    border-color: var(--primary-hover, var(--primary-color)) !important;
+    color: #ffffff !important;
+}
+
+/* (B) Text buttons — one rectangular family (excludes the square icon buttons above) */
+.btn:not(.action-btn):not(.admin-printer-icon-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):not(.dropdown-toggle-split):not(.btn-close) {
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+}
+.btn-primary,
+.btn-primary-custom {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    color: #ffffff !important;
+}
+.btn-primary:hover,
+.btn-primary:focus-visible,
+.btn-primary-custom:hover,
+.btn-primary-custom:focus-visible {
+    background-color: var(--primary-hover, var(--primary-color)) !important;
+    border-color: var(--primary-hover, var(--primary-color)) !important;
+    color: #ffffff !important;
+}
