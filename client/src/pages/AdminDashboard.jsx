@@ -7177,6 +7177,22 @@ function AdminDashboard() {
             checked={!!productForm.is_hidden_catalog}
             onChange={(e) => setProductForm((prev) => ({ ...prev, is_hidden_catalog: e.target.checked }))}
           />
+          {productFormTab === 'variants' && productForm.size_enabled && (
+            <Button
+              type="button"
+              variant="light"
+              size="sm"
+              className="admin-variant-add-btn admin-variant-add-btn-top"
+              title={language === 'uz' ? "Yana bir variant qo'shish" : 'Добавить еще вариант'}
+              onClick={addEmptyProductVariantRow}
+              disabled={normalizeProductVariantOptionsForEditor(productForm.variant_options, {
+                fallbackPrice: normalizeProductPriceValue(productForm.price, NaN),
+                unit: productForm.unit || 'шт'
+              }).length >= MAX_PRODUCT_SIZE_OPTIONS}
+            >
+              {language === 'uz' ? "Qo'shish" : 'Добавить'}
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -19064,21 +19080,6 @@ function AdminDashboard() {
                         onChange={(e) => toggleProductVariantsEnabled(e.target.checked)}
                       />
                     </div>
-                    {productForm.size_enabled && (
-                      <Button
-                        type="button"
-                        variant="light"
-                        className="admin-variant-add-btn admin-variant-add-btn-top"
-                        title={language === 'uz' ? "Yana bir variant qo'shish" : 'Добавить еще вариант'}
-                        onClick={addEmptyProductVariantRow}
-                        disabled={normalizeProductVariantOptionsForEditor(productForm.variant_options, {
-                          fallbackPrice: normalizeProductPriceValue(productForm.price, NaN),
-                          unit: productForm.unit || 'шт'
-                        }).length >= MAX_PRODUCT_SIZE_OPTIONS}
-                      >
-                        {language === 'uz' ? "Qo'shish" : 'Добавить'}
-                      </Button>
-                    )}
                   </div>
                 </div>
               )}
