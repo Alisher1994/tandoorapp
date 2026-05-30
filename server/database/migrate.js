@@ -1135,6 +1135,9 @@ async function migrate() {
       )
     `);
 
+    // Payment category for store payments (balance / store_opening / advertising)
+    await client.query(`ALTER TABLE billing_transactions ADD COLUMN IF NOT EXISTS payment_category VARCHAR(32)`).catch(() => {});
+
     // Add transaction indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_billing_transactions_restaurant ON billing_transactions(restaurant_id)');
 

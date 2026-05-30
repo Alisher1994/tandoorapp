@@ -2002,7 +2002,7 @@ function SuperAdminDashboard() {
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [topupRestaurant, setTopupRestaurant] = useState(null);
   const [topupRestaurantSearch, setTopupRestaurantSearch] = useState('');
-  const [topupForm, setTopupForm] = useState({ amount: '', description: '' });
+  const [topupForm, setTopupForm] = useState({ amount: '', description: '', category: 'balance' });
   const [topupMode, setTopupMode] = useState('deposit');
   const [topupTransactions, setTopupTransactions] = useState([]);
   const [topupTransactionsLoading, setTopupTransactionsLoading] = useState(false);
@@ -3862,8 +3862,9 @@ function SuperAdminDashboard() {
     }
   };
 
-  const getBillingExportTypeLabel = (rawType) => {
+  const getBillingExportTypeLabel = (rawType, category) => {
     const normalized = String(rawType || '').trim().toLowerCase();
+    if (normalized === 'store_payment') return getPaymentCategoryLabel(category);
     if (normalized === 'deposit') return language === 'uz' ? "To'ldirish" : 'Пополнение';
     if (normalized === 'refund') return language === 'uz' ? 'Qaytarish' : 'Возврат';
     return normalized || '—';
@@ -3898,7 +3899,7 @@ function SuperAdminDashboard() {
         ID: item.id,
         Дата: formatBalanceOperationDate(item.created_at),
         Магазин: item.restaurant_name || '—',
-        'Тип операции': getBillingExportTypeLabel(item.type),
+        'Тип операции': getBillingExportTypeLabel(item.type, item.payment_category),
         Сумма: formatBalanceAmount(item.amount || 0),
         Валюта: getCurrencyLabelByCode(item.restaurant_currency_code || countryCurrency?.code),
         Описание: item.description || '',
@@ -3956,13 +3957,13 @@ function SuperAdminDashboard() {
       const pageHeightPx = 1123;
       const generatedAt = new Date();
       const exportRows = rows.map((item, index) => {
-        const operationMeta = getBillingOperationMeta(item.type);
+        const operationMeta = getBillingOperationMeta(item.type, item.payment_category);
         const currencyCode = item.restaurant_currency_code || countryCurrency?.code;
         return {
           index: index + 1,
           date: formatBalanceOperationDate(item.created_at),
           restaurant: item.restaurant_name || '—',
-          type: getBillingExportTypeLabel(item.type),
+          type: getBillingExportTypeLabel(item.type, item.payment_category),
           amount: `${operationMeta.sign}${formatBalanceAmount(item.amount || 0)} ${getCurrencyLabelByCode(currencyCode)}`,
           description: item.description || '—',
           currencyCode,
@@ -7228,8 +7229,32 @@ function SuperAdminDashboard() {
     if (!botUsername) return 1;
     return 0;
   };
-  const getBillingOperationMeta = (type) => {
+  // Payment purpose label ("за что оплатили"): balance / store opening / advertising
+  const getPaymentCategoryLabel = (category) => {
+    const normalized = String(category || '').trim().toLowerCase();
+    if (normalized === 'store_opening') {
+      return language === 'uz' ? "Do'kon ochish" : 'Открытие магазина';
+    }
+    if (normalized === 'advertising') {
+      return language === 'uz' ? 'Reklama' : 'Реклама';
+    }
+    return language === 'uz' ? "Balansni to'ldirish" : 'Пополнение баланса';
+  };
+
+  const getBillingOperationMeta = (type, category) => {
     const normalized = String(type || '').trim().toLowerCase();
+    if (normalized === 'store_payment') {
+      const normalizedCategory = String(category || '').trim().toLowerCase();
+      const isAdvertising = normalizedCategory === 'advertising';
+      return {
+        label: getPaymentCategoryLabel(normalizedCategory || 'store_opening'),
+        className: 'text-success',
+        sign: '+',
+        badgeStyle: isAdvertising
+          ? { backgroundColor: '#f3e8ff', color: '#6b21a8' }
+          : { backgroundColor: '#dbeafe', color: '#1e40af' }
+      };
+    }
     if (normalized === 'deposit') {
       return {
         label: language === 'uz' ? "To'ldirish" : 'Пополнение',
@@ -7294,7 +7319,7 @@ function SuperAdminDashboard() {
   const openTopupModal = (restaurant = null) => {
     setTopupRestaurant(restaurant || null);
     setTopupRestaurantSearch('');
-    setTopupForm({ amount: '', description: '' });
+    setTopupForm({ amount: '', description: '', category: 'balance' });
     setTopupMode('deposit');
     setTopupTransactions([]);
     setShowTopupModal(true);
@@ -7305,7 +7330,7 @@ function SuperAdminDashboard() {
 
   const closeTopupModal = () => {
     setShowTopupModal(false);
-    setTopupForm({ amount: '', description: '' });
+    setTopupForm({ amount: '', description: '', category: 'balance' });
     setTopupMode('deposit');
     setTopupTransactions([]);
     setTopupTransactionsLoading(false);
@@ -7326,23 +7351,39 @@ function SuperAdminDashboard() {
     }
     const isRefundMode = topupMode === 'withdrawal';
     const endpoint = isRefundMode ? 'refund' : 'topup';
-    const successMessage = isRefundMode
-      ? (language === 'uz'
-        ? `"${topupRestaurant.name || 'Do‘kon'}" do'koni uchun qaytarish bajarildi`
-        : `Для магазина "${topupRestaurant.name || 'Магазин'}" выполнен возврат`)
-      : `Баланс магазина "${topupRestaurant.name || 'Магазин'}" пополнен`;
+    const category = isRefundMode ? 'balance' : (topupForm.category || 'balance');
+    const restaurantName = topupRestaurant.name || (language === 'uz' ? "Do'kon" : 'Магазин');
+    let successMessage;
+    if (isRefundMode) {
+      successMessage = language === 'uz'
+        ? `"${restaurantName}" do'koni uchun qaytarish bajarildi`
+        : `Для магазина "${restaurantName}" выполнен возврат`;
+    } else if (category === 'store_opening') {
+      successMessage = language === 'uz'
+        ? `"${restaurantName}" — do'kon ochish to'lovi qayd etildi`
+        : `Оплата за открытие магазина "${restaurantName}" зафиксирована`;
+    } else if (category === 'advertising') {
+      successMessage = language === 'uz'
+        ? `"${restaurantName}" — reklama to'lovi qayd etildi`
+        : `Оплата за рекламу "${restaurantName}" зафиксирована`;
+    } else {
+      successMessage = language === 'uz'
+        ? `"${restaurantName}" do'koni balansi to'ldirildi`
+        : `Баланс магазина "${restaurantName}" пополнен`;
+    }
     try {
       setTopupSubmitting(true);
       const response = await axios.post(`${API_URL}/superadmin/restaurants/${topupRestaurant.id}/${endpoint}`, {
         amount: amountValue,
-        description: topupForm.description
+        description: topupForm.description,
+        category
       });
       const updatedRestaurant = response.data?.restaurant || response.data;
       if (updatedRestaurant && updatedRestaurant.id) {
         setTopupRestaurant((prev) => (prev ? { ...prev, ...updatedRestaurant } : prev));
       }
       setSuccess(successMessage);
-      setTopupForm({ amount: '', description: '' });
+      setTopupForm({ amount: '', description: '', category: 'balance' });
       await Promise.all([
         loadRestaurants(),
         loadTopupTransactions(topupRestaurant.id)
@@ -12948,7 +12989,7 @@ function SuperAdminDashboard() {
               </thead>
               <tbody>
                 {billingOpsData.transactions.map((row) => {
-                  const operationMeta = getBillingOperationMeta(row.type);
+                  const operationMeta = getBillingOperationMeta(row.type, row.payment_category);
                   return (
                     <tr key={row.id}>
                       <td><small className="text-muted">{formatBalanceOperationDate(row.created_at)}</small></td>
@@ -23754,6 +23795,29 @@ function SuperAdminDashboard() {
               {language === 'uz' ? 'Qaytarish' : 'Возврат'}
             </Button>
           </div>
+          {topupMode === 'deposit' && (
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-bold text-muted text-uppercase">
+                {language === 'uz' ? "To'lov turi" : 'Статья оплаты'}
+              </Form.Label>
+              <Form.Select
+                className="form-control-custom"
+                value={topupForm.category || 'balance'}
+                onChange={(e) => setTopupForm((prev) => ({ ...prev, category: e.target.value }))}
+              >
+                <option value="balance">{language === 'uz' ? "Balansni to'ldirish" : 'Пополнение баланса'}</option>
+                <option value="store_opening">{language === 'uz' ? "Do'kon ochish" : 'Открытие магазина'}</option>
+                <option value="advertising">{language === 'uz' ? 'Reklama' : 'Реклама'}</option>
+              </Form.Select>
+              {topupForm.category && topupForm.category !== 'balance' && (
+                <Form.Text className="text-muted">
+                  {language === 'uz'
+                    ? "Do'kon balansi to'ldirilmaydi, to'lov faqat tushum sifatida qayd etiladi"
+                    : 'Баланс магазина не пополняется — оплата только фиксируется в приходе'}
+                </Form.Text>
+              )}
+            </Form.Group>
+          )}
           <Form.Group className="mb-3">
             <Form.Label className="small fw-bold text-muted text-uppercase">
               {topupMode === 'withdrawal'
@@ -23800,7 +23864,7 @@ function SuperAdminDashboard() {
                 </div>
               ) : topupTransactions.length ? (
                 topupTransactions.map((transaction, index) => {
-                  const isDeposit = String(transaction?.type || '').toLowerCase() === 'deposit';
+                  const operationMeta = getBillingOperationMeta(transaction?.type, transaction?.payment_category);
                   const actorLabel = String(transaction?.actor_name || transaction?.actor_username || '').trim() || (language === 'uz' ? 'Tizim' : 'Система');
                   return (
                     <div
@@ -23809,9 +23873,7 @@ function SuperAdminDashboard() {
                     >
                       <div className="small">
                         <div className="fw-semibold">
-                          {isDeposit
-                            ? (language === 'uz' ? "To'ldirish" : 'Пополнение')
-                            : (language === 'uz' ? 'Qaytarish' : 'Возврат')}
+                          {operationMeta.label}
                         </div>
                         <div className="text-muted">
                           {language === 'uz' ? 'Kim:' : 'Кто:'} {actorLabel}
@@ -23821,8 +23883,8 @@ function SuperAdminDashboard() {
                         )}
                       </div>
                       <div className="text-end small">
-                        <div className={`fw-bold ${isDeposit ? 'text-success' : 'text-danger'}`}>
-                          {isDeposit ? '+' : '-'}{formatBalanceAmount(transaction?.amount)} {getCurrencyLabelByCode(transaction?.restaurant_currency_code || topupRestaurant?.currency_code || countryCurrency?.code)}
+                        <div className={`fw-bold ${operationMeta.className}`}>
+                          {operationMeta.sign}{formatBalanceAmount(transaction?.amount)} {getCurrencyLabelByCode(transaction?.restaurant_currency_code || topupRestaurant?.currency_code || countryCurrency?.code)}
                         </div>
                         <div className="text-muted">{formatBalanceOperationDate(transaction?.created_at)}</div>
                       </div>

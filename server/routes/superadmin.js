@@ -4990,12 +4990,34 @@ router.post('/billing-settings/send-server-report', async (req, res) => {
 });
 
 // Пополнить баланс ресторана вручную
+// Categories of superadmin store payments. 'balance' tops up the store balance,
+// the others are just recorded as founder income without changing the balance.
+const STORE_PAYMENT_CATEGORIES = ['balance', 'store_opening', 'advertising'];
+const STORE_PAYMENT_DEFAULT_DESCRIPTIONS = {
+  balance: 'Ручное пополнение суперадмином',
+  store_opening: 'Оплата за открытие магазина',
+  advertising: 'Оплата за рекламу'
+};
+let billingTransactionsCategoryReady = false;
+const ensureBillingTransactionsCategory = async () => {
+  if (billingTransactionsCategoryReady) return;
+  await pool
+    .query(`ALTER TABLE billing_transactions ADD COLUMN IF NOT EXISTS payment_category VARCHAR(32)`)
+    .catch(() => {});
+  billingTransactionsCategoryReady = true;
+};
+
 router.post('/restaurants/:id/topup', async (req, res) => {
   const client = await pool.connect();
   try {
+    await ensureBillingTransactionsCategory();
     const { amount, description } = req.body;
     const restaurantId = req.params.id;
     const amountValue = Number(amount);
+
+    const rawCategory = String(req.body.category || 'balance').trim().toLowerCase();
+    const category = STORE_PAYMENT_CATEGORIES.includes(rawCategory) ? rawCategory : 'balance';
+    const isBalanceTopup = category === 'balance';
 
     if (!Number.isFinite(amountValue) || amountValue <= 0) {
       return res.status(400).json({ error: 'Некорректная сумма пополнения' });
@@ -5003,56 +5025,78 @@ router.post('/restaurants/:id/topup', async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Update restaurant balance
-    const updatedRest = await client.query(`
-      UPDATE restaurants 
-      SET balance = balance + $1 
-      WHERE id = $2 
-      RETURNING id, name, balance, currency_code
-    `, [amountValue, restaurantId]);
+    let restaurantRow;
+    if (isBalanceTopup) {
+      // Update restaurant balance
+      const updatedRest = await client.query(`
+        UPDATE restaurants
+        SET balance = balance + $1
+        WHERE id = $2
+        RETURNING id, name, balance, currency_code
+      `, [amountValue, restaurantId]);
 
-    if (updatedRest.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Ресторан не найден' });
+      if (updatedRest.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Ресторан не найден' });
+      }
+      restaurantRow = updatedRest.rows[0];
+    } else {
+      // Store opening / advertising payment: record income without touching the balance
+      const restRes = await client.query(
+        'SELECT id, name, balance, currency_code FROM restaurants WHERE id = $1',
+        [restaurantId]
+      );
+      if (restRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Ресторан не найден' });
+      }
+      restaurantRow = restRes.rows[0];
     }
+
+    const transactionType = isBalanceTopup ? 'deposit' : 'store_payment';
+    const finalDescription = (description && String(description).trim())
+      ? String(description).trim()
+      : STORE_PAYMENT_DEFAULT_DESCRIPTIONS[category];
 
     // Record transaction
     const transactionResult = await client.query(`
-      INSERT INTO billing_transactions (restaurant_id, user_id, amount, type, description)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, restaurant_id, user_id, amount, type, description, created_at
-    `, [restaurantId, req.user.id, amountValue, 'deposit', description || 'Ручное пополнение суперадмином']);
+      INSERT INTO billing_transactions (restaurant_id, user_id, amount, type, description, payment_category)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, restaurant_id, user_id, amount, type, description, payment_category, created_at
+    `, [restaurantId, req.user.id, amountValue, transactionType, finalDescription, category]);
 
     await client.query('COMMIT');
 
-    // Notify all operators of this restaurant in Telegram
-    try {
-      const operators = await pool.query(`
-        SELECT COALESCE(u.telegram_id, tal.telegram_id) AS telegram_id, u.full_name 
-        FROM users u
-        INNER JOIN operator_restaurants opr ON u.id = opr.user_id
-        LEFT JOIN telegram_admin_links tal ON tal.user_id = u.id
-        WHERE opr.restaurant_id = $1 AND COALESCE(u.telegram_id, tal.telegram_id) IS NOT NULL
-      `, [restaurantId]);
+    // Notify operators in Telegram only for actual balance top-ups
+    if (isBalanceTopup) {
+      try {
+        const operators = await pool.query(`
+          SELECT COALESCE(u.telegram_id, tal.telegram_id) AS telegram_id, u.full_name
+          FROM users u
+          INNER JOIN operator_restaurants opr ON u.id = opr.user_id
+          LEFT JOIN telegram_admin_links tal ON tal.user_id = u.id
+          WHERE opr.restaurant_id = $1 AND COALESCE(u.telegram_id, tal.telegram_id) IS NOT NULL
+        `, [restaurantId]);
 
-      for (const op of operators.rows) {
-        await sendBalanceNotification(
-          op.telegram_id,
-          amountValue,
-          updatedRest.rows[0].balance,
-          null,
-          {
-            restaurantId,
-            currencyCode: updatedRest.rows[0].currency_code
-          }
-        );
+        for (const op of operators.rows) {
+          await sendBalanceNotification(
+            op.telegram_id,
+            amountValue,
+            restaurantRow.balance,
+            null,
+            {
+              restaurantId,
+              currencyCode: restaurantRow.currency_code
+            }
+          );
+        }
+      } catch (notifErr) {
+        console.error('Notification error on topup:', notifErr.message);
       }
-    } catch (notifErr) {
-      console.error('Notification error on topup:', notifErr.message);
     }
 
     res.json({
-      ...updatedRest.rows[0],
+      ...restaurantRow,
       transaction: transactionResult.rows[0] || null
     });
   } catch (error) {
@@ -5067,6 +5111,7 @@ router.post('/restaurants/:id/topup', async (req, res) => {
 // История операций по балансу ресторана
 router.get('/restaurants/:id/billing-transactions', async (req, res) => {
   try {
+    await ensureBillingTransactionsCategory();
     const restaurantId = req.params.id;
     const parsedLimit = Number.parseInt(req.query.limit, 10);
     const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 30;
@@ -5086,6 +5131,7 @@ router.get('/restaurants/:id/billing-transactions', async (req, res) => {
         bt.user_id,
         bt.amount,
         bt.type,
+        bt.payment_category,
         bt.description,
         bt.created_at,
         u.username AS actor_username,
@@ -5093,7 +5139,7 @@ router.get('/restaurants/:id/billing-transactions', async (req, res) => {
       FROM billing_transactions bt
       LEFT JOIN users u ON u.id = bt.user_id
       WHERE bt.restaurant_id = $1
-        AND bt.type IN ('deposit', 'refund')
+        AND bt.type IN ('deposit', 'refund', 'store_payment')
       ORDER BY bt.created_at DESC, bt.id DESC
       LIMIT $2
     `, [restaurantId, limit]);
@@ -5111,6 +5157,7 @@ router.get('/restaurants/:id/billing-transactions', async (req, res) => {
 // Общий журнал пополнений/возвратов по всем магазинам
 router.get('/billing/transactions', async (req, res) => {
   try {
+    await ensureBillingTransactionsCategory();
     const parsedPage = Number.parseInt(req.query.page, 10);
     const parsedLimit = Number.parseInt(req.query.limit, 10);
     const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
@@ -5122,13 +5169,13 @@ router.get('/billing/transactions', async (req, res) => {
       ? parsedRestaurantId
       : null;
     const typeFilterRaw = String(req.query.type || '').trim().toLowerCase();
-    const typeFilter = ['deposit', 'refund'].includes(typeFilterRaw) ? typeFilterRaw : null;
+    const typeFilter = ['deposit', 'refund', 'store_payment'].includes(typeFilterRaw) ? typeFilterRaw : null;
     const search = String(req.query.search || '').trim();
     const startDate = String(req.query.start_date || '').trim();
     const endDate = String(req.query.end_date || '').trim();
     const validDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 
-    const whereParts = [`bt.type IN ('deposit', 'refund')`];
+    const whereParts = [`bt.type IN ('deposit', 'refund', 'store_payment')`];
     const params = [];
 
     if (restaurantId) {
@@ -5181,6 +5228,7 @@ router.get('/billing/transactions', async (req, res) => {
         bt.user_id,
         bt.amount,
         bt.type,
+        bt.payment_category,
         bt.description,
         bt.created_at,
         r.name AS restaurant_name,
