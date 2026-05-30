@@ -56,6 +56,7 @@ import {
 import {
   BookOpen,
   Boxes,
+  Layers,
   CalendarDays,
   Copy,
   Download,
@@ -2029,6 +2030,48 @@ function ShowcaseBuilderTab() {
   );
 }
 
+// Single editable row in the Segments table.
+function SegmentRow({ segment, isBase, language, saving, defaultName, onRename, onDelete }) {
+  const [name, setName] = useState(segment.custom_name || '');
+  useEffect(() => {
+    setName(segment.custom_name || '');
+  }, [segment.custom_name]);
+  const dirty = (name.trim() || '') !== (segment.custom_name || '');
+  return (
+    <tr>
+      <td><Badge bg="secondary">{segment.position}</Badge></td>
+      <td>
+        <Form.Control
+          type="text"
+          size="sm"
+          style={{ maxWidth: 320 }}
+          placeholder={defaultName}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && dirty) { e.preventDefault(); onRename(name); } }}
+        />
+      </td>
+      <td>
+        <div className="d-flex gap-2">
+          <Button
+            variant="outline-primary"
+            size="sm"
+            disabled={saving || !dirty}
+            onClick={() => onRename(name)}
+          >
+            {saving ? <Spinner animation="border" size="sm" /> : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+          </Button>
+          {!isBase && (
+            <Button variant="outline-danger" size="sm" disabled={saving} onClick={onDelete}>
+              {language === 'uz' ? "O'chirish" : 'Удалить'}
+            </Button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 function AdminDashboard() {
   const normalizeAdminOrderForUI = (order) => ({
     ...order,
@@ -2140,7 +2183,9 @@ function AdminDashboard() {
     size_options: [],
     container_id: '',
     container_norm: 1,
-    printer_id: ''
+    printer_id: '',
+    use_segment_pricing: false,
+    segment_prices: {}
   });
   const [isProductImagesMobileLayout, setIsProductImagesMobileLayout] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 992 : false
@@ -2387,6 +2432,12 @@ function AdminDashboard() {
   const [customerOrdersHistory, setCustomerOrdersHistory] = useState({ orders: [], total: 0, page: 1, limit: 10 });
   const [customerOrdersLoading, setCustomerOrdersLoading] = useState(false);
   const [customerOrdersPage, setCustomerOrdersPage] = useState(1);
+
+  // Customer segments
+  const [segments, setSegments] = useState([]);
+  const [segmentsLoading, setSegmentsLoading] = useState(false);
+  const [newSegmentName, setNewSegmentName] = useState('');
+  const [segmentSavingId, setSegmentSavingId] = useState(null);
 
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const {
@@ -3245,6 +3296,7 @@ function AdminDashboard() {
     tabs.containers = { label: t('containers'), icon: Package };
     tabs.feedback = { label: language === 'uz' ? 'Fikr-mulohaza' : 'Отзывы', icon: MessageCircle };
     tabs.clients = { label: t('clients'), icon: Users };
+    tabs.segments = { label: language === 'uz' ? 'Segmentlar' : 'Сегменты', icon: Layers };
     tabs.help = { label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции', icon: BookOpen };
     tabs.printers = { label: language === 'uz' ? "Printerlar" : 'Принтеры', icon: LayoutGrid };
     tabs.settings = { label: t('settings'), icon: Settings };
@@ -4295,6 +4347,16 @@ function AdminDashboard() {
     if (mainTab !== 'clients' || !user?.active_restaurant_id) return;
     fetchCustomers();
   }, [mainTab, user?.active_restaurant_id, customerSearch, customerStatusFilter, customerPage, customerLimit]);
+
+  // Segments are needed by the Segments tab, the customer segment selector and
+  // the product form, so load them whenever the active restaurant changes.
+  useEffect(() => {
+    if (!user?.active_restaurant_id) {
+      setSegments([]);
+      return;
+    }
+    fetchSegments();
+  }, [user?.active_restaurant_id]);
 
   useEffect(() => {
     if (ordersViewMode === 'kanban' && statusFilter !== 'all') {
@@ -5426,6 +5488,99 @@ function AdminDashboard() {
       setAlertMessage({ type: 'danger', text: 'Ошибка загрузки клиентов' });
     } finally {
       setCustomersLoading(false);
+    }
+  };
+
+  // Display name for a segment: custom name if set, else "Сегмент N" / "Segment N".
+  const getSegmentDisplayName = (segment) => {
+    if (!segment) return '';
+    const custom = String(segment.custom_name || '').trim();
+    if (custom) return custom;
+    const position = Number(segment.position) || 1;
+    return language === 'uz' ? `${position}-segment` : `Сегмент ${position}`;
+  };
+
+  const baseSegment = segments.length ? segments[0] : null;
+
+  const fetchSegments = async () => {
+    if (!user?.active_restaurant_id) {
+      setSegments([]);
+      return;
+    }
+    setSegmentsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/segments`);
+      setSegments(Array.isArray(response.data?.segments) ? response.data.segments : []);
+    } catch (error) {
+      console.error('Error fetching segments:', error);
+      setAlertMessage({ type: 'danger', text: language === 'uz' ? 'Segmentlarni yuklashda xatolik' : 'Ошибка загрузки сегментов' });
+    } finally {
+      setSegmentsLoading(false);
+    }
+  };
+
+  const handleCreateSegment = async () => {
+    setSegmentSavingId('new');
+    try {
+      const response = await axios.post(`${API_URL}/admin/segments`, {
+        custom_name: newSegmentName.trim() || null
+      });
+      setSegments(Array.isArray(response.data?.segments) ? response.data.segments : segments);
+      setNewSegmentName('');
+    } catch (error) {
+      console.error('Error creating segment:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || (language === 'uz' ? 'Segment yaratishda xatolik' : 'Ошибка создания сегмента') });
+    } finally {
+      setSegmentSavingId(null);
+    }
+  };
+
+  const handleRenameSegment = async (segmentId, customName) => {
+    setSegmentSavingId(segmentId);
+    try {
+      const response = await axios.put(`${API_URL}/admin/segments/${segmentId}`, {
+        custom_name: customName.trim() || null
+      });
+      setSegments(Array.isArray(response.data?.segments) ? response.data.segments : segments);
+    } catch (error) {
+      console.error('Error renaming segment:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || (language === 'uz' ? 'Segmentni saqlashda xatolik' : 'Ошибка сохранения сегмента') });
+    } finally {
+      setSegmentSavingId(null);
+    }
+  };
+
+  const handleDeleteSegment = async (segmentId) => {
+    const confirmText = language === 'uz'
+      ? "Segmentni o'chirilsinmi? Unga biriktirilgan mijozlar 1-segmentga o'tadi."
+      : 'Удалить сегмент? Привязанные к нему клиенты перейдут в Сегмент 1.';
+    if (!window.confirm(confirmText)) return;
+    setSegmentSavingId(segmentId);
+    try {
+      const response = await axios.delete(`${API_URL}/admin/segments/${segmentId}`);
+      setSegments(Array.isArray(response.data?.segments) ? response.data.segments : segments.filter((s) => s.id !== segmentId));
+    } catch (error) {
+      console.error('Error deleting segment:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || (language === 'uz' ? "Segmentni o'chirishda xatolik" : 'Ошибка удаления сегмента') });
+    } finally {
+      setSegmentSavingId(null);
+    }
+  };
+
+  const handleAssignCustomerSegment = async (customerUserId, segmentId) => {
+    try {
+      await axios.patch(`${API_URL}/admin/customers/${customerUserId}/segment`, {
+        segment_id: segmentId || null
+      });
+      setCustomers((prev) => ({
+        ...prev,
+        customers: (prev.customers || []).map((c) => (
+          c.user_id === customerUserId ? { ...c, segment_id: segmentId || null } : c
+        ))
+      }));
+    } catch (error) {
+      console.error('Error assigning customer segment:', error);
+      setAlertMessage({ type: 'danger', text: error.response?.data?.error || (language === 'uz' ? 'Segmentni biriktirishda xatolik' : 'Ошибка назначения сегмента') });
     }
   };
 
@@ -6767,7 +6922,11 @@ function AdminDashboard() {
           unit: variantFallbackUnit
         }).map((variant) => variant.name),
         container_id: product.container_id || '',
-        container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
+        container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1,
+        use_segment_pricing: product.use_segment_pricing === true,
+        segment_prices: (product.segment_prices && typeof product.segment_prices === 'object' && !Array.isArray(product.segment_prices))
+          ? Object.fromEntries(Object.entries(product.segment_prices).map(([k, v]) => [String(k), String(v ?? '')]))
+          : {}
       });
       setVisibleProductImageSlotsCount(
         isProductImagesMobileLayout
@@ -6801,7 +6960,9 @@ function AdminDashboard() {
         variant_options: [],
         size_options: [],
         container_id: '',
-        container_norm: 1
+        container_norm: 1,
+        use_segment_pricing: false,
+        segment_prices: {}
       });
       setVisibleProductImageSlotsCount(isProductImagesMobileLayout ? 1 : PRODUCT_IMAGE_SLOTS_COUNT);
     }
@@ -7697,7 +7858,14 @@ function AdminDashboard() {
         discount_enabled: isVariantsMode ? false : Boolean(effectiveDiscountPrice),
         discount_price: isVariantsMode ? null : effectiveDiscountPrice,
         variant_options: effectiveVariantOptions,
-        size_options: effectiveVariantOptions
+        size_options: effectiveVariantOptions,
+        use_segment_pricing: !isVariantsMode && Boolean(productForm.use_segment_pricing),
+        segment_prices: isVariantsMode ? [] : Object.entries(productForm.segment_prices || {})
+          .map(([segment_id, price]) => ({
+            segment_id: Number(segment_id),
+            price: Number(String(price ?? '').replace(/\s/g, '').replace(',', '.'))
+          }))
+          .filter((e) => Number.isFinite(e.segment_id) && e.segment_id > 0 && Number.isFinite(e.price) && e.price > 0)
       };
 
       if (selectedProduct) {
@@ -13529,6 +13697,7 @@ function AdminDashboard() {
                             <th>Telegram</th>
                             <th>{t('orders')}</th>
                             <th>{t('amount')}</th>
+                            <th>{language === 'uz' ? 'Segment' : 'Сегмент'}</th>
                             <th>{t('status')}</th>
                             <th>{t('date')}</th>
                             <th>{t('actions')}</th>
@@ -13557,6 +13726,21 @@ function AdminDashboard() {
                                 </td>
                                 <td className="fw-semibold">{formatPrice(c.total_spent || 0)} {t('sum')}</td>
                                 <td>
+                                  <Form.Select
+                                    size="sm"
+                                    style={{ minWidth: 130 }}
+                                    value={c.segment_id || (baseSegment?.id || '')}
+                                    disabled={!segments.length}
+                                    onChange={(e) => handleAssignCustomerSegment(c.user_id, e.target.value ? Number(e.target.value) : null)}
+                                  >
+                                    {segments.map((seg) => (
+                                      <option key={`cust-seg-${c.user_id}-${seg.id}`} value={seg.id}>
+                                        {getSegmentDisplayName(seg)}
+                                      </option>
+                                    ))}
+                                  </Form.Select>
+                                </td>
+                                <td>
                                   {isBlocked ? (
                                     <Badge bg="warning" text="dark">Ограничен</Badge>
                                   ) : (
@@ -13581,7 +13765,7 @@ function AdminDashboard() {
                           })}
                           {(customers.customers || []).length === 0 && (
                             <tr>
-                              <td colSpan="7" className="text-center py-4 text-muted">
+                              <td colSpan="8" className="text-center py-4 text-muted">
                                 Клиенты не найдены
                               </td>
                             </tr>
@@ -13601,6 +13785,77 @@ function AdminDashboard() {
                       }}
                     />
                   </>
+                )}
+              </Tab>
+
+              <Tab eventKey="segments" title={renderAdminSidebarTabTitle('segments')}>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h5 className="mb-0">{language === 'uz' ? 'Mijoz segmentlari' : 'Сегменты клиентов'}</h5>
+                </div>
+                <p className="text-muted small">
+                  {language === 'uz'
+                    ? "1-segment — bazaviy segment (eng yuqori narx). Yangi va mavjud barcha mijozlar avtomatik 1-segmentga tegishli."
+                    : 'Сегмент 1 — базовый (максимальная цена). Все новые и существующие клиенты по умолчанию относятся к Сегменту 1.'}
+                </p>
+
+                <Card className="admin-card mb-3">
+                  <Card.Body>
+                    <Form.Label className="small fw-bold text-muted text-uppercase">
+                      {language === 'uz' ? 'Yangi segment' : 'Новый сегмент'}
+                    </Form.Label>
+                    <div className="d-flex gap-2 flex-wrap">
+                      <Form.Control
+                        type="text"
+                        style={{ maxWidth: 280 }}
+                        placeholder={language === 'uz' ? 'Nomi (ixtiyoriy), masalan: Optom' : 'Название (необязательно), напр.: Опт'}
+                        value={newSegmentName}
+                        onChange={(e) => setNewSegmentName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateSegment(); } }}
+                      />
+                      <Button variant="primary" onClick={handleCreateSegment} disabled={segmentSavingId === 'new'}>
+                        {segmentSavingId === 'new'
+                          ? <Spinner animation="border" size="sm" />
+                          : (language === 'uz' ? "Segment qo'shish" : 'Добавить сегмент')}
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+
+                {segmentsLoading ? (
+                  <TableSkeleton rows={3} columns={3} label={language === 'uz' ? 'Segmentlar yuklanmoqda' : 'Загрузка сегментов'} />
+                ) : (
+                  <div className="admin-table-container">
+                    <Table responsive hover className="admin-table mb-0">
+                      <thead>
+                        <tr>
+                          <th style={{ width: 90 }}>#</th>
+                          <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
+                          <th style={{ width: 180 }}>{t('actions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {segments.map((seg, index) => (
+                          <SegmentRow
+                            key={`segment-row-${seg.id}`}
+                            segment={seg}
+                            isBase={index === 0}
+                            language={language}
+                            saving={segmentSavingId === seg.id}
+                            defaultName={getSegmentDisplayName(seg)}
+                            onRename={(name) => handleRenameSegment(seg.id, name)}
+                            onDelete={() => handleDeleteSegment(seg.id)}
+                          />
+                        ))}
+                        {segments.length === 0 && (
+                          <tr>
+                            <td colSpan="3" className="text-center py-4 text-muted">
+                              {language === 'uz' ? "Segmentlar yo'q" : 'Сегментов пока нет'}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </Table>
+                  </div>
                 )}
               </Tab>
 
@@ -19313,6 +19568,75 @@ function AdminDashboard() {
                           {language === 'uz'
                             ? "Chegirma o'chirilgan. Mijozga oddiy narx ko'rsatiladi."
                             : 'Скидка отключена. Клиент увидит обычную цену.'}
+                        </div>
+                      )}
+                    </Form.Group>
+
+                    <Form.Group className="mb-0">
+                      <Form.Label className="d-flex align-items-center justify-content-between gap-2">
+                        <span>{language === 'uz' ? 'Narx segmentatsiyasi' : 'Сегментация цен'}</span>
+                        <Form.Check
+                          type="switch"
+                          id="admin-product-segment-pricing-switch"
+                          checked={Boolean(productForm.use_segment_pricing)}
+                          onChange={(e) => setProductForm((prev) => ({ ...prev, use_segment_pricing: e.target.checked }))}
+                        />
+                      </Form.Label>
+                      {Boolean(productForm.use_segment_pricing) ? (
+                        segments.length <= 1 ? (
+                          <div className="admin-product-discount-note is-muted">
+                            {language === 'uz'
+                              ? "Avval \"Segmentlar\" bo'limida segment qo'shing."
+                              : 'Сначала добавьте сегменты в разделе «Сегменты».'}
+                          </div>
+                        ) : (
+                          <div className="d-flex flex-column gap-2">
+                            {segments.map((seg, index) => {
+                              const isBase = index === 0;
+                              return (
+                                <div key={`prod-seg-price-${seg.id}`} className="d-flex align-items-center gap-2">
+                                  <span className="small text-muted" style={{ minWidth: 120 }}>
+                                    {getSegmentDisplayName(seg)}
+                                  </span>
+                                  {isBase ? (
+                                    <Form.Control
+                                      className="admin-product-compact-field"
+                                      type="text"
+                                      value={formatProductPriceInputValue(productForm.price)}
+                                      disabled
+                                      title={language === 'uz' ? 'Bazaviy narx (товар narxi)' : 'Базовая цена (цена товара)'}
+                                    />
+                                  ) : (
+                                    <Form.Control
+                                      className="admin-product-compact-field"
+                                      type="text"
+                                      inputMode="decimal"
+                                      placeholder={language === 'uz' ? 'Narx (bo\'sh — bazaviy)' : 'Цена (пусто — базовая)'}
+                                      value={formatProductPriceInputValue(productForm.segment_prices?.[seg.id] ?? '')}
+                                      onChange={(e) => {
+                                        const next = sanitizeProductPriceInputValue(e.target.value);
+                                        setProductForm((prev) => ({
+                                          ...prev,
+                                          segment_prices: { ...(prev.segment_prices || {}), [seg.id]: next }
+                                        }));
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                            <div className="admin-product-discount-note is-muted">
+                              {language === 'uz'
+                                ? "Segment narxi bo'sh bo'lsa, 1-segment (bazaviy) narxi ishlatiladi."
+                                : 'Если цена сегмента не указана, используется цена Сегмента 1 (базовая).'}
+                            </div>
+                          </div>
+                        )
+                      ) : (
+                        <div className="admin-product-discount-note is-muted">
+                          {language === 'uz'
+                            ? 'Segmentatsiya o\'chirilgan. Barcha mijozlarga yagona narx ko\'rsatiladi.'
+                            : 'Сегментация выключена. Всем клиентам показывается одна цена.'}
                         </div>
                       )}
                     </Form.Group>

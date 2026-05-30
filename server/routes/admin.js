@@ -23,6 +23,14 @@ const {
 } = require('../services/activityLogger');
 const { reloadMultiBots } = require('../bot/multiBotManager');
 const {
+  ensureSegmentSchema,
+  listSegments,
+  createSegment,
+  renameSegment,
+  deleteSegment,
+  saveProductSegmentPrices
+} = require('../services/segmentPricing');
+const {
   ensureHelpInstructionsSchema,
   listHelpInstructions,
   incrementHelpInstructionViewCount
@@ -3915,11 +3923,17 @@ router.get('/products', async (req, res) => {
       restaurantId = requestedRestaurantId;
     }
 
+    await ensureSegmentSchema();
     let query = `
       SELECT p.*, c.name_ru as category_name,
-  cnt.name as container_name, cnt.price as container_price
-      FROM products p 
-      LEFT JOIN categories c ON p.category_id = c.id 
+  cnt.name as container_name, cnt.price as container_price,
+  COALESCE((
+    SELECT json_object_agg(psp.segment_id, psp.price)
+    FROM product_segment_prices psp
+    WHERE psp.product_id = p.id
+  ), '{}'::json) AS segment_prices
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN containers cnt ON p.container_id = cnt.id
       WHERE 1 = 1
   `;
@@ -4050,6 +4064,17 @@ RETURNING *
     ]);
 
     const product = result.rows[0];
+
+    // Persist segment-pricing flag + per-segment overrides
+    try {
+      await ensureSegmentSchema();
+      const useSegmentPricing = normalizeOptionalBoolean(req.body.use_segment_pricing) === true;
+      await pool.query(`UPDATE products SET use_segment_pricing = $1 WHERE id = $2`, [useSegmentPricing, product.id]);
+      product.use_segment_pricing = useSegmentPricing;
+      await saveProductSegmentPrices(product.id, restaurantId, useSegmentPricing, req.body.segment_prices);
+    } catch (segErr) {
+      console.error('Save product segment prices error (create):', segErr.message);
+    }
 
     // Log activity
     await logActivity({
@@ -4680,6 +4705,22 @@ RETURNING *
     ]);
 
     const product = result.rows[0];
+
+    // Persist segment-pricing flag + per-segment overrides (only if provided)
+    try {
+      await ensureSegmentSchema();
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, 'use_segment_pricing')
+        || Object.prototype.hasOwnProperty.call(req.body || {}, 'segment_prices')) {
+        const useSegmentPricing = Object.prototype.hasOwnProperty.call(req.body || {}, 'use_segment_pricing')
+          ? normalizeOptionalBoolean(req.body.use_segment_pricing) === true
+          : (oldProduct.use_segment_pricing === true);
+        await pool.query(`UPDATE products SET use_segment_pricing = $1 WHERE id = $2`, [useSegmentPricing, product.id]);
+        product.use_segment_pricing = useSegmentPricing;
+        await saveProductSegmentPrices(product.id, product.restaurant_id, useSegmentPricing, req.body.segment_prices);
+      }
+    } catch (segErr) {
+      console.error('Save product segment prices error (update):', segErr.message);
+    }
 
     // Log activity
     await logActivity({
@@ -6273,12 +6314,117 @@ COUNT(*) FILTER(WHERE status = 'new') as new_count,
 // КЛИЕНТЫ (ТОЛЬКО ТЕКУЩИЙ МАГАЗИН)
 // =====================================================
 
+// ==================== Customer segments ====================
+router.get('/segments', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.json({ segments: [] });
+    const segments = await listSegments(restaurantId);
+    res.json({ segments });
+  } catch (error) {
+    console.error('List segments error:', error);
+    res.status(500).json({ error: 'Ошибка получения сегментов' });
+  }
+});
+
+router.post('/segments', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Выберите магазин' });
+    const segment = await createSegment(restaurantId, req.body?.custom_name);
+    if (!segment) return res.status(400).json({ error: 'Не удалось создать сегмент' });
+    const segments = await listSegments(restaurantId);
+    res.status(201).json({ segment, segments });
+  } catch (error) {
+    console.error('Create segment error:', error);
+    res.status(500).json({ error: 'Ошибка создания сегмента' });
+  }
+});
+
+router.put('/segments/:id', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Выберите магазин' });
+    const updated = await renameSegment(restaurantId, req.params.id, req.body?.custom_name);
+    if (!updated) return res.status(404).json({ error: 'Сегмент не найден' });
+    const segments = await listSegments(restaurantId);
+    res.json({ segment: updated, segments });
+  } catch (error) {
+    console.error('Rename segment error:', error);
+    res.status(500).json({ error: 'Ошибка обновления сегмента' });
+  }
+});
+
+router.delete('/segments/:id', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Выберите магазин' });
+    const result = await deleteSegment(restaurantId, req.params.id);
+    if (!result.ok) {
+      const messages = {
+        LAST_SEGMENT: 'Нельзя удалить единственный сегмент',
+        BASE_SEGMENT: 'Нельзя удалить базовый сегмент (Сегмент 1)',
+        NOT_FOUND: 'Сегмент не найден',
+        BAD_REQUEST: 'Некорректный запрос'
+      };
+      return res.status(400).json({ error: messages[result.reason] || 'Ошибка удаления сегмента' });
+    }
+    const segments = await listSegments(restaurantId);
+    res.json({ ok: true, segments });
+  } catch (error) {
+    console.error('Delete segment error:', error);
+    res.status(500).json({ error: 'Ошибка удаления сегмента' });
+  }
+});
+
+// Assign a customer to a segment for the active restaurant.
+router.patch('/customers/:id/segment', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Выберите магазин' });
+    const userId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Некорректный клиент' });
+    }
+    await ensureSegmentSchema();
+    const rawSegmentId = req.body?.segment_id;
+    let segmentId = null;
+    if (rawSegmentId !== null && rawSegmentId !== undefined && rawSegmentId !== '') {
+      const parsed = Number.parseInt(rawSegmentId, 10);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        return res.status(400).json({ error: 'Некорректный сегмент' });
+      }
+      const segCheck = await pool.query(
+        `SELECT id FROM customer_segments WHERE id = $1 AND restaurant_id = $2 LIMIT 1`,
+        [parsed, restaurantId]
+      );
+      if (!segCheck.rows.length) {
+        return res.status(400).json({ error: 'Сегмент не найден' });
+      }
+      segmentId = parsed;
+    }
+    // Upsert the per-restaurant relationship row carrying the segment.
+    await pool.query(
+      `INSERT INTO user_restaurants (user_id, restaurant_id, segment_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, restaurant_id)
+       DO UPDATE SET segment_id = EXCLUDED.segment_id, last_interaction = CURRENT_TIMESTAMP`,
+      [userId, restaurantId, segmentId]
+    );
+    res.json({ ok: true, segment_id: segmentId });
+  } catch (error) {
+    console.error('Assign customer segment error:', error);
+    res.status(500).json({ error: 'Ошибка назначения сегмента клиенту' });
+  }
+});
+
 router.get('/customers', async (req, res) => {
   try {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) {
       return res.json({ customers: [], total: 0, page: 1, limit: 20 });
     }
+    await ensureSegmentSchema();
 
     const page = Math.max(parseInt(req.query.page || 1, 10), 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit || 20, 10), 1), 100);
@@ -6323,6 +6469,7 @@ router.get('/customers', async (req, res) => {
         u.telegram_id,
         u.is_active AS user_is_active,
         COALESCE(ur.is_blocked, false) AS is_blocked,
+        ur.segment_id,
         u.created_at,
         COUNT(o.id)::int AS orders_count,
         COALESCE(SUM(o.total_amount), 0) AS total_spent,
@@ -6333,7 +6480,7 @@ router.get('/customers', async (req, res) => {
       LEFT JOIN orders o
         ON o.user_id = u.id AND o.restaurant_id = $1
       ${where}
-      GROUP BY u.id, ur.is_blocked
+      GROUP BY u.id, ur.is_blocked, ur.segment_id
       ORDER BY MAX(o.created_at) DESC NULLS LAST, u.created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;

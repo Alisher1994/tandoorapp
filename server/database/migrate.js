@@ -621,6 +621,36 @@ async function migrate() {
     console.log('✅ User_restaurants table ready');
 
     // =====================================================
+    // Customer segmentation + per-segment product pricing
+    // =====================================================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS customer_segments (
+        id SERIAL PRIMARY KEY,
+        restaurant_id INTEGER NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL DEFAULT 1,
+        custom_name VARCHAR(120),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_customer_segments_restaurant ON customer_segments(restaurant_id)');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS product_segment_prices (
+        id SERIAL PRIMARY KEY,
+        product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        segment_id INTEGER NOT NULL REFERENCES customer_segments(id) ON DELETE CASCADE,
+        price DECIMAL(12, 2) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(product_id, segment_id)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_product_segment_prices_product ON product_segment_prices(product_id)');
+    await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS use_segment_pricing BOOLEAN DEFAULT false`).catch(() => {});
+    await client.query(`ALTER TABLE user_restaurants ADD COLUMN IF NOT EXISTS segment_id INTEGER REFERENCES customer_segments(id) ON DELETE SET NULL`).catch(() => {});
+    console.log('✅ Customer segments tables ready');
+
+    // =====================================================
     // Step 4: Create activity_logs table
     // =====================================================
 

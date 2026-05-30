@@ -5,6 +5,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const UAParser = require('ua-parser-js');
 const geoip = require('geoip-lite');
 const { authenticate } = require('../middleware/auth');
+const { applySegmentPricingToRows } = require('../services/segmentPricing');
 const { ensureReservationSchema } = require('../services/reservationSchema');
 const { ensureCheckConstraint } = require('../database/constraintHelpers');
 const { normalizeRestaurantSlug } = require('../services/restaurantSlugPolicy');
@@ -1048,8 +1049,14 @@ router.get('/', async (req, res) => {
     }
     
     query += ' ORDER BY p.category_id ASC NULLS LAST, COALESCE(p.sort_order, 0) ASC, p.name_ru ASC';
-    
+
     const result = await pool.query(query, params);
+    // Apply per-segment pricing for the requesting customer (guests keep base prices).
+    const segmentRestaurantId = restaurant_id || result.rows[0]?.restaurant_id || null;
+    await applySegmentPricingToRows(result.rows, {
+      restaurantId: segmentRestaurantId,
+      userId: getOptionalAuthUserId(req)
+    }).catch((segErr) => console.error('Segment pricing (products list) error:', segErr.message));
     res.json(result.rows);
   } catch (error) {
     console.error('Products error:', error);
@@ -1935,6 +1942,13 @@ router.get('/:id/details', async (req, res) => {
       myReview = myReviewResult.rows[0] || null;
     }
 
+    // Apply per-segment pricing to the product and related products.
+    const relatedRows = Array.isArray(relatedProductsResult?.rows) ? relatedProductsResult.rows : [];
+    await applySegmentPricingToRows([product, ...relatedRows], {
+      restaurantId: normalizedProductRestaurantId,
+      userId: authUserIdRaw
+    }).catch((segErr) => console.error('Segment pricing (product details) error:', segErr.message));
+
     res.json({
       product,
       rating: {
@@ -2379,7 +2393,11 @@ router.get('/:id', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Товар не найден' });
     }
-    
+
+    await applySegmentPricingToRows(result.rows, {
+      restaurantId: result.rows[0]?.restaurant_id,
+      userId: getOptionalAuthUserId(req)
+    }).catch((segErr) => console.error('Segment pricing (product) error:', segErr.message));
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Product error:', error);
