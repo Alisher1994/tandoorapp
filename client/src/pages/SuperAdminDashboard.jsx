@@ -1541,6 +1541,10 @@ function SuperAdminDashboard() {
   const [printerAgentVersion, setPrinterAgentVersion] = useState('');
   const [printerAgentUploading, setPrinterAgentUploading] = useState(false);
   const [printerAgentUploadProgress, setPrinterAgentUploadProgress] = useState(0);
+  const [showAgentVersionsModal, setShowAgentVersionsModal] = useState(false);
+  const [agentVersions, setAgentVersions] = useState([]);
+  const [agentVersionsLoading, setAgentVersionsLoading] = useState(false);
+  const [agentDragOver, setAgentDragOver] = useState(false);
   const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
   const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
   const [showAnalyticsFilterPanel, setShowAnalyticsFilterPanel] = useState(false);
@@ -12304,6 +12308,7 @@ function SuperAdminDashboard() {
         }
       });
       setPrinterAgentInfo(response?.data || null);
+      if (response?.data?.versions) setAgentVersions(response.data.versions);
       setPrinterAgentFile(null);
       setPrinterAgentVersion('');
       setSuccess(
@@ -12321,6 +12326,45 @@ function SuperAdminDashboard() {
       setPrinterAgentUploading(false);
       setPrinterAgentUploadProgress(0);
     }
+  };
+
+  const loadPrinterAgentVersions = async () => {
+    setAgentVersionsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/printer-agent/versions`);
+      setAgentVersions(response?.data?.versions || []);
+      if (response?.data?.current) setPrinterAgentInfo(response.data.current);
+    } catch (err) {
+      console.error('Load printer-agent versions error:', err);
+      setAgentVersions([]);
+    } finally {
+      setAgentVersionsLoading(false);
+    }
+  };
+
+  const openAgentVersionsModal = () => {
+    setPrinterAgentFile(null);
+    setPrinterAgentVersion('');
+    setShowAgentVersionsModal(true);
+    loadPrinterAgentVersions();
+  };
+
+  const handleActivateAgentVersion = async (id) => {
+    try {
+      const response = await axios.post(`${API_URL}/admin/printer-agent/versions/${id}/activate`);
+      setAgentVersions(response?.data?.versions || []);
+      if (response?.data?.current) setPrinterAgentInfo(response.data.current);
+      setSuccess(language === 'uz' ? 'Versiya faollashtirildi' : 'Версия сделана актуальной');
+    } catch (err) {
+      setError(err?.response?.data?.error || (language === 'uz' ? 'Xatolik' : 'Не удалось активировать версию'));
+    }
+  };
+
+  const handleAgentFileDrop = (e) => {
+    e.preventDefault();
+    setAgentDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) setPrinterAgentFile(file);
   };
 
   const renderSuperAdminSidebarTabTitle = (key) => {
@@ -19372,137 +19416,114 @@ function SuperAdminDashboard() {
 
               {/* Printer agent release Tab */}
               <Tab eventKey="printer_agent" title={renderSuperAdminSidebarTabTitle('printer_agent')}>
-                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
-                    {language === 'uz' ? 'Printer agenti versiyasi' : 'Версия принтер-агента'}
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                  <h5 className="mb-0 superadmin-mobile-hide-title">
+                    {language === 'uz' ? 'Printer agenti' : 'Принтер-агент'}
                   </h5>
-                  <Button
-                    variant="outline-secondary"
-                    onClick={loadPrinterAgentInfo}
-                    disabled={printerAgentInfoLoading}
-                  >
+                  <Button variant="outline-secondary" size="sm" onClick={loadPrinterAgentInfo} disabled={printerAgentInfoLoading}>
                     {language === 'uz' ? 'Yangilash' : 'Обновить'}
                   </Button>
                 </div>
 
-                <Row className="g-4">
-                  <Col lg={6}>
-                    <Card className="border-0 shadow-sm h-100">
-                      <Card.Body>
-                        <div className="d-flex align-items-center gap-2 mb-3">
-                          <Printer size={18} />
-                          <span className="fw-bold">
-                            {language === 'uz' ? 'Hozir yuklab olinadigan versiya' : 'Текущая версия для скачивания'}
-                          </span>
-                        </div>
-                        {printerAgentInfoLoading ? (
-                          <div className="text-muted"><Spinner size="sm" animation="border" /> {language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…'}</div>
-                        ) : printerAgentInfo?.exists ? (
-                          <Table borderless size="sm" className="mb-0">
-                            <tbody>
-                              <tr>
-                                <td className="text-muted">{language === 'uz' ? 'Versiya' : 'Версия'}</td>
-                                <td className="fw-bold text-end">{printerAgentInfo.version || (language === 'uz' ? "noma'lum" : 'неизвестна')}</td>
-                              </tr>
-                              <tr>
-                                <td className="text-muted">{language === 'uz' ? 'Hajmi' : 'Размер'}</td>
-                                <td className="fw-bold text-end">{formatPrinterAgentBytes(printerAgentInfo.size)}</td>
-                              </tr>
-                              <tr>
-                                <td className="text-muted">{language === 'uz' ? 'Yangilangan' : 'Обновлён'}</td>
-                                <td className="fw-bold text-end">
-                                  {printerAgentInfo.modifiedAt ? new Date(printerAgentInfo.modifiedAt).toLocaleString('ru-RU') : '—'}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </Table>
-                        ) : (
-                          <div className="text-danger">
-                            {language === 'uz'
-                              ? 'Faylcha hali yuklanmagan'
-                              : 'Файл ещё не загружен'}
-                          </div>
-                        )}
-                      </Card.Body>
-                    </Card>
-                  </Col>
-
-                  <Col lg={6}>
-                    <Card className="border-0 shadow-sm h-100">
-                      <Card.Body>
-                        <div className="d-flex align-items-center gap-2 mb-3">
-                          <Upload size={18} />
-                          <span className="fw-bold">
-                            {language === 'uz' ? 'Yangi versiyani yuklash' : 'Загрузить новую версию'}
-                          </span>
-                        </div>
-                        <Form.Group className="mb-3">
-                          <Form.Label className="small fw-bold text-muted text-uppercase">
-                            TalablarPrinter.exe
-                          </Form.Label>
-                          <Form.Control
-                            type="file"
-                            accept=".exe"
-                            disabled={printerAgentUploading}
-                            onChange={(e) => setPrinterAgentFile(e.target.files?.[0] || null)}
-                          />
-                          {printerAgentFile && (
-                            <div className="small text-muted mt-1">
-                              {printerAgentFile.name} · {formatPrinterAgentBytes(printerAgentFile.size)}
-                            </div>
-                          )}
-                        </Form.Group>
-                        <Form.Group className="mb-3">
-                          <Form.Label className="small fw-bold text-muted text-uppercase">
-                            {language === 'uz' ? 'Versiya (ixtiyoriy)' : 'Версия (необязательно)'}
-                          </Form.Label>
-                          <Form.Control
-                            type="text"
-                            placeholder="8.15.0"
-                            value={printerAgentVersion}
-                            disabled={printerAgentUploading}
-                            onChange={(e) => setPrinterAgentVersion(e.target.value)}
-                          />
-                        </Form.Group>
-                        {printerAgentUploading && (
-                          <div className="mb-3">
-                            <div className="progress" style={{ height: '8px' }}>
-                              <div
-                                className="progress-bar"
-                                role="progressbar"
-                                style={{ width: `${printerAgentUploadProgress}%` }}
-                                aria-valuenow={printerAgentUploadProgress}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                              />
-                            </div>
-                            <div className="small text-muted mt-1">{printerAgentUploadProgress}%</div>
-                          </div>
-                        )}
-                        <Button
-                          variant="primary"
-                          onClick={handleUploadPrinterAgent}
-                          disabled={printerAgentUploading || !printerAgentFile}
-                        >
-                          {printerAgentUploading
+                <Card className="border rounded-3">
+                  <Card.Body className="p-3">
+                    <div className="d-flex align-items-center gap-3 flex-wrap">
+                      <div className="agent-file-icon"><Printer size={20} /></div>
+                      <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                        <div className="fw-medium">TalablarPrinter.exe</div>
+                        <div className="small text-muted">
+                          {printerAgentInfoLoading
                             ? (language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…')
-                            : (language === 'uz' ? 'Yuklash' : 'Загрузить')}
-                        </Button>
-                        <div className="small text-muted mt-3">
-                          {language === 'uz'
-                            ? "Fayl serverdagi doimiy diskka (volume) yoziladi. Adminlar uni yuklab olish tugmasi orqali oladi."
-                            : 'Файл записывается на постоянный диск сервера (volume). Админы получают его через кнопку скачивания.'}
+                            : printerAgentInfo?.exists
+                              ? `${language === 'uz' ? 'Versiya' : 'Версия'}: ${printerAgentInfo.version || '—'} · ${formatPrinterAgentBytes(printerAgentInfo.size)}${printerAgentInfo.modifiedAt ? ` · ${new Date(printerAgentInfo.modifiedAt).toLocaleString('ru-RU')}` : ''}`
+                              : (language === 'uz' ? 'Fayl hali yuklanmagan' : 'Файл ещё не загружен')}
                         </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                </Row>
+                      </div>
+                      <Button variant="outline-primary" size="sm" onClick={openAgentVersionsModal}>
+                        {language === 'uz' ? 'Versiyalar' : 'Версии'}
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+
+                <div className="small text-muted mt-3">
+                  {language === 'uz'
+                    ? "Adminlar faylni yuklab olish tugmasi orqali oladi — eng so'nggi (aktual) versiya beriladi."
+                    : 'Админы получают файл через кнопку скачивания — отдаётся актуальная версия.'}
+                </div>
               </Tab>
             </Tabs>
             </div>
           </Card.Body>
         </Card>
         </div>
+
+        {/* Printer agent — versions modal (drag & drop + history) */}
+        <Modal show={showAgentVersionsModal} onHide={() => setShowAgentVersionsModal(false)} size="lg" centered>
+          <Modal.Header closeButton>
+            <Modal.Title className="h6 mb-0">TalablarPrinter.exe — {language === 'uz' ? 'versiyalar' : 'версии'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <div
+              className={`agent-dropzone${agentDragOver ? ' is-dragover' : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setAgentDragOver(true); }}
+              onDragLeave={() => setAgentDragOver(false)}
+              onDrop={handleAgentFileDrop}
+              onClick={() => document.getElementById('agent-file-input')?.click()}
+              role="button"
+              tabIndex={0}
+            >
+              <Upload size={22} className="text-muted mb-2" />
+              <div>{printerAgentFile ? printerAgentFile.name : (language === 'uz' ? 'Faylni shu yerga tashlang yoki tanlash uchun bosing' : 'Перетащите файл сюда или нажмите, чтобы выбрать')}</div>
+              <div className="small text-muted">{printerAgentFile ? formatPrinterAgentBytes(printerAgentFile.size) : '.exe'}</div>
+              <Form.Control id="agent-file-input" type="file" accept=".exe" className="d-none" disabled={printerAgentUploading} onChange={(e) => setPrinterAgentFile(e.target.files?.[0] || null)} />
+            </div>
+            <div className="d-flex gap-2 align-items-end mt-3 flex-wrap">
+              <Form.Group className="flex-grow-1" style={{ minWidth: '160px' }}>
+                <Form.Label className="small text-muted mb-1">{language === 'uz' ? 'Versiya (ixtiyoriy)' : 'Версия (необязательно)'}</Form.Label>
+                <Form.Control type="text" placeholder="8.15.0" value={printerAgentVersion} disabled={printerAgentUploading} onChange={(e) => setPrinterAgentVersion(e.target.value)} />
+              </Form.Group>
+              <Button variant="primary" onClick={handleUploadPrinterAgent} disabled={printerAgentUploading || !printerAgentFile}>
+                {printerAgentUploading ? (language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…') : (language === 'uz' ? 'Yuklash' : 'Загрузить')}
+              </Button>
+            </div>
+            {printerAgentUploading && (
+              <div className="progress mt-2" style={{ height: '6px' }}>
+                <div className="progress-bar" style={{ width: `${printerAgentUploadProgress}%` }} />
+              </div>
+            )}
+
+            <div className="mt-4 mb-2 small text-uppercase text-muted">{language === 'uz' ? 'Tarix' : 'История'}</div>
+            {agentVersionsLoading ? (
+              <div className="text-muted small"><Spinner size="sm" animation="border" /> {language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…'}</div>
+            ) : agentVersions.length === 0 ? (
+              <div className="text-muted small">{language === 'uz' ? "Hali versiyalar yo'q" : 'Версий пока нет'}</div>
+            ) : (
+              <div className="agent-versions-list">
+                {agentVersions.map((v) => (
+                  <div key={v.id} className={`agent-version-row${v.is_current ? ' is-current' : ''}`}>
+                    <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                      <div>
+                        {v.version_label || (language === 'uz' ? 'raqamsiz' : 'без номера')}
+                        {v.is_current && <Badge bg="success" className="ms-2">{language === 'uz' ? 'Aktual' : 'Актуальная'}</Badge>}
+                      </div>
+                      <div className="small text-muted">
+                        {v.created_at ? new Date(v.created_at).toLocaleString('ru-RU') : '—'}
+                        {' · '}{formatPrinterAgentBytes(v.size)}
+                        {v.uploaded_by_name ? ` · ${v.uploaded_by_name}` : ''}
+                      </div>
+                    </div>
+                    {!v.is_current && (
+                      <Button variant="outline-secondary" size="sm" onClick={() => handleActivateAgentVersion(v.id)}>
+                        {language === 'uz' ? 'Aktual qilish' : 'Сделать актуальной'}
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </Modal.Body>
+        </Modal>
 
         <Modal
           show={isMobileSidebarOpen}

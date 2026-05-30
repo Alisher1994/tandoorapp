@@ -7125,11 +7125,47 @@ function readPrinterAgentReleaseInfo() {
   return result;
 }
 
+// Every uploaded build is kept as its own file here so we can show history and
+// roll back to a previous version. The "current" build is mirrored to
+// PRINTER_AGENT_UPLOAD_TARGET (what the download endpoint serves).
+const PRINTER_AGENT_VERSIONS_DIR = path.join(path.dirname(PRINTER_AGENT_UPLOAD_TARGET), 'agent-versions');
+let printerAgentVersionsSchemaReady = false;
+async function ensurePrinterAgentVersionsSchema() {
+  if (printerAgentVersionsSchemaReady) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS printer_agent_versions (
+      id SERIAL PRIMARY KEY,
+      version_label VARCHAR(64),
+      original_filename VARCHAR(255),
+      stored_filename VARCHAR(255) NOT NULL,
+      size BIGINT NOT NULL DEFAULT 0,
+      uploaded_by INTEGER,
+      uploaded_by_name VARCHAR(255),
+      is_current BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `).catch((e) => { console.warn('printer_agent_versions schema warn:', e.message); });
+  printerAgentVersionsSchemaReady = true;
+}
+const resolvePrinterAgentActorName = (user) => String(
+  user?.name || user?.full_name || user?.email || user?.username || (user?.id ? `#${user.id}` : 'superadmin')
+).slice(0, 255);
+const listPrinterAgentVersions = async () => {
+  const result = await pool.query(
+    `SELECT id, version_label, original_filename, stored_filename, size,
+            uploaded_by, uploaded_by_name, is_current, created_at
+       FROM printer_agent_versions
+      ORDER BY created_at DESC, id DESC
+      LIMIT 200`
+  );
+  return result.rows;
+};
+
 router.post('/printer-agent/upload', (req, res) => {
   if (req.user.role !== 'superadmin') {
     return res.status(403).json({ error: 'Только для суперадмина' });
   }
-  printerAgentUpload.single('file')(req, res, (uploadErr) => {
+  printerAgentUpload.single('file')(req, res, async (uploadErr) => {
     if (uploadErr) {
       console.error('Printer agent upload error:', uploadErr?.message || uploadErr);
       return res.status(400).json({ error: `Ошибка загрузки файла: ${uploadErr.message}` });
@@ -7138,36 +7174,63 @@ router.post('/printer-agent/upload', (req, res) => {
       return res.status(400).json({ error: 'Файл не передан (ожидается поле "file")' });
     }
     const tempPath = req.file.path;
+    let storedFilename = null;
+    let size = 0;
+    const versionLabel = String(req.body?.version || '').trim().slice(0, 64);
     try {
       const stats = fs.statSync(tempPath);
       if (!stats.isFile() || stats.size <= 0) {
         throw new Error('Загружен пустой файл');
       }
-      // Overwrite the old EXE in place.
-      fs.renameSync(tempPath, PRINTER_AGENT_UPLOAD_TARGET);
+      size = stats.size;
+      // Keep this build as its own versioned file, then mirror it to the
+      // canonical "current" path the download endpoint serves.
+      fs.mkdirSync(PRINTER_AGENT_VERSIONS_DIR, { recursive: true });
+      storedFilename = `TalablarPrinter-${Date.now()}.exe`;
+      const storedPath = path.join(PRINTER_AGENT_VERSIONS_DIR, storedFilename);
+      fs.renameSync(tempPath, storedPath);
+      fs.copyFileSync(storedPath, PRINTER_AGENT_UPLOAD_TARGET);
     } catch (moveErr) {
       try { fs.unlinkSync(tempPath); } catch (_) {}
       console.error('Printer agent upload finalize error:', moveErr?.message || moveErr);
       return res.status(500).json({ error: `Не удалось сохранить файл: ${moveErr.message}` });
     }
-    // Persist the version label (typed by the superadmin) next to the EXE so the
-    // panel and download flow can report which build is live.
-    const versionLabel = String(req.body?.version || '').trim().slice(0, 64);
-    if (versionLabel) {
-      try {
-        const versionFile = path.join(path.dirname(PRINTER_AGENT_UPLOAD_TARGET), 'VERSION.txt');
-        fs.writeFileSync(
-          versionFile,
-          `version=${versionLabel}\nuploaded_at=${new Date().toISOString()}\nuploaded_by=${req.user.id || 'superadmin'}\n`,
-          'utf8'
-        );
-      } catch (versionErr) {
-        console.warn('Could not write printer-agent VERSION.txt:', versionErr.message);
-      }
+    // Back-compat: VERSION.txt is read by readPrinterAgentReleaseInfo.
+    try {
+      const versionFile = path.join(path.dirname(PRINTER_AGENT_UPLOAD_TARGET), 'VERSION.txt');
+      fs.writeFileSync(
+        versionFile,
+        `version=${versionLabel}\nuploaded_at=${new Date().toISOString()}\nuploaded_by=${req.user.id || 'superadmin'}\n`,
+        'utf8'
+      );
+    } catch (versionErr) {
+      console.warn('Could not write printer-agent VERSION.txt:', versionErr.message);
+    }
+    // Record the new version in history and mark it current.
+    let versions = [];
+    try {
+      await ensurePrinterAgentVersionsSchema();
+      await pool.query('UPDATE printer_agent_versions SET is_current = false WHERE is_current = true');
+      await pool.query(
+        `INSERT INTO printer_agent_versions
+           (version_label, original_filename, stored_filename, size, uploaded_by, uploaded_by_name, is_current)
+         VALUES ($1, $2, $3, $4, $5, $6, true)`,
+        [
+          versionLabel || null,
+          String(req.file.originalname || '').slice(0, 255),
+          storedFilename,
+          size,
+          req.user.id || null,
+          resolvePrinterAgentActorName(req.user)
+        ]
+      );
+      versions = await listPrinterAgentVersions();
+    } catch (dbErr) {
+      console.warn('printer_agent_versions insert warn:', dbErr.message);
     }
     const info = readPrinterAgentReleaseInfo();
-    console.log(`✅ Printer agent EXE replaced at ${PRINTER_AGENT_UPLOAD_TARGET} (${info.size} bytes, v=${info.version || '?'})`);
-    return res.json({ success: true, ...info });
+    console.log(`✅ Printer agent EXE uploaded (${info.size} bytes, v=${info.version || '?'}, stored=${storedFilename})`);
+    return res.json({ success: true, ...info, versions });
   });
 });
 
@@ -7177,6 +7240,55 @@ router.get('/printer-agent/info', (req, res) => {
     return res.status(403).json({ error: 'Только для суперадмина' });
   }
   return res.json(readPrinterAgentReleaseInfo());
+});
+
+// Current build + full upload history (superadmin "Версии" modal).
+router.get('/printer-agent/versions', async (req, res) => {
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Только для суперадмина' });
+  }
+  try {
+    await ensurePrinterAgentVersionsSchema();
+    const versions = await listPrinterAgentVersions();
+    return res.json({ current: readPrinterAgentReleaseInfo(), versions });
+  } catch (error) {
+    console.error('Printer agent versions error:', error?.message || error);
+    return res.json({ current: readPrinterAgentReleaseInfo(), versions: [] });
+  }
+});
+
+// Roll back: make a previously uploaded version the current download.
+router.post('/printer-agent/versions/:id/activate', async (req, res) => {
+  if (req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Только для суперадмина' });
+  }
+  try {
+    await ensurePrinterAgentVersionsSchema();
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: 'Некорректный ID версии' });
+    const row = (await pool.query('SELECT * FROM printer_agent_versions WHERE id = $1 LIMIT 1', [id])).rows[0];
+    if (!row) return res.status(404).json({ error: 'Версия не найдена' });
+    const storedPath = path.join(PRINTER_AGENT_VERSIONS_DIR, row.stored_filename);
+    if (!fs.existsSync(storedPath)) {
+      return res.status(410).json({ error: 'Файл этой версии отсутствует на диске' });
+    }
+    fs.copyFileSync(storedPath, PRINTER_AGENT_UPLOAD_TARGET);
+    try {
+      const versionFile = path.join(path.dirname(PRINTER_AGENT_UPLOAD_TARGET), 'VERSION.txt');
+      fs.writeFileSync(
+        versionFile,
+        `version=${row.version_label || ''}\nuploaded_at=${new Date().toISOString()}\nuploaded_by=${req.user.id || 'superadmin'}\n`,
+        'utf8'
+      );
+    } catch (_) {}
+    await pool.query('UPDATE printer_agent_versions SET is_current = false WHERE is_current = true');
+    await pool.query('UPDATE printer_agent_versions SET is_current = true WHERE id = $1', [id]);
+    const versions = await listPrinterAgentVersions();
+    return res.json({ success: true, current: readPrinterAgentReleaseInfo(), versions });
+  } catch (error) {
+    console.error('Printer agent activate error:', error?.message || error);
+    return res.status(500).json({ error: 'Ошибка активации версии' });
+  }
 });
 
 // Get all printers for current restaurant
