@@ -7236,21 +7236,9 @@ function AdminDashboard() {
         unit: prev.unit || 'шт'
       });
       if (currentVariants.length >= MAX_PRODUCT_SIZE_OPTIONS) return prev;
-      const cleanedVariants = currentVariants.filter((variant) => (
-        String(variant.name || '').trim()
-        || String(variant.description_ru || '').trim()
-        || String(variant.description_uz || '').trim()
-        || String(variant.barcode || '').trim()
-        || String(variant.ikpu || '').trim()
-        || Number.isFinite(normalizeProductPriceValue(variant.price, NaN))
-        || (Boolean(variant.discount_enabled) && Number.isFinite(normalizeProductPriceValue(variant.discount_price, NaN)))
-        || Number.isFinite(Number.parseFloat(String(variant.stock_quantity ?? '').replace(',', '.')))
-        || variant.in_stock === false
-        || (String(variant.container_id || '').trim() && Number.parseFloat(variant.container_norm) > 0)
-        || (prev.unit === 'кг' && Number.parseFloat(variant.order_step) > 0)
-        || (Array.isArray(variant.product_images) && variant.product_images.some((img) => String(img?.url || '').trim()))
-      ));
-      const nextVariants = [...cleanedVariants, createProductVariantDraft('', fallbackBasePrice, true)];
+      // Always append a fresh card — even if the current variant is still empty —
+      // so each click on "Добавить" reliably adds the next variant card.
+      const nextVariants = [...currentVariants, createProductVariantDraft('', fallbackBasePrice, true)];
       return {
         ...prev,
         variant_options: nextVariants,
