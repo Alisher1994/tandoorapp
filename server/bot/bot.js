@@ -22,6 +22,11 @@ const {
   getCurrencyLabelByCode,
   resolveRestaurantCurrencyCode
 } = require('../services/currency');
+const { checkRestaurantIdentityAvailability } = require('../services/restaurantUniqueness');
+const {
+  validateRestaurantName,
+  normalizeRestaurantNameForStorage
+} = require('../services/restaurantNamePolicy');
 
 let bot = null;
 let activeSuperadminBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -856,6 +861,8 @@ const ONBOARDING_TEXTS = {
     requiredFullName: '❌ ФИО обязательно. Введите ФИО.',
     invalidPhone: '❌ Некорректный номер телефона. Введите номер еще раз.',
     finalizeError: '❌ Ошибка создания доступа. Попробуйте позже.',
+    invalidStoreName: '❌ {message}',
+    storeNameTaken: '❌ Магазин с таким названием уже существует. Введите другое название.',
     loginButton: '🔐 Войти в систему',
     locationNotSpecified: 'не указана',
     loginUrlMissing: '⚠️ URL входа не настроен в переменных окружения.',
@@ -903,6 +910,8 @@ const ONBOARDING_TEXTS = {
     requiredFullName: '❌ F.I.Sh. majburiy. F.I.Sh.ni kiriting.',
     invalidPhone: '❌ Telefon raqami noto‘g‘ri. Qayta kiriting.',
     finalizeError: '❌ Kirish ma’lumotlarini yaratishda xatolik. Keyinroq urinib ko‘ring.',
+    invalidStoreName: '❌ {message}',
+    storeNameTaken: '❌ Bunday nomdagi do‘kon allaqachon mavjud. Boshqa nom kiriting.',
     loginButton: '🔐 Tizimga kirish',
     locationNotSpecified: 'ko‘rsatilmagan',
     loginUrlMissing: '⚠️ Kirish URL manzili muhit o‘zgaruvchilarida sozlanmagan.',
@@ -1617,6 +1626,20 @@ async function initBot() {
 
       const settingsResult = await client.query('SELECT default_starting_balance, default_order_cost FROM billing_settings WHERE id = 1');
       const settings = settingsResult.rows[0] || { default_starting_balance: 100000, default_order_cost: 1000 };
+      const storeNameValidation = validateRestaurantName(state.store_name);
+      if (!storeNameValidation.ok) {
+        throw new Error(`STORE_NAME_INVALID:${storeNameValidation.message}`);
+      }
+      const normalizedStoreName = normalizeRestaurantNameForStorage(storeNameValidation.normalized);
+      const identityAvailability = await checkRestaurantIdentityAvailability({
+        client,
+        name: normalizedStoreName,
+        telegramBotToken: state.bot_token || null,
+        telegramGroupId: state.group_id || null
+      });
+      if (identityAvailability.nameTaken) throw new Error('STORE_NAME_TAKEN');
+      if (identityAvailability.tokenTaken) throw new Error('BOT_TOKEN_TAKEN');
+      if (identityAvailability.groupIdTaken) throw new Error('GROUP_ID_TAKEN');
 
       const restaurantResult = await client.query(`
         INSERT INTO restaurants (
@@ -1629,7 +1652,7 @@ async function initBot() {
                   latitude, longitude, start_time, end_time, delivery_base_radius,
                   is_delivery_enabled, balance, order_cost, service_fee, is_active, created_at, activity_type_id
       `, [
-        state.store_name,
+        normalizedStoreName,
         normalizedPhone || null,
         state.logo_url || null,
         state.bot_token || null,
@@ -1810,6 +1833,24 @@ async function initBot() {
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Finalize onboarding error:', error);
+      const userLang = getOnboardingLanguage(userId);
+      const errorMessage = String(error?.message || '');
+      if (errorMessage === 'STORE_NAME_TAKEN') {
+        state.step = 'await_store_name';
+        onboardingStates.set(stateKey, state);
+        await bot.sendMessage(chatId, onboardingT(userLang, 'storeNameTaken'));
+        await askOnboardingField(chatId, userId, 'store_name');
+        return;
+      }
+      if (errorMessage.startsWith('STORE_NAME_INVALID:')) {
+        state.step = 'await_store_name';
+        onboardingStates.set(stateKey, state);
+        await bot.sendMessage(chatId, onboardingT(userLang, 'invalidStoreName', {
+          message: errorMessage.slice('STORE_NAME_INVALID:'.length) || 'Недопустимое название магазина'
+        }));
+        await askOnboardingField(chatId, userId, 'store_name');
+        return;
+      }
       await bot.sendMessage(chatId, onboardingT(getOnboardingLanguage(userId), 'finalizeError'));
     } finally {
       client.release();
@@ -2235,11 +2276,23 @@ async function initBot() {
       if (onboardingState.step === 'await_store_name') {
         const userLang = getOnboardingLanguage(userId);
         const storeName = text.trim();
-        if (!storeName) {
-          await bot.sendMessage(chatId, onboardingT(userLang, 'requiredStoreName'));
+        const storeNameValidation = validateRestaurantName(storeName);
+        if (!storeNameValidation.ok) {
+          await bot.sendMessage(chatId, storeName
+            ? onboardingT(userLang, 'invalidStoreName', { message: storeNameValidation.message })
+            : onboardingT(userLang, 'requiredStoreName'));
           return;
         }
-        onboardingState.store_name = storeName;
+        const normalizedStoreName = normalizeRestaurantNameForStorage(storeNameValidation.normalized);
+        const availability = await checkRestaurantIdentityAvailability({
+          client: pool,
+          name: normalizedStoreName
+        });
+        if (availability.nameTaken) {
+          await bot.sendMessage(chatId, onboardingT(userLang, 'storeNameTaken'));
+          return;
+        }
+        onboardingState.store_name = normalizedStoreName;
         onboardingState.step = 'await_activity_type';
         onboardingStates.set(onboardingKey, onboardingState);
         await askOnboardingField(chatId, userId, 'activity_type');
