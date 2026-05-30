@@ -13267,7 +13267,7 @@ function AdminDashboard() {
                               <Form.Check
                                 type="switch"
                                 id={`mobile-product-stock-${product.id}`}
-                                label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
+                                aria-label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
                                 checked={!product.in_stock}
                                 disabled={productStockUpdatingIds.includes(product.id)}
                                 className="small mb-2 admin-product-mobile-stock-switch"
@@ -13453,7 +13453,7 @@ function AdminDashboard() {
                                 <Form.Check
                                   type="switch"
                                   id={`product-stock-${product.id}`}
-                                  label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
+                                  aria-label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
                                   checked={!product.in_stock}
                                   disabled={productStockUpdatingIds.includes(product.id)}
                                   className="small mb-0"
