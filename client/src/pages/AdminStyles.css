@@ -10732,6 +10732,31 @@ body::-webkit-scrollbar,
 
 .admin-product-modal-dialog {
     max-width: min(99vw, 1540px) !important;
+    height: calc(100vh - 52px);
+    margin-top: 26px;
+    margin-bottom: 26px;
+}
+
+.admin-product-modal-dialog .modal-content {
+    max-height: 100%;
+    overflow: hidden;
+}
+
+.admin-product-modal-dialog form {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+}
+
+.admin-product-modal-dialog .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto !important;
+}
+
+.admin-product-modal-dialog .modal-footer {
+    flex: 0 0 auto;
 }
 
 .admin-product-modal-header .btn-close {
@@ -14058,9 +14083,10 @@ div.form-select.admin-global-import-field {
 .admin-variants-simple-wrap {
     --variant-card-border: rgba(148, 163, 184, 0.36);
     --variant-card-muted: #52637a;
-    max-width: 820px;
-    margin-left: auto;
-    margin-right: auto;
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
 }
 .admin-variants-simple-table-scroll {
     overflow-x: visible !important;
@@ -14109,18 +14135,22 @@ div.form-select.admin-global-import-field {
     border-right: 0 !important;
     flex: initial !important;
 }
-.admin-variant-row .admin-variant-col-name { grid-column: span 6; order: 1; }
+.admin-variant-row .admin-variant-col-name { grid-column: span 5; order: 1; }
 .admin-variant-row .admin-variant-col-price { grid-column: span 3; order: 2; }
-.admin-variant-row .admin-variant-col-stock { grid-column: span 3; order: 3; }
+.admin-variant-row .admin-variant-col-stock { grid-column: span 4; order: 3; }
 .admin-variant-row .admin-variant-col-container { grid-column: span 4; order: 4; }
 .admin-variant-row .admin-variant-col-container-norm { grid-column: span 4; order: 5; }
 .admin-variant-row .admin-variant-col-order-step { grid-column: span 4; order: 6; }
-.admin-variant-row .admin-variant-table-col-images { grid-column: span 6; order: 7; }
-.admin-variant-row .admin-variant-col-discount { grid-column: span 6; order: 8; align-self: end; }
+.admin-variant-row .admin-variant-table-col-images { grid-column: span 4; order: 7; }
+.admin-variant-row .admin-variant-col-discount { grid-column: span 8; order: 8; align-self: end; }
 .admin-variant-row .admin-variant-col-description-ru { grid-column: span 6; order: 9; }
 .admin-variant-row .admin-variant-col-description-uz { grid-column: span 6; order: 10; }
 .admin-variant-row .admin-variant-col-barcode { grid-column: span 6; order: 11; }
 .admin-variant-row .admin-variant-col-ikpu { grid-column: span 6; order: 12; }
+.admin-variant-row .admin-variant-table-input-row.is-not-kg .admin-variant-col-container,
+.admin-variant-row .admin-variant-table-input-row.is-not-kg .admin-variant-col-container-norm {
+    grid-column: span 6;
+}
 .admin-variants-simple-toolbar {
     display: grid !important;
     grid-template-columns: 110px 1fr;
