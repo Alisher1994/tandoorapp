@@ -14458,6 +14458,24 @@ div.form-select.admin-global-import-field {
 .admin-product-form-tabs-list { display: flex; gap: 6px; flex-wrap: wrap; }
 .admin-product-form-tabs-actions { display: flex; align-items: center; gap: 16px; padding-bottom: 6px; flex-wrap: wrap; }
 .admin-product-form-tabs-actions .admin-product-switch { margin: 0; }
+
+/* Sticky header (tabs + status switches) inside the product add/edit modal.
+   Footer buttons (Save/Cancel) are already fixed via Bootstrap's scrollable modal. */
+.admin-product-modal-dialog .admin-product-modal-body-scroll { padding-top: 0; }
+.admin-product-modal-dialog .admin-product-form-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #ffffff;
+    /* bleed over the modal body's horizontal + top padding so content never shows through */
+    margin-left: -1rem;
+    margin-right: -1rem;
+    padding: 14px 1rem 8px;
+    box-shadow: 0 6px 14px -10px rgba(15, 23, 42, 0.35);
+}
+@media (max-width: 575.98px) {
+    .admin-product-modal-dialog .admin-product-form-tabs { padding-top: 10px; }
+}
 .admin-variants-enable-row { padding: 4px 2px 14px; margin-bottom: 6px; border-bottom: 1px dashed var(--border-color); }
 .admin-variants-enable-main {
     display: flex;
