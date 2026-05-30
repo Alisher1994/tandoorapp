@@ -116,7 +116,8 @@ const SUPERADMIN_SETTINGS_TARGET_TABS = new Set([
   'help_instructions',
   'logs',
   'security',
-  'printer_agent'
+  'printer_agent',
+  'printer_drivers'
 ]);
 const SUPERADMIN_SIDEBAR_NAV_ORDER = [
   'analytics',
@@ -1545,6 +1546,20 @@ function SuperAdminDashboard() {
   const [agentVersions, setAgentVersions] = useState([]);
   const [agentVersionsLoading, setAgentVersionsLoading] = useState(false);
   const [agentDragOver, setAgentDragOver] = useState(false);
+  // Printer drivers catalog
+  const [printerDrivers, setPrinterDrivers] = useState([]);
+  const [printerDriversLoading, setPrinterDriversLoading] = useState(false);
+  const [showDriverModal, setShowDriverModal] = useState(false);
+  const [driverForm, setDriverForm] = useState({ id: null, manufacturer: '', model: '', photo_url: '' });
+  const [driverPhotoUploading, setDriverPhotoUploading] = useState(false);
+  const [driverSaving, setDriverSaving] = useState(false);
+  const [showDriverVersionsModal, setShowDriverVersionsModal] = useState(false);
+  const [activeDriverId, setActiveDriverId] = useState(null);
+  const [driverVersionFile, setDriverVersionFile] = useState(null);
+  const [driverVersionLabel, setDriverVersionLabel] = useState('');
+  const [driverVersionUploading, setDriverVersionUploading] = useState(false);
+  const [driverVersionProgress, setDriverVersionProgress] = useState(0);
+  const [driverDragOver, setDriverDragOver] = useState(false);
   const [showMobileAccountSheet, setShowMobileAccountSheet] = useState(false);
   const [showMobileFiltersSheet, setShowMobileFiltersSheet] = useState(false);
   const [showAnalyticsFilterPanel, setShowAnalyticsFilterPanel] = useState(false);
@@ -2412,6 +2427,7 @@ function SuperAdminDashboard() {
       loadSecurityStats();
     }
     if (activeTab === 'printer_agent') loadPrinterAgentInfo();
+    if (activeTab === 'printer_drivers') loadPrinterDrivers();
     if (activeTab === 'categories') loadCategories();
     if (activeTab === 'activity_types') loadActivityTypes();
     if (activeTab === 'reservation_templates') loadReservationTemplates();
@@ -12223,6 +12239,7 @@ function SuperAdminDashboard() {
     security: { label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность', icon: Shield },
     logs: { label: t('logs'), icon: FileText },
     printer_agent: { label: language === 'uz' ? 'Printer agenti' : 'Принтер-агент', icon: Printer },
+    printer_drivers: { label: language === 'uz' ? 'Printer drayverlari' : 'Драйверы принтеров', icon: Printer },
     settings: { label: language === 'uz' ? 'Sozlamalar' : 'Настройки', icon: Settings }
   }), [adI18n.tab, language, t]);
   const settingsSidebarNavItems = useMemo(() => ([
@@ -12238,7 +12255,8 @@ function SuperAdminDashboard() {
     { key: 'help_instructions', icon: '📘', label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции' },
     { key: 'logs', icon: '📄', label: t('logs') },
     { key: 'security', icon: '🛡️', label: language === 'uz' ? 'Xavfsizlik' : 'Безопасность' },
-    { key: 'printer_agent', icon: '🖨️', label: language === 'uz' ? 'Printer agenti' : 'Принтер-агент' }
+    { key: 'printer_agent', icon: '🖨️', label: language === 'uz' ? 'Printer agenti' : 'Принтер-агент' },
+    { key: 'printer_drivers', icon: '🧰', label: language === 'uz' ? 'Printer drayverlari' : 'Драйверы принтеров' }
   ]), [language, t]);
   const sidebarVisibleTabKeys = useMemo(
     () => SUPERADMIN_SIDEBAR_NAV_ORDER.filter((key) => Boolean(superAdminSidebarTabsMeta[key]) && canModeratorAccessTab(key, 'view')),
@@ -12365,6 +12383,145 @@ function SuperAdminDashboard() {
     setAgentDragOver(false);
     const file = e.dataTransfer?.files?.[0];
     if (file) setPrinterAgentFile(file);
+  };
+
+  // --- Printer drivers catalog ---
+  const loadPrinterDrivers = async () => {
+    setPrinterDriversLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/printer-drivers`);
+      setPrinterDrivers(Array.isArray(response?.data) ? response.data : []);
+    } catch (err) {
+      console.error('Load printer drivers error:', err);
+      setPrinterDrivers([]);
+    } finally {
+      setPrinterDriversLoading(false);
+    }
+  };
+
+  const openAddDriver = () => {
+    setDriverForm({ id: null, manufacturer: '', model: '', photo_url: '' });
+    setShowDriverModal(true);
+  };
+  const openEditDriver = (d) => {
+    setDriverForm({ id: d.id, manufacturer: d.manufacturer || '', model: d.model || '', photo_url: d.photo_url || '' });
+    setShowDriverModal(true);
+  };
+
+  const handleDriverPhotoUpload = async (file) => {
+    if (!file) return;
+    if (!String(file.type || '').startsWith('image/')) {
+      setError(language === 'uz' ? 'Faqat rasm' : 'Нужно изображение');
+      return;
+    }
+    setDriverPhotoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const response = await axios.post(`${API_URL}/upload/image`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const url = response?.data?.imageUrl || response?.data?.url || '';
+      if (url) setDriverForm((prev) => ({ ...prev, photo_url: url }));
+    } catch (err) {
+      setError(err?.response?.data?.error || (language === 'uz' ? "Rasm yuklanmadi" : 'Не удалось загрузить фото'));
+    } finally {
+      setDriverPhotoUploading(false);
+    }
+  };
+
+  const handleSaveDriver = async () => {
+    const manufacturer = String(driverForm.manufacturer || '').trim();
+    const model = String(driverForm.model || '').trim();
+    if (!manufacturer || !model) {
+      setError(language === 'uz' ? 'Ishlab chiqaruvchi va modelni kiriting' : 'Укажите производителя и модель');
+      return;
+    }
+    setDriverSaving(true);
+    try {
+      const payload = { manufacturer, model, photo_url: driverForm.photo_url || '' };
+      if (driverForm.id) {
+        await axios.put(`${API_URL}/superadmin/printer-drivers/${driverForm.id}`, payload);
+      } else {
+        await axios.post(`${API_URL}/superadmin/printer-drivers`, payload);
+      }
+      setShowDriverModal(false);
+      setSuccess(language === 'uz' ? 'Saqlandi' : 'Сохранено');
+      await loadPrinterDrivers();
+    } catch (err) {
+      setError(err?.response?.data?.error || (language === 'uz' ? 'Xatolik' : 'Ошибка сохранения'));
+    } finally {
+      setDriverSaving(false);
+    }
+  };
+
+  const handleDeleteDriver = async (id) => {
+    if (!window.confirm(language === 'uz' ? "Printerni o'chirasizmi? Barcha versiyalar o'chadi." : 'Удалить принтер? Все версии будут удалены.')) return;
+    try {
+      await axios.delete(`${API_URL}/superadmin/printer-drivers/${id}`);
+      await loadPrinterDrivers();
+    } catch (err) {
+      setError(err?.response?.data?.error || (language === 'uz' ? 'Xatolik' : 'Не удалось удалить'));
+    }
+  };
+
+  const openDriverVersions = (d) => {
+    setActiveDriverId(d.id);
+    setDriverVersionFile(null);
+    setDriverVersionLabel('');
+    setShowDriverVersionsModal(true);
+  };
+
+  const handleUploadDriverVersion = async () => {
+    if (driverVersionUploading || !activeDriverId) return;
+    if (!driverVersionFile) {
+      setError(language === 'uz' ? 'Avval faylni tanlang' : 'Сначала выберите файл');
+      return;
+    }
+    setDriverVersionUploading(true);
+    setDriverVersionProgress(0);
+    try {
+      const fd = new FormData();
+      fd.append('file', driverVersionFile);
+      if (driverVersionLabel.trim()) fd.append('version', driverVersionLabel.trim());
+      const response = await axios.post(`${API_URL}/superadmin/printer-drivers/${activeDriverId}/versions`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 300000,
+        onUploadProgress: (e) => { if (e.total) setDriverVersionProgress(Math.round((e.loaded / e.total) * 100)); }
+      });
+      if (Array.isArray(response?.data)) setPrinterDrivers(response.data);
+      setDriverVersionFile(null);
+      setDriverVersionLabel('');
+      setSuccess(language === 'uz' ? 'Versiya yuklandi' : 'Версия загружена');
+    } catch (err) {
+      setError(err?.response?.data?.error || (language === 'uz' ? "Yuklanmadi" : 'Не удалось загрузить версию'));
+    } finally {
+      setDriverVersionUploading(false);
+      setDriverVersionProgress(0);
+    }
+  };
+
+  const handleActivateDriverVersion = async (driverId, vid) => {
+    try {
+      const response = await axios.post(`${API_URL}/superadmin/printer-drivers/${driverId}/versions/${vid}/activate`);
+      if (Array.isArray(response?.data)) setPrinterDrivers(response.data);
+    } catch (err) {
+      setError(err?.response?.data?.error || (language === 'uz' ? 'Xatolik' : 'Не удалось активировать'));
+    }
+  };
+
+  const handleToggleHideDriverVersion = async (driverId, vid, hide) => {
+    try {
+      const response = await axios.patch(`${API_URL}/superadmin/printer-drivers/${driverId}/versions/${vid}`, { is_hidden: hide });
+      if (Array.isArray(response?.data)) setPrinterDrivers(response.data);
+    } catch (err) {
+      setError(err?.response?.data?.error || (language === 'uz' ? 'Xatolik' : 'Ошибка'));
+    }
+  };
+
+  const handleDriverVersionDrop = (e) => {
+    e.preventDefault();
+    setDriverDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) setDriverVersionFile(file);
   };
 
   const renderSuperAdminSidebarTabTitle = (key) => {
@@ -19452,6 +19609,53 @@ function SuperAdminDashboard() {
                     : 'Админы получают файл через кнопку скачивания — отдаётся актуальная версия.'}
                 </div>
               </Tab>
+
+              {/* Printer drivers catalog Tab */}
+              <Tab eventKey="printer_drivers" title={renderSuperAdminSidebarTabTitle('printer_drivers')}>
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                  <h5 className="mb-0 superadmin-mobile-hide-title">
+                    {language === 'uz' ? 'Printer drayverlari' : 'Драйверы принтеров'}
+                  </h5>
+                  <Button variant="primary" size="sm" onClick={openAddDriver}>
+                    {language === 'uz' ? '+ Printer' : '+ Принтер'}
+                  </Button>
+                </div>
+
+                {printerDriversLoading ? (
+                  <div className="text-muted"><Spinner size="sm" animation="border" /> {language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…'}</div>
+                ) : printerDrivers.length === 0 ? (
+                  <div className="text-muted">{language === 'uz' ? "Hali printerlar qo'shilmagan" : 'Принтеры пока не добавлены'}</div>
+                ) : (
+                  <div className="driver-catalog-list">
+                    {printerDrivers.map((d) => {
+                      const current = (d.versions || []).find((v) => v.is_current) || (d.versions || [])[0] || null;
+                      return (
+                        <div key={d.id} className="driver-catalog-row">
+                          <div className="driver-catalog-photo">
+                            {d.photo_url ? <img src={d.photo_url} alt="" /> : <Printer size={22} />}
+                          </div>
+                          <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                            <div className="fw-medium">{d.manufacturer} · {d.model}</div>
+                            <div className="small text-muted">
+                              {current
+                                ? `${language === 'uz' ? 'Aktual' : 'Актуальная'}: ${current.version_label || (language === 'uz' ? 'raqamsiz' : 'без номера')} · ${formatPrinterAgentBytes(current.size)}`
+                                : (language === 'uz' ? 'Versiyalar yo‘q' : 'Нет версий')}
+                              {' · '}{(d.versions || []).length} {language === 'uz' ? 'ta versiya' : 'верс.'}
+                            </div>
+                          </div>
+                          <div className="d-flex align-items-center gap-2">
+                            <Button variant="outline-primary" size="sm" onClick={() => openDriverVersions(d)}>
+                              {language === 'uz' ? 'Versiyalar' : 'Версии'}
+                            </Button>
+                            <Button variant="outline-secondary" size="sm" onClick={() => openEditDriver(d)}>✎</Button>
+                            <Button variant="outline-danger" size="sm" onClick={() => handleDeleteDriver(d.id)}>✕</Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Tab>
             </Tabs>
             </div>
           </Card.Body>
@@ -19523,6 +19727,121 @@ function SuperAdminDashboard() {
               </div>
             )}
           </Modal.Body>
+        </Modal>
+
+        {/* Driver — add / edit printer */}
+        <Modal show={showDriverModal} onHide={() => setShowDriverModal(false)} centered>
+          <Modal.Header closeButton>
+            <Modal.Title className="h6 mb-0">
+              {driverForm.id ? (language === 'uz' ? 'Printerni tahrirlash' : 'Редактировать принтер') : (language === 'uz' ? 'Yangi printer' : 'Новый принтер')}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <div className="d-flex gap-3 mb-3 align-items-start">
+              <label className="driver-photo-upload" htmlFor="driver-photo-input">
+                {driverForm.photo_url ? <img src={driverForm.photo_url} alt="" /> : <Printer size={26} />}
+                {driverPhotoUploading && <div className="driver-photo-uploading"><Spinner size="sm" animation="border" /></div>}
+                <input id="driver-photo-input" type="file" accept="image/*" className="d-none" onChange={(e) => handleDriverPhotoUpload(e.target.files?.[0])} />
+              </label>
+              <div className="small text-muted">{language === 'uz' ? 'Printer rasmi (bosib yuklang)' : 'Фото принтера (нажмите, чтобы загрузить)'}</div>
+            </div>
+            <Form.Group className="mb-3">
+              <Form.Label className="small text-muted mb-1">{language === 'uz' ? 'Ishlab chiqaruvchi' : 'Производитель'}</Form.Label>
+              <Form.Control type="text" placeholder="HP" value={driverForm.manufacturer} onChange={(e) => setDriverForm((p) => ({ ...p, manufacturer: e.target.value }))} />
+            </Form.Group>
+            <Form.Group className="mb-0">
+              <Form.Label className="small text-muted mb-1">{language === 'uz' ? 'Model' : 'Модель'}</Form.Label>
+              <Form.Control type="text" placeholder="LaserJet Pro M404dn" value={driverForm.model} onChange={(e) => setDriverForm((p) => ({ ...p, model: e.target.value }))} />
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="outline-secondary" onClick={() => setShowDriverModal(false)}>{language === 'uz' ? 'Bekor' : 'Отмена'}</Button>
+            <Button variant="primary" onClick={handleSaveDriver} disabled={driverSaving}>
+              {driverSaving ? (language === 'uz' ? 'Saqlanmoqda…' : 'Сохранение…') : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+
+        {/* Driver — versions (drag & drop + history) */}
+        <Modal show={showDriverVersionsModal} onHide={() => setShowDriverVersionsModal(false)} size="lg" centered>
+          {(() => {
+            const activeDriver = printerDrivers.find((d) => d.id === activeDriverId) || null;
+            return (
+              <>
+                <Modal.Header closeButton>
+                  <Modal.Title className="h6 mb-0">
+                    {activeDriver ? `${activeDriver.manufacturer} · ${activeDriver.model}` : (language === 'uz' ? 'Versiyalar' : 'Версии')}
+                  </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                  <div
+                    className={`agent-dropzone${driverDragOver ? ' is-dragover' : ''}`}
+                    onDragOver={(e) => { e.preventDefault(); setDriverDragOver(true); }}
+                    onDragLeave={() => setDriverDragOver(false)}
+                    onDrop={handleDriverVersionDrop}
+                    onClick={() => document.getElementById('driver-version-input')?.click()}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <Upload size={22} className="text-muted mb-2" />
+                    <div>{driverVersionFile ? driverVersionFile.name : (language === 'uz' ? 'Drayver faylini shu yerga tashlang yoki bosing' : 'Перетащите файл драйвера сюда или нажмите, чтобы выбрать')}</div>
+                    <div className="small text-muted">{driverVersionFile ? formatPrinterAgentBytes(driverVersionFile.size) : '.exe / .zip / .inf'}</div>
+                    <Form.Control id="driver-version-input" type="file" className="d-none" disabled={driverVersionUploading} onChange={(e) => setDriverVersionFile(e.target.files?.[0] || null)} />
+                  </div>
+                  <div className="d-flex gap-2 align-items-end mt-3 flex-wrap">
+                    <Form.Group className="flex-grow-1" style={{ minWidth: '160px' }}>
+                      <Form.Label className="small text-muted mb-1">{language === 'uz' ? 'Versiya (ixtiyoriy)' : 'Версия (необязательно)'}</Form.Label>
+                      <Form.Control type="text" placeholder="v1.2" value={driverVersionLabel} disabled={driverVersionUploading} onChange={(e) => setDriverVersionLabel(e.target.value)} />
+                    </Form.Group>
+                    <Button variant="primary" onClick={handleUploadDriverVersion} disabled={driverVersionUploading || !driverVersionFile}>
+                      {driverVersionUploading ? (language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…') : (language === 'uz' ? 'Yuklash' : 'Загрузить')}
+                    </Button>
+                  </div>
+                  {driverVersionUploading && (
+                    <div className="progress mt-2" style={{ height: '6px' }}>
+                      <div className="progress-bar" style={{ width: `${driverVersionProgress}%` }} />
+                    </div>
+                  )}
+
+                  <div className="mt-4 mb-2 small text-uppercase text-muted">{language === 'uz' ? 'Tarix' : 'История'}</div>
+                  {!activeDriver || (activeDriver.versions || []).length === 0 ? (
+                    <div className="text-muted small">{language === 'uz' ? "Hali versiyalar yo'q" : 'Версий пока нет'}</div>
+                  ) : (
+                    <div className="agent-versions-list">
+                      {activeDriver.versions.map((v) => (
+                        <div key={v.id} className={`agent-version-row${v.is_current ? ' is-current' : ''}${v.is_hidden ? ' is-hidden' : ''}`}>
+                          <div className="flex-grow-1" style={{ minWidth: 0 }}>
+                            <div>
+                              {v.version_label || (language === 'uz' ? 'raqamsiz' : 'без номера')}
+                              {v.is_current && <Badge bg="success" className="ms-2">{language === 'uz' ? 'Aktual' : 'Актуальная'}</Badge>}
+                              {v.is_hidden && <Badge bg="secondary" className="ms-2">{language === 'uz' ? 'Yashirilgan' : 'Скрыта'}</Badge>}
+                            </div>
+                            <div className="small text-muted">
+                              {v.created_at ? new Date(v.created_at).toLocaleString('ru-RU') : '—'}
+                              {' · '}{formatPrinterAgentBytes(v.size)}
+                              {v.uploaded_by_name ? ` · ${v.uploaded_by_name}` : ''}
+                            </div>
+                          </div>
+                          <div className="d-flex align-items-center gap-2">
+                            {!v.is_current && (
+                              <Button variant="outline-secondary" size="sm" onClick={() => handleActivateDriverVersion(activeDriver.id, v.id)}>
+                                {language === 'uz' ? 'Aktual qilish' : 'Сделать актуальной'}
+                              </Button>
+                            )}
+                            {!v.is_current && (
+                              <Button variant="link" size="sm" className="p-0 text-decoration-none" onClick={() => handleToggleHideDriverVersion(activeDriver.id, v.id, !v.is_hidden)}>
+                                {v.is_hidden ? (language === 'uz' ? 'Ko‘rsatish' : 'Показать') : (language === 'uz' ? 'Yashirish' : 'Скрыть')}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Modal.Body>
+              </>
+            );
+          })()}
         </Modal>
 
         <Modal
