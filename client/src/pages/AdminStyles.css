@@ -14055,9 +14055,27 @@ div.form-select.admin-global-import-field {
 .admin-product-modal-body-scroll::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.6); }
 
 /* Варианты товара — карточный вид (без горизонтальной таблицы) */
-.admin-variants-simple-table-scroll { overflow-x: visible !important; }
-.admin-variant-row.admin-variants-simple-row { padding: 14px 16px; }
-.admin-variant-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.admin-variants-simple-wrap {
+    --variant-card-border: rgba(148, 163, 184, 0.36);
+    --variant-card-muted: #52637a;
+}
+.admin-variants-simple-table-scroll {
+    overflow-x: visible !important;
+    border: 0 !important;
+}
+.admin-variants-simple-body {
+    min-width: 0 !important;
+    border: 0 !important;
+    gap: 12px;
+}
+.admin-variant-row.admin-variants-simple-row {
+    border: 1px solid var(--variant-card-border);
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 12px;
+    background: #ffffff;
+}
+.admin-variant-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .admin-variant-remove-inline-btn {
     padding: 0 !important;
     border: 0 !important;
@@ -14068,48 +14086,77 @@ div.form-select.admin-global-import-field {
 }
 .admin-variant-remove-inline-btn:hover,
 .admin-variant-remove-inline-btn:focus-visible { color: #dc2626 !important; text-decoration: underline !important; }
-.admin-variant-row .admin-variant-table-input-row { display: flex !important; flex-wrap: wrap; gap: 12px; margin: 0 !important; }
-.admin-variant-row .admin-variant-table-input-row > .admin-variant-table-col {
-    flex: 1 1 200px; max-width: none; width: auto; padding: 0 !important;
-}
 .admin-variant-row .admin-variant-row-number { font-weight: 700; color: #0f172a; }
 .admin-variant-row .admin-variant-table-input-row {
     display: grid !important;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: 12px;
+    min-width: 0 !important;
+    border-bottom: 0 !important;
+    align-items: start !important;
+    margin: 0 !important;
 }
-.admin-variant-row .admin-variant-table-input-row > .admin-variant-table-col { min-width: 0; }
-.admin-variant-row .admin-variant-col-name { grid-column: span 6; }
-.admin-variant-row .admin-variant-col-price { grid-column: span 3; }
-.admin-variant-row .admin-variant-col-stock { grid-column: span 3; }
-.admin-variant-row .admin-variant-col-discount { grid-column: span 3; }
-.admin-variant-row .admin-variant-col-container { grid-column: span 4; }
-.admin-variant-row .admin-variant-col-container-norm { grid-column: span 4; }
-.admin-variant-row .admin-variant-col-order-step { grid-column: span 4; }
-.admin-variant-row .admin-variant-col-description-ru { grid-column: span 6; }
-.admin-variant-row .admin-variant-col-description-uz { grid-column: span 6; }
-.admin-variant-row .admin-variant-col-barcode { grid-column: span 6; }
-.admin-variant-row .admin-variant-col-ikpu { grid-column: span 6; }
-.admin-variant-row .admin-variant-table-col-images { grid-column: 1 / -1; }
+.admin-variant-row .admin-variant-table-input-row > .admin-variant-table-col {
+    display: block !important;
+    align-items: initial !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border-right: 0 !important;
+    flex: initial !important;
+}
+.admin-variant-row .admin-variant-col-name { grid-column: span 6; order: 1; }
+.admin-variant-row .admin-variant-col-price { grid-column: span 3; order: 2; }
+.admin-variant-row .admin-variant-col-stock { grid-column: span 3; order: 3; }
+.admin-variant-row .admin-variant-col-container { grid-column: span 4; order: 4; }
+.admin-variant-row .admin-variant-col-container-norm { grid-column: span 4; order: 5; }
+.admin-variant-row .admin-variant-col-order-step { grid-column: span 4; order: 6; }
+.admin-variant-row .admin-variant-table-col-images { grid-column: span 6; order: 7; }
+.admin-variant-row .admin-variant-col-discount { grid-column: span 6; order: 8; align-self: end; }
+.admin-variant-row .admin-variant-col-description-ru { grid-column: span 6; order: 9; }
+.admin-variant-row .admin-variant-col-description-uz { grid-column: span 6; order: 10; }
+.admin-variant-row .admin-variant-col-barcode { grid-column: span 6; order: 11; }
+.admin-variant-row .admin-variant-col-ikpu { grid-column: span 6; order: 12; }
 .admin-variants-simple-toolbar {
-    margin-top: 8px;
+    display: grid !important;
+    grid-template-columns: 110px 1fr;
+    align-items: center !important;
+    gap: 12px;
+    margin-top: 10px;
     margin-bottom: 12px;
 }
 .admin-variant-add-btn {
     width: 100%;
+    height: 32px;
+    min-height: 32px;
     border: 1px dashed rgba(148, 163, 184, 0.48) !important;
-    background: #f8fafc !important;
+    border-radius: 8px !important;
+    background: #f1f5f9 !important;
     color: #334155 !important;
+    padding: 0 !important;
 }
 
 /* Подписи полей в карточке варианта */
-.admin-variant-field-label { display: block; font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 6px; }
+.admin-variant-field-label {
+    display: block !important;
+    width: 100%;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--variant-card-muted);
+    margin: 0 0 6px !important;
+    line-height: 1.2;
+}
 .admin-variants-simple-row .form-control-custom,
 .admin-variants-simple-row .form-select.form-control-custom {
+    width: 100% !important;
     min-height: 42px;
     border-radius: 10px;
     border-color: rgba(148, 163, 184, 0.45);
     background: #ffffff;
+    font-size: 0.9rem;
+    padding-left: 12px;
+    padding-right: 12px;
 }
 .admin-variants-simple-row .form-control-custom:focus,
 .admin-variants-simple-row .form-select.form-control-custom:focus {
@@ -14117,6 +14164,40 @@ div.form-select.admin-global-import-field {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 .admin-variant-stock-inline-note { font-size: 0.72rem; margin-top: 4px; }
+.admin-variant-empty-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    border-radius: 10px;
+    background: #f8fafc;
+}
+.admin-variant-row .admin-product-variant-inline-images-row {
+    min-height: 64px;
+    gap: 8px;
+    align-items: flex-start;
+}
+.admin-variant-row .admin-product-variant-inline-image-item {
+    flex: 0 0 64px;
+    width: 64px;
+}
+.admin-variant-row .admin-product-image-dropzone-variant-inline,
+.admin-variant-row .admin-product-variant-inline-add-slot {
+    width: 64px;
+    height: 64px;
+    min-width: 64px;
+    min-height: 64px;
+    border-radius: 10px;
+}
+.admin-variant-row .admin-product-image-dropzone-variant-inline {
+    border-style: dashed;
+    border-color: var(--primary-color, #2563eb);
+}
+.admin-variant-row .admin-product-variant-inline-add-slot {
+    border-style: dashed;
+    background: #ffffff;
+}
 
 @media (max-width: 1100px) {
     .admin-variant-row .admin-variant-col-name,
@@ -14129,7 +14210,8 @@ div.form-select.admin-global-import-field {
     .admin-variant-row .admin-variant-col-discount,
     .admin-variant-row .admin-variant-col-container,
     .admin-variant-row .admin-variant-col-container-norm,
-    .admin-variant-row .admin-variant-col-order-step { grid-column: span 6; }
+    .admin-variant-row .admin-variant-col-order-step,
+    .admin-variant-row .admin-variant-table-col-images { grid-column: span 6; }
 }
 @media (max-width: 768px) {
     .admin-variant-row .admin-variant-table-input-row { grid-template-columns: 1fr; }
