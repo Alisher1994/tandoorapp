@@ -7399,15 +7399,15 @@ function AdminDashboard() {
       });
       if (index < 0 || index >= variants.length) return prev;
       const nextVariantsRaw = variants.filter((_, variantIndex) => variantIndex !== index);
-      const nextVariants = nextVariantsRaw.length === 0 && prev.size_enabled
-        ? [createProductVariantDraft('', fallbackBasePrice, true, {
-          ikpu: prev.ikpu || '',
-          container_id: prev.container_id || '',
-          container_norm: prev.container_norm,
-          order_step: prev.order_step,
-          unit: prev.unit || 'шт'
-        })]
-        : nextVariantsRaw;
+      if (nextVariantsRaw.length === 0) {
+        return {
+          ...prev,
+          size_enabled: false,
+          variant_options: [],
+          size_options: []
+        };
+      }
+      const nextVariants = nextVariantsRaw;
       const normalizedVariants = normalizeProductVariantOptionsForEditor(nextVariants, {
         fallbackPrice: fallbackBasePrice,
         unit: prev.unit || 'шт'

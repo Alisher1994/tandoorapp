@@ -14095,31 +14095,40 @@ div.form-select.admin-global-import-field {
 .admin-variants-simple-body {
     min-width: 0 !important;
     border: 0 !important;
-    gap: 12px;
+    gap: 10px;
 }
 .admin-variant-row.admin-variants-simple-row {
     border: 1px solid var(--variant-card-border);
     border-radius: 8px;
-    padding: 14px;
-    margin-bottom: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
     background: #ffffff;
 }
-.admin-variant-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.admin-variant-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .admin-variant-remove-inline-btn {
-    padding: 0 !important;
-    border: 0 !important;
+    padding: 4px 8px !important;
+    border: 1px solid rgba(239, 68, 68, 0.2) !important;
+    border-radius: 8px !important;
+    background: rgba(254, 242, 242, 0.55) !important;
     color: #ef4444 !important;
     text-decoration: none !important;
-    font-size: 0.92rem !important;
+    font-size: 0.86rem !important;
     line-height: 1.2 !important;
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
 }
 .admin-variant-remove-inline-btn:hover,
-.admin-variant-remove-inline-btn:focus-visible { color: #dc2626 !important; text-decoration: underline !important; }
+.admin-variant-remove-inline-btn:focus-visible {
+    background: rgba(254, 226, 226, 0.85) !important;
+    color: #dc2626 !important;
+    text-decoration: none !important;
+}
 .admin-variant-row .admin-variant-row-number { font-weight: 700; color: #0f172a; }
 .admin-variant-row .admin-variant-table-input-row {
     display: grid !important;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: 12px;
+    gap: 10px 12px;
     min-width: 0 !important;
     border-bottom: 0 !important;
     align-items: start !important;
@@ -14135,21 +14144,21 @@ div.form-select.admin-global-import-field {
     border-right: 0 !important;
     flex: initial !important;
 }
-.admin-variant-row .admin-variant-col-name { grid-column: span 5; order: 1; }
-.admin-variant-row .admin-variant-col-price { grid-column: span 3; order: 2; }
-.admin-variant-row .admin-variant-col-stock { grid-column: span 4; order: 3; }
-.admin-variant-row .admin-variant-col-container { grid-column: span 4; order: 4; }
-.admin-variant-row .admin-variant-col-container-norm { grid-column: span 4; order: 5; }
-.admin-variant-row .admin-variant-col-order-step { grid-column: span 4; order: 6; }
-.admin-variant-row .admin-variant-table-col-images { grid-column: span 4; order: 7; }
-.admin-variant-row .admin-variant-col-discount { grid-column: span 8; order: 8; align-self: end; }
-.admin-variant-row .admin-variant-col-description-ru { grid-column: span 6; order: 9; }
-.admin-variant-row .admin-variant-col-description-uz { grid-column: span 6; order: 10; }
-.admin-variant-row .admin-variant-col-barcode { grid-column: span 6; order: 11; }
-.admin-variant-row .admin-variant-col-ikpu { grid-column: span 6; order: 12; }
+.admin-variant-row .admin-variant-col-name { grid-column: span 4; order: 1; }
+.admin-variant-row .admin-variant-col-price { grid-column: span 2; order: 2; }
+.admin-variant-row .admin-variant-col-discount { grid-column: span 2; order: 3; align-self: start; }
+.admin-variant-row .admin-variant-col-stock { grid-column: span 2; order: 4; }
+.admin-variant-row .admin-variant-col-container { grid-column: span 2; order: 5; }
+.admin-variant-row .admin-variant-col-container-norm { grid-column: span 2; order: 6; }
+.admin-variant-row .admin-variant-col-order-step { grid-column: span 2; order: 7; }
+.admin-variant-row .admin-variant-table-col-images { grid-column: span 2; order: 8; }
+.admin-variant-row .admin-variant-col-description-ru { grid-column: span 3; order: 9; }
+.admin-variant-row .admin-variant-col-description-uz { grid-column: span 3; order: 10; }
+.admin-variant-row .admin-variant-col-barcode { grid-column: span 3; order: 11; }
+.admin-variant-row .admin-variant-col-ikpu { grid-column: span 3; order: 12; }
 .admin-variant-row .admin-variant-table-input-row.is-not-kg .admin-variant-col-container,
 .admin-variant-row .admin-variant-table-input-row.is-not-kg .admin-variant-col-container-norm {
-    grid-column: span 6;
+    grid-column: span 2;
 }
 .admin-variants-simple-toolbar {
     display: grid !important;
@@ -14212,21 +14221,21 @@ div.form-select.admin-global-import-field {
     background: #f8fafc;
 }
 .admin-variant-row .admin-product-variant-inline-images-row {
-    min-height: 64px;
-    gap: 8px;
+    min-height: 42px;
+    gap: 6px;
     align-items: flex-start;
 }
 .admin-variant-row .admin-product-variant-inline-image-item {
-    flex: 0 0 64px;
-    width: 64px;
+    flex: 0 0 42px;
+    width: 42px;
 }
 .admin-variant-row .admin-product-image-dropzone-variant-inline,
 .admin-variant-row .admin-product-variant-inline-add-slot {
-    width: 64px;
-    height: 64px;
-    min-width: 64px;
-    min-height: 64px;
-    border-radius: 10px;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    border-radius: 8px;
 }
 .admin-variant-row .admin-product-image-dropzone-variant-inline {
     border-style: dashed;
@@ -14238,18 +14247,18 @@ div.form-select.admin-global-import-field {
 }
 
 @media (max-width: 1100px) {
-    .admin-variant-row .admin-variant-col-name,
+    .admin-variant-row .admin-variant-col-name { grid-column: span 6; }
     .admin-variant-row .admin-variant-col-description-ru,
     .admin-variant-row .admin-variant-col-description-uz,
     .admin-variant-row .admin-variant-col-barcode,
-    .admin-variant-row .admin-variant-col-ikpu { grid-column: span 12; }
+    .admin-variant-row .admin-variant-col-ikpu { grid-column: span 6; }
     .admin-variant-row .admin-variant-col-price,
     .admin-variant-row .admin-variant-col-stock,
     .admin-variant-row .admin-variant-col-discount,
     .admin-variant-row .admin-variant-col-container,
     .admin-variant-row .admin-variant-col-container-norm,
     .admin-variant-row .admin-variant-col-order-step,
-    .admin-variant-row .admin-variant-table-col-images { grid-column: span 6; }
+    .admin-variant-row .admin-variant-table-col-images { grid-column: span 3; }
 }
 @media (max-width: 768px) {
     .admin-variant-row .admin-variant-table-input-row { grid-template-columns: 1fr; }
