@@ -4109,8 +4109,10 @@ async function computeStatCategorySuggestion(restaurantId, name, leavesArg = nul
 router.get('/products/suggest-category', async (req, res) => {
   try {
     const restaurantId = req.user.active_restaurant_id;
+    console.log('[suggest-category] GET hit', JSON.stringify({ restaurantId, name: req.query.name }));
     if (!restaurantId) return res.json({ category_id: null });
     const ids = await suggestCategoryLeafIds(restaurantId, req.query.name);
+    console.log('[suggest-category] GET result', JSON.stringify({ restaurantId, returned: ids.slice(0, 5) }));
     return res.json({ category_id: ids.length ? ids[0] : null });
   } catch (error) {
     console.error('Suggest category (stats) error:', error);
@@ -4125,6 +4127,7 @@ router.post('/products/suggest-category-ai', async (req, res) => {
       return res.status(503).json({ error: 'AI-подсказка категории временно недоступна' });
     }
     const restaurantId = req.user.active_restaurant_id;
+    console.log('[suggest-category] AI hit', JSON.stringify({ restaurantId, name_ru: req.body?.name_ru, name_uz: req.body?.name_uz }));
     if (!restaurantId) return res.status(400).json({ error: 'Выберите магазин' });
     const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
     const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
@@ -4156,6 +4159,7 @@ router.post('/products/suggest-category-ai', async (req, res) => {
         if (primaryId && alternativeId) break;
       }
     }
+    console.log('[suggest-category] AI result', JSON.stringify({ restaurantId, primaryId, alternativeId, aiPrimary: suggestion?.primary_id ?? null, aiAlt: suggestion?.alternative_id ?? null }));
     return res.json({
       primary_id: primaryId,
       alternative_id: alternativeId && alternativeId !== primaryId ? alternativeId : null
