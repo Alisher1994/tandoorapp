@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminStyles.css';
 import 'leaflet/dist/leaflet.css';
@@ -77,6 +77,30 @@ import {
   User as UserIcon,
   Users
 } from 'lucide-react';
+
+const ReactECharts = lazy(() => import('echarts-for-react'));
+
+// Curated IANA timezones for the store timezone selector. Analytics groups order
+// times by store-local hour, so multi-country stores read their real peak hours.
+const STORE_TIMEZONE_OPTIONS = [
+  { value: 'Asia/Tashkent', label: 'Ташкент (UTC+5)' },
+  { value: 'Asia/Samarkand', label: 'Самарканд (UTC+5)' },
+  { value: 'Asia/Almaty', label: 'Алматы / Казахстан (UTC+5)' },
+  { value: 'Asia/Dushanbe', label: 'Душанбе / Таджикистан (UTC+5)' },
+  { value: 'Asia/Bishkek', label: 'Бишкек / Кыргызстан (UTC+6)' },
+  { value: 'Asia/Ashgabat', label: 'Ашхабад / Туркменистан (UTC+5)' },
+  { value: 'Asia/Kabul', label: 'Кабул / Афганистан (UTC+4:30)' },
+  { value: 'Europe/Moscow', label: 'Москва (UTC+3)' },
+  { value: 'Europe/Kaliningrad', label: 'Калининград (UTC+2)' },
+  { value: 'Asia/Yekaterinburg', label: 'Екатеринбург (UTC+5)' },
+  { value: 'Asia/Novosibirsk', label: 'Новосибирск (UTC+7)' },
+  { value: 'Africa/Cairo', label: 'Каир / Египет (UTC+2)' },
+  { value: 'Asia/Seoul', label: 'Сеул / Корея (UTC+9)' },
+  { value: 'Asia/Dubai', label: 'Дубай / ОАЭ (UTC+4)' },
+  { value: 'Asia/Istanbul', label: 'Стамбул / Турция (UTC+3)' },
+  { value: 'Europe/Kyiv', label: 'Киев / Украина (UTC+2)' },
+  { value: 'America/New_York', label: 'Нью-Йорк / США (UTC−5)' }
+];
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const ADMIN_SIDEBAR_COLLAPSE_STORAGE_KEY = 'admin_sidebar_collapsed_v1';
@@ -2343,6 +2367,14 @@ function AdminDashboard() {
   });
   const [loadingYearlyAnalytics, setLoadingYearlyAnalytics] = useState(false);
 
+  // Customer-segment analytics (per-store; not shown in superadmin)
+  const [segmentAnalytics, setSegmentAnalytics] = useState({
+    segments: [],
+    multiSegment: false,
+    segmentationEnabled: false
+  });
+  const [loadingSegmentAnalytics, setLoadingSegmentAnalytics] = useState(false);
+
   // Feedback
   const [feedback, setFeedback] = useState([]);
   const [feedbackStats, setFeedbackStats] = useState({ new_count: 0 });
@@ -4263,6 +4295,31 @@ function AdminDashboard() {
     }
   }, [user?.active_restaurant_id, buildProductReviewAnalyticsParams]);
 
+  const fetchSegmentAnalytics = useCallback(async () => {
+    if (!user?.active_restaurant_id) {
+      setSegmentAnalytics({ segments: [], multiSegment: false, segmentationEnabled: false });
+      return;
+    }
+    setLoadingSegmentAnalytics(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/analytics/segments`, {
+        params: buildProductReviewAnalyticsParams(),
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+      });
+      const payload = response.data || {};
+      setSegmentAnalytics({
+        segments: Array.isArray(payload.segments) ? payload.segments : [],
+        multiSegment: payload.multiSegment === true,
+        segmentationEnabled: payload.segmentationEnabled === true
+      });
+    } catch (error) {
+      console.error('Error fetching segment analytics:', error);
+      setSegmentAnalytics({ segments: [], multiSegment: false, segmentationEnabled: false });
+    } finally {
+      setLoadingSegmentAnalytics(false);
+    }
+  }, [user?.active_restaurant_id, buildProductReviewAnalyticsParams]);
+
   useEffect(() => {
     if (mainTab === 'dashboard' && user?.active_restaurant_id) {
       fetchYearlyAnalytics(dashboardYear);
@@ -4273,6 +4330,11 @@ function AdminDashboard() {
     if (mainTab !== 'dashboard') return;
     fetchAnalyticsProductReviews();
   }, [mainTab, fetchAnalyticsProductReviews]);
+
+  useEffect(() => {
+    if (mainTab !== 'dashboard') return;
+    fetchSegmentAnalytics();
+  }, [mainTab, fetchSegmentAnalytics]);
 
   useEffect(() => {
     const instructionId = Number.parseInt(selectedHelpInstruction?.id, 10);
@@ -11276,7 +11338,168 @@ function AdminDashboard() {
 
       {renderAnalyticsTopTables()}
       {renderAnalyticsProductReviews()}
+      {renderSegmentAnalytics()}
     </div>
+    );
+  };
+
+  const renderSegmentAnalytics = () => {
+    const segs = Array.isArray(segmentAnalytics?.segments) ? segmentAnalytics.segments : [];
+    const segNames = segs.map((s) => s.name);
+    const customersData = segs.map((s) => Number(s.customers || 0));
+    const ordersData = segs.map((s) => Number(s.ordersCount || 0));
+    const revenueData = segs.map((s) => Number(s.revenue || 0));
+    const hasData = segs.length > 0;
+    const labels = {
+      customers: language === 'uz' ? 'Mijozlar' : 'Клиенты',
+      orders: language === 'uz' ? 'Sotuvlar, dona' : 'Продажи, шт',
+      revenue: language === 'uz' ? 'Tushum' : 'Выручка'
+    };
+
+    const segmentChartOption = {
+      grid: { top: 30, right: 14, left: 10, bottom: 24, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: '#0f172a',
+        borderWidth: 0,
+        textStyle: { color: '#e2e8f0' },
+        formatter: (params) => {
+          const list = Array.isArray(params) ? params : [params];
+          const title = String(list[0]?.axisValueLabel ?? list[0]?.axisValue ?? '');
+          const lines = list.map((p) => {
+            const isRevenue = p.seriesName === labels.revenue;
+            const val = isRevenue
+              ? `${formatPrice(Number(p.data || 0))} ${t('sum')}`
+              : Math.round(Number(p.data || 0)).toLocaleString('ru-RU');
+            return `${p.marker} ${p.seriesName}: <strong>${val}</strong>`;
+          });
+          return `${title}<br/>${lines.join('<br/>')}`;
+        }
+      },
+      legend: {
+        show: true,
+        top: 0,
+        right: 0,
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: '#64748b', fontSize: 11 },
+        data: [labels.customers, labels.orders, labels.revenue]
+      },
+      xAxis: {
+        type: 'category',
+        data: segNames,
+        axisLine: { lineStyle: { color: '#cbd5e1' } },
+        axisTick: { show: false },
+        axisLabel: { color: '#475569', fontSize: 11, interval: 0 }
+      },
+      yAxis: [
+        {
+          type: 'value',
+          minInterval: 1,
+          splitLine: { lineStyle: { color: '#e2e8f0' } },
+          axisLabel: { color: '#64748b', fontSize: 10 }
+        },
+        {
+          type: 'value',
+          splitLine: { show: false },
+          axisLabel: { color: '#94a3b8', fontSize: 10 }
+        }
+      ],
+      series: [
+        {
+          name: labels.customers,
+          type: 'bar',
+          yAxisIndex: 0,
+          data: customersData,
+          barGap: 0,
+          itemStyle: { color: '#6366f1', borderRadius: [4, 4, 0, 0] }
+        },
+        {
+          name: labels.orders,
+          type: 'bar',
+          yAxisIndex: 0,
+          data: ordersData,
+          itemStyle: { color: '#f59e0b', borderRadius: [4, 4, 0, 0] }
+        },
+        {
+          name: labels.revenue,
+          type: 'line',
+          yAxisIndex: 1,
+          smooth: 0.35,
+          showSymbol: true,
+          symbolSize: 6,
+          data: revenueData,
+          lineStyle: { width: 2.5, color: '#10b981' },
+          itemStyle: { color: '#10b981' }
+        }
+      ]
+    };
+
+    return (
+      <Row className="g-4 mb-4">
+        <Col xs={12}>
+          <Card className="border-0 shadow-sm admin-analytics-surface-card">
+            <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
+              <h6 className="mb-0 admin-analytics-card-title">
+                <span className="admin-analytics-card-title-icon" style={{ color: '#7c3aed', background: '#f5f3ff' }}>👥</span>
+                {language === 'uz' ? 'Mijoz segmentlari' : 'Сегменты клиентов'}
+              </h6>
+              {!segmentAnalytics.multiSegment && hasData && (
+                <small className="text-muted">
+                  {language === 'uz'
+                    ? 'Segmentlar sozlanmagan — barcha mijozlar bazaviy segmentda'
+                    : 'Сегменты не настроены — все клиенты в базовом'}
+                </small>
+              )}
+            </Card.Header>
+            <Card.Body>
+              {loadingSegmentAnalytics ? (
+                <div className="d-flex align-items-center justify-content-center text-muted" style={{ height: 280 }}>
+                  <Spinner size="sm" animation="border" className="me-2" />
+                  {t('loading')}
+                </div>
+              ) : !hasData ? (
+                <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+              ) : (
+                <>
+                  <Suspense fallback={(
+                    <div className="d-flex align-items-center justify-content-center text-muted" style={{ height: 280 }}>
+                      <Spinner size="sm" animation="border" className="me-2" />
+                      {t('loading')}
+                    </div>
+                  )}
+                  >
+                    <ReactECharts option={segmentChartOption} notMerge lazyUpdate style={{ width: '100%', height: 280 }} />
+                  </Suspense>
+                  <div className="table-responsive mt-3">
+                    <Table hover size="sm" className="mb-0 admin-analytics-table">
+                      <thead>
+                        <tr>
+                          <th>{language === 'uz' ? 'Segment' : 'Сегмент'}</th>
+                          <th className="text-end">{labels.customers}</th>
+                          <th className="text-end">{labels.orders}</th>
+                          <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {segs.map((s) => (
+                          <tr key={`seg-analytics-${s.id}`}>
+                            <td className="fw-semibold">{s.name}{s.isBase ? ' ·' : ''}</td>
+                            <td className="text-end">{Number(s.customers || 0).toLocaleString('ru-RU')}</td>
+                            <td className="text-end">{Number(s.ordersCount || 0).toLocaleString('ru-RU')}</td>
+                            <td className="text-end">{formatPrice(Number(s.revenue || 0))} {t('sum')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  </div>
+                </>
+              )}
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
     );
   };
 
@@ -14898,6 +15121,27 @@ function AdminDashboard() {
                                                   || (language === 'uz' ? 'Tanlanmagan' : 'Не выбран')
                                                 )}
                                               />
+                                            </Form.Group>
+                                          </Col>
+                                          <Col md={6}>
+                                            <Form.Group>
+                                              <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                                {language === 'uz' ? 'Vaqt mintaqasi' : 'Часовой пояс'}
+                                              </Form.Label>
+                                              <Form.Select
+                                                className="form-control-custom"
+                                                value={restaurantSettings.timezone || 'Asia/Tashkent'}
+                                                onChange={e => setRestaurantSettings({ ...restaurantSettings, timezone: e.target.value })}
+                                              >
+                                                {STORE_TIMEZONE_OPTIONS.map((option) => (
+                                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                              </Form.Select>
+                                              <Form.Text className="text-muted mt-1 d-block">
+                                                {language === 'uz'
+                                                  ? 'Analitikada buyurtma vaqti shu mintaqa boʻyicha hisoblanadi.'
+                                                  : 'В аналитике время заказов считается по этому поясу.'}
+                                              </Form.Text>
                                             </Form.Group>
                                           </Col>
                                           <Col md={12}>

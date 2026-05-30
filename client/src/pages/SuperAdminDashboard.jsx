@@ -92,6 +92,27 @@ const loadXlsxModule = async () => {
 };
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+// Curated IANA timezones for the store timezone selector (analytics group order
+// times by store-local hour). Covers the platform's countries plus a few majors.
+const STORE_TIMEZONE_OPTIONS = [
+  { value: 'Asia/Tashkent', label: 'Ташкент (UTC+5)' },
+  { value: 'Asia/Samarkand', label: 'Самарканд (UTC+5)' },
+  { value: 'Asia/Almaty', label: 'Алматы / Казахстан (UTC+5)' },
+  { value: 'Asia/Dushanbe', label: 'Душанбе / Таджикистан (UTC+5)' },
+  { value: 'Asia/Bishkek', label: 'Бишкек / Кыргызстан (UTC+6)' },
+  { value: 'Asia/Ashgabat', label: 'Ашхабад / Туркменистан (UTC+5)' },
+  { value: 'Asia/Kabul', label: 'Кабул / Афганистан (UTC+4:30)' },
+  { value: 'Europe/Moscow', label: 'Москва (UTC+3)' },
+  { value: 'Europe/Kaliningrad', label: 'Калининград (UTC+2)' },
+  { value: 'Asia/Yekaterinburg', label: 'Екатеринбург (UTC+5)' },
+  { value: 'Asia/Novosibirsk', label: 'Новосибирск (UTC+7)' },
+  { value: 'Africa/Cairo', label: 'Каир / Египет (UTC+2)' },
+  { value: 'Asia/Seoul', label: 'Сеул / Корея (UTC+9)' },
+  { value: 'Asia/Dubai', label: 'Дубай / ОАЭ (UTC+4)' },
+  { value: 'Asia/Istanbul', label: 'Стамбул / Турция (UTC+3)' },
+  { value: 'Europe/Kyiv', label: 'Киев / Украина (UTC+2)' },
+  { value: 'America/New_York', label: 'Нью-Йорк / США (UTC−5)' }
+];
 const SUPERADMIN_REQUEST_TIMEOUT_MS = 8000;
 const SUPERADMIN_DIRECTORY_CACHE_TTL_MS = 120000;
 const SERVER_STATS_INTERVAL_OPTIONS = [
@@ -1781,6 +1802,7 @@ function SuperAdminDashboard() {
     payme_test_mode: false,
     payme_callback_timeout_ms: 2000,
     currency_code: 'uz',
+    timezone: 'Asia/Tashkent',
     support_username: '',
     service_fee: 1000,
     reservation_cost: 0,
@@ -8835,6 +8857,7 @@ function SuperAdminDashboard() {
         payme_test_mode: Boolean(restaurant.payme_test_mode),
         payme_callback_timeout_ms: restaurant.payme_callback_timeout_ms || 2000,
         currency_code: restaurant.currency_code || 'uz',
+        timezone: restaurant.timezone || 'Asia/Tashkent',
         support_username: restaurant.support_username || '',
         service_fee: restaurant.hasOwnProperty('service_fee') ? parseFloat(restaurant.service_fee) : 1000,
         reservation_cost: restaurant.hasOwnProperty('reservation_cost') ? parseFloat(restaurant.reservation_cost) : 0,
@@ -8872,6 +8895,7 @@ function SuperAdminDashboard() {
         payme_test_mode: false,
         payme_callback_timeout_ms: 2000,
         currency_code: 'uz',
+        timezone: 'Asia/Tashkent',
         support_username: '',
         service_fee: 1000,
         reservation_cost: 0,
@@ -10247,6 +10271,8 @@ function SuperAdminDashboard() {
     const statusSummary = analyticsPayload.statusSummary || {};
     const revenueTimeline = analyticsPayload?.timelines?.revenue || [];
     const ordersTimeline = analyticsPayload?.timelines?.orders || [];
+    const hourlyTimeline = analyticsPayload?.timelines?.hourly || [];
+    const analyticsTimezone = analyticsPayload?.analyticsTimezone || null;
     const categoriesByQuantity = analyticsPayload?.categories?.byQuantity || [];
     const categoriesByRevenue = analyticsPayload?.categories?.byRevenue || [];
     const activityTypesByQuantity = analyticsPayload?.activityTypes?.byQuantity || [];
@@ -10592,6 +10618,87 @@ function SuperAdminDashboard() {
               ]
             }
           }
+        }
+      ]
+    };
+    const hourlyLabels = (hourlyTimeline.length ? hourlyTimeline : Array.from({ length: 24 }, (_, h) => ({ label: `${String(h).padStart(2, '0')}:00`, ordersCount: 0, revenue: 0 })));
+    const hourlyOrdersData = hourlyLabels.map((item) => Number(item.ordersCount || 0));
+    const hourlyRevenueData = hourlyLabels.map((item) => Number(item.revenue || 0));
+    const hourlyHasData = hourlyOrdersData.some((v) => v > 0) || hourlyRevenueData.some((v) => v > 0);
+    const hourlyActivityChartOption = {
+      grid: { top: 28, right: 12, left: 10, bottom: 24, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: '#0f172a',
+        borderWidth: 0,
+        textStyle: { color: '#e2e8f0' },
+        axisPointer: { type: 'shadow' },
+        formatter: (params) => {
+          const list = Array.isArray(params) ? params : [params];
+          const label = formatAnalyticsTooltipTitle(list[0]?.axisValueLabel ?? list[0]?.axisValue);
+          const ordersItem = list.find((p) => p.seriesName === (language === 'uz' ? 'Buyurtmalar' : 'Заказы'));
+          const revenueItem = list.find((p) => p.seriesName === (language === 'uz' ? 'Tushum' : 'Выручка'));
+          const ordersVal = Math.round(Number(ordersItem?.data ?? 0)).toLocaleString('ru-RU');
+          const revenueVal = formatAnalyticsMoney(Number(revenueItem?.data ?? 0));
+          return `${label}<br/>${language === 'uz' ? 'Buyurtmalar' : 'Заказы'}: <strong>${ordersVal}</strong><br/>${language === 'uz' ? 'Tushum' : 'Выручка'}: <strong>${revenueVal} ${t('sum')}</strong>`;
+        }
+      },
+      legend: {
+        show: true,
+        top: 0,
+        right: 0,
+        itemWidth: 10,
+        itemHeight: 10,
+        textStyle: { color: '#64748b', fontSize: 10 },
+        data: [language === 'uz' ? 'Buyurtmalar' : 'Заказы', language === 'uz' ? 'Tushum' : 'Выручка']
+      },
+      xAxis: {
+        type: 'category',
+        data: hourlyLabels.map((item) => item.label),
+        axisLine: { lineStyle: { color: '#cbd5e1' } },
+        axisTick: { show: false },
+        axisLabel: { color: '#64748b', fontSize: 9, interval: 1 }
+      },
+      yAxis: [
+        {
+          type: 'value',
+          minInterval: 1,
+          splitLine: { lineStyle: { color: '#e2e8f0' } },
+          axisLabel: { color: '#64748b', fontSize: 10, formatter: (value) => formatAnalyticsAxisValue(value, 'count') }
+        },
+        {
+          type: 'value',
+          splitLine: { show: false },
+          axisLabel: { color: '#94a3b8', fontSize: 10, formatter: (value) => formatAnalyticsAxisValue(value, 'currency') }
+        }
+      ],
+      series: [
+        {
+          name: language === 'uz' ? 'Buyurtmalar' : 'Заказы',
+          type: 'bar',
+          yAxisIndex: 0,
+          data: hourlyOrdersData,
+          barWidth: '58%',
+          itemStyle: {
+            color: {
+              type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: '#818cf8' },
+                { offset: 1, color: '#6366f1' }
+              ]
+            },
+            borderRadius: [4, 4, 0, 0]
+          }
+        },
+        {
+          name: language === 'uz' ? 'Tushum' : 'Выручка',
+          type: 'line',
+          yAxisIndex: 1,
+          smooth: 0.35,
+          showSymbol: false,
+          data: hourlyRevenueData,
+          lineStyle: { width: 2.5, color: '#10b981' },
+          itemStyle: { color: '#10b981' }
         }
       ]
     };
@@ -11321,7 +11428,7 @@ function SuperAdminDashboard() {
             </Row>
 
             <Row className="g-4 mb-4">
-              <Col lg={8}>
+              <Col lg={12}>
                 <Card className="border-0 shadow-sm admin-analytics-surface-card">
                   <Card.Body className="admin-analytics-chart-stack admin-analytics-chart-grid">
                     <div className="admin-analytics-chart-box">
@@ -11377,11 +11484,43 @@ function SuperAdminDashboard() {
                         />
                       </Suspense>
                     </div>
+
+                    <div className="admin-analytics-chart-box" style={{ gridColumn: '1 / -1' }}>
+                      <div className="admin-analytics-chart-heading">
+                        <span>{language === 'uz' ? 'Faollik soatlar bo‘yicha' : 'Активность по часам'}</span>
+                        <small>
+                          {language === 'uz' ? 'kun davomida' : 'время суток'}
+                          {analyticsTimezone ? ` · ${analyticsTimezone}` : ''}
+                        </small>
+                      </div>
+                      <Suspense fallback={(
+                        <div className="d-flex align-items-center justify-content-center text-muted" style={{ width: '100%', height: 260 }}>
+                          <Spinner size="sm" animation="border" className="me-2" />
+                          {t('loading')}
+                        </div>
+                      )}
+                      >
+                        {hourlyHasData ? (
+                          <ReactECharts
+                            option={hourlyActivityChartOption}
+                            notMerge
+                            lazyUpdate
+                            style={{ width: '100%', height: 260 }}
+                          />
+                        ) : (
+                          <div className="d-flex align-items-center justify-content-center text-muted" style={{ width: '100%', height: 260 }}>
+                            {t('noDataForPeriod')}
+                          </div>
+                        )}
+                      </Suspense>
+                    </div>
                   </Card.Body>
                 </Card>
               </Col>
+            </Row>
 
-              <Col lg={4}>
+            <Row className="g-4 mb-4">
+              <Col lg={12}>
                 <Card className="border-0 shadow-sm admin-analytics-surface-card">
                   <Card.Header className="bg-white border-0 d-flex justify-content-between align-items-center admin-analytics-card-header">
                     <h6 className="mb-0 admin-analytics-card-title">
@@ -22025,6 +22164,21 @@ function SuperAdminDashboard() {
                     />
                     <Form.Text className="text-muted d-block mt-1">
                       Эта валюта будет показываться клиентам во всех суммах этого магазина.
+                    </Form.Text>
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-medium text-secondary">Часовой пояс магазина</Form.Label>
+                    <Form.Select
+                      value={restaurantForm.timezone || 'Asia/Tashkent'}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, timezone: e.target.value })}
+                    >
+                      {STORE_TIMEZONE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </Form.Select>
+                    <Form.Text className="text-muted d-block mt-1">
+                      Используется в аналитике: время заказов считается по местному времени магазина.
                     </Form.Text>
                   </Form.Group>
 

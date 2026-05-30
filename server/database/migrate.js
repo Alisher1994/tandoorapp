@@ -132,7 +132,8 @@ async function migrate() {
       'guvohnoma_file_size BIGINT DEFAULT 0',
       'guvohnoma_uploaded_at TIMESTAMP',
       'guvohnoma_uploaded_by_id INTEGER',
-      'guvohnoma_uploaded_by_name TEXT'
+      'guvohnoma_uploaded_by_name TEXT',
+      'timezone VARCHAR(64)'
     ];
 
     for (const col of restaurantColumns) {
@@ -140,6 +141,24 @@ async function migrate() {
         await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ${col}`);
       } catch (e) { }
     }
+    // Backfill an IANA timezone for stores that don't have one yet, derived from
+    // their country/currency_code. Analytics buckets order times by store-local hour.
+    try {
+      await client.query(`
+        UPDATE restaurants SET timezone = CASE LOWER(COALESCE(NULLIF(BTRIM(currency_code), ''), 'uz'))
+          WHEN 'uz' THEN 'Asia/Tashkent'
+          WHEN 'kz' THEN 'Asia/Almaty'
+          WHEN 'tj' THEN 'Asia/Dushanbe'
+          WHEN 'kg' THEN 'Asia/Bishkek'
+          WHEN 'tm' THEN 'Asia/Ashgabat'
+          WHEN 'af' THEN 'Asia/Kabul'
+          WHEN 'ru' THEN 'Europe/Moscow'
+          WHEN 'us' THEN 'America/New_York'
+          ELSE 'Asia/Tashkent'
+        END
+        WHERE timezone IS NULL OR BTRIM(timezone) = ''
+      `);
+    } catch (e) { }
     await client.query(`
       CREATE TABLE IF NOT EXISTS restaurant_guvohnoma_files (
         id SERIAL PRIMARY KEY,

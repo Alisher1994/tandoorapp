@@ -7224,6 +7224,21 @@ router.put('/restaurants/:id', async (req, res) => {
       }
     }
 
+    // Store timezone (IANA) — used by analytics to bucket order times by local hour.
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'timezone')) {
+      let tzValue = String(req.body.timezone || '').trim();
+      if (tzValue) {
+        try { new Intl.DateTimeFormat('en-US', { timeZone: tzValue }); } catch (_) { tzValue = ''; }
+      }
+      if (tzValue) {
+        await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS timezone VARCHAR(64)').catch(() => {});
+        await pool.query(
+          'UPDATE restaurants SET timezone = $1 WHERE id = $2',
+          [tzValue, Number(req.params.id)]
+        ).catch(() => {});
+      }
+    }
+
     console.log('📍 Updating restaurant with delivery_zone:', delivery_zone);
     const parsedServiceFee = parseFlexibleAmount(service_fee, 0);
     const parsedReservationCost = parseFlexibleAmount(
@@ -10455,7 +10470,7 @@ router.get('/analytics/overview', async (req, res) => {
     let restaurantMeta = null;
     if (restaurantId) {
       const restaurantResult = await pool.query(
-        'SELECT id, name FROM restaurants WHERE id = $1 LIMIT 1',
+        'SELECT id, name, timezone FROM restaurants WHERE id = $1 LIMIT 1',
         [restaurantId]
       );
       if (!restaurantResult.rows.length) {
@@ -10494,6 +10509,7 @@ router.get('/analytics/overview', async (req, res) => {
         o.is_paid,
         o.payment_status,
         COALESCE(NULLIF(BTRIM(r.name), ''), CONCAT('ID ', o.restaurant_id::text)) AS restaurant_name,
+        COALESCE(NULLIF(BTRIM(r.timezone), ''), 'Asia/Tashkent') AS store_timezone,
         COALESCE(
           NULLIF(BTRIM(u_operator.full_name), ''),
           NULLIF(BTRIM(u_operator.username), ''),
@@ -10678,6 +10694,11 @@ router.get('/analytics/overview', async (req, res) => {
 
     const revenueTimeline = buildTimelinePoints();
     const ordersTimeline = buildTimelinePoints();
+    // Hour-of-day activity, aggregated over the whole selected period in each
+    // store's LOCAL time (a store in Seoul and one in Tashkent each land in their
+    // own local hour). Orders = all placed orders; revenue = delivered only.
+    const hourlyOrders = Array.from({ length: 24 }, () => 0);
+    const hourlyRevenue = Array.from({ length: 24 }, () => 0);
     const statusSummary = {
       new: 0,
       accepted: 0,
@@ -10687,10 +10708,48 @@ router.get('/analytics/overview', async (req, res) => {
       cancelled: 0
     };
 
-    const resolveTimelineIndex = (dateValue) => {
-      if (analyticsRange.period === 'yearly') return dateValue.getMonth();
-      if (analyticsRange.period === 'monthly') return dateValue.getDate() - 1;
-      return dateValue.getHours();
+    // Convert a UTC instant to a store's local calendar parts (hour/day/month)
+    // using IANA timezones. Formatters are memoized per timezone.
+    const tzPartsFormatterCache = new Map();
+    const getStoreLocalParts = (dateValue, timeZone) => {
+      const tz = timeZone && String(timeZone).trim() ? String(timeZone).trim() : 'Asia/Tashkent';
+      let formatter = tzPartsFormatterCache.get(tz);
+      if (!formatter) {
+        try {
+          formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: tz,
+            hour12: false,
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric'
+          });
+        } catch (_) {
+          formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Asia/Tashkent',
+            hour12: false,
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric'
+          });
+        }
+        tzPartsFormatterCache.set(tz, formatter);
+      }
+      const parsed = {};
+      for (const part of formatter.formatToParts(dateValue)) parsed[part.type] = part.value;
+      let hour = Number.parseInt(parsed.hour, 10);
+      if (!Number.isFinite(hour) || hour === 24) hour = 0; // some ICU builds emit "24" at midnight
+      return {
+        hour,
+        day: Number.parseInt(parsed.day, 10) || 1,
+        month: (Number.parseInt(parsed.month, 10) || 1) - 1 // 0-based, like Date#getMonth
+      };
+    };
+    const resolveTimelineIndexFromParts = (parts) => {
+      if (analyticsRange.period === 'yearly') return parts.month;
+      if (analyticsRange.period === 'monthly') return parts.day - 1;
+      return parts.hour;
     };
 
     const toNumeric = (value, fallback = 0) => {
@@ -10742,9 +10801,13 @@ router.get('/analytics/overview', async (req, res) => {
       const createdAt = new Date(order.created_at);
       if (Number.isNaN(createdAt.getTime())) continue;
 
-      const timelineIndex = resolveTimelineIndex(createdAt);
+      const localParts = getStoreLocalParts(createdAt, order.store_timezone);
+      const timelineIndex = resolveTimelineIndexFromParts(localParts);
       if (timelineIndex >= 0 && timelineIndex < ordersTimeline.length) {
         ordersTimeline[timelineIndex].value += 1;
+      }
+      if (localParts.hour >= 0 && localParts.hour < 24) {
+        hourlyOrders[localParts.hour] += 1;
       }
 
       const normalizedStatus = normalizeStatus(order.status);
@@ -10782,6 +10845,9 @@ router.get('/analytics/overview', async (req, res) => {
 
       if (timelineIndex >= 0 && timelineIndex < revenueTimeline.length) {
         revenueTimeline[timelineIndex].value += totalAmount;
+      }
+      if (localParts.hour >= 0 && localParts.hour < 24) {
+        hourlyRevenue[localParts.hour] += totalAmount;
       }
 
       if (isPickupOrder(order)) pickupOrdersCount += 1;
@@ -11094,8 +11160,16 @@ router.get('/analytics/overview', async (req, res) => {
       statusSummary,
       timelines: {
         revenue: revenueTimeline,
-        orders: ordersTimeline
+        orders: ordersTimeline,
+        hourly: Array.from({ length: 24 }, (_, hour) => ({
+          label: `${String(hour).padStart(2, '0')}:00`,
+          ordersCount: hourlyOrders[hour],
+          revenue: hourlyRevenue[hour]
+        }))
       },
+      analyticsTimezone: restaurantMeta
+        ? (restaurantMeta.timezone && String(restaurantMeta.timezone).trim() ? String(restaurantMeta.timezone).trim() : 'Asia/Tashkent')
+        : null,
       orderLocations,
       topProducts,
       topCustomers,

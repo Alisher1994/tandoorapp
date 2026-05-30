@@ -2420,6 +2420,22 @@ router.put('/restaurant', async (req, res) => {
       ).catch(() => {});
     }
 
+    // Store timezone (IANA). Used by analytics to bucket order times by store-local
+    // hour. Validated via Intl so only real timezones are stored.
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'timezone')) {
+      let tzValue = String(req.body.timezone || '').trim();
+      if (tzValue) {
+        try { new Intl.DateTimeFormat('en-US', { timeZone: tzValue }); } catch (_) { tzValue = ''; }
+      }
+      if (tzValue) {
+        await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS timezone VARCHAR(64)').catch(() => {});
+        await pool.query(
+          'UPDATE restaurants SET timezone = $1 WHERE id = $2',
+          [tzValue, Number(restaurantId)]
+        ).catch(() => {});
+      }
+    }
+
     // Receipt QR target: use the storefront site URL instead of the Telegram bot link.
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'receipt_qr_use_storefront')) {
       await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS receipt_qr_use_storefront BOOLEAN DEFAULT false').catch(() => {});
@@ -6700,6 +6716,114 @@ router.delete('/segments/:id', async (req, res) => {
   } catch (error) {
     console.error('Delete segment error:', error);
     res.status(500).json({ error: 'Ошибка удаления сегмента' });
+  }
+});
+
+// Customer-segment analytics for the active store: how many customers per
+// segment + realized sales (delivered orders count & revenue) per segment.
+// Store-specific (segmentation is defined per store) — not exposed in superadmin.
+router.get('/analytics/segments', async (req, res) => {
+  try {
+    const restaurantId = Number.parseInt(req.user?.active_restaurant_id, 10);
+    if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Выберите магазин' });
+    }
+
+    const analyticsRange = resolveFunnelAnalyticsRange(req.query || {});
+    await ensureSegmentSchema().catch(() => {});
+
+    const segments = await listSegments(restaurantId);
+    if (!segments.length) {
+      return res.json({
+        period: analyticsRange.period,
+        startDate: analyticsRange.startDateKey,
+        endDateExclusive: analyticsRange.endDateKeyExclusive,
+        segmentationEnabled: false,
+        multiSegment: false,
+        segments: []
+      });
+    }
+    const baseSegmentId = Number(segments[0].id);
+
+    let segmentationEnabled = false;
+    try {
+      const flagResult = await pool.query(
+        'SELECT segment_pricing_enabled FROM restaurants WHERE id = $1 LIMIT 1',
+        [restaurantId]
+      );
+      segmentationEnabled = flagResult.rows[0]?.segment_pricing_enabled === true;
+    } catch (_) { segmentationEnabled = false; }
+
+    // Customers per segment (NULL segment => base). Only real customers.
+    const customersResult = await pool.query(
+      `
+      SELECT COALESCE(ur.segment_id, $2) AS seg_id, COUNT(*)::int AS customers
+      FROM user_restaurants ur
+      JOIN users u ON u.id = ur.user_id
+      WHERE ur.restaurant_id = $1
+        AND u.role = 'customer'
+      GROUP BY COALESCE(ur.segment_id, $2)
+      `,
+      [restaurantId, baseSegmentId]
+    );
+
+    // Realized sales per segment within the period (delivered orders).
+    const salesResult = await pool.query(
+      `
+      SELECT
+        COALESCE(ur.segment_id, $2) AS seg_id,
+        COUNT(*)::int AS orders_count,
+        COALESCE(SUM(o.total_amount), 0)::float AS revenue
+      FROM orders o
+      LEFT JOIN user_restaurants ur
+        ON ur.user_id = o.user_id AND ur.restaurant_id = o.restaurant_id
+      WHERE o.restaurant_id = $1
+        AND o.created_at >= $3::date
+        AND o.created_at < $4::date
+        AND o.status = 'delivered'
+      GROUP BY COALESCE(ur.segment_id, $2)
+      `,
+      [restaurantId, baseSegmentId, analyticsRange.startDateKey, analyticsRange.endDateKeyExclusive]
+    );
+
+    const customersMap = new Map();
+    for (const row of customersResult.rows) {
+      customersMap.set(Number(row.seg_id), Number.parseInt(row.customers, 10) || 0);
+    }
+    const salesMap = new Map();
+    for (const row of salesResult.rows) {
+      salesMap.set(Number(row.seg_id), {
+        ordersCount: Number.parseInt(row.orders_count, 10) || 0,
+        revenue: Number(row.revenue) || 0
+      });
+    }
+
+    const segmentRows = segments.map((segment, index) => {
+      const segId = Number(segment.id);
+      const sales = salesMap.get(segId) || { ordersCount: 0, revenue: 0 };
+      const name = String(segment.custom_name || '').trim() || `Сегмент ${index + 1}`;
+      return {
+        id: segId,
+        name,
+        position: Number(segment.position) || index + 1,
+        isBase: segId === baseSegmentId,
+        customers: customersMap.get(segId) || 0,
+        ordersCount: sales.ordersCount,
+        revenue: sales.revenue
+      };
+    });
+
+    res.json({
+      period: analyticsRange.period,
+      startDate: analyticsRange.startDateKey,
+      endDateExclusive: analyticsRange.endDateKeyExclusive,
+      segmentationEnabled,
+      multiSegment: segments.length > 1,
+      segments: segmentRows
+    });
+  } catch (error) {
+    console.error('Segment analytics error:', error);
+    res.status(500).json({ error: 'Ошибка аналитики сегментов' });
   }
 });
 
