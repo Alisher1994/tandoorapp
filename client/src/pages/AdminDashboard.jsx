@@ -18718,18 +18718,37 @@ function AdminDashboard() {
               {productFormTab === 'variants' && (<>
               {Boolean(restaurantSettings?.size_variants_enabled) && (
                 <div className="admin-variants-enable-row">
-                  <Form.Check
-                    type="switch"
-                    id="product-size-enabled-switch"
-                    className="admin-product-switch fw-semibold"
-                    label={language === 'uz' ? 'Variantlardan foydalanish' : 'Использовать варианты товара'}
-                    checked={Boolean(productForm.size_enabled)}
-                    onChange={(e) => toggleProductVariantsEnabled(e.target.checked)}
-                  />
-                  <div className="small text-muted mt-1">
-                    {language === 'uz'
-                      ? 'Masalan: 0.5 kg / 1 kg yoki hajm. Odatda 2–5 variant.'
-                      : 'Например: 0.5 кг / 1 кг или объём. Норма обычно 2–5 вариантов.'}
+                  <div className="admin-variants-enable-main">
+                    <div>
+                      <Form.Check
+                        type="switch"
+                        id="product-size-enabled-switch"
+                        className="admin-product-switch fw-semibold"
+                        label={language === 'uz' ? 'Variantlardan foydalanish' : 'Использовать варианты товара'}
+                        checked={Boolean(productForm.size_enabled)}
+                        onChange={(e) => toggleProductVariantsEnabled(e.target.checked)}
+                      />
+                      <div className="small text-muted mt-1">
+                        {language === 'uz'
+                          ? 'Masalan: 0.5 kg / 1 kg yoki hajm. Odatda 2–5 variant.'
+                          : 'Например: 0.5 кг / 1 кг или объём. Норма обычно 2–5 вариантов.'}
+                      </div>
+                    </div>
+                    {productForm.size_enabled && (
+                      <Button
+                        type="button"
+                        variant="light"
+                        className="admin-variant-add-btn admin-variant-add-btn-top"
+                        title={language === 'uz' ? "Yana bir variant qo'shish" : 'Добавить еще вариант'}
+                        onClick={addEmptyProductVariantRow}
+                        disabled={normalizeProductVariantOptionsForEditor(productForm.variant_options, {
+                          fallbackPrice: normalizeProductPriceValue(productForm.price, NaN),
+                          unit: productForm.unit || 'шт'
+                        }).length >= MAX_PRODUCT_SIZE_OPTIONS}
+                      >
+                        +
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -18741,19 +18760,6 @@ function AdminDashboard() {
                         <Form.Label className="mb-0">
                           {language === 'uz' ? 'Mahsulot variantlari' : 'Варианты товара'}
                         </Form.Label>
-                        <Button
-                          type="button"
-                          variant="light"
-                          className="admin-variant-add-btn"
-                          title={language === 'uz' ? "Yana bir variant qo'shish" : 'Добавить еще вариант'}
-                          onClick={addEmptyProductVariantRow}
-                          disabled={normalizeProductVariantOptionsForEditor(productForm.variant_options, {
-                            fallbackPrice: normalizeProductPriceValue(productForm.price, NaN),
-                            unit: productForm.unit || 'шт'
-                          }).length >= MAX_PRODUCT_SIZE_OPTIONS}
-                        >
-                          +
-                        </Button>
                       </div>
                       <div
                         className={`admin-variants-simple-table-scroll admin-thin-scrollbar${isVariantsTableScrolling ? ' is-scrolling' : ''}`}

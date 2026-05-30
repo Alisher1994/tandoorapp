@@ -14061,6 +14061,12 @@ div.form-select.admin-global-import-field {
 .admin-product-form-tabs-actions { display: flex; align-items: center; gap: 16px; padding-bottom: 6px; flex-wrap: wrap; }
 .admin-product-form-tabs-actions .admin-product-switch { margin: 0; }
 .admin-variants-enable-row { padding: 4px 2px 14px; margin-bottom: 6px; border-bottom: 1px dashed var(--border-color); }
+.admin-variants-enable-main {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
 .admin-variants-simple-head { display: none !important; }
 .admin-variant-row.admin-variants-simple-row { border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 14px; padding: 12px; margin-bottom: 12px; background: #fff; }
 .admin-variant-row .admin-variant-table-col { padding: 4px 6px; }
@@ -14161,15 +14167,17 @@ div.form-select.admin-global-import-field {
     grid-column: span 2;
 }
 .admin-variants-simple-toolbar {
-    display: grid !important;
-    grid-template-columns: 110px 1fr;
+    display: flex !important;
     align-items: center !important;
-    gap: 12px;
-    margin-top: 10px;
-    margin-bottom: 12px;
+    justify-content: flex-start !important;
+    gap: 0;
+    margin-top: 0;
+    margin-bottom: 10px;
+    padding: 0;
 }
 .admin-variant-add-btn {
-    width: 100%;
+    width: 34px;
+    min-width: 34px;
     height: 32px;
     min-height: 32px;
     border: 1px dashed rgba(148, 163, 184, 0.48) !important;
@@ -14177,6 +14185,10 @@ div.form-select.admin-global-import-field {
     background: #f1f5f9 !important;
     color: #334155 !important;
     padding: 0 !important;
+}
+.admin-variant-add-btn-top {
+    flex: 0 0 auto;
+    margin-top: 2px;
 }
 
 /* Подписи полей в карточке варианта */
