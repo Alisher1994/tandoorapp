@@ -2033,47 +2033,6 @@ function ShowcaseBuilderTab() {
 }
 
 // Single editable row in the Segments table.
-function SegmentRow({ segment, isBase, language, saving, defaultName, onRename, onDelete }) {
-  const [name, setName] = useState(segment.custom_name || '');
-  useEffect(() => {
-    setName(segment.custom_name || '');
-  }, [segment.custom_name]);
-  const dirty = (name.trim() || '') !== (segment.custom_name || '');
-  return (
-    <tr>
-      <td><Badge bg="secondary">{segment.position}</Badge></td>
-      <td>
-        <Form.Control
-          type="text"
-          size="sm"
-          style={{ maxWidth: 320 }}
-          placeholder={defaultName}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && dirty) { e.preventDefault(); onRename(name); } }}
-        />
-      </td>
-      <td>
-        <div className="d-flex gap-2">
-          <Button
-            variant="outline-primary"
-            size="sm"
-            disabled={saving || !dirty}
-            onClick={() => onRename(name)}
-          >
-            {saving ? <Spinner animation="border" size="sm" /> : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
-          </Button>
-          {!isBase && (
-            <Button variant="outline-danger" size="sm" disabled={saving} onClick={onDelete}>
-              {language === 'uz' ? "O'chirish" : 'Удалить'}
-            </Button>
-          )}
-        </div>
-      </td>
-    </tr>
-  );
-}
-
 function AdminDashboard() {
   const normalizeAdminOrderForUI = (order) => ({
     ...order,
@@ -2443,8 +2402,12 @@ function AdminDashboard() {
   // Customer segments
   const [segments, setSegments] = useState([]);
   const [segmentsLoading, setSegmentsLoading] = useState(false);
-  const [newSegmentName, setNewSegmentName] = useState('');
   const [segmentSavingId, setSegmentSavingId] = useState(null);
+  // Add/edit segment modal
+  const [showSegmentModal, setShowSegmentModal] = useState(false);
+  const [editingSegment, setEditingSegment] = useState(null); // null = create
+  const [segmentModalName, setSegmentModalName] = useState('');
+  const [segmentModalSaving, setSegmentModalSaving] = useState(false);
 
   const { user, logout, switchRestaurant, isSuperAdmin, fetchUser } = useAuth();
   const {
@@ -5526,34 +5489,31 @@ function AdminDashboard() {
     }
   };
 
-  const handleCreateSegment = async () => {
-    setSegmentSavingId('new');
-    try {
-      const response = await axios.post(`${API_URL}/admin/segments`, {
-        custom_name: newSegmentName.trim() || null
-      });
-      setSegments(Array.isArray(response.data?.segments) ? response.data.segments : segments);
-      setNewSegmentName('');
-    } catch (error) {
-      console.error('Error creating segment:', error);
-      setAlertMessage({ type: 'danger', text: error.response?.data?.error || (language === 'uz' ? 'Segment yaratishda xatolik' : 'Ошибка создания сегмента') });
-    } finally {
-      setSegmentSavingId(null);
-    }
+  const openSegmentModal = (segment = null) => {
+    setEditingSegment(segment);
+    setSegmentModalName(segment ? String(segment.custom_name || '') : '');
+    setShowSegmentModal(true);
   };
 
-  const handleRenameSegment = async (segmentId, customName) => {
-    setSegmentSavingId(segmentId);
+  const handleSegmentModalSave = async () => {
+    setSegmentModalSaving(true);
     try {
-      const response = await axios.put(`${API_URL}/admin/segments/${segmentId}`, {
-        custom_name: customName.trim() || null
-      });
+      const customName = segmentModalName.trim() || null;
+      const response = editingSegment
+        ? await axios.put(`${API_URL}/admin/segments/${editingSegment.id}`, { custom_name: customName })
+        : await axios.post(`${API_URL}/admin/segments`, { custom_name: customName });
       setSegments(Array.isArray(response.data?.segments) ? response.data.segments : segments);
+      setShowSegmentModal(false);
+      setEditingSegment(null);
+      setSegmentModalName('');
     } catch (error) {
-      console.error('Error renaming segment:', error);
-      setAlertMessage({ type: 'danger', text: error.response?.data?.error || (language === 'uz' ? 'Segmentni saqlashda xatolik' : 'Ошибка сохранения сегмента') });
+      console.error('Error saving segment:', error);
+      setAlertMessage({
+        type: 'danger',
+        text: error.response?.data?.error || (language === 'uz' ? 'Segmentni saqlashda xatolik' : 'Ошибка сохранения сегмента')
+      });
     } finally {
-      setSegmentSavingId(null);
+      setSegmentModalSaving(false);
     }
   };
 
@@ -13898,37 +13858,17 @@ function AdminDashboard() {
               </Tab>
 
               <Tab eventKey="segments" title={renderAdminSidebarTabTitle('segments')}>
-                <div className="d-flex justify-content-between align-items-center mb-3">
+                <div className="d-flex justify-content-between align-items-center mb-3 gap-2 flex-wrap">
                   <h5 className="mb-0">{language === 'uz' ? 'Mijoz segmentlari' : 'Сегменты клиентов'}</h5>
+                  <Button variant="primary" onClick={() => openSegmentModal(null)}>
+                    {language === 'uz' ? "Segment qo'shish" : 'Добавить сегмент'}
+                  </Button>
                 </div>
                 <p className="text-muted small">
                   {language === 'uz'
                     ? "1-segment — bazaviy segment (eng yuqori narx). Yangi va mavjud barcha mijozlar avtomatik 1-segmentga tegishli."
                     : 'Сегмент 1 — базовый (максимальная цена). Все новые и существующие клиенты по умолчанию относятся к Сегменту 1.'}
                 </p>
-
-                <Card className="admin-card mb-3">
-                  <Card.Body>
-                    <Form.Label className="small fw-bold text-muted text-uppercase">
-                      {language === 'uz' ? 'Yangi segment' : 'Новый сегмент'}
-                    </Form.Label>
-                    <div className="d-flex gap-2 flex-wrap">
-                      <Form.Control
-                        type="text"
-                        style={{ maxWidth: 280 }}
-                        placeholder={language === 'uz' ? 'Nomi (ixtiyoriy), masalan: Optom' : 'Название (необязательно), напр.: Опт'}
-                        value={newSegmentName}
-                        onChange={(e) => setNewSegmentName(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateSegment(); } }}
-                      />
-                      <Button variant="primary" onClick={handleCreateSegment} disabled={segmentSavingId === 'new'}>
-                        {segmentSavingId === 'new'
-                          ? <Spinner animation="border" size="sm" />
-                          : (language === 'uz' ? "Segment qo'shish" : 'Добавить сегмент')}
-                      </Button>
-                    </div>
-                  </Card.Body>
-                </Card>
 
                 {segmentsLoading ? (
                   <TableSkeleton rows={3} columns={3} label={language === 'uz' ? 'Segmentlar yuklanmoqda' : 'Загрузка сегментов'} />
@@ -13943,18 +13883,36 @@ function AdminDashboard() {
                         </tr>
                       </thead>
                       <tbody>
-                        {segments.map((seg, index) => (
-                          <SegmentRow
-                            key={`segment-row-${seg.id}`}
-                            segment={seg}
-                            isBase={index === 0}
-                            language={language}
-                            saving={segmentSavingId === seg.id}
-                            defaultName={getSegmentDisplayName(seg)}
-                            onRename={(name) => handleRenameSegment(seg.id, name)}
-                            onDelete={() => handleDeleteSegment(seg.id)}
-                          />
-                        ))}
+                        {segments.map((seg, index) => {
+                          const isBase = index === 0;
+                          return (
+                            <tr key={`segment-row-${seg.id}`}>
+                              <td><Badge bg="secondary">{seg.position}</Badge></td>
+                              <td className="fw-semibold">{getSegmentDisplayName(seg)}</td>
+                              <td>
+                                <div className="d-flex gap-2">
+                                  <Button
+                                    variant="outline-primary"
+                                    size="sm"
+                                    onClick={() => openSegmentModal(seg)}
+                                  >
+                                    {language === 'uz' ? 'Tahrirlash' : 'Изменить'}
+                                  </Button>
+                                  {!isBase && (
+                                    <Button
+                                      variant="outline-danger"
+                                      size="sm"
+                                      disabled={segmentSavingId === seg.id}
+                                      onClick={() => handleDeleteSegment(seg.id)}
+                                    >
+                                      {language === 'uz' ? "O'chirish" : 'Удалить'}
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                         {segments.length === 0 && (
                           <tr>
                             <td colSpan="3" className="text-center py-4 text-muted">
@@ -21321,6 +21279,46 @@ function AdminDashboard() {
             </Button>
             <Button variant="primary" onClick={saveContainer} disabled={!containerForm.name}>
               {selectedContainer ? t('save') : t('add')}
+            </Button>
+          </Modal.Footer>
+        </Modal>
+        {/* Add/edit customer segment */}
+        <Modal show={showSegmentModal} onHide={() => setShowSegmentModal(false)} centered>
+          <Modal.Header closeButton>
+            <Modal.Title>
+              {editingSegment
+                ? (language === 'uz' ? 'Segmentni tahrirlash' : 'Изменить сегмент')
+                : (language === 'uz' ? "Segment qo'shish" : 'Добавить сегмент')}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form.Group className="mb-2">
+              <Form.Label>{language === 'uz' ? 'Nomi' : 'Название'}</Form.Label>
+              <Form.Control
+                type="text"
+                autoFocus
+                placeholder={editingSegment
+                  ? getSegmentDisplayName(editingSegment)
+                  : (language === 'uz' ? 'Masalan: Optom, VIP' : 'Например: Опт, VIP')}
+                value={segmentModalName}
+                onChange={(e) => setSegmentModalName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSegmentModalSave(); } }}
+              />
+              <Form.Text className="text-muted">
+                {language === 'uz'
+                  ? "Bo'sh qoldirsangiz, standart nom ishlatiladi (masalan, «1-segment»)."
+                  : 'Если оставить пустым, используется стандартное название (например, «Сегмент 1»).'}
+              </Form.Text>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowSegmentModal(false)} disabled={segmentModalSaving}>
+              {t('cancel')}
+            </Button>
+            <Button variant="primary" onClick={handleSegmentModalSave} disabled={segmentModalSaving}>
+              {segmentModalSaving
+                ? <Spinner animation="border" size="sm" />
+                : (editingSegment ? t('save') : t('add'))}
             </Button>
           </Modal.Footer>
         </Modal>
