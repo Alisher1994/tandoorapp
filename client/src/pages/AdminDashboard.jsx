@@ -19945,7 +19945,7 @@ function AdminDashboard() {
                 <Row>
                   <Col xs={12}>
                     <Form.Group className="mb-3">
-                      <Form.Label className="mb-2">{t('image')} (до 5)</Form.Label>
+                      <Form.Label className="mb-2">{language === 'uz' ? 'Rasm' : 'Фото'}</Form.Label>
                       <div className="admin-product-images-shell">
                         <div className="admin-product-images-row">
                           {(() => {
