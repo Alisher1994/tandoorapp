@@ -18755,12 +18755,7 @@ function AdminDashboard() {
               {Boolean(restaurantSettings?.size_variants_enabled) && productForm.size_enabled && (
                 <Row className="g-3 mt-1">
                   <Col xs={12}>
-                    <Form.Group className="mb-3 admin-variants-simple-wrap">
-                      <div className="d-flex align-items-center justify-content-between gap-2 admin-variants-simple-toolbar">
-                        <Form.Label className="mb-0">
-                          {language === 'uz' ? 'Mahsulot variantlari' : 'Варианты товара'}
-                        </Form.Label>
-                      </div>
+                    <div className="mb-3 admin-variants-simple-wrap">
                       <div
                         className={`admin-variants-simple-table-scroll admin-thin-scrollbar${isVariantsTableScrolling ? ' is-scrolling' : ''}`}
                         onScroll={handleVariantsTableScroll}
@@ -19113,7 +19108,7 @@ function AdminDashboard() {
                       <Form.Text className="text-muted admin-product-image-help">
                         {productImageUploadHintText}
                       </Form.Text>
-                    </Form.Group>
+                    </div>
                   </Col>
                 </Row>
               )}
