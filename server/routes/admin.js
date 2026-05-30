@@ -154,8 +154,10 @@ const resolvePrinterAgentExePath = () => {
   }
   return null;
 };
+// Units that support a fractional order step (weight / volume / length).
+const ORDER_STEP_UNITS = ['кг', 'г', 'л', 'мл', 'м', 'км'];
 const normalizeProductOrderStep = (value, unit, fallback = null) => {
-  if (String(unit || '').trim() !== 'кг') return null;
+  if (!ORDER_STEP_UNITS.includes(String(unit || '').trim())) return null;
   const parsed = Number.parseFloat(String(value ?? '').replace(',', '.'));
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.round((parsed + Number.EPSILON) * 100) / 100;

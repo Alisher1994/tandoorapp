@@ -1551,8 +1551,11 @@ const normalizeProductVariantContainerNormValue = (value, fallback = 1) => {
   const parsed = Number.parseFloat(normalized);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
+// Units that support a fractional order step (weight / volume / length).
+const ORDER_STEP_UNITS = ['кг', 'г', 'л', 'мл', 'м', 'км'];
+const unitSupportsOrderStep = (unit) => ORDER_STEP_UNITS.includes(String(unit || '').trim());
 const normalizeProductVariantOrderStepValue = (value, unit = 'шт', fallback = '') => {
-  if (String(unit || '').trim() !== 'кг') return '';
+  if (!unitSupportsOrderStep(unit)) return '';
   const normalized = String(value ?? '').trim().replace(',', '.');
   const parsed = Number.parseFloat(normalized);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -7994,7 +7997,7 @@ function AdminDashboard() {
         stock_quantity: isVariantsMode
           ? (inventoryTrackingEnabled ? totalVariantsStock : null)
           : (inventoryTrackingEnabled ? normalizedStockQuantity : null),
-        order_step: productForm.unit === 'кг'
+        order_step: unitSupportsOrderStep(productForm.unit)
           ? (() => {
             const parsed = Number.parseFloat(String(productForm.order_step || '').replace(',', '.'));
             return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -19183,7 +19186,7 @@ function AdminDashboard() {
                         className={`admin-variants-simple-table-scroll admin-thin-scrollbar${isVariantsTableScrolling ? ' is-scrolling' : ''}`}
                         onScroll={handleVariantsTableScroll}
                       >
-                        <div className={`admin-variants-simple-head ${productForm.unit === 'кг' ? 'is-kg' : 'is-not-kg'}`}>
+                        <div className={`admin-variants-simple-head ${unitSupportsOrderStep(productForm.unit) ? 'is-kg' : 'is-not-kg'}`}>
                           <span>№</span>
                           <span>{language === 'uz' ? 'Nomi' : 'Название варианта'}</span>
                           {restaurantSettings?.product_field_description_enabled !== false && <span>Описание RU</span>}
@@ -19198,14 +19201,14 @@ function AdminDashboard() {
                           {restaurantSettings?.product_field_ikpu_enabled !== false && <span>ИКПУ</span>}
                           <span>{language === 'uz' ? 'Fasovka' : 'Фасовка'}</span>
                           <span>{language === 'uz' ? 'Qadoqlash normasi' : 'Норма фасовки'}</span>
-                          {productForm.unit === 'кг' && <span>{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</span>}
+                          {unitSupportsOrderStep(productForm.unit) && <span>{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</span>}
                           <span>{language === 'uz' ? 'Foto' : 'Фото'}</span>
                           <span className="text-center">{language === 'uz' ? 'Amal' : 'Действие'}</span>
                         </div>
 
                         {(() => {
                           const fallbackPrice = normalizeProductPriceValue(productForm.price, NaN);
-                          const isKgUnit = productForm.unit === 'кг';
+                          const isKgUnit = unitSupportsOrderStep(productForm.unit);
                           const currentVariants = normalizeProductVariantOptionsForEditor(productForm.variant_options, {
                             fallbackPrice,
                             unit: productForm.unit || 'шт'
@@ -19714,8 +19717,8 @@ function AdminDashboard() {
                                     ? `Yakuniy narx: ${formatPrice(discountPrice)} ${t('sum')} (-${formatPrice(discountAmount)} ${t('sum')})`
                                     : `Итоговая цена: ${formatPrice(discountPrice)} ${t('sum')} (-${formatPrice(discountAmount)} ${t('sum')})`)
                                   : (language === 'uz'
-                                    ? "Chegirma narxi asosiy narxdan kichik bo'lishi kerak"
-                                    : 'Цена со скидкой должна быть меньше основной цены')}
+                                    ? "Asosiy narxdan kichik bo'lishi kerak"
+                                    : 'Должна быть меньше основной цены')}
                               </div>
                             </div>
                           );
@@ -19748,7 +19751,7 @@ function AdminDashboard() {
                         return {
                           ...prev,
                           unit: nextUnit,
-                          order_step: nextUnit === 'кг' ? prev.order_step : '',
+                          order_step: unitSupportsOrderStep(nextUnit) ? prev.order_step : '',
                           variant_options: normalizedVariants,
                           size_options: normalizeProductVariantOptions(normalizedVariants, {
                             fallbackPrice: fallbackBasePrice,
@@ -19842,10 +19845,10 @@ function AdminDashboard() {
                       </Form.Group>
                     )}
 
-                    {productForm.unit === 'кг' && (
+                    {unitSupportsOrderStep(productForm.unit) && (
                       <Form.Group className="mb-0">
                         <Form.Label className="d-flex align-items-center gap-2">
-                          <span>{t('orderStepLabel')}</span>
+                          <span>{(language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа')} ({productForm.unit})</span>
                           <span className="admin-container-help-trigger" tabIndex={0} aria-label={language === 'uz' ? "Qadam bo'yicha izoh" : 'Подсказка по шагу заказа'}>
                             i
                             <span className="admin-container-help-tooltip">

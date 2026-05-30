@@ -80,8 +80,11 @@ function normalizeQuantity(value, fallback = 1) {
   return Math.round((parsed + Number.EPSILON) * QUANTITY_SCALE) / QUANTITY_SCALE;
 }
 
+// Units that support a fractional order step (weight / volume / length).
+const ORDER_STEP_UNITS = ['кг', 'г', 'л', 'мл', 'м', 'км'];
+
 function normalizeOrderStep(value, unit) {
-  if (String(unit || '').trim() !== 'кг') return null;
+  if (!ORDER_STEP_UNITS.includes(String(unit || '').trim())) return null;
   const parsed = normalizeQuantity(value, 0);
   return parsed > 0 ? parsed : null;
 }

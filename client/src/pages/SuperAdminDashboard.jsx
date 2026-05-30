@@ -21061,7 +21061,7 @@ function SuperAdminDashboard() {
                     setGlobalProductForm((prev) => ({
                       ...prev,
                       unit: nextUnit,
-                      order_step: nextUnit === 'кг' ? prev.order_step : ''
+                      order_step: ['кг', 'г', 'л', 'мл', 'м', 'км'].includes(nextUnit) ? prev.order_step : ''
                     }));
                   }}
                 >
@@ -21084,10 +21084,10 @@ function SuperAdminDashboard() {
                 </Form.Select>
               </Form.Group>
             </Col>
-            {globalProductForm.unit === 'кг' && (
+            {['кг', 'г', 'л', 'мл', 'м', 'км'].includes(globalProductForm.unit) && (
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label>{language === 'uz' ? 'Шаг (кг uchun)' : 'Шаг (для кг)'}</Form.Label>
+                  <Form.Label>{language === 'uz' ? `${globalProductForm.unit} uchun qadam` : `Шаг (${globalProductForm.unit})`}</Form.Label>
                   <Form.Control
                     value={globalProductForm.order_step}
                     onChange={(e) => setGlobalProductForm((prev) => ({ ...prev, order_step: String(e.target.value || '').replace(/[^\d.,]/g, '').slice(0, 12) }))}
