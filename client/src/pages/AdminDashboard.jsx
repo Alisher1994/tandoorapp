@@ -2258,6 +2258,10 @@ function AdminDashboard() {
   const [showPrinterAgentModal, setShowPrinterAgentModal] = useState(false);
   const [printerAgentName, setPrinterAgentName] = useState('');
   const [downloadingPrinterAgent, setDownloadingPrinterAgent] = useState(false);
+  const [showDriverCatalog, setShowDriverCatalog] = useState(false);
+  const [driverCatalog, setDriverCatalog] = useState([]);
+  const [driverCatalogLoading, setDriverCatalogLoading] = useState(false);
+  const [downloadingDriverId, setDownloadingDriverId] = useState(null);
   const [testingPrinterIds, setTestingPrinterIds] = useState([]);
 
   // Product filters and search
@@ -3160,6 +3164,53 @@ function AdminDashboard() {
       });
     } finally {
       setDownloadingPrinterAgent(false);
+    }
+  };
+
+  const openDriverCatalog = async () => {
+    setShowDriverCatalog(true);
+    setDriverCatalogLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/admin/printer-drivers`);
+      setDriverCatalog(Array.isArray(response?.data) ? response.data : []);
+    } catch (error) {
+      console.error('Load driver catalog error:', error);
+      setDriverCatalog([]);
+    } finally {
+      setDriverCatalogLoading(false);
+    }
+  };
+
+  const handleDownloadDriver = async (driver) => {
+    if (!driver?.id || downloadingDriverId) return;
+    setDownloadingDriverId(driver.id);
+    try {
+      const response = await axios.get(`${API_URL}/admin/printer-drivers/${driver.id}/download`, {
+        responseType: 'blob',
+        timeout: 300000
+      });
+      const fileBlob = response?.data;
+      if (!fileBlob || Number(fileBlob.size || 0) <= 0) throw new Error('Пустой файл');
+      let filename = `${driver.manufacturer || 'driver'}-${driver.model || ''}`.trim();
+      const cd = String(response.headers?.['content-disposition'] || '');
+      const m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^"]+)"?/i);
+      if (m?.[1]) { try { filename = decodeURIComponent(m[1].trim()); } catch (_) { filename = m[1].trim(); } }
+      const objectUrl = window.URL.createObjectURL(fileBlob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = filename || 'driver';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error('Download driver error:', error);
+      setAlertMessage({
+        type: 'danger',
+        text: language === 'uz' ? "Drayverni yuklab bo'lmadi." : 'Не удалось скачать драйвер.'
+      });
+    } finally {
+      setDownloadingDriverId(null);
     }
   };
 
@@ -13986,8 +14037,11 @@ function AdminDashboard() {
               </Tab>
 
               <Tab eventKey="printers" title={renderAdminSidebarTabTitle('printers')}>
-                <div className="d-flex justify-content-between align-items-center mb-3">
+                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                   <h5 className="mb-0">{language === 'uz' ? 'Printerlar boshqaruvi' : '🖨️ Управление принтерами'}</h5>
+                  <Button variant="outline-primary" size="sm" onClick={openDriverCatalog}>
+                    {language === 'uz' ? 'Printer drayverlari' : 'Драйверы принтеров'}
+                  </Button>
                 </div>
 
                 <Row className="g-3 mb-3">
@@ -20259,6 +20313,57 @@ function AdminDashboard() {
                 </div>
               );
             })()}
+          </Modal.Body>
+        </Modal>
+
+        {/* Printer drivers catalog (admin) */}
+        <Modal
+          show={showDriverCatalog}
+          onHide={() => setShowDriverCatalog(false)}
+          size="lg"
+          centered
+          dialogClassName="admin-category-picker-dialog"
+          backdropClassName="admin-category-picker-backdrop"
+        >
+          <Modal.Header closeButton>
+            <Modal.Title className="h6 mb-0">{language === 'uz' ? 'Printer drayverlari' : 'Драйверы принтеров'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {driverCatalogLoading ? (
+              <div className="text-muted"><Spinner size="sm" animation="border" /> {language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…'}</div>
+            ) : driverCatalog.length === 0 ? (
+              <div className="text-muted text-center py-4">
+                {language === 'uz' ? 'Drayverlar katalogi hali bo‘sh' : 'Каталог драйверов пока пуст'}
+              </div>
+            ) : (
+              <div className="driver-cards-grid">
+                {driverCatalog.map((d) => (
+                  <div key={d.id} className="driver-card">
+                    <div className="driver-card-photo">
+                      {d.photo_url ? <img src={d.photo_url} alt={d.model} /> : <i className="bi bi-printer" aria-hidden="true" />}
+                    </div>
+                    <div className="driver-card-body">
+                      <div className="driver-card-manufacturer">{d.manufacturer}</div>
+                      <div className="driver-card-model">{d.model}</div>
+                      {d.current_version?.version_label && (
+                        <div className="small text-muted">{d.current_version.version_label}</div>
+                      )}
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="w-100"
+                      onClick={() => handleDownloadDriver(d)}
+                      disabled={downloadingDriverId === d.id}
+                    >
+                      {downloadingDriverId === d.id
+                        ? <Spinner size="sm" animation="border" />
+                        : (language === 'uz' ? 'Drayverni yuklab olish' : 'Скачать драйвер')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </Modal.Body>
         </Modal>
 
