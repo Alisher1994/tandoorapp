@@ -3976,12 +3976,52 @@ async function suggestCategoryLeafIds(restaurantId, name, leavesArg = null) {
   const leaves = leavesArg || await loadLeafCategoriesWithPath(restaurantId);
   if (!leaves.length) return [];
   const leafIds = new Set(leaves.map((c) => c.id));
-  // current-store leaf categories indexed by normalized name (ru + uz)
-  const leafIdByName = new Map();
-  for (const leaf of leaves) {
-    for (const candidate of [leaf.name_ru, leaf.name_uz]) {
+
+  // Load the FULL category tree so a vote can be resolved to a leaf even when
+  // the voted category is no longer a leaf (e.g. sub-categories were added under
+  // it after products were assigned). Without this, those votes are silently
+  // dropped and an identical existing product yields no suggestion.
+  const allCatsResult = await pool.query(
+    `SELECT id, parent_id, name_ru, name_uz FROM categories WHERE restaurant_id = $1`,
+    [restaurantId]
+  );
+  const childrenOf = new Map();
+  for (const c of allCatsResult.rows) {
+    const pid = c.parent_id ? Number(c.parent_id) : null;
+    if (pid) {
+      if (!childrenOf.has(pid)) childrenOf.set(pid, []);
+      childrenOf.get(pid).push(Number(c.id));
+    }
+  }
+  // Resolve any current-store category id to the set of leaf ids beneath it
+  // (or itself when it is already a leaf). Empty when the id is unknown.
+  const resolveToLeafIds = (catId) => {
+    const id = Number(catId);
+    if (!Number.isInteger(id) || id <= 0) return [];
+    if (leafIds.has(id)) return [id];
+    const out = [];
+    const stack = [id];
+    const seen = new Set();
+    let guard = 0;
+    while (stack.length && guard < 2000) {
+      guard += 1;
+      const current = stack.pop();
+      if (seen.has(current)) continue;
+      seen.add(current);
+      if (leafIds.has(current)) { out.push(current); continue; }
+      for (const child of (childrenOf.get(current) || [])) stack.push(child);
+    }
+    return out;
+  };
+
+  // current-store categories indexed by normalized name (ru + uz) -> id.
+  // Indexes ALL categories (not only leaves) so cross-store names can map to a
+  // parent category and then resolve down to its leaves.
+  const catIdByName = new Map();
+  for (const c of allCatsResult.rows) {
+    for (const candidate of [c.name_ru, c.name_uz]) {
       const key = normalizeCategoryKey(candidate);
-      if (key && !leafIdByName.has(key)) leafIdByName.set(key, leaf.id);
+      if (key && !catIdByName.has(key)) catIdByName.set(key, Number(c.id));
     }
   }
 
@@ -3998,17 +4038,26 @@ async function suggestCategoryLeafIds(restaurantId, name, leavesArg = null) {
     if (!leafId || !leafIds.has(leafId) || delta <= 0) return;
     scoreByLeafId.set(leafId, (scoreByLeafId.get(leafId) || 0) + delta);
   };
+  // Vote for a category by resolving it to its leaf(s). When a non-leaf resolves
+  // to several leaves, split the weight so a broad branch doesn't dominate, but
+  // keep a small floor so the correct branch still surfaces.
+  const addCategoryVote = (catId, weight) => {
+    const targets = resolveToLeafIds(catId);
+    if (!targets.length || weight <= 0) return;
+    const per = Math.max(weight / targets.length, weight > 0 ? 0.5 : 0);
+    for (const leafId of targets) addScore(leafId, per);
+  };
 
   // Stage A — this store's own products (strongest signal).
   const ownResult = await pool.query(
     `SELECT category_id, name_ru, name_uz FROM products
      WHERE restaurant_id = $1 AND category_id IS NOT NULL
-       AND (name_ru ILIKE ANY($2) OR name_uz ILIKE ANY($2))
+       AND (name_ru ILIKE ANY($2::text[]) OR name_uz ILIKE ANY($2::text[]))
      LIMIT 1500`,
     [restaurantId, likeParams]
   );
   for (const product of ownResult.rows) {
-    addScore(Number(product.category_id), overlapOf(`${product.name_ru || ''} ${product.name_uz || ''}`) * 3);
+    addCategoryVote(product.category_id, overlapOf(`${product.name_ru || ''} ${product.name_uz || ''}`) * 3);
   }
 
   // Stage B — cross-store learning: how the rest of the system classifies this
@@ -4018,19 +4067,32 @@ async function suggestCategoryLeafIds(restaurantId, name, leavesArg = null) {
      FROM products p
      INNER JOIN categories c ON c.id = p.category_id
      WHERE p.restaurant_id <> $1 AND p.category_id IS NOT NULL
-       AND (p.name_ru ILIKE ANY($2) OR p.name_uz ILIKE ANY($2))
+       AND (p.name_ru ILIKE ANY($2::text[]) OR p.name_uz ILIKE ANY($2::text[]))
      LIMIT 4000`,
     [restaurantId, likeParams]
   );
   for (const row of crossResult.rows) {
     const overlap = overlapOf(`${row.name_ru || ''} ${row.name_uz || ''}`);
     if (overlap <= 0) continue;
-    let mappedLeafId = null;
+    let mappedCatId = null;
     for (const candidate of [row.cat_ru, row.cat_uz]) {
       const key = normalizeCategoryKey(candidate);
-      if (key && leafIdByName.has(key)) { mappedLeafId = leafIdByName.get(key); break; }
+      if (key && catIdByName.has(key)) { mappedCatId = catIdByName.get(key); break; }
     }
-    addScore(mappedLeafId, overlap);
+    addCategoryVote(mappedCatId, overlap);
+  }
+
+  if (scoreByLeafId.size === 0) {
+    // Diagnostic: helps explain "no suggestion" in production logs without
+    // needing DB access. Only logs on the empty path, so it is not noisy.
+    console.log('[suggest-category] no match', JSON.stringify({
+      restaurantId,
+      tokens,
+      leafCount: leaves.length,
+      ownMatches: ownResult.rows.length,
+      crossMatches: crossResult.rows.length,
+      ownCategoryIds: Array.from(new Set(ownResult.rows.map((r) => Number(r.category_id)))).slice(0, 10),
+    }));
   }
 
   return Array.from(scoreByLeafId.entries())
