@@ -130,7 +130,9 @@ async function migrate() {
       'guvohnoma_file_name TEXT',
       'guvohnoma_file_mime VARCHAR(120)',
       'guvohnoma_file_size BIGINT DEFAULT 0',
-      'guvohnoma_uploaded_at TIMESTAMP'
+      'guvohnoma_uploaded_at TIMESTAMP',
+      'guvohnoma_uploaded_by_id INTEGER',
+      'guvohnoma_uploaded_by_name TEXT'
     ];
 
     for (const col of restaurantColumns) {

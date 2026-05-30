@@ -1938,6 +1938,7 @@ function SuperAdminDashboard() {
   const [expandedRestaurantRows, setExpandedRestaurantRows] = useState({});
   const [restaurantInlineToggleLoading, setRestaurantInlineToggleLoading] = useState({});
   const [restaurantGuvohnomaUploading, setRestaurantGuvohnomaUploading] = useState({});
+  const [restaurantGuvohnomaViewer, setRestaurantGuvohnomaViewer] = useState(null);
   const [restaurantOperatorSwitchingId, setRestaurantOperatorSwitchingId] = useState(null);
   const [activeSettingsNavKey, setActiveSettingsNavKey] = useState('categories');
 
@@ -5596,6 +5597,24 @@ function SuperAdminDashboard() {
     if (!normalized) return '';
     if (/^(https?:\/\/|data:image\/|blob:)/i.test(normalized)) return normalized;
     return `${API_URL.replace('/api', '')}${normalized.startsWith('/') ? '' : '/'}${normalized}`;
+  };
+
+  const getRestaurantGuvohnomaFiles = (restaurant) => {
+    const url = resolveAdPreviewImageUrl(restaurant?.guvohnoma_file_url || '');
+    if (!url) return [];
+    return [{
+      id: `${restaurant?.id || 'restaurant'}-guvohnoma`,
+      name: restaurant?.guvohnoma_file_name || 'Гувохнома',
+      url,
+      mime: restaurant?.guvohnoma_file_mime || '',
+      uploadedAt: restaurant?.guvohnoma_uploaded_at || '',
+      uploadedBy: restaurant?.guvohnoma_uploaded_by_name || 'Система'
+    }];
+  };
+
+  const openRestaurantGuvohnomaViewer = (file) => {
+    if (!file?.url) return;
+    setRestaurantGuvohnomaViewer(file);
   };
 
   const adPreviewRestaurantOptions = useMemo(() => (
@@ -14195,6 +14214,7 @@ function SuperAdminDashboard() {
                             const variantsToggleBusy = Boolean(restaurantInlineToggleLoading[`${r.id}:size_variants_enabled`]);
                             const guvohnomaUrl = resolveAdPreviewImageUrl(r.guvohnoma_file_url || '');
                             const guvohnomaUploading = Boolean(restaurantGuvohnomaUploading[r.id]);
+                            const guvohnomaFiles = getRestaurantGuvohnomaFiles(r);
                           
                             return (
                               <React.Fragment key={r.id}>
@@ -14552,55 +14572,6 @@ function SuperAdminDashboard() {
                                               >
                                                 <MessageSquare className="action-btn-icon" aria-hidden="true" />
                                               </Button>
-                                              <input
-                                                id={`restaurant-guvohnoma-${r.id}`}
-                                                className="sa-guvohnoma-file-input"
-                                                type="file"
-                                                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
-                                                onChange={(event) => {
-                                                  const file = event.target.files?.[0];
-                                                  event.target.value = '';
-                                                  if (file) handleRestaurantGuvohnomaUpload(r, file);
-                                                }}
-                                                disabled={guvohnomaUploading}
-                                              />
-                                              <label
-                                                htmlFor={`restaurant-guvohnoma-${r.id}`}
-                                                className={`action-btn sa-action-btn-guvohnoma ${guvohnomaUrl ? 'is-uploaded' : ''} ${guvohnomaUploading ? 'is-loading' : ''}`}
-                                                title={guvohnomaUrl ? 'Заменить гувохнома' : 'Загрузить гувохнома'}
-                                                aria-label={guvohnomaUrl ? 'Заменить гувохнома' : 'Загрузить гувохнома'}
-                                                onClick={(event) => event.stopPropagation()}
-                                              >
-                                                {guvohnomaUploading ? (
-                                                  <Spinner animation="border" size="sm" role="status" aria-hidden="true" />
-                                                ) : (
-                                                  <Upload className="action-btn-icon" aria-hidden="true" />
-                                                )}
-                                              </label>
-                                              {guvohnomaUrl && (
-                                                <a
-                                                  href={guvohnomaUrl}
-                                                  target="_blank"
-                                                  rel="noreferrer noopener"
-                                                  className="action-btn sa-action-btn-guvohnoma-view"
-                                                  title={r.guvohnoma_file_name || 'Открыть гувохнома'}
-                                                  aria-label="Открыть гувохнома"
-                                                  onClick={(event) => event.stopPropagation()}
-                                                >
-                                                  <FileText className="action-btn-icon" aria-hidden="true" />
-                                                </a>
-                                              )}
-                                              {guvohnomaUrl && (
-                                                <Button
-                                                  variant="light"
-                                                  className="action-btn sa-action-btn-guvohnoma-delete"
-                                                  onClick={() => handleRestaurantGuvohnomaDelete(r)}
-                                                  disabled={guvohnomaUploading}
-                                                  title="Удалить гувохнома"
-                                                >
-                                                  <X className="action-btn-icon" aria-hidden="true" />
-                                                </Button>
-                                              )}
                                               <Button
                                                 variant="light"
                                                 className={`action-btn sa-action-btn-access ${r.is_active ? 'is-open' : 'is-closed'}`}
@@ -14642,6 +14613,99 @@ function SuperAdminDashboard() {
                                                 <Trash2 className="action-btn-icon" aria-hidden="true" />
                                               </Button>
                                             </div>
+                                          </div>
+                                        </div>
+                                        <div className="sa-restaurant-file-strip">
+                                          <div className="sa-restaurant-file-strip-head">
+                                            <div>
+                                              <div className="sa-restaurant-file-title">Гувохнома</div>
+                                              <div className="sa-restaurant-file-subtitle">JPG, JPEG, PNG или PDF до 15 MB</div>
+                                            </div>
+                                            <input
+                                              id={`restaurant-guvohnoma-${r.id}`}
+                                              className="sa-guvohnoma-file-input"
+                                              type="file"
+                                              accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                                              onChange={(event) => {
+                                                const file = event.target.files?.[0];
+                                                event.target.value = '';
+                                                if (file) handleRestaurantGuvohnomaUpload(r, file);
+                                              }}
+                                              disabled={guvohnomaUploading}
+                                            />
+                                            <label
+                                              htmlFor={`restaurant-guvohnoma-${r.id}`}
+                                              className={`sa-restaurant-file-upload-btn ${guvohnomaUploading ? 'is-loading' : ''}`}
+                                              onClick={(event) => event.stopPropagation()}
+                                            >
+                                              {guvohnomaUploading ? (
+                                                <>
+                                                  <Spinner animation="border" size="sm" role="status" aria-hidden="true" />
+                                                  <span>Загрузка...</span>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Upload className="action-btn-icon" aria-hidden="true" />
+                                                  <span>{guvohnomaUrl ? 'Заменить файл' : 'Загрузить файл'}</span>
+                                                </>
+                                              )}
+                                            </label>
+                                          </div>
+                                          <div className="sa-restaurant-file-table" role="table" aria-label="Файлы гувохнома">
+                                            <div className="sa-restaurant-file-row is-header" role="row">
+                                              <div role="columnheader">№</div>
+                                              <div role="columnheader">Название файла</div>
+                                              <div role="columnheader">Кем добавлен / дата и время</div>
+                                              <div role="columnheader">Действия</div>
+                                            </div>
+                                            {guvohnomaFiles.length > 0 ? guvohnomaFiles.map((file, fileIndex) => (
+                                              <div className="sa-restaurant-file-row" role="row" key={file.id}>
+                                                <div className="sa-restaurant-file-number" role="cell">{fileIndex + 1}</div>
+                                                <button
+                                                  type="button"
+                                                  className="sa-restaurant-file-name"
+                                                  onClick={() => openRestaurantGuvohnomaViewer(file)}
+                                                  title="Открыть просмотрщик файла"
+                                                  role="cell"
+                                                >
+                                                  <FileText className="action-btn-icon" aria-hidden="true" />
+                                                  <span>{file.name}</span>
+                                                </button>
+                                                <div className="sa-restaurant-file-meta" role="cell">
+                                                  <span>{file.uploadedBy || 'Система'}</span>
+                                                  <span>{formatCompactDateTime(file.uploadedAt)}</span>
+                                                </div>
+                                                <div className="sa-restaurant-file-actions" role="cell">
+                                                  <a
+                                                    href={file.url}
+                                                    download={file.name}
+                                                    className="action-btn sa-action-btn-guvohnoma-download"
+                                                    title="Скачать"
+                                                    aria-label="Скачать гувохнома"
+                                                    onClick={(event) => event.stopPropagation()}
+                                                  >
+                                                    <i className="bi bi-download action-btn-icon" aria-hidden="true" />
+                                                  </a>
+                                                  <Button
+                                                    variant="light"
+                                                    className="action-btn sa-action-btn-guvohnoma-delete"
+                                                    onClick={() => handleRestaurantGuvohnomaDelete(r)}
+                                                    disabled={guvohnomaUploading}
+                                                    title="Удалить"
+                                                    aria-label="Удалить гувохнома"
+                                                  >
+                                                    <Trash2 className="action-btn-icon" aria-hidden="true" />
+                                                  </Button>
+                                                </div>
+                                              </div>
+                                            )) : (
+                                              <div className="sa-restaurant-file-row is-empty" role="row">
+                                                <div role="cell">—</div>
+                                                <div role="cell">Файл еще не загружен</div>
+                                                <div role="cell">—</div>
+                                                <div role="cell">—</div>
+                                              </div>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -22394,6 +22458,57 @@ function SuperAdminDashboard() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowOrderDetailModal(false)}>{t('saClose')}</Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal
+        show={Boolean(restaurantGuvohnomaViewer)}
+        onHide={() => setRestaurantGuvohnomaViewer(null)}
+        size="xl"
+        centered
+        className="sa-guvohnoma-viewer-modal"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>{restaurantGuvohnomaViewer?.name || 'Гувохнома'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {(() => {
+            const file = restaurantGuvohnomaViewer || {};
+            const mime = String(file.mime || '').toLowerCase();
+            const url = String(file.url || '');
+            const isPdf = mime.includes('pdf') || /\.pdf(?:$|\?)/i.test(url);
+            if (!url) return null;
+            if (isPdf) {
+              return (
+                <iframe
+                  src={url}
+                  title={file.name || 'Гувохнома PDF'}
+                  className="sa-guvohnoma-viewer-frame"
+                />
+              );
+            }
+            return (
+              <img
+                src={url}
+                alt={file.name || 'Гувохнома'}
+                className="sa-guvohnoma-viewer-image"
+              />
+            );
+          })()}
+        </Modal.Body>
+        <Modal.Footer>
+          {restaurantGuvohnomaViewer?.url && (
+            <Button
+              as="a"
+              href={restaurantGuvohnomaViewer.url}
+              download={restaurantGuvohnomaViewer.name || 'guvohnoma'}
+              variant="primary"
+              className="btn-primary-custom"
+            >
+              Скачать
+            </Button>
+          )}
+          <Button variant="secondary" onClick={() => setRestaurantGuvohnomaViewer(null)}>Закрыть</Button>
         </Modal.Footer>
       </Modal>
 

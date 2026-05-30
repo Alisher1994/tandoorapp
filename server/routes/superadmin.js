@@ -3683,6 +3683,8 @@ const ensureRestaurantGuvohnomaSchema = async () => {
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_file_mime VARCHAR(120)`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_file_size BIGINT DEFAULT 0`).catch(() => {});
     await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_uploaded_at TIMESTAMP`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_uploaded_by_id INTEGER`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_uploaded_by_name TEXT`).catch(() => {});
     restaurantGuvohnomaSchemaReady = true;
   })();
 
@@ -6505,27 +6507,37 @@ router.post('/restaurants/:id(\\d+)/guvohnoma', (req, res) => {
 
       const fileUrl = `/uploads/guvohnoma/${filename}`;
       const originalName = sanitizeGuvohnomaOriginalName(req.file.originalname);
+      const uploadedById = Number.isFinite(Number(req.user?.id)) ? Number(req.user.id) : null;
+      const uploadedByName = sanitizeGuvohnomaOriginalName(
+        req.user?.full_name || req.user?.username || 'Суперадмин'
+      );
       const updatedResult = await pool.query(`
         UPDATE restaurants
         SET guvohnoma_file_url = $1,
             guvohnoma_file_name = $2,
             guvohnoma_file_mime = $3,
             guvohnoma_file_size = $4,
+            guvohnoma_uploaded_by_id = $5,
+            guvohnoma_uploaded_by_name = $6,
             guvohnoma_uploaded_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $5
+        WHERE id = $7
         RETURNING
           id,
           guvohnoma_file_url,
           guvohnoma_file_name,
           guvohnoma_file_mime,
           guvohnoma_file_size,
-          guvohnoma_uploaded_at
+          guvohnoma_uploaded_at,
+          guvohnoma_uploaded_by_id,
+          guvohnoma_uploaded_by_name
       `, [
         fileUrl,
         originalName,
         String(req.file.mimetype || '').toLowerCase(),
         Number(req.file.size || req.file.buffer.length || 0),
+        uploadedById,
+        uploadedByName,
         restaurantId
       ]);
 
@@ -6575,6 +6587,8 @@ router.delete('/restaurants/:id(\\d+)/guvohnoma', async (req, res) => {
           guvohnoma_file_mime = NULL,
           guvohnoma_file_size = 0,
           guvohnoma_uploaded_at = NULL,
+          guvohnoma_uploaded_by_id = NULL,
+          guvohnoma_uploaded_by_name = NULL,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING
@@ -6583,7 +6597,9 @@ router.delete('/restaurants/:id(\\d+)/guvohnoma', async (req, res) => {
         guvohnoma_file_name,
         guvohnoma_file_mime,
         guvohnoma_file_size,
-        guvohnoma_uploaded_at
+        guvohnoma_uploaded_at,
+        guvohnoma_uploaded_by_id,
+        guvohnoma_uploaded_by_name
     `, [restaurantId]);
 
     const previousUrl = String(currentResult.rows[0]?.guvohnoma_file_url || '');
