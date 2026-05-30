@@ -9032,33 +9032,52 @@ body::-webkit-scrollbar,
 }
 
 /* Custom Modal Tabs */
+/* Modal tabs (restaurant form) — segmented-pill style, matching the
+   superadmin settings tabs. Neatly spaced, nothing stuck together. */
 .custom-restaurant-tabs {
-    border-bottom: 1px solid var(--border-color) !important;
+    border-bottom: none !important;
+    display: inline-flex !important;
+    flex-wrap: wrap !important;
+    align-items: center;
+    gap: var(--admin-segment-gap) !important;
+    padding: 4px !important;
+    margin: 0 0 6px 0 !important;
+    border: 1px solid var(--admin-segment-border) !important;
+    border-radius: var(--admin-segment-radius) !important;
+    background: var(--admin-segment-bg) !important;
+    max-width: 100%;
 }
 
 .custom-restaurant-tabs .nav-item {
-    margin-bottom: -2px;
+    margin-bottom: 0 !important;
 }
 
 .custom-restaurant-tabs .nav-link {
-    color: var(--text-muted);
-    font-weight: 600;
-    border: none;
-    border-bottom: 2px solid transparent;
-    padding: 12px 20px;
-    background: transparent;
-    transition: all 0.2s ease-in-out;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--admin-segment-item-height);
+    padding: 0 14px !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--admin-segment-item-radius) !important;
+    background: transparent !important;
+    color: #6b7280 !important;
+    font-weight: 600 !important;
+    font-size: 0.84rem;
+    transition: all 0.18s ease !important;
 }
 
 .custom-restaurant-tabs .nav-link:hover {
-    color: var(--primary-color);
-    border-bottom: 2px solid var(--border-color);
+    color: #0f172a !important;
+    background: rgba(255, 255, 255, 0.65) !important;
+    border-color: transparent !important;
 }
 
 .custom-restaurant-tabs .nav-link.active {
-    color: var(--primary-color) !important;
-    border-bottom: 2px solid var(--primary-color) !important;
-    background: transparent !important;
+    color: var(--admin-segment-active-color) !important;
+    background: var(--admin-segment-active-bg) !important;
+    box-shadow: var(--admin-segment-active-shadow) !important;
+    border-color: transparent !important;
 }
 
 /* Enhancements for Modal Fields */
@@ -15448,24 +15467,41 @@ h1, h2, h3, h4, h5, h6,
     background-color: color-mix(in srgb, var(--primary-color) 5%, transparent) !important;
 }
 
-/* --- 2.4 Bootstrap tabs as a floating segmented control --- */
+/* --- 2.4 Bootstrap tabs as a floating segmented control (matches the
+   superadmin settings/order tabs — neatly spaced, nothing stuck together) --- */
 .nav-tabs {
-    background: #f1f5f9 !important;
-    border-radius: 10px !important;
+    background: var(--admin-segment-bg) !important;
+    border: 1px solid var(--admin-segment-border) !important;
+    border-radius: var(--admin-segment-radius) !important;
     padding: 4px !important;
-    border: none !important;
-    gap: 4px !important;
+    gap: var(--admin-segment-gap) !important;
+    flex-wrap: wrap !important;
+}
+.nav-tabs .nav-item {
+    margin-bottom: 0 !important;
 }
 .nav-tabs .nav-link {
-    border: none !important;
-    border-radius: 8px !important;
-    color: #64748b !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--admin-segment-item-radius) !important;
+    min-height: var(--admin-segment-item-height);
+    padding: 0 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    color: #6b7280 !important;
     font-weight: 600 !important;
+    transition: all 0.18s ease !important;
+}
+.nav-tabs .nav-link:hover {
+    background: rgba(255, 255, 255, 0.65) !important;
+    color: #0f172a !important;
+    border-color: transparent !important;
 }
 .nav-tabs .nav-link.active {
-    background: #ffffff !important;
-    color: var(--primary-color) !important;
-    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05) !important;
+    background: var(--admin-segment-active-bg) !important;
+    color: var(--admin-segment-active-color) !important;
+    box-shadow: var(--admin-segment-active-shadow) !important;
+    border-color: transparent !important;
 }
 
 /* --- 2.5 Accordions --- */
