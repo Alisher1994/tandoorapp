@@ -15991,4 +15991,10 @@ h1, h2, h3, h4, h5, h6,
     .sa-root {
         padding-top: 14px;
     }
+    /* Header is hidden here, so the sidebar must not keep the navbar-height
+       sticky offset (was 88px) — that left a phantom top gap and a jump on
+       scroll. Pin it just below the small top padding. */
+    .sa-root .admin-tabs-shell {
+        --admin-sidebar-sticky-top: 16px;
+    }
 }
