@@ -18201,32 +18201,37 @@ function AdminDashboard() {
                           <h6 className="mb-0 small admin-balance-info-title">{t('bankCard')}</h6>
                         </div>
 
-                        <div className="mb-3">
-                          <label className="text-muted extra-small mb-2 d-block admin-balance-info-label">{t('cardNumber')}</label>
-                          <div className="d-flex align-items-center justify-content-between p-2 bg-light rounded-3 border">
-                            <span className="fs-6 font-monospace admin-balance-info-value">{formatCardNumberMasked(billingInfo.requisites?.card_number) || '—'}</span>
+                        {/* Plastic card visual */}
+                        <div className="admin-pay-card">
+                          <div className="admin-pay-card-top">
+                            <span className="admin-pay-card-chip" aria-hidden="true" />
+                            <span className="admin-pay-card-brand">{language === 'uz' ? 'BANK KARTASI' : 'БАНКОВСКАЯ КАРТА'}</span>
+                          </div>
+                          <div className="admin-pay-card-number-row">
+                            <span className="admin-pay-card-number">{formatCardNumberMasked(billingInfo.requisites?.card_number) || '—'}</span>
                             {billingInfo.requisites?.card_number && (
-                              <Button
-                                variant="link"
-                                className="p-1 text-primary text-decoration-none"
+                              <button
+                                type="button"
+                                className="admin-pay-card-copy"
+                                title={language === 'uz' ? 'Nusxalash' : 'Копировать'}
+                                aria-label={language === 'uz' ? 'Karta raqamini nusxalash' : 'Скопировать номер карты'}
                                 onClick={() => {
                                   navigator.clipboard.writeText(billingInfo.requisites.card_number);
                                   setSuccess('Скопировано');
                                 }}
-                                title="Копировать"
                               >
                                 <CopyIcon />
-                              </Button>
+                              </button>
                             )}
+                          </div>
+                          <div className="admin-pay-card-bottom">
+                            <span className="admin-pay-card-holder-label">{t('cardHolder')}</span>
+                            <span className="admin-pay-card-holder">{billingInfo.requisites?.card_holder || '—'}</span>
                           </div>
                         </div>
 
-                        <div className="mb-3">
-                          <label className="text-muted extra-small mb-1 d-block admin-balance-info-label">{t('cardHolder')}</label>
-                          <div className="admin-balance-info-value">{billingInfo.requisites?.card_holder || '—'}</div>
-                        </div>
-
-                        <div>
+                        {/* Phone shown separately (a real card has no phone on it) */}
+                        <div className="mt-3">
                           <label className="text-muted extra-small mb-1 d-block admin-balance-info-label">{t('phoneNumber')}</label>
                           <div className="admin-balance-info-value">{billingInfo.requisites?.phone_number || '—'}</div>
                         </div>
