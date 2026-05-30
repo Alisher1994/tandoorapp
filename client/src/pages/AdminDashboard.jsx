@@ -2259,7 +2259,7 @@ function AdminDashboard() {
   const [showPrinterAgentModal, setShowPrinterAgentModal] = useState(false);
   const [printerAgentName, setPrinterAgentName] = useState('');
   const [downloadingPrinterAgent, setDownloadingPrinterAgent] = useState(false);
-  const [showDriverCatalog, setShowDriverCatalog] = useState(false);
+  const [printerSubTab, setPrinterSubTab] = useState('settings');
   const [driverCatalog, setDriverCatalog] = useState([]);
   const [driverCatalogLoading, setDriverCatalogLoading] = useState(false);
   const [downloadingDriverId, setDownloadingDriverId] = useState(null);
@@ -3181,13 +3181,13 @@ function AdminDashboard() {
     }
   };
 
-  const openDriverCatalog = async () => {
-    setShowDriverCatalog(true);
-    await loadDriverCatalog();
+  const openDriverCatalogTab = () => {
+    setPrinterSubTab('drivers');
+    loadDriverCatalog();
   };
 
   // Lightweight loader used by the printer form so the model dropdown is populated
-  // without opening the full catalog modal.
+  // without re-fetching when the catalog is already loaded.
   const ensureDriverCatalogLoaded = () => {
     if (driverCatalog.length === 0 && !driverCatalogLoading) {
       loadDriverCatalog();
@@ -14050,13 +14050,29 @@ function AdminDashboard() {
               </Tab>
 
               <Tab eventKey="printers" title={renderAdminSidebarTabTitle('printers')}>
-                <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                  <h5 className="mb-0">{language === 'uz' ? 'Printerlar boshqaruvi' : '🖨️ Управление принтерами'}</h5>
-                  <Button variant="outline-primary" size="sm" onClick={openDriverCatalog}>
-                    {language === 'uz' ? 'Printer drayverlari' : 'Драйверы принтеров'}
-                  </Button>
+                <h5 className="mb-3">{language === 'uz' ? 'Printerlar boshqaruvi' : '🖨️ Управление принтерами'}</h5>
+                <div className="admin-settings-pill-tabs" role="tablist" aria-label={language === 'uz' ? 'Printer boʻlimlari' : 'Разделы принтеров'}>
+                  {[
+                    { key: 'settings', icon: '🖨️', label: language === 'uz' ? 'Printer sozlamalari' : 'Настройки принтера' },
+                    { key: 'drivers', icon: '🧰', label: language === 'uz' ? 'Printer drayverlari' : 'Драйверы принтеров' }
+                  ].map((sub) => {
+                    const isActive = printerSubTab === sub.key;
+                    return (
+                      <button
+                        key={sub.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        className={`admin-settings-pill-btn ${isActive ? 'is-active' : ''}`}
+                        onClick={() => { if (sub.key === 'drivers') openDriverCatalogTab(); else setPrinterSubTab('settings'); }}
+                      >
+                        <span>{sub.icon} {sub.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
+                {printerSubTab === 'settings' && (<>
                 <Row className="g-3 mb-3">
                   <Col lg={6}>
                     <Card className="admin-printer-panel h-100">
@@ -14287,6 +14303,57 @@ function AdminDashboard() {
                     </ol>
                   </Card.Body>
                 </Card>
+                </>)}
+
+                {printerSubTab === 'drivers' && (
+                  <Card className="admin-printer-panel">
+                    <Card.Body className="p-3 p-xl-4">
+                      <div className="admin-printer-panel-head">
+                        <h6 className="mb-0">{language === 'uz' ? 'Printer drayverlari' : 'Драйверы принтеров'}</h6>
+                      </div>
+                      <Alert className="admin-printer-note mb-3">
+                        {language === 'uz'
+                          ? 'Modelni tanlang va eng so‘nggi drayverni yuklab oling. Katalog tizim administratori tomonidan yangilanadi.'
+                          : 'Выберите модель и скачайте актуальный драйвер. Каталог обновляется администратором системы.'}
+                      </Alert>
+                      {driverCatalogLoading ? (
+                        <div className="text-muted text-center py-4"><Spinner size="sm" animation="border" /> {language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…'}</div>
+                      ) : driverCatalog.length === 0 ? (
+                        <div className="text-muted text-center py-4">
+                          {language === 'uz' ? 'Drayverlar katalogi hali bo‘sh' : 'Каталог драйверов пока пуст'}
+                        </div>
+                      ) : (
+                        <div className="driver-cards-grid">
+                          {driverCatalog.map((d) => (
+                            <div key={d.id} className="driver-card">
+                              <div className="driver-card-photo">
+                                {d.photo_url ? <img src={d.photo_url} alt={d.model} /> : <i className="bi bi-printer" aria-hidden="true" />}
+                              </div>
+                              <div className="driver-card-body">
+                                <div className="driver-card-manufacturer">{d.manufacturer}</div>
+                                <div className="driver-card-model">{d.model}</div>
+                                {d.current_version?.version_label && (
+                                  <div className="small text-muted">{d.current_version.version_label}</div>
+                                )}
+                              </div>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                className="w-100"
+                                onClick={() => handleDownloadDriver(d)}
+                                disabled={downloadingDriverId === d.id}
+                              >
+                                {downloadingDriverId === d.id
+                                  ? <Spinner size="sm" animation="border" />
+                                  : (language === 'uz' ? 'Drayverni yuklab olish' : 'Скачать драйвер')}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card.Body>
+                  </Card>
+                )}
 
                 {/* Printer Agent Modal */}
                 <Modal show={showPrinterAgentModal} onHide={() => setShowPrinterAgentModal(false)} centered>
@@ -14939,12 +15006,28 @@ function AdminDashboard() {
                             <div className="admin-appearance-layout">
                               <div className="admin-appearance-settings-column">
                                 <div className="admin-settings-single-column admin-settings-single-column--appearance">
-                              <Nav variant="pills" className="admin-appearance-subtabs mb-3" activeKey={appearanceSubTab} onSelect={(k) => k && setAppearanceSubTab(k)}>
-                                <Nav.Item><Nav.Link eventKey="colors">{language === 'uz' ? 'Fon va ranglar' : 'Фон и цвета'}</Nav.Link></Nav.Item>
-                                <Nav.Item><Nav.Link eventKey="fonts">{language === 'uz' ? 'Shriftlar' : 'Шрифты'}</Nav.Link></Nav.Item>
-                                <Nav.Item><Nav.Link eventKey="display">{language === 'uz' ? "Ko'rinish rejimi" : 'Режим отображения'}</Nav.Link></Nav.Item>
-                                <Nav.Item><Nav.Link eventKey="menu">{language === 'uz' ? 'Menyu' : 'Меню'}</Nav.Link></Nav.Item>
-                              </Nav>
+                              <div className="admin-settings-pill-tabs" role="tablist" aria-label={language === 'uz' ? 'Dizayn boʻlimlari' : 'Разделы оформления'}>
+                                {[
+                                  { key: 'colors', icon: '🎨', label: language === 'uz' ? 'Fon va ranglar' : 'Фон и цвета' },
+                                  { key: 'fonts', icon: '🔤', label: language === 'uz' ? 'Shriftlar' : 'Шрифты' },
+                                  { key: 'display', icon: '🖥️', label: language === 'uz' ? "Ko'rinish rejimi" : 'Режим отображения' },
+                                  { key: 'menu', icon: '📋', label: language === 'uz' ? 'Menyu' : 'Меню' }
+                                ].map((sub) => {
+                                  const isActive = appearanceSubTab === sub.key;
+                                  return (
+                                    <button
+                                      key={sub.key}
+                                      type="button"
+                                      role="tab"
+                                      aria-selected={isActive}
+                                      className={`admin-settings-pill-btn ${isActive ? 'is-active' : ''}`}
+                                      onClick={() => setAppearanceSubTab(sub.key)}
+                                    >
+                                      <span>{sub.icon} {sub.label}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
                               {appearanceSubTab === 'colors' && (<>
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
@@ -20388,57 +20471,6 @@ function AdminDashboard() {
                 </div>
               );
             })()}
-          </Modal.Body>
-        </Modal>
-
-        {/* Printer drivers catalog (admin) */}
-        <Modal
-          show={showDriverCatalog}
-          onHide={() => setShowDriverCatalog(false)}
-          size="lg"
-          centered
-          dialogClassName="admin-category-picker-dialog"
-          backdropClassName="admin-category-picker-backdrop"
-        >
-          <Modal.Header closeButton>
-            <Modal.Title className="h6 mb-0">{language === 'uz' ? 'Printer drayverlari' : 'Драйверы принтеров'}</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            {driverCatalogLoading ? (
-              <div className="text-muted"><Spinner size="sm" animation="border" /> {language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…'}</div>
-            ) : driverCatalog.length === 0 ? (
-              <div className="text-muted text-center py-4">
-                {language === 'uz' ? 'Drayverlar katalogi hali bo‘sh' : 'Каталог драйверов пока пуст'}
-              </div>
-            ) : (
-              <div className="driver-cards-grid">
-                {driverCatalog.map((d) => (
-                  <div key={d.id} className="driver-card">
-                    <div className="driver-card-photo">
-                      {d.photo_url ? <img src={d.photo_url} alt={d.model} /> : <i className="bi bi-printer" aria-hidden="true" />}
-                    </div>
-                    <div className="driver-card-body">
-                      <div className="driver-card-manufacturer">{d.manufacturer}</div>
-                      <div className="driver-card-model">{d.model}</div>
-                      {d.current_version?.version_label && (
-                        <div className="small text-muted">{d.current_version.version_label}</div>
-                      )}
-                    </div>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="w-100"
-                      onClick={() => handleDownloadDriver(d)}
-                      disabled={downloadingDriverId === d.id}
-                    >
-                      {downloadingDriverId === d.id
-                        ? <Spinner size="sm" animation="border" />
-                        : (language === 'uz' ? 'Drayverni yuklab olish' : 'Скачать драйвер')}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
           </Modal.Body>
         </Modal>
 
