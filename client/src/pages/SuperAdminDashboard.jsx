@@ -1720,6 +1720,7 @@ function SuperAdminDashboard() {
 
   // Modals
   const [showRestaurantModal, setShowRestaurantModal] = useState(false);
+  const [savingRestaurant, setSavingRestaurant] = useState(false);
   const [showOperatorModal, setShowOperatorModal] = useState(false);
   const [showCatalogCopyModal, setShowCatalogCopyModal] = useState(false);
   const [editingRestaurant, setEditingRestaurant] = useState(null);
@@ -8852,16 +8853,19 @@ function SuperAdminDashboard() {
   }, [showRestaurantModal, restaurantForm?.name, restaurantForm?.telegram_bot_token, restaurantForm?.telegram_group_id, editingRestaurant?.id]);
 
   const isRestaurantSaveBlocked = restaurantIdentityCheck.loading
+    || savingRestaurant
     || !String(restaurantForm?.name || '').trim()
     || restaurantIdentityCheck.nameAvailable === false
     || (String(restaurantForm?.telegram_bot_token || '').trim().length > 0 && restaurantIdentityCheck.tokenAvailable === false)
     || (String(restaurantForm?.telegram_group_id || '').trim().length > 0 && restaurantIdentityCheck.groupAvailable === false);
 
   const handleSaveRestaurant = async () => {
+    if (savingRestaurant) return;
     if (isRestaurantSaveBlocked) {
       setError('Исправьте занятые поля перед сохранением');
       return;
     }
+    setSavingRestaurant(true);
     try {
       if (editingRestaurant) {
         await axios.put(`${API_URL}/superadmin/restaurants/${editingRestaurant.id}`, restaurantForm);
@@ -8875,6 +8879,8 @@ function SuperAdminDashboard() {
       loadInternalRestaurants();
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка сохранения магазина');
+    } finally {
+      setSavingRestaurant(false);
     }
   };
 
@@ -21440,8 +21446,8 @@ function SuperAdminDashboard() {
         </Modal.Footer>
       </Modal>
 
-      <Modal show={showRestaurantModal} onHide={() => setShowRestaurantModal(false)} size="lg">
-        <Modal.Header closeButton>
+      <Modal show={showRestaurantModal} onHide={() => { if (!savingRestaurant) setShowRestaurantModal(false); }} size="lg">
+        <Modal.Header closeButton={!savingRestaurant}>
           <Modal.Title>{editingRestaurant ? t('saModalEditRestaurant') : t('saModalNewRestaurant')}</Modal.Title>
         </Modal.Header>
         <Modal.Body className="p-0">
@@ -21952,9 +21958,9 @@ function SuperAdminDashboard() {
           </Form>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowRestaurantModal(false)}>{t('saCancel')}</Button>
+          <Button variant="secondary" onClick={() => setShowRestaurantModal(false)} disabled={savingRestaurant}>{t('saCancel')}</Button>
           <Button variant="primary" onClick={handleSaveRestaurant} disabled={isRestaurantSaveBlocked}>
-            {restaurantIdentityCheck.loading ? 'Проверка...' : t('saSave')}
+            {savingRestaurant ? 'Сохранение...' : (restaurantIdentityCheck.loading ? 'Проверка...' : t('saSave'))}
           </Button>
         </Modal.Footer>
       </Modal>
