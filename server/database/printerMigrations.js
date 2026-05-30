@@ -44,6 +44,9 @@ async function runPrinterMigrations() {
     await client.query(`ALTER TABLE printers ADD COLUMN IF NOT EXISTS connection_type VARCHAR(20) DEFAULT 'network'`);
     await client.query(`ALTER TABLE printers ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)`);
     await client.query(`ALTER TABLE printers ADD COLUMN IF NOT EXISTS usb_vid_pid VARCHAR(50)`);
+    // Link to printer drivers catalog (selected model). No hard FK to avoid coupling
+    // with the superadmin-managed printer_drivers table existence/order.
+    await client.query(`ALTER TABLE printers ADD COLUMN IF NOT EXISTS driver_id INTEGER`);
 
     // 3. Add printer_id to categories if not exists
     await client.query(`

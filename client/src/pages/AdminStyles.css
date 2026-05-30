@@ -15082,6 +15082,49 @@ div.form-select.admin-global-import-field {
     .driver-card-photo { height: 90px; }
 }
 
+/* Selected printer model preview inside the printer add/edit form */
+.printer-model-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid #e6e8eb;
+    border-radius: 10px;
+    background: #fafbfc;
+}
+
+.printer-model-preview-photo {
+    flex: 0 0 auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #eef0f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    color: #adb5bd;
+    font-size: 1.2rem;
+}
+
+.printer-model-preview-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.printer-model-preview-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.printer-model-preview-title {
+    font-weight: 600;
+    color: #212529;
+    word-break: break-word;
+}
+
 /* Appearance settings inner sub-tabs */
 .admin-appearance-subtabs {
     flex-wrap: wrap;

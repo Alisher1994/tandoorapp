@@ -2253,7 +2253,8 @@ function AdminDashboard() {
     printer_alias: '',
     connection_type: 'network',
     ip_address: '',
-    usb_vid_pid: ''
+    usb_vid_pid: '',
+    driver_id: ''
   });
   const [showPrinterAgentModal, setShowPrinterAgentModal] = useState(false);
   const [printerAgentName, setPrinterAgentName] = useState('');
@@ -3167,8 +3168,7 @@ function AdminDashboard() {
     }
   };
 
-  const openDriverCatalog = async () => {
-    setShowDriverCatalog(true);
+  const loadDriverCatalog = async () => {
     setDriverCatalogLoading(true);
     try {
       const response = await axios.get(`${API_URL}/admin/printer-drivers`);
@@ -3178,6 +3178,19 @@ function AdminDashboard() {
       setDriverCatalog([]);
     } finally {
       setDriverCatalogLoading(false);
+    }
+  };
+
+  const openDriverCatalog = async () => {
+    setShowDriverCatalog(true);
+    await loadDriverCatalog();
+  };
+
+  // Lightweight loader used by the printer form so the model dropdown is populated
+  // without opening the full catalog modal.
+  const ensureDriverCatalogLoaded = () => {
+    if (driverCatalog.length === 0 && !driverCatalogLoading) {
+      loadDriverCatalog();
     }
   };
 
@@ -14166,7 +14179,8 @@ function AdminDashboard() {
                               aria-label={language === 'uz' ? "Printer qo'shish" : 'Добавить принтер'}
                               onClick={() => {
                                 setSelectedPrinter(null);
-                                setPrinterForm({ name: '', printer_alias: '', connection_type: 'network', ip_address: '', usb_vid_pid: '' });
+                                setPrinterForm({ name: '', printer_alias: '', connection_type: 'network', ip_address: '', usb_vid_pid: '', driver_id: '' });
+                                ensureDriverCatalogLoaded();
                                 setShowPrinterModal(true);
                               }}
                             >
@@ -14230,8 +14244,10 @@ function AdminDashboard() {
                                                 printer_alias: printer.printer_alias || '',
                                                 connection_type: printer.connection_type || 'network',
                                                 ip_address: printer.ip_address || '',
-                                                usb_vid_pid: printer.usb_vid_pid || ''
+                                                usb_vid_pid: printer.usb_vid_pid || '',
+                                                driver_id: printer.driver_id ? String(printer.driver_id) : ''
                                               });
+                                              ensureDriverCatalogLoaded();
                                               setShowPrinterModal(true);
                                             }}
                                           >
@@ -14337,6 +14353,65 @@ function AdminDashboard() {
                             ? 'Kategoriya/chёklar qaysi printerga ketishi uchun (masalan: cashier).'
                             : 'Для маршрутизации позиций на принтер: обычно cashier, kitchen и т.д. Это не имя шары Windows.'}
                         </Form.Text>
+                      </Form.Group>
+                      <Form.Group className="mb-3">
+                        <Form.Label>{language === 'uz' ? 'Printer modeli' : 'Модель принтера'}</Form.Label>
+                        <Form.Select
+                          value={printerForm.driver_id || ''}
+                          onChange={(e) => setPrinterForm({ ...printerForm, driver_id: e.target.value })}
+                          disabled={driverCatalogLoading}
+                        >
+                          <option value="">
+                            {driverCatalogLoading
+                              ? (language === 'uz' ? 'Yuklanmoqda…' : 'Загрузка…')
+                              : (language === 'uz' ? '— Tanlanmagan —' : '— Не выбрана —')}
+                          </option>
+                          {driverCatalog.map((d) => (
+                            <option key={d.id} value={String(d.id)}>
+                              {d.manufacturer ? `${d.manufacturer} ${d.model}` : d.model}
+                            </option>
+                          ))}
+                        </Form.Select>
+                        {(() => {
+                          const selected = driverCatalog.find((d) => String(d.id) === String(printerForm.driver_id));
+                          if (!selected) {
+                            return (
+                              <Form.Text className="text-muted">
+                                {language === 'uz'
+                                  ? 'Modelni tanlang — drayverni shu yerdan yuklab olishingiz mumkin.'
+                                  : 'Выберите модель — драйвер можно скачать прямо отсюда.'}
+                              </Form.Text>
+                            );
+                          }
+                          return (
+                            <div className="printer-model-preview mt-2">
+                              <div className="printer-model-preview-photo">
+                                {selected.photo_url
+                                  ? <img src={selected.photo_url} alt={selected.model} />
+                                  : <i className="bi bi-printer" aria-hidden="true" />}
+                              </div>
+                              <div className="printer-model-preview-body">
+                                <div className="printer-model-preview-title">
+                                  {selected.manufacturer ? `${selected.manufacturer} ${selected.model}` : selected.model}
+                                </div>
+                                {selected.current_version?.version_label && (
+                                  <div className="small text-muted">{selected.current_version.version_label}</div>
+                                )}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => handleDownloadDriver(selected)}
+                                disabled={downloadingDriverId === selected.id}
+                              >
+                                {downloadingDriverId === selected.id
+                                  ? <Spinner size="sm" animation="border" />
+                                  : (language === 'uz' ? 'Drayver' : 'Драйвер')}
+                              </Button>
+                            </div>
+                          );
+                        })()}
                       </Form.Group>
                       <Form.Group className="mb-3">
                         <Form.Label>{language === 'uz' ? "Ulanish turi" : 'Тип подключения'}</Form.Label>

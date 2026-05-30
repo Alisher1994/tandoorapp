@@ -7441,22 +7441,24 @@ router.post('/printers', async (req, res) => {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.status(400).json({ error: 'Ресторан не выбран' });
 
-    const { name, printer_alias, connection_type, ip_address, usb_vid_pid } = req.body;
+    const { name, printer_alias, connection_type, ip_address, usb_vid_pid, driver_id } = req.body;
     if (!name || !printer_alias) {
       return res.status(400).json({ error: 'Название и Alias обязательны' });
     }
+    const driverIdValue = Number(driver_id) > 0 ? Number(driver_id) : null;
 
     const result = await pool.query(`
-      INSERT INTO printers (restaurant_id, name, printer_alias, connection_type, ip_address, usb_vid_pid)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO printers (restaurant_id, name, printer_alias, connection_type, ip_address, usb_vid_pid, driver_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `, [
-      restaurantId, 
-      name, 
-      printer_alias, 
-      connection_type || 'network', 
-      ip_address || null, 
-      usb_vid_pid || null
+      restaurantId,
+      name,
+      printer_alias,
+      connection_type || 'network',
+      ip_address || null,
+      usb_vid_pid || null,
+      driverIdValue
     ]);
 
     res.status(201).json(result.rows[0]);
@@ -7470,7 +7472,9 @@ router.post('/printers', async (req, res) => {
 router.put('/printers/:id', async (req, res) => {
   try {
     const restaurantId = req.user.active_restaurant_id;
-    const { name, printer_alias, connection_type, ip_address, usb_vid_pid, is_active } = req.body;
+    const { name, printer_alias, connection_type, ip_address, usb_vid_pid, is_active, driver_id } = req.body;
+    const driverIdProvided = Object.prototype.hasOwnProperty.call(req.body, 'driver_id');
+    const driverIdValue = Number(driver_id) > 0 ? Number(driver_id) : null;
 
     const result = await pool.query(`
       UPDATE printers SET
@@ -7480,17 +7484,20 @@ router.put('/printers/:id', async (req, res) => {
         ip_address = $4,
         usb_vid_pid = $5,
         is_active = COALESCE($6, is_active),
+        driver_id = CASE WHEN $7::boolean THEN $8 ELSE driver_id END,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7 AND restaurant_id = $8
+      WHERE id = $9 AND restaurant_id = $10
       RETURNING *
     `, [
-      name || null, 
-      printer_alias || null, 
-      connection_type || null, 
-      ip_address || null, 
-      usb_vid_pid || null, 
-      is_active !== undefined ? is_active : null, 
-      req.params.id, 
+      name || null,
+      printer_alias || null,
+      connection_type || null,
+      ip_address || null,
+      usb_vid_pid || null,
+      is_active !== undefined ? is_active : null,
+      driverIdProvided,
+      driverIdValue,
+      req.params.id,
       restaurantId
     ]);
 
