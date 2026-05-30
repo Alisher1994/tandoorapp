@@ -13411,9 +13411,9 @@ function AdminDashboard() {
                             <td className="admin-product-col-status">
                               <div className="d-flex flex-column gap-1 align-items-start">
                                 {product.in_stock ? (
-                                  <Badge bg="success">В наличии</Badge>
+                                  <Badge bg="success" className="admin-stock-badge admin-stock-badge-in">В наличии</Badge>
                                 ) : (
-                                  <Badge bg="danger">Нет в наличии</Badge>
+                                  <Badge bg="danger" className="admin-stock-badge admin-stock-badge-out">Нет в наличии</Badge>
                                 )}
                                 {product.is_hidden_catalog && (
                                   <Badge bg="dark">Скрыт из каталога</Badge>

@@ -9016,6 +9016,16 @@ body::-webkit-scrollbar,
     color: #374151 !important;
 }
 
+/* Product availability status badge keeps vivid colors (overrides the neutral theme above). */
+.admin-panel .badge.admin-stock-badge-in {
+    background-color: #16a34a !important;
+    color: #ffffff !important;
+}
+.admin-panel .badge.admin-stock-badge-out {
+    background-color: #dc2626 !important;
+    color: #ffffff !important;
+}
+
 .admin-panel .btn-primary,
 .admin-panel .btn-secondary,
 .admin-panel .btn-success,
