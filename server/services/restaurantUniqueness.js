@@ -32,9 +32,10 @@ const checkRestaurantIdentityAvailability = async ({
   let index = 1;
   const whereParts = [];
 
+  // Name comparison is intentionally finalized in JS via normalizeRestaurantNameForCompare:
+  // it treats case/spacing/punctuation variants as the same store name.
   if (hasName) {
-    params.push(normalizedName);
-    whereParts.push(`LOWER(BTRIM(name)) = $${index++}`);
+    whereParts.push('TRUE');
   }
 
   if (hasToken) {

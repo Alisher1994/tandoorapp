@@ -59,8 +59,7 @@ const {
 const {
   validateRestaurantName,
   normalizeRestaurantNameForStorage,
-  sanitizeExistingRestaurantName,
-  normalizeRestaurantNameForCompare
+  sanitizeExistingRestaurantName
 } = require('../services/restaurantNamePolicy');
 
 // All routes require superadmin authentication
@@ -3752,49 +3751,15 @@ const ensureRestaurantNamePolicy = async () => {
   restaurantNamePolicyPromise = (async () => {
     const rowsResult = await pool.query(`SELECT id, name FROM restaurants ORDER BY id ASC`);
     const rows = Array.isArray(rowsResult.rows) ? rowsResult.rows : [];
-    const normalizedBuckets = new Map();
-    const sanitizedById = new Map();
-
     for (const row of rows) {
       const id = Number(row.id);
       const sanitized = sanitizeExistingRestaurantName(row.name, `SHOP ${id}`);
-      sanitizedById.set(id, sanitized);
       if (String(row.name || '') !== sanitized) {
         await pool.query(
           `UPDATE restaurants SET name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
           [sanitized, id]
         );
       }
-      const key = normalizeRestaurantNameForCompare(sanitized);
-      if (!normalizedBuckets.has(key)) normalizedBuckets.set(key, []);
-      normalizedBuckets.get(key).push(id);
-    }
-
-    const duplicateIds = [];
-    for (const [key, ids] of normalizedBuckets.entries()) {
-      if (ids.length <= 1) continue;
-      duplicateIds.push(...ids);
-      for (let i = 1; i < ids.length; i += 1) {
-        const id = Number(ids[i]);
-        const baseName = sanitizedById.get(id) || key.toUpperCase();
-        const isolatedName = `${baseName} [ID ${id}]`.slice(0, 60);
-        await pool.query(
-          `UPDATE restaurants
-           SET name = $1,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $2`,
-          [isolatedName, id]
-        );
-      }
-    }
-    if (duplicateIds.length > 0) {
-      await pool.query(
-        `UPDATE restaurants
-         SET workflow_status = 'homonym',
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = ANY($1::int[])`,
-        [duplicateIds]
-      ).catch(() => {});
     }
     restaurantNamePolicyReady = true;
   })();
