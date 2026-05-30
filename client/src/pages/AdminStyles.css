@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 /* Super Admin Dashboard Styles */
 
@@ -15352,17 +15352,19 @@ div.form-select.admin-global-import-field {
     --glass-focus-ring: 0 0 0 4px color-mix(in srgb, var(--primary-color) 18%, transparent);
 }
 
-/* --- 1. Typography --- */
+/* --- 1. Typography — ONE brand font for the whole admin (RU + EN),
+   headings included. Store/theme fonts apply only to the storefront. --- */
 body,
 .table,
 .btn,
-button {
-    font-family: "Plus Jakarta Sans", sans-serif;
-}
-
+button,
 h1, h2, h3, h4, h5, h6,
-.admin-brand-title {
-    font-family: "Outfit", sans-serif;
+.admin-brand-title,
+.modal,
+.offcanvas,
+.dropdown-menu,
+.popover {
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 /* --- 1.3 Premium scrollbars (page scrollbar stays hidden via html/body rules above) --- */
@@ -15432,7 +15434,6 @@ h1, h2, h3, h4, h5, h6,
 .table > thead > tr > th,
 .table > thead th {
     background: color-mix(in srgb, var(--primary-color) 6%, #ffffff) !important;
-    font-family: "Outfit", sans-serif !important;
     font-weight: 700 !important;
     color: #334155 !important;
     border-bottom: none !important;
@@ -15948,15 +15949,15 @@ h1, h2, h3, h4, h5, h6,
     color: #15803d !important;
 }
 .admin-printer-icon-btn-primary {
-    color: #ffffff !important;
-    background: var(--primary-color) !important;
-    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    background: #ffffff !important;
+    border-color: color-mix(in srgb, var(--primary-color) 30%, transparent) !important;
 }
 .admin-printer-icon-btn-primary:hover,
 .admin-printer-icon-btn-primary:focus-visible {
-    background: var(--primary-hover, var(--primary-color)) !important;
-    border-color: var(--primary-hover, var(--primary-color)) !important;
-    color: #ffffff !important;
+    background: color-mix(in srgb, var(--primary-color) 10%, #ffffff) !important;
+    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
 }
 
 /* (B) Text buttons — one rectangular family (excludes the square icon buttons above) */
@@ -15977,4 +15978,17 @@ h1, h2, h3, h4, h5, h6,
     background-color: var(--primary-hover, var(--primary-color)) !important;
     border-color: var(--primary-hover, var(--primary-color)) !important;
     color: #ffffff !important;
+}
+
+/* =====================================================================
+   SUPERADMIN: hide the (empty, logo-only) top header on desktop.
+   Mobile keeps it so the sidebar toggle stays reachable.
+   ===================================================================== */
+@media (min-width: 992px) {
+    .sa-root .sa-topbar {
+        display: none !important;
+    }
+    .sa-root {
+        padding-top: 14px;
+    }
 }
