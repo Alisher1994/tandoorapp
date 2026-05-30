@@ -7036,9 +7036,15 @@ router.post('/restaurants', async (req, res) => {
         click_url, payme_url, is_delivery_enabled, service_fee,
         balance, order_cost, activity_type_id, currency_code,
         payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
-        size_variants_enabled
+        size_variants_enabled,
+        segment_pricing_enabled, delivery_lead_enabled,
+        product_field_description_enabled, product_field_season_enabled,
+        product_field_barcode_enabled, product_field_ikpu_enabled
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28,
+        false, false,
+        true, false,
+        false, false)
       RETURNING *
     `, [
       normalizedStoreName,
