@@ -1455,3 +1455,94 @@
     flex-wrap: wrap;
   }
 }
+
+/* =====================================================================
+   PREMIUM STOREFRONT SIMULATOR + WORKSPACE OVERRIDE LAYER (CSS-only)
+   ===================================================================== */
+
+/* --- 3.1 Phone simulator bezel --- */
+.store-preview-shell {
+    background: linear-gradient(135deg, #090d16 0%, #151f30 100%) !important;
+    border: 3.5px solid rgba(255, 255, 255, 0.14) !important;
+    border-radius: 38px !important;
+    box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.3) !important;
+    aspect-ratio: 9 / 19.5 !important;
+    padding: 12px 9px 9px !important;
+}
+
+/* Pill camera notch rendered purely in CSS (no JSX element exists) */
+.store-preview-shell::before {
+    content: "" !important;
+    display: block !important;
+    width: 62px !important;
+    height: 5px !important;
+    background: #2d3b4f !important;
+    border-radius: 999px !important;
+    position: absolute !important;
+    top: 7px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 100 !important;
+}
+
+.store-preview-screen {
+    border-radius: 28px !important;
+}
+
+/* --- 3.1b Floating glass navigation bar --- */
+.store-preview-nav-shell {
+    box-shadow: 0 10px 25px rgba(99, 102, 241, 0.16) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.55) !important;
+}
+
+/* --- 3.2 Workspace panels: matching glass borders & rounded offsets --- */
+.builder-preview-panel,
+.builder-left-panel,
+.builder-right-panel {
+    background: rgba(255, 255, 255, 0.82) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border-color: color-mix(in srgb, var(--primary-color, #5850ec) 12%, transparent) !important;
+}
+
+.left-panel-tab-btn {
+    border-radius: 999px !important;
+    border: 1px solid color-mix(in srgb, var(--primary-color, #5850ec) 22%, transparent) !important;
+    transition: all 0.2s ease !important;
+}
+.left-panel-tab-btn.is-active {
+    border-color: var(--primary-color, #5850ec) !important;
+    background: color-mix(in srgb, var(--primary-color, #5850ec) 10%, #ffffff) !important;
+    color: var(--primary-color, #5850ec) !important;
+}
+
+/* --- 3.3 iOS-style toggle switches ---
+   Bootstrap renders Form.Check[type=switch] as a real <input>; pseudo-elements
+   don't render on inputs, so the sliding handle uses a background-image circle
+   that shifts on :checked (the reliable pure-CSS technique). */
+.header-visibility-switch .form-check-input {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    width: 42px !important;
+    height: 22px !important;
+    margin-top: 0 !important;
+    background: #cbd5e1 !important;
+    background-image:
+        radial-gradient(circle at 11px 11px, #ffffff 8px, transparent 9px) !important;
+    background-repeat: no-repeat !important;
+    border: none !important;
+    border-radius: 9999px !important;
+    cursor: pointer !important;
+    transition: background-color 0.2s ease, background-position 0.2s ease !important;
+    box-shadow: none !important;
+}
+.header-visibility-switch .form-check-input:checked {
+    background-color: #5850ec !important;
+    background-position: 20px 0 !important;
+}
+.header-visibility-switch .form-check-input:focus {
+    box-shadow: 0 0 0 4px rgba(88, 80, 236, 0.18) !important;
+    border: none !important;
+}
