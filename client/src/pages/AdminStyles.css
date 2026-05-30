@@ -15381,14 +15381,14 @@ h1, h2, h3, h4, h5, h6,
     height: 6px !important;
 }
 ::-webkit-scrollbar-track {
-    background: color-mix(in srgb, var(--primary-color) 2%, transparent) !important;
+    background: transparent !important;
 }
 ::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--primary-color) 16%, transparent) !important;
-    border-radius: 99px !important;
+    background: rgba(148, 163, 184, 0.45) !important;
+    border-radius: 999px !important;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-color) !important;
+    background: rgba(100, 116, 139, 0.6) !important;
 }
 
 /* --- 2.1 Header navbar (themed glass) --- */
@@ -15816,4 +15816,59 @@ h1, h2, h3, h4, h5, h6,
 .admin-sidebar-toggle-btn:hover {
     background: rgba(255, 255, 255, 0.08) !important;
     color: #ffffff !important;
+}
+
+/* =====================================================================
+   UNIFIED SCROLLBARS — one thin, light look everywhere in the admin app
+   The [class] selector ties specificity with component .foo::scrollbar rules
+   and wins by order, so all the previously divergent (dark / colored / wide)
+   scrollbars collapse to this single style. Page scrollbar and nav strips /
+   phone preview stay deliberately hidden (re-asserted below).
+   ===================================================================== */
+*,
+[class] {
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent !important;
+}
+[class]::-webkit-scrollbar,
+::-webkit-scrollbar {
+    width: 6px !important;
+    height: 6px !important;
+}
+[class]::-webkit-scrollbar-track,
+::-webkit-scrollbar-track {
+    background: transparent !important;
+}
+[class]::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.45) !important;
+    border: none !important;
+    border-radius: 999px !important;
+}
+[class]::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.6) !important;
+}
+[class]::-webkit-scrollbar-corner,
+::-webkit-scrollbar-corner {
+    background: transparent !important;
+}
+
+/* Keep these deliberately hidden (nav/tab strips, phone simulator).
+   Doubled [class] raises specificity above the unifier so the hide wins. */
+.store-preview-content[class],
+.admin-tabs[class],
+.admin-settings-pill-tabs[class],
+.admin-order-status-tabs[class],
+.admin-product-toolbar-actions[class] {
+    scrollbar-width: none !important;
+}
+.store-preview-content[class]::-webkit-scrollbar,
+.admin-tabs[class]::-webkit-scrollbar,
+.admin-settings-pill-tabs[class]::-webkit-scrollbar,
+.admin-order-status-tabs[class]::-webkit-scrollbar,
+.admin-product-toolbar-actions[class]::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
 }
