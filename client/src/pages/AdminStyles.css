@@ -14894,6 +14894,20 @@ div.form-select.admin-global-import-field {
     .admin-suggest-card__path { font-size: 0.92rem; }
 }
 
+/* Appearance settings inner sub-tabs */
+.admin-appearance-subtabs {
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.admin-appearance-subtabs .nav-link {
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #475569;
+}
+
 /* OLX-style category selector: trigger field + picker modal */
 .admin-category-trigger {
     width: 100%;

@@ -312,7 +312,9 @@ class PrinterManager {
         printAt: new Date().toISOString(),
         trigger,
         shopInfo: {
-          name: shop.name,
+          // When a receipt logo is set it already shows the store name, so we
+          // omit the text name to avoid printing it twice.
+          name: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url) ? '' : shop.name,
           address: shop.address,
           phone: shop.phone,
           logoUrl: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url),
@@ -376,7 +378,9 @@ class PrinterManager {
         },
         items: [],
         shopInfo: {
-          name: shop.name,
+          // When a receipt logo is set it already shows the store name, so we
+          // omit the text name to avoid printing it twice.
+          name: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url) ? '' : shop.name,
           address: shop.address,
           phone: shop.phone,
           logoUrl: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url),
@@ -483,7 +487,9 @@ class PrinterManager {
           printer_alias: i.printer_alias || 'cashier'
         })),
         shopInfo: {
-          name: shop.name,
+          // When a receipt logo is set it already shows the store name, so we
+          // omit the text name to avoid printing it twice.
+          name: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url) ? '' : shop.name,
           address: shop.address,
           phone: shop.phone,
           logoUrl: resolveShopLogoAbsoluteUrl(shop.receipt_logo_url || shop.logo_url),

@@ -2407,6 +2407,7 @@ function AdminDashboard() {
   const [kanbanFilterDraft, setKanbanFilterDraft] = useState(() => ({ ...KANBAN_COLUMN_FILTER_DEFAULT }));
   const [expandedKanbanCardIds, setExpandedKanbanCardIds] = useState({});
   const [appearancePreviewActiveTab, setAppearancePreviewActiveTab] = useState('showcase');
+  const [appearanceSubTab, setAppearanceSubTab] = useState('colors'); // colors | fonts | display | menu
   const [appearancePreviewOpenedProductId, setAppearancePreviewOpenedProductId] = useState(null);
   const [appearancePreviewSelectedCategoryId, setAppearancePreviewSelectedCategoryId] = useState(null);
 
@@ -14809,6 +14810,13 @@ function AdminDashboard() {
                             <div className="admin-appearance-layout">
                               <div className="admin-appearance-settings-column">
                                 <div className="admin-settings-single-column admin-settings-single-column--appearance">
+                              <Nav variant="pills" className="admin-appearance-subtabs mb-3" activeKey={appearanceSubTab} onSelect={(k) => k && setAppearanceSubTab(k)}>
+                                <Nav.Item><Nav.Link eventKey="colors">{language === 'uz' ? 'Fon va ranglar' : 'Фон и цвета'}</Nav.Link></Nav.Item>
+                                <Nav.Item><Nav.Link eventKey="fonts">{language === 'uz' ? 'Shriftlar' : 'Шрифты'}</Nav.Link></Nav.Item>
+                                <Nav.Item><Nav.Link eventKey="display">{language === 'uz' ? "Ko'rinish rejimi" : 'Режим отображения'}</Nav.Link></Nav.Item>
+                                <Nav.Item><Nav.Link eventKey="menu">{language === 'uz' ? 'Menyu' : 'Меню'}</Nav.Link></Nav.Item>
+                              </Nav>
+                              {appearanceSubTab === 'colors' && (<>
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Do'kon interfeysi uslubi" : 'Стиль интерфейса магазина'}</Form.Label>
@@ -14915,6 +14923,8 @@ function AdminDashboard() {
                                 </Form.Group>
                               </div>
 
+                              </>)}
+                              {appearanceSubTab === 'fonts' && (
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Tizim shrifti" : 'Шрифт системы'}</Form.Label>
@@ -14947,6 +14957,8 @@ function AdminDashboard() {
                                 </Form.Group>
                               </div>
 
+                              )}
+                              {appearanceSubTab === 'display' && (<>
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Katalog ko'rinishi rejimi" : 'Режим отображения каталога'}</Form.Label>
@@ -15160,6 +15172,8 @@ function AdminDashboard() {
                                 </Form.Group>
                               </div>
 
+                              </>)}
+                              {appearanceSubTab === 'menu' && (
                               <div className="admin-settings-surface-block">
                                 <Form.Group className="mb-0">
                                   <Form.Label className="small fw-bold text-muted text-uppercase mb-2">{language === 'uz' ? "Menyu uslubi" : 'Стиль меню'}</Form.Label>
@@ -15308,6 +15322,7 @@ function AdminDashboard() {
                                   </Form.Text>
                                 </Form.Group>
                               </div>
+                              )}
                             </div>
 
                             <div className="mt-4 pt-3 border-top text-end admin-appearance-actions">
