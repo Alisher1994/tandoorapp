@@ -14057,16 +14057,40 @@ div.form-select.admin-global-import-field {
 /* Варианты товара — карточный вид (без горизонтальной таблицы) */
 .admin-variants-simple-table-scroll { overflow-x: visible !important; }
 .admin-variant-row.admin-variants-simple-row { padding: 14px 16px; }
+.admin-variant-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.admin-variant-remove-inline-btn {
+    padding: 0 !important;
+    border: 0 !important;
+    color: #ef4444 !important;
+    text-decoration: none !important;
+    font-size: 0.92rem !important;
+    line-height: 1.2 !important;
+}
+.admin-variant-remove-inline-btn:hover,
+.admin-variant-remove-inline-btn:focus-visible { color: #dc2626 !important; text-decoration: underline !important; }
 .admin-variant-row .admin-variant-table-input-row { display: flex !important; flex-wrap: wrap; gap: 12px; margin: 0 !important; }
 .admin-variant-row .admin-variant-table-input-row > .admin-variant-table-col {
     flex: 1 1 200px; max-width: none; width: auto; padding: 0 !important;
 }
-.admin-variant-row .admin-variant-table-col-number {
-    flex: 0 0 100% !important; font-weight: 700; color: #0f172a; margin-bottom: 2px;
-}
-.admin-variant-row .admin-variant-table-col-number .admin-variant-row-number::before { content: "Вариант "; }
+.admin-variant-row .admin-variant-row-number { font-weight: 700; color: #0f172a; }
+.admin-variant-row .admin-variant-col-name { flex: 2 1 360px !important; }
+.admin-variant-row .admin-variant-col-price,
+.admin-variant-row .admin-variant-col-stock,
+.admin-variant-row .admin-variant-col-discount { flex: 1 1 160px !important; }
+.admin-variant-row .admin-variant-col-container,
+.admin-variant-row .admin-variant-col-container-norm,
+.admin-variant-row .admin-variant-col-order-step { flex: 1 1 220px !important; }
 .admin-variant-row .admin-variant-table-col-images { flex: 1 1 100% !important; }
-.admin-variant-row .admin-variant-table-col-action { flex: 0 0 auto !important; align-self: center; }
+.admin-variants-simple-toolbar {
+    margin-top: 8px;
+    margin-bottom: 12px;
+}
+.admin-variant-add-btn {
+    width: 100%;
+    border: 1px dashed rgba(148, 163, 184, 0.48) !important;
+    background: #f8fafc !important;
+    color: #334155 !important;
+}
 
 /* Подписи полей в карточке варианта */
 .admin-variant-field-label { display: block; font-size: 0.72rem; font-weight: 600; color: #64748b; margin-bottom: 4px; }

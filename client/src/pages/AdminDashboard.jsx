@@ -18804,11 +18804,20 @@ function AdminDashboard() {
                                           : false;
                                         return (
                                           <div key={variant.__key || `variant-row-${index}`} className="admin-variant-row admin-variants-simple-row">
+                                            <div className="admin-variant-card-head">
+                                              <span className="admin-variant-row-number">{`${language === 'uz' ? 'Variant' : 'Вариант'} ${index + 1}`}</span>
+                                              <Button
+                                                type="button"
+                                                variant="link"
+                                                className="admin-variant-remove-inline-btn"
+                                                onClick={() => removeProductVariantOption(index)}
+                                                title={language === 'uz' ? "Variantni o'chirish" : 'Удалить вариант'}
+                                              >
+                                                {language === 'uz' ? "o'chirish" : 'удалить'}
+                                              </Button>
+                                            </div>
                                             <Row className={`g-0 align-items-stretch admin-variant-table-input-row ${isKgUnit ? 'is-kg' : 'is-not-kg'}`}>
-                                              <Col xl={1} md={2} className="admin-variant-table-col admin-variant-table-col-number">
-                                                <span className="admin-variant-row-number">{index + 1}</span>
-                                              </Col>
-                                              <Col xl={2} md={6} className="admin-variant-table-col">
+                                              <Col xl={6} md={12} className="admin-variant-table-col admin-variant-col-name">
                                                 <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Variant nomi' : 'Название варианта'}</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18842,7 +18851,7 @@ function AdminDashboard() {
                                                 />
                                               </Col>
                                               )}
-                                              <Col xl={2} md={4} className="admin-variant-table-col">
+                                              <Col xl={3} md={6} className="admin-variant-table-col admin-variant-col-price">
                                                 <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Narxi' : 'Цена'}</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18853,7 +18862,7 @@ function AdminDashboard() {
                                                   placeholder={language === 'uz' ? 'Narxi' : 'Цена'}
                                                 />
                                               </Col>
-                                              <Col xl={2} md={4} className="admin-variant-table-col">
+                                              <Col xl={3} md={6} className="admin-variant-table-col admin-variant-col-discount">
                                                 <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Chegirma narxi' : 'Цена со скидкой'}</Form.Label>
                                                 <Form.Control
                                                   className="form-control-custom"
@@ -18864,7 +18873,7 @@ function AdminDashboard() {
                                                   placeholder={language === 'uz' ? 'Chegirma narxi' : 'Цена со скидкой'}
                                                 />
                                               </Col>
-                                              <Col xl={2} md={4} className="admin-variant-table-col">
+                                              <Col xl={3} md={6} className="admin-variant-table-col admin-variant-col-stock">
                                                 <Form.Label className="admin-variant-field-label">{isInventoryTrackingEnabledForVariants ? (language === 'uz' ? 'Qoldiq' : 'Остаток') : (language === 'uz' ? 'Mavjud' : 'В наличии')}</Form.Label>
                                                 {isInventoryTrackingEnabledForVariants ? (
                                                   <div className="d-flex flex-column w-100">
@@ -18923,7 +18932,7 @@ function AdminDashboard() {
                                                 />
                                               </Col>
                                               )}
-                                              <Col xl={2} md={6} className="admin-variant-table-col">
+                                              <Col xl={4} md={6} className="admin-variant-table-col admin-variant-col-container">
                                                 <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Fasovka' : 'Фасовка'}</Form.Label>
                                                 <Form.Select
                                                   className="form-control-custom"
@@ -18938,7 +18947,7 @@ function AdminDashboard() {
                                                   ))}
                                                 </Form.Select>
                                               </Col>
-                                              <Col xl={1} md={4} className="admin-variant-table-col">
+                                              <Col xl={4} md={6} className="admin-variant-table-col admin-variant-col-container-norm">
                                                 <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Qadoqlash normasi' : 'Норма фасовки'}</Form.Label>
                                                 {variant.container_id ? (
                                                   <Form.Control
@@ -18954,7 +18963,7 @@ function AdminDashboard() {
                                                 )}
                                               </Col>
                                               {isKgUnit && (
-                                                <Col xl={1} md={4} className="admin-variant-table-col">
+                                                <Col xl={4} md={6} className="admin-variant-table-col admin-variant-col-order-step">
                                                   <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Buyurtma qadami' : 'Шаг заказа'}</Form.Label>
                                                   <Form.Control
                                                     className="form-control-custom"
@@ -18966,7 +18975,7 @@ function AdminDashboard() {
                                                   />
                                                 </Col>
                                               )}
-                                              <Col xl={3} md={8} className="admin-variant-table-col admin-variant-table-col-images">
+                                              <Col xl={12} md={12} className="admin-variant-table-col admin-variant-table-col-images">
                                                 <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Foto' : 'Фото варианта'}</Form.Label>
                                                 <div
                                                   className="admin-product-variant-inline-images-shell"
@@ -19086,17 +19095,6 @@ function AdminDashboard() {
                                                     )}
                                                   </div>
                                                 </div>
-                                              </Col>
-                                              <Col xl={1} md={2} className="admin-variant-table-col admin-variant-table-col-actions d-flex justify-content-end">
-                                                <Button
-                                                  type="button"
-                                                  variant="light"
-                                                  className="admin-variant-remove-btn"
-                                                  onClick={() => removeProductVariantOption(index)}
-                                                  title={language === 'uz' ? "Variantni o'chirish" : 'Удалить вариант'}
-                                                >
-                                                  ×
-                                                </Button>
                                               </Col>
                                             </Row>
                                           </div>
