@@ -14917,9 +14917,13 @@ div.form-select.admin-global-import-field {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 11px 14px;
+    /* match the height of the other form controls in the modal */
+    min-height: calc(1.5em + 0.75rem + 2px);
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5;
     border: 1px solid #ced4da;
-    border-radius: 10px;
+    border-radius: 0.375rem;
     background: #fff;
     color: #6c757d;
     text-align: left;
