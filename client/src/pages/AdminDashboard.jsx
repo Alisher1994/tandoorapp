@@ -18728,11 +18728,6 @@ function AdminDashboard() {
                         checked={Boolean(productForm.size_enabled)}
                         onChange={(e) => toggleProductVariantsEnabled(e.target.checked)}
                       />
-                      <div className="small text-muted mt-1">
-                        {language === 'uz'
-                          ? 'Masalan: 0.5 kg / 1 kg yoki hajm. Odatda 2–5 variant.'
-                          : 'Например: 0.5 кг / 1 кг или объём. Норма обычно 2–5 вариантов.'}
-                      </div>
                     </div>
                     {productForm.size_enabled && (
                       <Button
@@ -18746,7 +18741,7 @@ function AdminDashboard() {
                           unit: productForm.unit || 'шт'
                         }).length >= MAX_PRODUCT_SIZE_OPTIONS}
                       >
-                        +
+                        {language === 'uz' ? "Qo'shish" : 'Добавить'}
                       </Button>
                     )}
                   </div>
