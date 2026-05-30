@@ -3951,67 +3951,105 @@ async function loadLeafCategoriesWithPath(restaurantId) {
 // Mode 1 (OLX-like, no generative AI): suggest a category purely from the
 // store's existing products that share name tokens with the typed name.
 // Shared statistical (OLX-like) category match from the store's existing products.
-async function computeStatCategorySuggestion(restaurantId, name, leavesArg = null) {
-  const trimmed = String(name || '').trim();
-  if (!restaurantId || trimmed.length < 2) return null;
-  const tokens = Array.from(new Set(
-    trimmed.toLowerCase()
-      .replace(/[^\p{L}\p{N}]+/gu, ' ')
-      .split(/\s+/)
-      .map((token) => token.trim())
-      .filter((token) => token.length >= 2)
-  )).slice(0, 12);
-  if (!tokens.length) return null;
+const tokenizeProductName = (name) => Array.from(new Set(
+  String(name || '').toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2)
+)).slice(0, 12);
+
+const normalizeCategoryKey = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+// kNN / majority-vote category classifier over product names.
+// Learns from the WHOLE system (all stores) but always returns leaf categories
+// that exist in the CURRENT store:
+//  - products in THIS store vote for their own leaf category id (weight x3);
+//  - products in OTHER stores vote for their category NAME, which is then mapped
+//    to a same-named leaf category in the current store (weight x1).
+// Returns an array of current-store leaf category ids, best match first.
+async function suggestCategoryLeafIds(restaurantId, name, leavesArg = null) {
+  if (!restaurantId) return [];
+  const tokens = tokenizeProductName(name);
+  if (!tokens.length) return [];
 
   const leaves = leavesArg || await loadLeafCategoriesWithPath(restaurantId);
+  if (!leaves.length) return [];
   const leafIds = new Set(leaves.map((c) => c.id));
-  if (!leafIds.size) return null;
+  // current-store leaf categories indexed by normalized name (ru + uz)
+  const leafIdByName = new Map();
+  for (const leaf of leaves) {
+    for (const candidate of [leaf.name_ru, leaf.name_uz]) {
+      const key = normalizeCategoryKey(candidate);
+      if (key && !leafIdByName.has(key)) leafIdByName.set(key, leaf.id);
+    }
+  }
 
   const likeParams = tokens.map((token) => `%${token}%`);
-  const productsResult = await pool.query(
+  const overlapOf = (productName) => {
+    const lower = String(productName || '').toLowerCase();
+    let overlap = 0;
+    for (const token of tokens) if (lower.includes(token)) overlap += 1;
+    return overlap;
+  };
+
+  const scoreByLeafId = new Map();
+  const addScore = (leafId, delta) => {
+    if (!leafId || !leafIds.has(leafId) || delta <= 0) return;
+    scoreByLeafId.set(leafId, (scoreByLeafId.get(leafId) || 0) + delta);
+  };
+
+  // Stage A — this store's own products (strongest signal).
+  const ownResult = await pool.query(
     `SELECT category_id, name_ru, name_uz FROM products
      WHERE restaurant_id = $1 AND category_id IS NOT NULL
        AND (name_ru ILIKE ANY($2) OR name_uz ILIKE ANY($2))
-     LIMIT 800`,
+     LIMIT 1500`,
     [restaurantId, likeParams]
   );
+  for (const product of ownResult.rows) {
+    addScore(Number(product.category_id), overlapOf(`${product.name_ru || ''} ${product.name_uz || ''}`) * 3);
+  }
 
-  const scoreByCategory = new Map();
-  const countByCategory = new Map();
-  for (const product of productsResult.rows) {
-    const cid = Number(product.category_id);
-    if (!leafIds.has(cid)) continue; // only suggest leaf categories
-    const productName = `${product.name_ru || ''} ${product.name_uz || ''}`.toLowerCase();
-    let overlap = 0;
-    for (const token of tokens) {
-      if (productName.includes(token)) overlap += 1;
-    }
+  // Stage B — cross-store learning: how the rest of the system classifies this
+  // product, mapped onto a same-named leaf category of the current store.
+  const crossResult = await pool.query(
+    `SELECT c.name_ru AS cat_ru, c.name_uz AS cat_uz, p.name_ru, p.name_uz
+     FROM products p
+     INNER JOIN categories c ON c.id = p.category_id
+     WHERE p.restaurant_id <> $1 AND p.category_id IS NOT NULL
+       AND (p.name_ru ILIKE ANY($2) OR p.name_uz ILIKE ANY($2))
+     LIMIT 4000`,
+    [restaurantId, likeParams]
+  );
+  for (const row of crossResult.rows) {
+    const overlap = overlapOf(`${row.name_ru || ''} ${row.name_uz || ''}`);
     if (overlap <= 0) continue;
-    scoreByCategory.set(cid, (scoreByCategory.get(cid) || 0) + overlap);
-    countByCategory.set(cid, (countByCategory.get(cid) || 0) + 1);
-  }
-  if (!scoreByCategory.size) return null;
-
-  let bestId = null;
-  let bestScore = -1;
-  let bestCount = -1;
-  for (const [cid, score] of scoreByCategory.entries()) {
-    const count = countByCategory.get(cid) || 0;
-    if (score > bestScore || (score === bestScore && count > bestCount)) {
-      bestScore = score;
-      bestCount = count;
-      bestId = cid;
+    let mappedLeafId = null;
+    for (const candidate of [row.cat_ru, row.cat_uz]) {
+      const key = normalizeCategoryKey(candidate);
+      if (key && leafIdByName.has(key)) { mappedLeafId = leafIdByName.get(key); break; }
     }
+    addScore(mappedLeafId, overlap);
   }
-  return bestId;
+
+  return Array.from(scoreByLeafId.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([leafId]) => leafId);
+}
+
+// Backward-compatible single best id.
+async function computeStatCategorySuggestion(restaurantId, name, leavesArg = null) {
+  const ids = await suggestCategoryLeafIds(restaurantId, name, leavesArg);
+  return ids.length ? ids[0] : null;
 }
 
 router.get('/products/suggest-category', async (req, res) => {
   try {
     const restaurantId = req.user.active_restaurant_id;
     if (!restaurantId) return res.json({ category_id: null });
-    const categoryId = await computeStatCategorySuggestion(restaurantId, req.query.name);
-    return res.json({ category_id: categoryId });
+    const ids = await suggestCategoryLeafIds(restaurantId, req.query.name);
+    return res.json({ category_id: ids.length ? ids[0] : null });
   } catch (error) {
     console.error('Suggest category (stats) error:', error);
     return res.json({ category_id: null });
@@ -4044,11 +4082,17 @@ router.post('/products/suggest-category-ai', async (req, res) => {
       console.warn('AI category suggestion failed, falling back to stats:', aiError?.message || aiError);
     }
     let primaryId = suggestion?.primary_id ?? null;
-    const alternativeId = suggestion?.alternative_id ?? null;
-    // Fallback: when the AI provider chain returns nothing, use the statistical
-    // (existing-products) match so the button still gives a useful result.
-    if (!primaryId) {
-      primaryId = await computeStatCategorySuggestion(restaurantId, `${nameRu} ${nameUz}`.trim(), leaves);
+    let alternativeId = suggestion?.alternative_id ?? null;
+    // Fallback: when the AI provider chain returns nothing (e.g. no API keys),
+    // use the cross-store statistical classifier so the button still gives a
+    // useful result learned from the whole system.
+    if (!primaryId || !alternativeId) {
+      const ranked = await suggestCategoryLeafIds(restaurantId, `${nameRu} ${nameUz}`.trim(), leaves);
+      for (const id of ranked) {
+        if (!primaryId && id !== alternativeId) { primaryId = id; continue; }
+        if (!alternativeId && id !== primaryId) { alternativeId = id; }
+        if (primaryId && alternativeId) break;
+      }
     }
     return res.json({
       primary_id: primaryId,
