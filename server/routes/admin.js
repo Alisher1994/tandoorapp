@@ -4879,6 +4879,31 @@ RETURNING *
   }
 });
 
+// Быстрое ручное переключение наличия товара из списка.
+// Прямое выставление in_stock (manual override) — не пересчитывается по остатку,
+// чтобы переключатель в списке работал в обе стороны при любом режиме склада.
+router.patch('/products/:id/availability', async (req, res) => {
+  try {
+    const productResult = await pool.query('SELECT id, restaurant_id, name_ru FROM products WHERE id = $1', [req.params.id]);
+    if (productResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Товар не найден' });
+    }
+    const product = productResult.rows[0];
+    if (req.user.role !== 'superadmin' && product.restaurant_id !== req.user.active_restaurant_id) {
+      return res.status(403).json({ error: 'Нет доступа к этому товару' });
+    }
+    const nextInStock = normalizeOptionalBoolean(req.body?.in_stock) !== false;
+    const updated = await pool.query(
+      'UPDATE products SET in_stock = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [nextInStock, product.id]
+    );
+    res.json(updated.rows[0]);
+  } catch (error) {
+    console.error('Toggle product availability error:', error);
+    res.status(500).json({ error: 'Ошибка обновления статуса товара' });
+  }
+});
+
 // Удалить товар
 router.delete('/products/:id', async (req, res) => {
   try {

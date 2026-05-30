@@ -8443,52 +8443,27 @@ function AdminDashboard() {
       prev.includes(productId) ? prev : [...prev, productId]
     ));
 
-    try {
-      const productData = {
-        category_id: product.category_id,
-        name_ru: product.name_ru || '',
-        name_uz: product.name_uz || '',
-        description_ru: product.description_ru || '',
-        description_uz: product.description_uz || '',
-        image_url: product.image_url || '',
-        thumb_url: product.thumb_url || '',
-        product_images: normalizeProductImageItems(product.product_images),
-        price: Number(product.price || 0),
-        unit: product.unit || 'шт',
-        order_step: Number.parseFloat(product.order_step) > 0 ? Number.parseFloat(product.order_step) : null,
-        discount_enabled: product.discount_enabled === true,
-        discount_price: Number.isFinite(normalizeProductPriceValue(product.discount_price, NaN))
-          ? normalizeProductPriceValue(product.discount_price, NaN)
-          : null,
-        stock_quantity: Number.isFinite(Number(product.stock_quantity))
-          ? Number(product.stock_quantity)
-          : 0,
-        barcode: product.barcode || '',
-        ikpu: product.ikpu || '',
-        in_stock: nextInStock,
-        sort_order: Number(product.sort_order || 0),
-        container_id: product.container_id || null,
-        container_norm: Math.max(1, Number(product.container_norm) || 1),
-        season_scope: product.season_scope || 'all',
-        is_hidden_catalog: !!product.is_hidden_catalog,
-        size_enabled: product.size_enabled === true,
-        size_options: normalizeProductVariantOptions(product.size_options, {
-          fallbackPrice: normalizeProductPriceValue(product.price, NaN),
-          fallbackIkpu: product.ikpu || '',
-          fallbackContainerId: product.container_id || '',
-          fallbackContainerNorm: product.container_norm,
-          fallbackOrderStep: product.order_step,
-          unit: product.unit || 'шт'
-        })
-      };
+    // Optimistic update so the switch flips immediately both ways.
+    setProducts((prev) => prev.map((item) => (
+      item.id === productId ? { ...item, in_stock: nextInStock } : item
+    )));
 
-      const response = await axios.put(`${API_URL}/admin/products/${productId}`, productData);
+    try {
+      // Dedicated endpoint sets in_stock directly (manual override), so the
+      // toggle works in both directions regardless of inventory tracking.
+      const response = await axios.patch(`${API_URL}/admin/products/${productId}/availability`, {
+        in_stock: nextInStock
+      });
       const updatedProduct = response.data || {};
 
       setProducts((prev) => prev.map((item) => (
         item.id === productId ? { ...item, ...updatedProduct } : item
       )));
     } catch (error) {
+      // Revert optimistic update on failure
+      setProducts((prev) => prev.map((item) => (
+        item.id === productId ? { ...item, in_stock: !nextInStock } : item
+      )));
       console.error('Toggle product stock error:', error);
       setAlertMessage({ type: 'danger', text: error.response?.data?.error || 'Ошибка обновления статуса товара' });
     } finally {
@@ -13277,10 +13252,7 @@ function AdminDashboard() {
                                 id={`mobile-product-stock-${product.id}`}
                                 label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
                                 checked={!product.in_stock}
-                                disabled={
-                                  productStockUpdatingIds.includes(product.id)
-                                  || (Boolean(restaurantSettings?.inventory_tracking_enabled) && product.size_enabled !== true)
-                                }
+                                disabled={productStockUpdatingIds.includes(product.id)}
                                 className="small mb-2 admin-product-mobile-stock-switch"
                                 onChange={(e) => handleProductStockToggle(product, e.target.checked)}
                               />
@@ -13441,7 +13413,7 @@ function AdminDashboard() {
                                 {product.in_stock ? (
                                   <Badge bg="success">В наличии</Badge>
                                 ) : (
-                                  <Badge bg="secondary">Нет в наличии</Badge>
+                                  <Badge bg="danger">Нет в наличии</Badge>
                                 )}
                                 {product.is_hidden_catalog && (
                                   <Badge bg="dark">Скрыт из каталога</Badge>
@@ -13466,10 +13438,7 @@ function AdminDashboard() {
                                   id={`product-stock-${product.id}`}
                                   label={language === 'uz' ? 'Mavjud emas' : 'Нет в наличии'}
                                   checked={!product.in_stock}
-                                  disabled={
-                                    productStockUpdatingIds.includes(product.id)
-                                    || (Boolean(restaurantSettings?.inventory_tracking_enabled) && product.size_enabled !== true)
-                                  }
+                                  disabled={productStockUpdatingIds.includes(product.id)}
                                   className="small mb-0"
                                   onClick={(e) => e.stopPropagation()}
                                   onTouchEnd={(e) => e.stopPropagation()}
