@@ -2395,6 +2395,15 @@ router.put('/restaurant', async (req, res) => {
       [card_bank_account ? String(card_bank_account).trim() : null, Number(restaurantId)]
     ).catch(() => {});
 
+    // Global on/off switch for customer price segmentation (preserves stored prices).
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'segment_pricing_enabled')) {
+      await ensureSegmentSchema();
+      await pool.query(
+        'UPDATE restaurants SET segment_pricing_enabled = $1 WHERE id = $2',
+        [normalizeOptionalBoolean(req.body.segment_pricing_enabled) === true, Number(restaurantId)]
+      ).catch(() => {});
+    }
+
     await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_pickup_enabled BOOLEAN DEFAULT true').catch(() => {});
     const normalizedPickupEnabled = normalizeOptionalBoolean(is_pickup_enabled);
     if (normalizedPickupEnabled !== null) {
@@ -4065,13 +4074,12 @@ RETURNING *
 
     const product = result.rows[0];
 
-    // Persist segment-pricing flag + per-segment overrides
+    // Persist per-segment overrides (only when the editor sent them — i.e. global
+    // segmentation is on). When absent, stored overrides are preserved untouched.
     try {
-      await ensureSegmentSchema();
-      const useSegmentPricing = normalizeOptionalBoolean(req.body.use_segment_pricing) === true;
-      await pool.query(`UPDATE products SET use_segment_pricing = $1 WHERE id = $2`, [useSegmentPricing, product.id]);
-      product.use_segment_pricing = useSegmentPricing;
-      await saveProductSegmentPrices(product.id, restaurantId, useSegmentPricing, req.body.segment_prices);
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, 'segment_prices')) {
+        await saveProductSegmentPrices(product.id, restaurantId, req.body.segment_prices);
+      }
     } catch (segErr) {
       console.error('Save product segment prices error (create):', segErr.message);
     }
@@ -4706,17 +4714,11 @@ RETURNING *
 
     const product = result.rows[0];
 
-    // Persist segment-pricing flag + per-segment overrides (only if provided)
+    // Persist per-segment overrides only when the editor sent them (global
+    // segmentation on). When absent (global off), overrides are left intact.
     try {
-      await ensureSegmentSchema();
-      if (Object.prototype.hasOwnProperty.call(req.body || {}, 'use_segment_pricing')
-        || Object.prototype.hasOwnProperty.call(req.body || {}, 'segment_prices')) {
-        const useSegmentPricing = Object.prototype.hasOwnProperty.call(req.body || {}, 'use_segment_pricing')
-          ? normalizeOptionalBoolean(req.body.use_segment_pricing) === true
-          : (oldProduct.use_segment_pricing === true);
-        await pool.query(`UPDATE products SET use_segment_pricing = $1 WHERE id = $2`, [useSegmentPricing, product.id]);
-        product.use_segment_pricing = useSegmentPricing;
-        await saveProductSegmentPrices(product.id, product.restaurant_id, useSegmentPricing, req.body.segment_prices);
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, 'segment_prices')) {
+        await saveProductSegmentPrices(product.id, product.restaurant_id, req.body.segment_prices);
       }
     } catch (segErr) {
       console.error('Save product segment prices error (update):', segErr.message);

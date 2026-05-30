@@ -946,6 +946,7 @@ const buildRestaurantSettingsSignature = (settings) => {
     minimum_order_amount: normalizeSettingsNumber(settings.minimum_order_amount, 0),
     inventory_tracking_enabled: normalizeSettingsBoolean(settings.inventory_tracking_enabled, false),
     inventory_min_threshold: normalizeSettingsNumber(settings.inventory_min_threshold, 0),
+    segment_pricing_enabled: normalizeSettingsBoolean(settings.segment_pricing_enabled, false),
     is_scheduled_date_delivery_enabled: normalizeSettingsBoolean(settings.is_scheduled_date_delivery_enabled, false),
     scheduled_delivery_max_days: Math.max(1, Math.trunc(normalizeSettingsNumber(settings.scheduled_delivery_max_days, 7))),
     is_asap_delivery_enabled: normalizeSettingsBoolean(settings.is_asap_delivery_enabled, true),
@@ -7858,15 +7859,22 @@ function AdminDashboard() {
         discount_enabled: isVariantsMode ? false : Boolean(effectiveDiscountPrice),
         discount_price: isVariantsMode ? null : effectiveDiscountPrice,
         variant_options: effectiveVariantOptions,
-        size_options: effectiveVariantOptions,
-        use_segment_pricing: !isVariantsMode && Boolean(productForm.use_segment_pricing),
-        segment_prices: isVariantsMode ? [] : Object.entries(productForm.segment_prices || {})
+        size_options: effectiveVariantOptions
+      };
+
+      // Send segment prices only when global segmentation is on (and product has no
+      // variants). When off, omit the key entirely so stored prices are preserved.
+      delete productData.use_segment_pricing;
+      if (Boolean(restaurantSettings?.segment_pricing_enabled) && !isVariantsMode) {
+        productData.segment_prices = Object.entries(productForm.segment_prices || {})
           .map(([segment_id, price]) => ({
             segment_id: Number(segment_id),
             price: Number(String(price ?? '').replace(/\s/g, '').replace(',', '.'))
           }))
-          .filter((e) => Number.isFinite(e.segment_id) && e.segment_id > 0 && Number.isFinite(e.price) && e.price > 0)
-      };
+          .filter((e) => Number.isFinite(e.segment_id) && e.segment_id > 0 && Number.isFinite(e.price) && e.price > 0);
+      } else {
+        delete productData.segment_prices;
+      }
 
       if (selectedProduct) {
         await axios.put(`${API_URL}/admin/products/${selectedProduct.id}`, productData);
@@ -16641,6 +16649,34 @@ function AdminDashboard() {
 
                               <div className="admin-settings-surface-block">
                                 <div className="fw-bold mb-1">
+                                  {language === 'uz' ? 'Narx segmentatsiyasi' : 'Сегментация цен'}
+                                </div>
+                                <div className="small text-muted mb-3">
+                                  {language === 'uz'
+                                    ? "Yoqilganda har bir tovar formasida segmentlar bo'yicha narx kiritish paydo bo'ladi va mijoz o'z segmenti narxini ko'radi. O'chirilganda barchaga bazaviy narx ko'rsatiladi (kiritilgan segment narxlari o'chmaydi)."
+                                    : 'При включении в форме каждого товара появляются поля цен по сегментам, а клиент видит цену своего сегмента. При выключении всем показывается базовая цена (введённые цены сегментов не удаляются).'}
+                                </div>
+                                <Form.Check
+                                  type="switch"
+                                  id="admin-segment-pricing-global-switch"
+                                  label={language === 'uz' ? 'Narx segmentatsiyasidan foydalanish' : 'Использовать сегментацию цен'}
+                                  checked={Boolean(restaurantSettings.segment_pricing_enabled)}
+                                  onChange={(e) => setRestaurantSettings({
+                                    ...restaurantSettings,
+                                    segment_pricing_enabled: e.target.checked
+                                  })}
+                                />
+                                {Boolean(restaurantSettings.segment_pricing_enabled) && segments.length <= 1 && (
+                                  <div className="small text-muted mt-2">
+                                    {language === 'uz'
+                                      ? "Segmentlarni \"Segmentlar\" bo'limida qo'shing."
+                                      : 'Добавьте сегменты в разделе «Сегменты».'}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="admin-settings-surface-block">
+                                <div className="fw-bold mb-1">
                                   {language === 'uz' ? 'Yetkazib berish muddati' : 'Срок доставки заказа'}
                                 </div>
                                 <div className="small text-muted mb-3">
@@ -19571,75 +19607,6 @@ function AdminDashboard() {
                         </div>
                       )}
                     </Form.Group>
-
-                    <Form.Group className="mb-0">
-                      <Form.Label className="d-flex align-items-center justify-content-between gap-2">
-                        <span>{language === 'uz' ? 'Narx segmentatsiyasi' : 'Сегментация цен'}</span>
-                        <Form.Check
-                          type="switch"
-                          id="admin-product-segment-pricing-switch"
-                          checked={Boolean(productForm.use_segment_pricing)}
-                          onChange={(e) => setProductForm((prev) => ({ ...prev, use_segment_pricing: e.target.checked }))}
-                        />
-                      </Form.Label>
-                      {Boolean(productForm.use_segment_pricing) ? (
-                        segments.length <= 1 ? (
-                          <div className="admin-product-discount-note is-muted">
-                            {language === 'uz'
-                              ? "Avval \"Segmentlar\" bo'limida segment qo'shing."
-                              : 'Сначала добавьте сегменты в разделе «Сегменты».'}
-                          </div>
-                        ) : (
-                          <div className="d-flex flex-column gap-2">
-                            {segments.map((seg, index) => {
-                              const isBase = index === 0;
-                              return (
-                                <div key={`prod-seg-price-${seg.id}`} className="d-flex align-items-center gap-2">
-                                  <span className="small text-muted" style={{ minWidth: 120 }}>
-                                    {getSegmentDisplayName(seg)}
-                                  </span>
-                                  {isBase ? (
-                                    <Form.Control
-                                      className="admin-product-compact-field"
-                                      type="text"
-                                      value={formatProductPriceInputValue(productForm.price)}
-                                      disabled
-                                      title={language === 'uz' ? 'Bazaviy narx (товар narxi)' : 'Базовая цена (цена товара)'}
-                                    />
-                                  ) : (
-                                    <Form.Control
-                                      className="admin-product-compact-field"
-                                      type="text"
-                                      inputMode="decimal"
-                                      placeholder={language === 'uz' ? 'Narx (bo\'sh — bazaviy)' : 'Цена (пусто — базовая)'}
-                                      value={formatProductPriceInputValue(productForm.segment_prices?.[seg.id] ?? '')}
-                                      onChange={(e) => {
-                                        const next = sanitizeProductPriceInputValue(e.target.value);
-                                        setProductForm((prev) => ({
-                                          ...prev,
-                                          segment_prices: { ...(prev.segment_prices || {}), [seg.id]: next }
-                                        }));
-                                      }}
-                                    />
-                                  )}
-                                </div>
-                              );
-                            })}
-                            <div className="admin-product-discount-note is-muted">
-                              {language === 'uz'
-                                ? "Segment narxi bo'sh bo'lsa, 1-segment (bazaviy) narxi ishlatiladi."
-                                : 'Если цена сегмента не указана, используется цена Сегмента 1 (базовая).'}
-                            </div>
-                          </div>
-                        )
-                      ) : (
-                        <div className="admin-product-discount-note is-muted">
-                          {language === 'uz'
-                            ? 'Segmentatsiya o\'chirilgan. Barcha mijozlarga yagona narx ko\'rsatiladi.'
-                            : 'Сегментация выключена. Всем клиентам показывается одна цена.'}
-                        </div>
-                      )}
-                    </Form.Group>
                   </>
                 )}
 
@@ -19780,6 +19747,78 @@ function AdminDashboard() {
                   </>
                 )}
               </div>
+
+              {Boolean(restaurantSettings?.segment_pricing_enabled) && !productForm.size_enabled && (
+                <Row>
+                  <Col xs={12}>
+                    <Form.Group className="mb-3">
+                      <Form.Label className="mb-2 fw-semibold">
+                        {language === 'uz' ? 'Segment narxlari' : 'Цены по сегментам'}
+                      </Form.Label>
+                      {segments.length <= 1 ? (
+                        <div className="admin-product-discount-note is-muted">
+                          {language === 'uz'
+                            ? "Avval \"Segmentlar\" bo'limida segment qo'shing."
+                            : 'Сначала добавьте сегменты в разделе «Сегменты».'}
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                              gap: '12px'
+                            }}
+                          >
+                            {segments.map((seg, index) => {
+                              const isBase = index === 0;
+                              return (
+                                <div key={`prod-seg-price-${seg.id}`}>
+                                  <Form.Label
+                                    className="small text-muted mb-1 d-block text-truncate"
+                                    title={getSegmentDisplayName(seg)}
+                                  >
+                                    {getSegmentDisplayName(seg)}
+                                  </Form.Label>
+                                  {isBase ? (
+                                    <Form.Control
+                                      className="admin-product-compact-field"
+                                      type="text"
+                                      value={formatProductPriceInputValue(productForm.price)}
+                                      disabled
+                                      title={language === 'uz' ? 'Bazaviy narx (tovar narxi)' : 'Базовая цена (цена товара)'}
+                                    />
+                                  ) : (
+                                    <Form.Control
+                                      className="admin-product-compact-field"
+                                      type="text"
+                                      inputMode="decimal"
+                                      placeholder={language === 'uz' ? "Bo'sh — bazaviy" : 'Пусто — базовая'}
+                                      value={formatProductPriceInputValue(productForm.segment_prices?.[seg.id] ?? '')}
+                                      onChange={(e) => {
+                                        const next = sanitizeProductPriceInputValue(e.target.value);
+                                        setProductForm((prev) => ({
+                                          ...prev,
+                                          segment_prices: { ...(prev.segment_prices || {}), [seg.id]: next }
+                                        }));
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <Form.Text className="text-muted">
+                            {language === 'uz'
+                              ? "Segment narxi bo'sh bo'lsa, 1-segment (bazaviy) narxi ishlatiladi."
+                              : 'Если цена сегмента не указана, используется цена Сегмента 1 (базовая).'}
+                          </Form.Text>
+                        </>
+                      )}
+                    </Form.Group>
+                  </Col>
+                </Row>
+              )}
 
               {!productForm.size_enabled && (
                 <Row>

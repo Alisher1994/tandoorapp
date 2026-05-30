@@ -648,6 +648,7 @@ async function migrate() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_product_segment_prices_product ON product_segment_prices(product_id)');
     await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS use_segment_pricing BOOLEAN DEFAULT false`).catch(() => {});
     await client.query(`ALTER TABLE user_restaurants ADD COLUMN IF NOT EXISTS segment_id INTEGER REFERENCES customer_segments(id) ON DELETE SET NULL`).catch(() => {});
+    await client.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS segment_pricing_enabled BOOLEAN DEFAULT false`).catch(() => {});
     console.log('✅ Customer segments tables ready');
 
     // =====================================================

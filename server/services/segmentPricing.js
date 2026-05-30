@@ -40,7 +40,20 @@ async function ensureSegmentSchema() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_product_segment_prices_product ON product_segment_prices(product_id)`).catch(() => {});
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS use_segment_pricing BOOLEAN DEFAULT false`).catch(() => {});
   await pool.query(`ALTER TABLE user_restaurants ADD COLUMN IF NOT EXISTS segment_id INTEGER REFERENCES customer_segments(id) ON DELETE SET NULL`).catch(() => {});
+  await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS segment_pricing_enabled BOOLEAN DEFAULT false`).catch(() => {});
   schemaReady = true;
+}
+
+// Global (per-restaurant) on/off switch for segmentation.
+async function isSegmentPricingEnabled(restaurantId) {
+  const rid = toPositiveInt(restaurantId);
+  if (!rid) return false;
+  await ensureSegmentSchema();
+  const r = await pool.query(
+    `SELECT segment_pricing_enabled FROM restaurants WHERE id = $1 LIMIT 1`,
+    [rid]
+  );
+  return r.rows[0]?.segment_pricing_enabled === true;
 }
 
 function toPositiveInt(value) {
@@ -143,10 +156,13 @@ async function resolveCustomerSegmentId(restaurantId, userId) {
 }
 
 // Mutates product rows in-place: replaces `price` with the customer's segment
-// price when the product participates in segmentation and an override exists.
+// price. Gated by the restaurant's GLOBAL segment_pricing_enabled switch — when
+// it is off, prices are never touched (and stored overrides are preserved).
 // Base segment / guests / missing overrides keep the product's own price.
 async function applySegmentPricingToRows(rows, { restaurantId, userId } = {}) {
   if (!Array.isArray(rows) || rows.length === 0) return rows;
+  // Global switch: when off, segmentation is fully disabled (base price everywhere).
+  if (!(await isSegmentPricingEnabled(restaurantId))) return rows;
   const segmentId = await resolveCustomerSegmentId(restaurantId, userId);
   if (!segmentId) return rows; // base / guest -> base prices
   const segInfo = await pool.query(
@@ -166,7 +182,6 @@ async function applySegmentPricingToRows(rows, { restaurantId, userId } = {}) {
   );
   const overrideMap = new Map(overrides.rows.map((o) => [Number(o.product_id), Number(o.price)]));
   for (const row of rows) {
-    if (row?.use_segment_pricing !== true) continue;
     const override = overrideMap.get(Number(row.id));
     if (override === undefined || !(override > 0)) continue; // fallback to base price
     row.price = override;
@@ -191,45 +206,47 @@ async function getProductSegmentPriceMap(productId) {
   return map;
 }
 
-// Persists per-segment overrides for a product. When segmentation is disabled,
-// all overrides are removed.
-async function saveProductSegmentPrices(productId, restaurantId, useSegmentPricing, segmentPrices) {
+// Persists per-segment overrides for a product. Called ONLY when the editor
+// actually sent the segment block (i.e. global segmentation is on), so it never
+// wipes data just because segmentation got disabled globally. Provided segments
+// with a positive price are upserted; provided non-base segments left blank get
+// their override removed. Segments not present in the payload are untouched.
+async function saveProductSegmentPrices(productId, restaurantId, segmentPrices) {
   await ensureSegmentSchema();
   const pid = toPositiveInt(productId);
   const rid = toPositiveInt(restaurantId);
-  if (!pid) return;
-  if (!useSegmentPricing || !rid) {
-    await pool.query(`DELETE FROM product_segment_prices WHERE product_id = $1`, [pid]).catch(() => {});
-    return;
-  }
+  if (!pid || !rid) return;
+  if (!Array.isArray(segmentPrices)) return; // nothing provided -> preserve existing
   const segments = await listSegments(rid);
   const basePosition = segments.length ? Number(segments[0].position) : 1;
   const nonBaseSegmentIds = new Set(
     segments.filter((s) => Number(s.position) !== basePosition).map((s) => Number(s.id))
   );
-  const incoming = Array.isArray(segmentPrices) ? segmentPrices : [];
   const keepIds = [];
-  for (const entry of incoming) {
+  const blankIds = [];
+  for (const entry of segmentPrices) {
     const segId = toPositiveInt(entry?.segment_id);
-    const priceNum = Number(entry?.price);
     if (!segId || !nonBaseSegmentIds.has(segId)) continue;
-    if (!Number.isFinite(priceNum) || priceNum <= 0) continue;
-    await pool.query(
-      `INSERT INTO product_segment_prices (product_id, segment_id, price)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (product_id, segment_id)
-       DO UPDATE SET price = EXCLUDED.price, updated_at = CURRENT_TIMESTAMP`,
-      [pid, segId, priceNum]
-    );
-    keepIds.push(segId);
+    const priceNum = Number(entry?.price);
+    if (Number.isFinite(priceNum) && priceNum > 0) {
+      await pool.query(
+        `INSERT INTO product_segment_prices (product_id, segment_id, price)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (product_id, segment_id)
+         DO UPDATE SET price = EXCLUDED.price, updated_at = CURRENT_TIMESTAMP`,
+        [pid, segId, priceNum]
+      );
+      keepIds.push(segId);
+    } else {
+      blankIds.push(segId);
+    }
   }
-  if (keepIds.length) {
+  // Only remove overrides explicitly blanked in the payload — never bulk-delete.
+  if (blankIds.length) {
     await pool.query(
-      `DELETE FROM product_segment_prices WHERE product_id = $1 AND segment_id <> ALL($2::int[])`,
-      [pid, keepIds]
+      `DELETE FROM product_segment_prices WHERE product_id = $1 AND segment_id = ANY($2::int[])`,
+      [pid, blankIds]
     );
-  } else {
-    await pool.query(`DELETE FROM product_segment_prices WHERE product_id = $1`, [pid]);
   }
 }
 
