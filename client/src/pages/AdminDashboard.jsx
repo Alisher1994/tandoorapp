@@ -62,7 +62,6 @@ import {
   Download,
   FlaskConical,
   Home,
-  Info,
   LayoutGrid,
   MessageCircle,
   Package,
@@ -14301,7 +14300,7 @@ function AdminDashboard() {
                       className="admin-printer-info-btn"
                       aria-label={language === 'uz' ? 'Qanday ishlaydi?' : 'Как это работает?'}
                     >
-                      <Info size={16} />
+                      i
                     </Button>
                   </OverlayTrigger>
                 </div>
@@ -14355,7 +14354,7 @@ function AdminDashboard() {
                                 className="admin-printer-info-btn"
                                 aria-label={language === 'uz' ? 'Maʼlumot' : 'Справка'}
                               >
-                                <Info size={15} />
+                                i
                               </Button>
                             </OverlayTrigger>
                           </div>

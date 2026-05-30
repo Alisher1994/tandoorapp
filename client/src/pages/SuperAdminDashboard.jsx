@@ -14529,7 +14529,7 @@ function SuperAdminDashboard() {
                       }
                       aria-label={language === 'uz' ? "Avto nofaol mezonlari" : 'Критерии авто-неактивных'}
                     >
-                      <i className="bi bi-info-circle" aria-hidden="true" />
+                      i
                     </button>
                   </div>
                   <div className="d-none d-lg-flex align-items-center gap-2">
