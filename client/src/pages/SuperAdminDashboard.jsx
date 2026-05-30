@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronUp,
   Database,
+  DollarSign,
   FileText,
   FolderTree,
   Globe,
@@ -14493,7 +14494,7 @@ function SuperAdminDashboard() {
                                           onClick={() => openTopupModal(r)}
                                           aria-label={language === 'uz' ? 'Balans operatsiyalari' : 'Операции с балансом'}
                                         >
-                                          <i className="bi bi-credit-card-2-front" aria-hidden="true" />
+                                          <DollarSign size={14} aria-hidden="true" />
                                         </button>
                                         <button
                                           type="button"
