@@ -14963,6 +14963,42 @@ div.form-select.admin-global-import-field {
     max-height: 62vh;
 }
 
+/* thin, light scrollbar for the picker columns and search list */
+.admin-category-picker-col,
+.admin-category-picker-search-results {
+    scrollbar-width: thin;
+    scrollbar-color: #e3e6ea transparent;
+}
+
+.admin-category-picker-col::-webkit-scrollbar,
+.admin-category-picker-search-results::-webkit-scrollbar {
+    width: 6px;
+}
+
+.admin-category-picker-col::-webkit-scrollbar-track,
+.admin-category-picker-search-results::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.admin-category-picker-col::-webkit-scrollbar-thumb,
+.admin-category-picker-search-results::-webkit-scrollbar-thumb {
+    background: #e3e6ea;
+    border-radius: 8px;
+}
+
+.admin-category-picker-col::-webkit-scrollbar-thumb:hover,
+.admin-category-picker-search-results::-webkit-scrollbar-thumb:hover {
+    background: #d2d6dc;
+}
+
+/* dark, blurred backdrop while the category picker is open */
+.admin-category-picker-backdrop.show {
+    background: rgba(15, 23, 42, 0.55);
+    opacity: 1;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+}
+
 .admin-category-picker-col:last-child { border-right: none; }
 
 .admin-category-picker-item,

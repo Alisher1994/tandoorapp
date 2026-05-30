@@ -20125,6 +20125,7 @@ function AdminDashboard() {
           size="lg"
           centered
           dialogClassName="admin-category-picker-dialog"
+          backdropClassName="admin-category-picker-backdrop"
         >
           <Modal.Header closeButton>
             <Modal.Title>{language === 'uz' ? 'Kategoriyani tanlang' : 'Выберите категорию'}</Modal.Title>
