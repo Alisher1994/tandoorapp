@@ -6321,7 +6321,7 @@ body::-webkit-scrollbar,
 
 .sa-restaurant-actions-grid {
     display: grid;
-    grid-template-columns: repeat(4, 32px);
+    grid-template-columns: repeat(auto-fill, 32px);
     grid-auto-rows: 32px;
     gap: 6px;
     justify-content: start;
@@ -6341,6 +6341,51 @@ body::-webkit-scrollbar,
 .sa-action-btn-theme:hover,
 .sa-action-btn-theme:focus-visible {
     color: #4338ca !important;
+}
+
+.sa-guvohnoma-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.sa-action-btn-guvohnoma,
+.sa-action-btn-guvohnoma-view {
+    color: #0f766e !important;
+    border: 1px solid #dbe2ea !important;
+    background: #ffffff !important;
+    cursor: pointer;
+    text-decoration: none !important;
+}
+
+.sa-action-btn-guvohnoma.is-uploaded,
+.sa-action-btn-guvohnoma-view {
+    border-color: #99f6e4 !important;
+    background: #f0fdfa !important;
+}
+
+.sa-action-btn-guvohnoma:hover,
+.sa-action-btn-guvohnoma:focus-visible,
+.sa-action-btn-guvohnoma-view:hover,
+.sa-action-btn-guvohnoma-view:focus-visible {
+    color: #0d9488 !important;
+    border-color: #5eead4 !important;
+}
+
+.sa-action-btn-guvohnoma.is-loading {
+    pointer-events: none;
+    opacity: 0.72;
+}
+
+.sa-action-btn-guvohnoma-delete {
+    color: #ef4444 !important;
+}
+
+.sa-action-btn-guvohnoma-delete:hover,
+.sa-action-btn-guvohnoma-delete:focus-visible {
+    color: #dc2626 !important;
 }
 
 .sa-action-btn-access.is-open {

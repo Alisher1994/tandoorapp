@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const sharp = require('sharp');
+const multer = require('multer');
 const axios = require('axios');
 const bcrypt = require('bcryptjs');
 const TelegramBot = require('node-telegram-bot-api');
@@ -129,6 +130,9 @@ const normalizeModeratorPermissions = (value) => {
   return normalized;
 };
 const RESTAURANT_CURRENCY_CODES = new Set(['uz', 'kz', 'tm', 'tj', 'kg', 'af', 'ru', 'us']);
+const GUVOHNOMA_MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const GUVOHNOMA_ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.pdf']);
+const GUVOHNOMA_ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'application/pdf']);
 const RESTAURANT_WORKFLOW_STATUS_VALUES = new Set([
   'new',
   'negotiation',
@@ -168,6 +172,8 @@ let restaurantAdminCommentSchemaReady = false;
 let restaurantAdminCommentSchemaPromise = null;
 let restaurantWorkflowSchemaReady = false;
 let restaurantWorkflowSchemaPromise = null;
+let restaurantGuvohnomaSchemaReady = false;
+let restaurantGuvohnomaSchemaPromise = null;
 let restaurantNamePolicyReady = false;
 let restaurantNamePolicyPromise = null;
 let globalProductsSchemaReady = false;
@@ -227,6 +233,8 @@ const uploadsDir = process.env.UPLOADS_DIR
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
+const guvohnomaUploadsDir = path.join(uploadsDir, 'guvohnoma');
+fs.mkdirSync(guvohnomaUploadsDir, { recursive: true });
 const uploadPublicPrefix = '/uploads/';
 const copyLocalUploadAssetIfPossible = async (rawUrl) => {
   const normalized = String(rawUrl || '').trim();
@@ -3512,6 +3520,75 @@ const parseReservationTemplateFloat = (value, fallback = 0) => {
   if (!Number.isFinite(parsed)) return fallback;
   return parsed;
 };
+const guvohnomaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: GUVOHNOMA_MAX_FILE_SIZE_BYTES },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(String(file.originalname || '')).toLowerCase();
+    const mimeType = String(file.mimetype || '').toLowerCase();
+    const hasTrustedMimeType = GUVOHNOMA_ALLOWED_MIME_TYPES.has(mimeType)
+      || mimeType === 'application/octet-stream'
+      || mimeType === '';
+    if (GUVOHNOMA_ALLOWED_EXTENSIONS.has(ext) && hasTrustedMimeType) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('Гувохнома должна быть файлом JPG, PNG или PDF'), false);
+  }
+});
+const sanitizeGuvohnomaOriginalName = (value) => (
+  String(value || 'guvohnoma')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180) || 'guvohnoma'
+);
+const assertGuvohnomaBufferIsValid = (file) => {
+  const buffer = file?.buffer;
+  if (!Buffer.isBuffer(buffer) || buffer.length < 4) {
+    throw new Error('Файл поврежден или пустой');
+  }
+
+  const ext = path.extname(String(file.originalname || '')).toLowerCase();
+  if (!GUVOHNOMA_ALLOWED_EXTENSIONS.has(ext)) {
+    throw new Error('Гувохнома должна быть файлом JPG, PNG или PDF');
+  }
+
+  if (ext === '.pdf') {
+    if (buffer.slice(0, 4).toString('ascii') !== '%PDF') {
+      throw new Error('Некорректный PDF файл');
+    }
+    return;
+  }
+
+  if (ext === '.png') {
+    const pngSignature = buffer.slice(0, 8);
+    if (
+      pngSignature.length < 8
+      || pngSignature[0] !== 0x89
+      || pngSignature[1] !== 0x50
+      || pngSignature[2] !== 0x4e
+      || pngSignature[3] !== 0x47
+      || pngSignature[4] !== 0x0d
+      || pngSignature[5] !== 0x0a
+      || pngSignature[6] !== 0x1a
+      || pngSignature[7] !== 0x0a
+    ) {
+      throw new Error('Некорректный PNG файл');
+    }
+    return;
+  }
+
+  if (!(buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff)) {
+    throw new Error('Некорректный JPG файл');
+  }
+};
+const buildGuvohnomaFilename = (restaurantId, originalName) => {
+  const ext = path.extname(String(originalName || '')).toLowerCase();
+  const safeExt = GUVOHNOMA_ALLOWED_EXTENSIONS.has(ext) ? ext : '.pdf';
+  const suffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+  return `restaurant-${restaurantId}-${suffix}${safeExt}`;
+};
 const ensureRestaurantCurrencySchema = async () => {
   if (restaurantCurrencySchemaReady) return;
   if (restaurantCurrencySchemaPromise) {
@@ -3590,6 +3667,29 @@ const ensureRestaurantWorkflowStatusSchema = async () => {
     await restaurantWorkflowSchemaPromise;
   } finally {
     restaurantWorkflowSchemaPromise = null;
+  }
+};
+
+const ensureRestaurantGuvohnomaSchema = async () => {
+  if (restaurantGuvohnomaSchemaReady) return;
+  if (restaurantGuvohnomaSchemaPromise) {
+    await restaurantGuvohnomaSchemaPromise;
+    return;
+  }
+
+  restaurantGuvohnomaSchemaPromise = (async () => {
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_file_url TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_file_name TEXT`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_file_mime VARCHAR(120)`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_file_size BIGINT DEFAULT 0`).catch(() => {});
+    await pool.query(`ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS guvohnoma_uploaded_at TIMESTAMP`).catch(() => {});
+    restaurantGuvohnomaSchemaReady = true;
+  })();
+
+  try {
+    await restaurantGuvohnomaSchemaPromise;
+  } finally {
+    restaurantGuvohnomaSchemaPromise = null;
   }
 };
 
@@ -4075,6 +4175,7 @@ router.get('/restaurants', async (req, res) => {
     await ensureRestaurantCurrencySchema();
     await ensureRestaurantAdminCommentSchema();
     await ensureRestaurantWorkflowStatusSchema();
+    await ensureRestaurantGuvohnomaSchema();
     await ensureRestaurantNamePolicy();
     await ensureReservationSchema();
     const parsedPage = Number.parseInt(req.query.page, 10);
@@ -6368,6 +6469,141 @@ router.patch('/restaurants/:id/quick-settings', async (req, res) => {
   }
 });
 
+router.post('/restaurants/:id(\\d+)/guvohnoma', (req, res) => {
+  guvohnomaUpload.single('file')(req, res, async (uploadError) => {
+    if (uploadError) {
+      const isSizeError = uploadError.code === 'LIMIT_FILE_SIZE';
+      return res.status(400).json({
+        error: isSizeError
+          ? 'Файл слишком большой. Максимальный размер: 15 MB'
+          : (uploadError.message || 'Не удалось загрузить гувохнома')
+      });
+    }
+
+    try {
+      await ensureRestaurantGuvohnomaSchema();
+      const restaurantId = Number.parseInt(req.params.id, 10);
+      if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+        return res.status(400).json({ error: 'Некорректный ID магазина' });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: 'Файл не выбран' });
+      }
+
+      assertGuvohnomaBufferIsValid(req.file);
+      const restaurantResult = await pool.query(
+        'SELECT id, guvohnoma_file_url FROM restaurants WHERE id = $1 LIMIT 1',
+        [restaurantId]
+      );
+      if (restaurantResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Магазин не найден' });
+      }
+
+      const filename = buildGuvohnomaFilename(restaurantId, req.file.originalname);
+      const filePath = path.join(guvohnomaUploadsDir, filename);
+      await fs.promises.writeFile(filePath, req.file.buffer);
+
+      const fileUrl = `/uploads/guvohnoma/${filename}`;
+      const originalName = sanitizeGuvohnomaOriginalName(req.file.originalname);
+      const updatedResult = await pool.query(`
+        UPDATE restaurants
+        SET guvohnoma_file_url = $1,
+            guvohnoma_file_name = $2,
+            guvohnoma_file_mime = $3,
+            guvohnoma_file_size = $4,
+            guvohnoma_uploaded_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $5
+        RETURNING
+          id,
+          guvohnoma_file_url,
+          guvohnoma_file_name,
+          guvohnoma_file_mime,
+          guvohnoma_file_size,
+          guvohnoma_uploaded_at
+      `, [
+        fileUrl,
+        originalName,
+        String(req.file.mimetype || '').toLowerCase(),
+        Number(req.file.size || req.file.buffer.length || 0),
+        restaurantId
+      ]);
+
+      const previousUrl = String(restaurantResult.rows[0]?.guvohnoma_file_url || '');
+      if (previousUrl.startsWith('/uploads/guvohnoma/')) {
+        const previousPath = path.join(uploadsDir, previousUrl.replace(/^\/uploads\//, ''));
+        if (previousPath.startsWith(guvohnomaUploadsDir)) {
+          fs.promises.unlink(previousPath).catch(() => {});
+        }
+      }
+
+      return res.json({
+        message: 'Гувохнома загружена',
+        restaurant: updatedResult.rows[0]
+      });
+    } catch (error) {
+      console.error('Restaurant guvohnoma upload error:', error);
+      const message = String(error?.message || '');
+      if (message.includes('Некоррект') || message.includes('поврежден') || message.includes('JPG') || message.includes('PNG') || message.includes('PDF')) {
+        return res.status(400).json({ error: message });
+      }
+      return res.status(500).json({ error: 'Ошибка загрузки гувохнома' });
+    }
+  });
+});
+
+router.delete('/restaurants/:id(\\d+)/guvohnoma', async (req, res) => {
+  try {
+    await ensureRestaurantGuvohnomaSchema();
+    const restaurantId = Number.parseInt(req.params.id, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID магазина' });
+    }
+
+    const currentResult = await pool.query(
+      'SELECT id, guvohnoma_file_url FROM restaurants WHERE id = $1 LIMIT 1',
+      [restaurantId]
+    );
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Магазин не найден' });
+    }
+
+    const updatedResult = await pool.query(`
+      UPDATE restaurants
+      SET guvohnoma_file_url = NULL,
+          guvohnoma_file_name = NULL,
+          guvohnoma_file_mime = NULL,
+          guvohnoma_file_size = 0,
+          guvohnoma_uploaded_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING
+        id,
+        guvohnoma_file_url,
+        guvohnoma_file_name,
+        guvohnoma_file_mime,
+        guvohnoma_file_size,
+        guvohnoma_uploaded_at
+    `, [restaurantId]);
+
+    const previousUrl = String(currentResult.rows[0]?.guvohnoma_file_url || '');
+    if (previousUrl.startsWith('/uploads/guvohnoma/')) {
+      const previousPath = path.join(uploadsDir, previousUrl.replace(/^\/uploads\//, ''));
+      if (previousPath.startsWith(guvohnomaUploadsDir)) {
+        fs.promises.unlink(previousPath).catch(() => {});
+      }
+    }
+
+    res.json({
+      message: 'Гувохнома удалена',
+      restaurant: updatedResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Restaurant guvohnoma delete error:', error);
+    res.status(500).json({ error: 'Ошибка удаления гувохнома' });
+  }
+});
+
 
 // Получить один ресторан
 router.get('/restaurants/:id(\\d+)', async (req, res) => {
@@ -6375,6 +6611,7 @@ router.get('/restaurants/:id(\\d+)', async (req, res) => {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
     await ensureRestaurantWorkflowStatusSchema();
+    await ensureRestaurantGuvohnomaSchema();
     await ensureReservationSchema();
     const result = await pool.query(`
       SELECT r.*,

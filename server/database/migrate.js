@@ -125,7 +125,12 @@ async function migrate() {
       'product_field_description_enabled BOOLEAN DEFAULT true',
       'product_field_season_enabled BOOLEAN DEFAULT true',
       'product_field_barcode_enabled BOOLEAN DEFAULT true',
-      'product_field_ikpu_enabled BOOLEAN DEFAULT true'
+      'product_field_ikpu_enabled BOOLEAN DEFAULT true',
+      'guvohnoma_file_url TEXT',
+      'guvohnoma_file_name TEXT',
+      'guvohnoma_file_mime VARCHAR(120)',
+      'guvohnoma_file_size BIGINT DEFAULT 0',
+      'guvohnoma_uploaded_at TIMESTAMP'
     ];
 
     for (const col of restaurantColumns) {

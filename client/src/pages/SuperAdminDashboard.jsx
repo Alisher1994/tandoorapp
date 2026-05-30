@@ -1937,6 +1937,7 @@ function SuperAdminDashboard() {
   const [restaurantWorkflowUpdatingId, setRestaurantWorkflowUpdatingId] = useState(null);
   const [expandedRestaurantRows, setExpandedRestaurantRows] = useState({});
   const [restaurantInlineToggleLoading, setRestaurantInlineToggleLoading] = useState({});
+  const [restaurantGuvohnomaUploading, setRestaurantGuvohnomaUploading] = useState({});
   const [restaurantOperatorSwitchingId, setRestaurantOperatorSwitchingId] = useState(null);
   const [activeSettingsNavKey, setActiveSettingsNavKey] = useState('categories');
 
@@ -8565,6 +8566,71 @@ function SuperAdminDashboard() {
     }
   };
 
+  const handleRestaurantGuvohnomaUpload = async (restaurant, file) => {
+    const restaurantId = Number.parseInt(restaurant?.id, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0 || !file) return;
+
+    const ext = String(file.name || '').split('.').pop()?.toLowerCase() || '';
+    const allowedExt = ['jpg', 'jpeg', 'png', 'pdf'];
+    const allowedMime = ['image/jpeg', 'image/png', 'application/pdf'];
+    const fileMime = String(file.type || '').toLowerCase();
+    if (!allowedExt.includes(ext) || (fileMime && !allowedMime.includes(fileMime))) {
+      setError('Гувохнома должна быть файлом JPG, JPEG, PNG или PDF');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Файл слишком большой. Максимальный размер: 15 MB');
+      return;
+    }
+
+    setRestaurantGuvohnomaUploading((prev) => ({ ...prev, [restaurantId]: true }));
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post(`${API_URL}/superadmin/restaurants/${restaurantId}/guvohnoma`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const patch = response.data?.restaurant || {};
+      updateRestaurantInlineFlagsInState(restaurantId, patch);
+      setSuccess('Гувохнома загружена');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Ошибка загрузки гувохнома');
+    } finally {
+      setRestaurantGuvohnomaUploading((prev) => {
+        const next = { ...prev };
+        delete next[restaurantId];
+        return next;
+      });
+    }
+  };
+
+  const handleRestaurantGuvohnomaDelete = async (restaurant) => {
+    const restaurantId = Number.parseInt(restaurant?.id, 10);
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) return;
+    if (!window.confirm('Удалить загруженную гувохнома?')) return;
+
+    setRestaurantGuvohnomaUploading((prev) => ({ ...prev, [restaurantId]: true }));
+    try {
+      const response = await axios.delete(`${API_URL}/superadmin/restaurants/${restaurantId}/guvohnoma`);
+      updateRestaurantInlineFlagsInState(restaurantId, response.data?.restaurant || {
+        guvohnoma_file_url: null,
+        guvohnoma_file_name: null,
+        guvohnoma_file_mime: null,
+        guvohnoma_file_size: 0,
+        guvohnoma_uploaded_at: null
+      });
+      setSuccess('Гувохнома удалена');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Ошибка удаления гувохнома');
+    } finally {
+      setRestaurantGuvohnomaUploading((prev) => {
+        const next = { ...prev };
+        delete next[restaurantId];
+        return next;
+      });
+    }
+  };
+
   // Restaurant handlers
   const openRestaurantModal = (restaurant = null) => {
     if (!activityTypes.length) {
@@ -14127,6 +14193,8 @@ function SuperAdminDashboard() {
                             const locationPreviewMapUrl = getRestaurantStaticMapUrl(r);
                             const reservationToggleBusy = Boolean(restaurantInlineToggleLoading[`${r.id}:reservation_enabled`]);
                             const variantsToggleBusy = Boolean(restaurantInlineToggleLoading[`${r.id}:size_variants_enabled`]);
+                            const guvohnomaUrl = resolveAdPreviewImageUrl(r.guvohnoma_file_url || '');
+                            const guvohnomaUploading = Boolean(restaurantGuvohnomaUploading[r.id]);
                           
                             return (
                               <React.Fragment key={r.id}>
@@ -14484,6 +14552,55 @@ function SuperAdminDashboard() {
                                               >
                                                 <MessageSquare className="action-btn-icon" aria-hidden="true" />
                                               </Button>
+                                              <input
+                                                id={`restaurant-guvohnoma-${r.id}`}
+                                                className="sa-guvohnoma-file-input"
+                                                type="file"
+                                                accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                                                onChange={(event) => {
+                                                  const file = event.target.files?.[0];
+                                                  event.target.value = '';
+                                                  if (file) handleRestaurantGuvohnomaUpload(r, file);
+                                                }}
+                                                disabled={guvohnomaUploading}
+                                              />
+                                              <label
+                                                htmlFor={`restaurant-guvohnoma-${r.id}`}
+                                                className={`action-btn sa-action-btn-guvohnoma ${guvohnomaUrl ? 'is-uploaded' : ''} ${guvohnomaUploading ? 'is-loading' : ''}`}
+                                                title={guvohnomaUrl ? 'Заменить гувохнома' : 'Загрузить гувохнома'}
+                                                aria-label={guvohnomaUrl ? 'Заменить гувохнома' : 'Загрузить гувохнома'}
+                                                onClick={(event) => event.stopPropagation()}
+                                              >
+                                                {guvohnomaUploading ? (
+                                                  <Spinner animation="border" size="sm" role="status" aria-hidden="true" />
+                                                ) : (
+                                                  <Upload className="action-btn-icon" aria-hidden="true" />
+                                                )}
+                                              </label>
+                                              {guvohnomaUrl && (
+                                                <a
+                                                  href={guvohnomaUrl}
+                                                  target="_blank"
+                                                  rel="noreferrer noopener"
+                                                  className="action-btn sa-action-btn-guvohnoma-view"
+                                                  title={r.guvohnoma_file_name || 'Открыть гувохнома'}
+                                                  aria-label="Открыть гувохнома"
+                                                  onClick={(event) => event.stopPropagation()}
+                                                >
+                                                  <FileText className="action-btn-icon" aria-hidden="true" />
+                                                </a>
+                                              )}
+                                              {guvohnomaUrl && (
+                                                <Button
+                                                  variant="light"
+                                                  className="action-btn sa-action-btn-guvohnoma-delete"
+                                                  onClick={() => handleRestaurantGuvohnomaDelete(r)}
+                                                  disabled={guvohnomaUploading}
+                                                  title="Удалить гувохнома"
+                                                >
+                                                  <X className="action-btn-icon" aria-hidden="true" />
+                                                </Button>
+                                              )}
                                               <Button
                                                 variant="light"
                                                 className={`action-btn sa-action-btn-access ${r.is_active ? 'is-open' : 'is-closed'}`}
