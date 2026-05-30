@@ -13877,7 +13877,7 @@ function AdminDashboard() {
                     <Table responsive hover className="admin-table mb-0">
                       <thead>
                         <tr>
-                          <th style={{ width: 90 }}>#</th>
+                          <th style={{ width: 90 }}>№</th>
                           <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
                           <th style={{ width: 180 }}>{t('actions')}</th>
                         </tr>
@@ -13887,28 +13887,28 @@ function AdminDashboard() {
                           const isBase = index === 0;
                           return (
                             <tr key={`segment-row-${seg.id}`}>
-                              <td><Badge bg="secondary">{seg.position}</Badge></td>
+                              <td className="text-muted">{seg.position}</td>
                               <td className="fw-semibold">{getSegmentDisplayName(seg)}</td>
                               <td>
-                                <div className="d-flex gap-2">
+                                <Button
+                                  className="action-btn bg-primary bg-opacity-10 text-primary border-0 me-1"
+                                  size="sm"
+                                  onClick={() => openSegmentModal(seg)}
+                                  title={t('edit')}
+                                >
+                                  <EditIcon />
+                                </Button>
+                                {!isBase && (
                                   <Button
-                                    variant="outline-primary"
+                                    className="action-btn bg-danger bg-opacity-10 text-danger border-0"
                                     size="sm"
-                                    onClick={() => openSegmentModal(seg)}
+                                    disabled={segmentSavingId === seg.id}
+                                    onClick={() => handleDeleteSegment(seg.id)}
+                                    title={t('delete')}
                                   >
-                                    {language === 'uz' ? 'Tahrirlash' : 'Изменить'}
+                                    <TrashIcon />
                                   </Button>
-                                  {!isBase && (
-                                    <Button
-                                      variant="outline-danger"
-                                      size="sm"
-                                      disabled={segmentSavingId === seg.id}
-                                      onClick={() => handleDeleteSegment(seg.id)}
-                                    >
-                                      {language === 'uz' ? "O'chirish" : 'Удалить'}
-                                    </Button>
-                                  )}
-                                </div>
+                                )}
                               </td>
                             </tr>
                           );
