@@ -7623,7 +7623,12 @@ function AdminDashboard() {
       const primary = (Number.isInteger(primaryId) && primaryId > 0 && isLeafCategoryId(primaryId)) ? primaryId : null;
       const alternative = (Number.isInteger(altId) && altId > 0 && altId !== primary && isLeafCategoryId(altId)) ? altId : null;
       if (!primary && !alternative) {
-        alert(language === 'uz' ? 'Mos kategoriya topilmadi' : 'Подходящая категория не найдена');
+        const dbg = resp.data?.debug;
+        const serverFound = Number(resp.data?.primary_id) > 0 || Number(resp.data?.alternative_id) > 0;
+        const diag = dbg
+          ? `\n\n[диагностика] магазин:${dbg.restaurantId ?? '?'} токены:${(dbg.tokens || []).join(',') || '—'} листов:${dbg.leafCount ?? '?'} своих_совпадений:${dbg.ownMatches ?? 0} чужих:${dbg.crossMatches ?? 0} серверНашёл:${serverFound ? 'да(отклонено клиентом)' : 'нет'} категорииСвоих:${JSON.stringify(dbg.ownLeafResolved || dbg.ownCategoryIds || [])}`
+          : '';
+        alert((language === 'uz' ? 'Mos kategoriya topilmadi' : 'Подходящая категория не найдена') + diag);
         return;
       }
       setCategoryAiSuggestion({ primary_id: primary, alternative_id: alternative });

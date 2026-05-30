@@ -3968,12 +3968,14 @@ const normalizeCategoryKey = (value) => String(value || '').trim().toLowerCase()
 //  - products in OTHER stores vote for their category NAME, which is then mapped
 //    to a same-named leaf category in the current store (weight x1).
 // Returns an array of current-store leaf category ids, best match first.
-async function suggestCategoryLeafIds(restaurantId, name, leavesArg = null) {
+async function suggestCategoryLeafIds(restaurantId, name, leavesArg = null, debugSink = null) {
   if (!restaurantId) return [];
   const tokens = tokenizeProductName(name);
+  if (debugSink) { debugSink.tokens = tokens; debugSink.restaurantId = restaurantId; }
   if (!tokens.length) return [];
 
   const leaves = leavesArg || await loadLeafCategoriesWithPath(restaurantId);
+  if (debugSink) debugSink.leafCount = leaves.length;
   if (!leaves.length) return [];
   const leafIds = new Set(leaves.map((c) => c.id));
 
@@ -4059,6 +4061,11 @@ async function suggestCategoryLeafIds(restaurantId, name, leavesArg = null) {
   for (const product of ownResult.rows) {
     addCategoryVote(product.category_id, overlapOf(`${product.name_ru || ''} ${product.name_uz || ''}`) * 3);
   }
+  if (debugSink) {
+    debugSink.ownMatches = ownResult.rows.length;
+    debugSink.ownCategoryIds = Array.from(new Set(ownResult.rows.map((r) => Number(r.category_id)))).slice(0, 10);
+    debugSink.ownLeafResolved = debugSink.ownCategoryIds.map((cid) => ({ cat: cid, leaves: resolveToLeafIds(cid) }));
+  }
 
   // Stage B — cross-store learning: how the rest of the system classifies this
   // product, mapped onto a same-named leaf category of the current store.
@@ -4081,6 +4088,8 @@ async function suggestCategoryLeafIds(restaurantId, name, leavesArg = null) {
     }
     addCategoryVote(mappedCatId, overlap);
   }
+
+  if (debugSink) debugSink.crossMatches = crossResult.rows.length;
 
   if (scoreByLeafId.size === 0) {
     // Diagnostic: helps explain "no suggestion" in production logs without
@@ -4151,18 +4160,20 @@ router.post('/products/suggest-category-ai', async (req, res) => {
     // Fallback: when the AI provider chain returns nothing (e.g. no API keys),
     // use the cross-store statistical classifier so the button still gives a
     // useful result learned from the whole system.
+    const debug = { aiPrimary: suggestion?.primary_id ?? null, aiAlt: suggestion?.alternative_id ?? null };
     if (!primaryId || !alternativeId) {
-      const ranked = await suggestCategoryLeafIds(restaurantId, `${nameRu} ${nameUz}`.trim(), leaves);
+      const ranked = await suggestCategoryLeafIds(restaurantId, `${nameRu} ${nameUz}`.trim(), leaves, debug);
       for (const id of ranked) {
         if (!primaryId && id !== alternativeId) { primaryId = id; continue; }
         if (!alternativeId && id !== primaryId) { alternativeId = id; }
         if (primaryId && alternativeId) break;
       }
     }
-    console.log('[suggest-category] AI result', JSON.stringify({ restaurantId, primaryId, alternativeId, aiPrimary: suggestion?.primary_id ?? null, aiAlt: suggestion?.alternative_id ?? null }));
+    console.log('[suggest-category] AI result', JSON.stringify({ restaurantId, primaryId, alternativeId, ...debug }));
     return res.json({
       primary_id: primaryId,
-      alternative_id: alternativeId && alternativeId !== primaryId ? alternativeId : null
+      alternative_id: alternativeId && alternativeId !== primaryId ? alternativeId : null,
+      debug
     });
   } catch (error) {
     console.error('Suggest category (AI) error:', error);
