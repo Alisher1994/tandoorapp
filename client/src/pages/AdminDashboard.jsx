@@ -2178,6 +2178,10 @@ function AdminDashboard() {
   const [categoryAutoSuggestionId, setCategoryAutoSuggestionId] = useState(null);
   const [categoryAiSuggestion, setCategoryAiSuggestion] = useState(null); // { primary_id, alternative_id }
   const [categoryAiLoading, setCategoryAiLoading] = useState(false);
+  // OLX-style category picker modal
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [categoryPickerPath, setCategoryPickerPath] = useState([]); // browse path of category ids
+  const [categoryPickerSearch, setCategoryPickerSearch] = useState('');
   const [isProductSortHintsPopupOpen, setIsProductSortHintsPopupOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
@@ -7601,6 +7605,53 @@ function AdminDashboard() {
     }
     return parts.filter(Boolean).join(' / ');
   };
+  // --- OLX-style category picker helpers ---
+  const getLocalizedCategoryName = (category) => (
+    language === 'uz'
+      ? (category?.name_uz || category?.name_ru || '')
+      : (category?.name_ru || category?.name_uz || '')
+  );
+  const sortCategoriesBySort = (list) => [...list].sort((a, b) => (
+    (Number.isFinite(Number(a?.sort_order)) ? Number(a.sort_order) : 999999)
+    - (Number.isFinite(Number(b?.sort_order)) ? Number(b.sort_order) : 999999)
+  ));
+  const getRootCategories = () => sortCategoriesBySort(categories.filter((c) => !c.parent_id));
+  const getChildCategories = (parentId) => sortCategoriesBySort(
+    categories.filter((c) => Number(c.parent_id) === Number(parentId))
+  );
+  const categoryHasChildren = (id) => categories.some((c) => Number(c.parent_id) === Number(id));
+  const getCategoryAncestorIds = (catId) => {
+    const ids = [];
+    let cur = Number(catId);
+    let guard = 0;
+    const byId = new Map(categories.map((c) => [Number(c.id), c]));
+    while (cur && guard < 12) {
+      const cat = byId.get(cur);
+      if (!cat) break;
+      ids.unshift(Number(cat.id));
+      cur = cat.parent_id ? Number(cat.parent_id) : null;
+      guard += 1;
+    }
+    return ids;
+  };
+  const openCategoryPicker = () => {
+    setCategoryPickerSearch('');
+    setCategoryPickerPath(productForm.category_id ? getCategoryAncestorIds(productForm.category_id) : []);
+    setShowCategoryPicker(true);
+  };
+  const selectCategoryLeaf = (cat) => {
+    setProductForm((prev) => ({ ...prev, category_id: String(Number(cat.id)) }));
+    setCategoryManuallySet(true);
+    setCategoryAutoSuggestionId(null);
+    setShowCategoryPicker(false);
+  };
+  const handlePickCategoryNode = (cat) => {
+    if (categoryHasChildren(cat.id)) {
+      setCategoryPickerPath(getCategoryAncestorIds(cat.id));
+    } else {
+      selectCategoryLeaf(cat);
+    }
+  };
   const applyCategorySuggestion = (catId) => {
     if (!isLeafCategoryId(catId)) return;
     setProductForm((prev) => ({ ...prev, category_id: String(Number(catId)) }));
@@ -7746,6 +7797,11 @@ function AdminDashboard() {
 
   const handleProductSubmit = async (e) => {
     e.preventDefault();
+
+    if (!productForm.category_id) {
+      alert(language === 'uz' ? 'Iltimos, kategoriyani tanlang.' : 'Пожалуйста, выберите категорию.');
+      return;
+    }
 
     if (isTopLevelCategorySelection(productForm.category_id)) {
       alert('Товар нельзя добавлять в категорию 1-го уровня. Выберите субкатегорию.');
@@ -18846,115 +18902,21 @@ function AdminDashboard() {
                   </Form.Group>
                 </Col>
               </Row>
-              {(() => {
-                const getCategoryPathIds = (catId) => {
-                  const path = [];
-                  let currentId = catId;
-                  while (currentId) {
-                    const cat = categories.find(c => c.id === parseInt(currentId));
-                    if (cat) {
-                      path.unshift(cat.id);
-                      currentId = cat.parent_id;
-                    } else {
-                      break;
-                    }
-                  }
-                  return path;
-                };
-                const getLocalizedCategoryName = (category) => (
-                  language === 'uz'
-                    ? (category?.name_uz || category?.name_ru || '')
-                    : (category?.name_ru || category?.name_uz || '')
-                );
-
-                const selectedPathIds = getCategoryPathIds(productForm.category_id);
-                const dropdownsToRender = [];
-                let currentLevelCategories = categories.filter(c => !c.parent_id);
-                let level = 0;
-
-                while (currentLevelCategories.length > 0) {
-                  const selectedIdForThisLevel = selectedPathIds[level] || '';
-                  const isRootLevel = level === 0;
-
-                  const handleSelect = (newVal) => {
-                    // User picked manually -> stop auto Mode-1 suggestions overriding it.
-                    setCategoryManuallySet(true);
-                    setCategoryAutoSuggestionId(null);
-                    if (newVal) {
-                      setProductForm({ ...productForm, category_id: newVal });
-                    } else {
-                      const parentId = level > 0 ? selectedPathIds[level - 1] : '';
-                      setProductForm({ ...productForm, category_id: parentId.toString() });
-                    }
-                  };
-
-                  const selectedCat = currentLevelCategories.find(c => c.id.toString() === selectedIdForThisLevel.toString());
-                  const defaultLabel = isRootLevel ? t('selectCategory') : t('selectSubcategory');
-                  const dropDownLabel = selectedCat ? getLocalizedCategoryName(selectedCat) : defaultLabel;
-
-                  dropdownsToRender.push(
-                    <Col md={6} key={`category-level-${level}`}>
-                      <Form.Group className="mb-3">
-                        <Form.Label>{isRootLevel ? t('categoryRequired') : `${t('subcategoryLevel')} ${level}`}</Form.Label>
-                        <div className="d-flex align-items-center gap-2">
-                          <Dropdown className="flex-grow-1">
-                            <Dropdown.Toggle as={CustomToggle} id={`dropdown-category-level-${level}`}>
-                              {dropDownLabel}
-                            </Dropdown.Toggle>
-
-                            <Dropdown.Menu as={CustomMenu}>
-                              <Dropdown.Item onClick={() => handleSelect('')}>
-                                {defaultLabel}
-                              </Dropdown.Item>
-                              {currentLevelCategories.map(cat => (
-                                <Dropdown.Item
-                                  key={cat.id}
-                                  onClick={() => handleSelect(cat.id.toString())}
-                                  active={selectedIdForThisLevel.toString() === cat.id.toString()}
-                                >
-                                  <span className="text-muted me-2 small">[{cat.sort_order !== null && cat.sort_order !== undefined ? cat.sort_order : '-'}]</span>
-                                  {getLocalizedCategoryName(cat)}
-                                </Dropdown.Item>
-                              ))}
-                            </Dropdown.Menu>
-                          </Dropdown>
-                          {!isRootLevel && selectedIdForThisLevel && (
-                            <Button
-                              variant="outline-secondary"
-                              type="button"
-                              className="admin-product-clear-category-btn"
-                              title="Снять выбор субкатегории"
-                              aria-label="Снять выбор субкатегории"
-                              onClick={() => handleSelect('')}
-                            >
-                              ✕
-                            </Button>
-                          )}
-                        </div>
-                        {/* Hidden input to ensure HTML5 validation still catches required field */}
-                        {isRootLevel && (
-                          <input
-                            type="text"
-                            style={{ display: 'none' }}
-                            required
-                            value={selectedIdForThisLevel}
-                            onChange={() => { }}
-                          />
-                        )}
-                      </Form.Group>
-                    </Col>
-                  );
-
-                  if (selectedIdForThisLevel) {
-                    currentLevelCategories = categories.filter(c => c.parent_id === parseInt(selectedIdForThisLevel));
-                    level++;
-                  } else {
-                    break;
-                  }
-                }
-
-                return <Row>{dropdownsToRender}</Row>;
-              })()}
+              <Form.Group className="mb-3">
+                <Form.Label>{t('categoryRequired')}</Form.Label>
+                <button
+                  type="button"
+                  className={`admin-category-trigger${productForm.category_id ? ' is-filled' : ''}`}
+                  onClick={openCategoryPicker}
+                >
+                  <span className="admin-category-trigger__text">
+                    {productForm.category_id
+                      ? getCategoryPathLabel(productForm.category_id)
+                      : t('selectCategory')}
+                  </span>
+                  <i className="bi bi-chevron-down admin-category-trigger__chevron" aria-hidden="true" />
+                </button>
+              </Form.Group>
               {isTopLevelCategorySelection(productForm.category_id) && (
                 <Alert variant="warning" className="py-2 px-3 small">
                   В категорию 1-го уровня товар добавлять нельзя. Выберите субкатегорию.
@@ -20146,6 +20108,91 @@ function AdminDashboard() {
               </Button>
             </Modal.Footer>
           </Form>
+        </Modal>
+
+        {/* OLX-style Category Picker Modal */}
+        <Modal
+          show={showCategoryPicker}
+          onHide={() => setShowCategoryPicker(false)}
+          size="lg"
+          centered
+          dialogClassName="admin-category-picker-dialog"
+        >
+          <Modal.Header closeButton>
+            <Modal.Title>{language === 'uz' ? 'Kategoriyani tanlang' : 'Выберите категорию'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="admin-category-picker-body">
+            <Form.Control
+              type="text"
+              className="mb-3"
+              placeholder={language === 'uz' ? 'Qidirish' : 'Поиск'}
+              value={categoryPickerSearch}
+              onChange={(e) => setCategoryPickerSearch(e.target.value)}
+              autoFocus
+            />
+            {(() => {
+              const query = categoryPickerSearch.trim().toLowerCase();
+              if (query) {
+                const results = categories
+                  .filter((c) => !categoryHasChildren(c.id))
+                  .filter((c) => {
+                    const name = getLocalizedCategoryName(c).toLowerCase();
+                    const path = getCategoryPathLabel(c.id).toLowerCase();
+                    return name.includes(query) || path.includes(query);
+                  })
+                  .slice(0, 60);
+                if (!results.length) {
+                  return (
+                    <div className="text-muted p-3 text-center">
+                      {language === 'uz' ? 'Hech narsa topilmadi' : 'Ничего не найдено'}
+                    </div>
+                  );
+                }
+                return (
+                  <div className="admin-category-picker-search-results">
+                    {results.map((leaf) => (
+                      <button
+                        key={leaf.id}
+                        type="button"
+                        className="admin-category-picker-search-item"
+                        onClick={() => selectCategoryLeaf(leaf)}
+                      >
+                        <span className="fw-semibold d-block">{getLocalizedCategoryName(leaf)}</span>
+                        <span className="small text-muted d-block">{getCategoryPathLabel(leaf.id)}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              }
+              const columns = [getRootCategories()];
+              categoryPickerPath.forEach((id) => {
+                if (categoryHasChildren(id)) columns.push(getChildCategories(id));
+              });
+              return (
+                <div className="admin-category-picker-columns">
+                  {columns.map((col, colIdx) => (
+                    <div className="admin-category-picker-col" key={`cat-col-${colIdx}`}>
+                      {col.map((cat) => {
+                        const hasKids = categoryHasChildren(cat.id);
+                        const isActive = Number(categoryPickerPath[colIdx]) === Number(cat.id);
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            className={`admin-category-picker-item${isActive ? ' is-active' : ''}`}
+                            onClick={() => handlePickCategoryNode(cat)}
+                          >
+                            <span className="admin-category-picker-item__name">{getLocalizedCategoryName(cat)}</span>
+                            {hasKids && <i className="bi bi-chevron-right" aria-hidden="true" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </Modal.Body>
         </Modal>
 
         {/* Broadcast Modal */}
