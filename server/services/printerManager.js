@@ -122,7 +122,7 @@ function resolveDeliveryScheduleMode(order) {
   return deliveryYmd > todayYmd ? 'date' : 'asap';
 }
 
-function resolveCatalogPublicUrl(restaurantId) {
+function resolvePublicBaseUrl() {
   const baseRaw = String(
     process.env.FRONTEND_URL
       || process.env.WEB_APP_BASE_URL
@@ -132,11 +132,32 @@ function resolveCatalogPublicUrl(restaurantId) {
   ).trim();
   if (!baseRaw) return null;
   const base = baseRaw.replace(/\/api\/?$/i, '').replace(/\/+$/, '');
+  return base || null;
+}
+
+function resolveCatalogPublicUrl(restaurantId) {
+  const base = resolvePublicBaseUrl();
   if (!base) return null;
   return `${base}/catalog?restaurant_id=${encodeURIComponent(String(restaurantId))}`;
 }
 
+// Storefront (витрина) site URL, e.g. https://example.app/<slug>
+function resolveStorefrontPublicUrl(slug) {
+  const normalizedSlug = String(slug || '').trim().toLowerCase();
+  if (!normalizedSlug) return null;
+  const base = resolvePublicBaseUrl();
+  if (!base) return null;
+  return `${base}/${normalizedSlug}`;
+}
+
 async function resolveBotPublicOrderUrl(shop, restaurantId) {
+  // Optional: encode the storefront site URL in the receipt QR instead of the
+  // Telegram bot link. Falls back to the bot link when no storefront slug is set.
+  if (shop?.receipt_qr_use_storefront === true) {
+    const storefrontUrl = resolveStorefrontPublicUrl(shop?.slug);
+    if (storefrontUrl) return storefrontUrl;
+  }
+
   const token = String(shop?.telegram_bot_token || '').trim();
   if (!token) return resolveCatalogPublicUrl(restaurantId);
 

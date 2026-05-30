@@ -62,6 +62,11 @@ async function runPrinterMigrations() {
       ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS receipt_footer_text TEXT;
     `);
 
+    // 5.1 Receipt QR target: use the storefront site URL instead of the bot link
+    await client.query(`
+      ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS receipt_qr_use_storefront BOOLEAN DEFAULT false;
+    `);
+
     console.log('✅ Printer migrations completed');
   } catch (error) {
     console.error('❌ Printer migration error:', error);

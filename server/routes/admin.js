@@ -2404,6 +2404,15 @@ router.put('/restaurant', async (req, res) => {
       ).catch(() => {});
     }
 
+    // Receipt QR target: use the storefront site URL instead of the Telegram bot link.
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'receipt_qr_use_storefront')) {
+      await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS receipt_qr_use_storefront BOOLEAN DEFAULT false').catch(() => {});
+      await pool.query(
+        'UPDATE restaurants SET receipt_qr_use_storefront = $1 WHERE id = $2',
+        [normalizeOptionalBoolean(req.body.receipt_qr_use_storefront) === true, Number(restaurantId)]
+      ).catch(() => {});
+    }
+
     await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_pickup_enabled BOOLEAN DEFAULT true').catch(() => {});
     const normalizedPickupEnabled = normalizeOptionalBoolean(is_pickup_enabled);
     if (normalizedPickupEnabled !== null) {

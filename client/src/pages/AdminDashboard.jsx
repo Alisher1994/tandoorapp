@@ -947,6 +947,7 @@ const buildRestaurantSettingsSignature = (settings) => {
     inventory_tracking_enabled: normalizeSettingsBoolean(settings.inventory_tracking_enabled, false),
     inventory_min_threshold: normalizeSettingsNumber(settings.inventory_min_threshold, 0),
     segment_pricing_enabled: normalizeSettingsBoolean(settings.segment_pricing_enabled, false),
+    receipt_qr_use_storefront: normalizeSettingsBoolean(settings.receipt_qr_use_storefront, false),
     is_scheduled_date_delivery_enabled: normalizeSettingsBoolean(settings.is_scheduled_date_delivery_enabled, false),
     scheduled_delivery_max_days: Math.max(1, Math.trunc(normalizeSettingsNumber(settings.scheduled_delivery_max_days, 7))),
     is_asap_delivery_enabled: normalizeSettingsBoolean(settings.is_asap_delivery_enabled, true),
@@ -14457,6 +14458,33 @@ function AdminDashboard() {
                                               </div>
                                             );
                                           })()}
+                                          <div className="admin-general-qr-link-row mt-2 d-block">
+                                            <Form.Check
+                                              type="switch"
+                                              id="receipt-qr-storefront-switch"
+                                              label={language === 'uz'
+                                                ? "Chek QR-kodida — do'kon sayti havolasi"
+                                                : 'В QR-коде чека — ссылка на сайт магазина'}
+                                              checked={Boolean(restaurantSettings.receipt_qr_use_storefront)}
+                                              onChange={(e) => setRestaurantSettings({
+                                                ...restaurantSettings,
+                                                receipt_qr_use_storefront: e.target.checked
+                                              })}
+                                            />
+                                            <div className="small text-muted mt-1">
+                                              {Boolean(restaurantSettings.receipt_qr_use_storefront)
+                                                ? (String(restaurantSettings.slug || '').trim()
+                                                  ? (language === 'uz'
+                                                    ? "Chekdagi QR do'kon sayti (vitrina)ga yo'naltiradi."
+                                                    : 'QR в чеке ведёт на сайт магазина (витрину).')
+                                                  : (language === 'uz'
+                                                    ? "Avval vitrina manzilini kiriting — aks holda QR botga yo'naltiradi."
+                                                    : 'Сначала укажите адрес витрины — иначе QR будет вести на бота.'))
+                                                : (language === 'uz'
+                                                  ? "O'chiq: chekdagi QR Telegram botga yo'naltiradi (standart)."
+                                                  : 'Выключено: QR в чеке ведёт на Telegram-бота (по умолчанию).')}
+                                            </div>
+                                          </div>
                                         </div>
 
                                       </div>
