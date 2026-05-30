@@ -14847,3 +14847,65 @@ div.form-select.admin-global-import-field {
     .admin-variant-row .admin-variant-col-ikpu,
     .admin-variant-row .admin-variant-table-col-images { grid-column: auto; }
 }
+
+/* OLX-style "suggested category" card under the category selector */
+.admin-suggest-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 100%);
+    border: 1px solid #bbf7d0;
+    box-shadow: 0 1px 2px rgba(16, 185, 129, 0.06);
+}
+
+.admin-suggest-card__icon {
+    flex: 0 0 46px;
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid #d1fae5;
+}
+
+.admin-suggest-card__icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.admin-suggest-card__icon i {
+    color: #059669;
+    font-size: 1.3rem;
+    line-height: 1;
+}
+
+.admin-suggest-card__body {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.admin-suggest-card__label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #059669;
+    margin-bottom: 2px;
+}
+
+.admin-suggest-card__path {
+    font-weight: 700;
+    color: #064e3b;
+    line-height: 1.25;
+    word-break: break-word;
+}
+
+@media (max-width: 576px) {
+    .admin-suggest-card { padding: 9px 11px; gap: 10px; }
+    .admin-suggest-card__icon { flex-basis: 40px; width: 40px; height: 40px; }
+    .admin-suggest-card__path { font-size: 0.92rem; }
+}

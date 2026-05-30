@@ -18962,8 +18962,8 @@ function AdminDashboard() {
               )}
 
               <div className="admin-category-suggest-bar mb-3">
-                <div className="d-flex flex-wrap align-items-center gap-2">
-                  {restaurantSettings?.ai_category_suggest_enabled && (
+                {restaurantSettings?.ai_category_suggest_enabled && (
+                  <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
                     <Button
                       type="button"
                       variant="outline-primary"
@@ -18978,16 +18978,37 @@ function AdminDashboard() {
                         ? <Spinner animation="border" size="sm" />
                         : `✨ ${language === 'uz' ? 'AI: kategoriya tavsiyasi' : 'ИИ: подобрать категорию'}`}
                     </Button>
-                  )}
-                  {!categoryManuallySet
-                    && categoryAutoSuggestionId
-                    && Number(productForm.category_id) === Number(categoryAutoSuggestionId) && (
-                    <span className="small text-success">
-                      {language === 'uz' ? "Tovarlaringiz asosida taklif" : 'Предложено по вашим товарам'}:{' '}
-                      <strong>{getCategoryPathLabel(categoryAutoSuggestionId)}</strong>
-                    </span>
-                  )}
-                </div>
+                  </div>
+                )}
+                {!categoryManuallySet
+                  && categoryAutoSuggestionId
+                  && Number(productForm.category_id) === Number(categoryAutoSuggestionId) && (() => {
+                  const suggCat = categories.find((c) => Number(c.id) === Number(categoryAutoSuggestionId));
+                  const suggImg = toAbsoluteFileUrl(String(
+                    suggCat?.effective_image_url
+                    || suggCat?.custom_image_url
+                    || suggCat?.system_image_url
+                    || suggCat?.image_url
+                    || ''
+                  ).trim());
+                  return (
+                    <div className="admin-suggest-card">
+                      <div className="admin-suggest-card__icon">
+                        {suggImg
+                          ? <img src={suggImg} alt="" />
+                          : <i className="bi bi-stars" aria-hidden="true" />}
+                      </div>
+                      <div className="admin-suggest-card__body">
+                        <div className="admin-suggest-card__label">
+                          {language === 'uz' ? 'Tovarlaringiz bo‘yicha tavsiya' : 'Подобрано по вашим товарам'}
+                        </div>
+                        <div className="admin-suggest-card__path">
+                          {getCategoryPathLabel(categoryAutoSuggestionId)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {categoryAiSuggestion && (categoryAiSuggestion.primary_id || categoryAiSuggestion.alternative_id) && (
                   <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
                     <span className="small text-muted">{language === 'uz' ? 'AI tavsiyasi:' : 'ИИ предлагает:'}</span>
