@@ -14694,40 +14694,17 @@ div.form-select.admin-global-import-field {
 .admin-variant-row .admin-variant-col-name { grid-column: span 4; order: 1; }
 .admin-variant-row .admin-variant-col-description-ru { grid-column: span 4; order: 2; }
 .admin-variant-row .admin-variant-col-description-uz { grid-column: span 4; order: 3; }
-.admin-variant-row .admin-variant-col-price { grid-column: span 2; order: 4; }
-.admin-variant-row .admin-variant-col-discount { grid-column: span 2; order: 5; align-self: start; }
-.admin-variant-row .admin-variant-col-stock { grid-column: span 2; order: 6; }
-.admin-variant-row .admin-variant-col-container { grid-column: span 3; order: 7; }
-.admin-variant-row .admin-variant-col-container-norm { grid-column: span 3; order: 8; }
-.admin-variant-row .admin-variant-col-order-step { grid-column: span 2; order: 9; }
-.admin-variant-row .admin-variant-col-barcode { grid-column: span 3; order: 10; }
-.admin-variant-row .admin-variant-col-ikpu { grid-column: span 3; order: 11; }
+/* 3 fields per row (each spans 4 of 12): keeps Фасовка / Норма фасовки /
+   Шаг заказа together on one line right after the price row. */
+.admin-variant-row .admin-variant-col-price { grid-column: span 4; order: 4; }
+.admin-variant-row .admin-variant-col-discount { grid-column: span 4; order: 5; align-self: start; }
+.admin-variant-row .admin-variant-col-stock { grid-column: span 4; order: 6; }
+.admin-variant-row .admin-variant-col-container { grid-column: span 4; order: 7; }
+.admin-variant-row .admin-variant-col-container-norm { grid-column: span 4; order: 8; }
+.admin-variant-row .admin-variant-col-order-step { grid-column: span 4; order: 9; }
+.admin-variant-row .admin-variant-col-barcode { grid-column: span 4; order: 10; }
+.admin-variant-row .admin-variant-col-ikpu { grid-column: span 4; order: 11; }
 .admin-variant-row .admin-variant-table-col-images { grid-column: 1 / -1; order: 12; }
-.admin-variant-row .admin-variant-table-input-row.is-not-kg .admin-variant-col-container,
-.admin-variant-row .admin-variant-table-input-row.is-not-kg .admin-variant-col-container-norm {
-    grid-column: span 3;
-}
-.admin-variant-row .admin-variant-table-input-row.no-descriptions .admin-variant-col-name {
-    grid-column: span 6;
-}
-.admin-variant-row .admin-variant-table-input-row.no-descriptions .admin-variant-col-price,
-.admin-variant-row .admin-variant-table-input-row.no-descriptions .admin-variant-col-discount,
-.admin-variant-row .admin-variant-table-input-row.no-descriptions .admin-variant-col-stock {
-    grid-column: span 2;
-}
-.admin-variant-row .admin-variant-table-input-row.no-barcode.no-ikpu .admin-variant-col-container,
-.admin-variant-row .admin-variant-table-input-row.no-barcode.no-ikpu .admin-variant-col-container-norm {
-    grid-column: span 4;
-}
-.admin-variant-row .admin-variant-table-input-row.no-descriptions.no-barcode.no-ikpu .admin-variant-col-name {
-    grid-column: span 5;
-}
-.admin-variant-row .admin-variant-table-input-row.no-descriptions.no-barcode.no-ikpu .admin-variant-col-container {
-    grid-column: span 4;
-}
-.admin-variant-row .admin-variant-table-input-row.no-descriptions.no-barcode.no-ikpu .admin-variant-col-container-norm {
-    grid-column: span 4;
-}
 .admin-variants-simple-toolbar {
     display: flex !important;
     align-items: center !important;
@@ -14796,21 +14773,25 @@ div.form-select.admin-global-import-field {
     background: #f8fafc;
 }
 .admin-variant-row .admin-product-variant-inline-images-row {
-    min-height: 42px;
-    gap: 6px;
+    min-height: 96px;
+    gap: 10px;
     align-items: flex-start;
 }
 .admin-variant-row .admin-product-variant-inline-image-item {
-    flex: 0 0 42px;
-    width: 42px;
+    flex: 0 0 92px;
+    width: 92px;
 }
 .admin-variant-row .admin-product-image-dropzone-variant-inline,
 .admin-variant-row .admin-product-variant-inline-add-slot {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
-    min-height: 42px;
-    border-radius: 8px;
+    width: 92px;
+    height: 92px;
+    min-width: 92px;
+    min-height: 92px;
+    border-radius: 10px;
+}
+.admin-variant-row .admin-product-image-slot-variant-inline .admin-product-image-placeholder-graphic {
+    width: 40px;
+    height: 40px;
 }
 .admin-variant-row .admin-product-image-dropzone-variant-inline {
     border-style: dashed;
