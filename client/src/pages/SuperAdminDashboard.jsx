@@ -23764,7 +23764,7 @@ function SuperAdminDashboard() {
               type="text"
               inputMode="numeric"
               className="form-control-custom"
-              placeholder="100000"
+              placeholder="100 000"
               value={formatThousands(topupForm.amount)}
               onChange={handleTopupAmountChange}
             />

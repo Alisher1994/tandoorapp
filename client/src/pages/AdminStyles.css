@@ -3072,8 +3072,8 @@ body::-webkit-scrollbar,
     border-bottom: none;
 }
 
-.admin-balance-modal-compact .modal-dialog {
-    max-width: min(940px, calc(100vw - 20px));
+.admin-balance-modal-redesign .modal-dialog {
+    max-width: min(1040px, calc(100vw - 20px));
 }
 
 .admin-balance-modal-redesign .modal-content {
@@ -3099,6 +3099,7 @@ body::-webkit-scrollbar,
     font-size: 1.05rem;
     font-weight: 500;
     line-height: 1.2;
+    color: #ffffff !important;
 }
 
 .admin-balance-modal-redesign .modal-header .modal-title p {
@@ -3286,7 +3287,7 @@ body::-webkit-scrollbar,
 }
 
 @media (max-width: 767.98px) {
-    .admin-balance-modal-compact .modal-dialog {
+    .admin-balance-modal-redesign .modal-dialog {
         max-width: 100vw;
         margin: 0;
         width: 100%;
