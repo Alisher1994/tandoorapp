@@ -7620,6 +7620,13 @@ function AdminDashboard() {
     categories.filter((c) => Number(c.parent_id) === Number(parentId))
   );
   const categoryHasChildren = (id) => categories.some((c) => Number(c.parent_id) === Number(id));
+  const getCategoryThumb = (cat) => toAbsoluteFileUrl(String(
+    cat?.effective_image_url
+    || cat?.custom_image_url
+    || cat?.system_image_url
+    || cat?.image_url
+    || ''
+  ).trim());
   const getCategoryAncestorIds = (catId) => {
     const ids = [];
     let cur = Number(catId);
@@ -18904,18 +18911,48 @@ function AdminDashboard() {
               </Row>
               <Form.Group className="mb-3">
                 <Form.Label>{t('categoryRequired')}</Form.Label>
-                <button
-                  type="button"
-                  className={`admin-category-trigger${productForm.category_id ? ' is-filled' : ''}`}
-                  onClick={openCategoryPicker}
-                >
-                  <span className="admin-category-trigger__text">
-                    {productForm.category_id
-                      ? getCategoryPathLabel(productForm.category_id)
-                      : t('selectCategory')}
-                  </span>
-                  <i className="bi bi-chevron-down admin-category-trigger__chevron" aria-hidden="true" />
-                </button>
+                {productForm.category_id ? (() => {
+                  const selCat = categories.find((c) => Number(c.id) === Number(productForm.category_id));
+                  const thumb = getCategoryThumb(selCat);
+                  const isAutoSuggested = !categoryManuallySet
+                    && categoryAutoSuggestionId
+                    && Number(productForm.category_id) === Number(categoryAutoSuggestionId);
+                  return (
+                    <div className="admin-suggest-card">
+                      <div className="admin-suggest-card__icon">
+                        {thumb
+                          ? <img src={thumb} alt="" />
+                          : <i className="bi bi-tag" aria-hidden="true" />}
+                      </div>
+                      <div className="admin-suggest-card__body">
+                        <div className="admin-suggest-card__label">
+                          {isAutoSuggested
+                            ? (language === 'uz' ? 'Tovarlaringiz bo‘yicha tavsiya' : 'Подобрано по вашим товарам')
+                            : (language === 'uz' ? 'Tanlangan kategoriya' : 'Категория')}
+                        </div>
+                        <div className="admin-suggest-card__path">
+                          {getCategoryPathLabel(productForm.category_id)}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="admin-suggest-card__edit"
+                        onClick={openCategoryPicker}
+                      >
+                        {language === 'uz' ? "O‘zgartirish" : 'Изменить'}
+                      </button>
+                    </div>
+                  );
+                })() : (
+                  <button
+                    type="button"
+                    className="admin-category-trigger"
+                    onClick={openCategoryPicker}
+                  >
+                    <span className="admin-category-trigger__text">{t('selectCategory')}</span>
+                    <i className="bi bi-chevron-down admin-category-trigger__chevron" aria-hidden="true" />
+                  </button>
+                )}
               </Form.Group>
               {isTopLevelCategorySelection(productForm.category_id) && (
                 <Alert variant="warning" className="py-2 px-3 small">
@@ -18942,35 +18979,6 @@ function AdminDashboard() {
                     </Button>
                   </div>
                 )}
-                {!categoryManuallySet
-                  && categoryAutoSuggestionId
-                  && Number(productForm.category_id) === Number(categoryAutoSuggestionId) && (() => {
-                  const suggCat = categories.find((c) => Number(c.id) === Number(categoryAutoSuggestionId));
-                  const suggImg = toAbsoluteFileUrl(String(
-                    suggCat?.effective_image_url
-                    || suggCat?.custom_image_url
-                    || suggCat?.system_image_url
-                    || suggCat?.image_url
-                    || ''
-                  ).trim());
-                  return (
-                    <div className="admin-suggest-card">
-                      <div className="admin-suggest-card__icon">
-                        {suggImg
-                          ? <img src={suggImg} alt="" />
-                          : <i className="bi bi-stars" aria-hidden="true" />}
-                      </div>
-                      <div className="admin-suggest-card__body">
-                        <div className="admin-suggest-card__label">
-                          {language === 'uz' ? 'Tovarlaringiz bo‘yicha tavsiya' : 'Подобрано по вашим товарам'}
-                        </div>
-                        <div className="admin-suggest-card__path">
-                          {getCategoryPathLabel(categoryAutoSuggestionId)}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
                 {categoryAiSuggestion && (categoryAiSuggestion.primary_id || categoryAiSuggestion.alternative_id) && (
                   <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
                     <span className="small text-muted">{language === 'uz' ? 'AI tavsiyasi:' : 'ИИ предлагает:'}</span>
@@ -20150,17 +20158,27 @@ function AdminDashboard() {
                 }
                 return (
                   <div className="admin-category-picker-search-results">
-                    {results.map((leaf) => (
-                      <button
-                        key={leaf.id}
-                        type="button"
-                        className="admin-category-picker-search-item"
-                        onClick={() => selectCategoryLeaf(leaf)}
-                      >
-                        <span className="fw-semibold d-block">{getLocalizedCategoryName(leaf)}</span>
-                        <span className="small text-muted d-block">{getCategoryPathLabel(leaf.id)}</span>
-                      </button>
-                    ))}
+                    {results.map((leaf) => {
+                      const thumb = getCategoryThumb(leaf);
+                      return (
+                        <button
+                          key={leaf.id}
+                          type="button"
+                          className="admin-category-picker-search-item"
+                          onClick={() => selectCategoryLeaf(leaf)}
+                        >
+                          <span className="admin-category-picker-thumb">
+                            {thumb
+                              ? <img src={thumb} alt="" />
+                              : <i className="bi bi-folder2" aria-hidden="true" />}
+                          </span>
+                          <span className="admin-category-picker-search-item__text">
+                            <span className="fw-semibold d-block">{getLocalizedCategoryName(leaf)}</span>
+                            <span className="small text-muted d-block">{getCategoryPathLabel(leaf.id)}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 );
               }
@@ -20175,6 +20193,7 @@ function AdminDashboard() {
                       {col.map((cat) => {
                         const hasKids = categoryHasChildren(cat.id);
                         const isActive = Number(categoryPickerPath[colIdx]) === Number(cat.id);
+                        const thumb = getCategoryThumb(cat);
                         return (
                           <button
                             key={cat.id}
@@ -20182,8 +20201,13 @@ function AdminDashboard() {
                             className={`admin-category-picker-item${isActive ? ' is-active' : ''}`}
                             onClick={() => handlePickCategoryNode(cat)}
                           >
+                            <span className="admin-category-picker-thumb">
+                              {thumb
+                                ? <img src={thumb} alt="" />
+                                : <i className="bi bi-folder2" aria-hidden="true" />}
+                            </span>
                             <span className="admin-category-picker-item__name">{getLocalizedCategoryName(cat)}</span>
-                            {hasKids && <i className="bi bi-chevron-right" aria-hidden="true" />}
+                            {hasKids && <i className="bi bi-chevron-right admin-category-picker-item__chevron" aria-hidden="true" />}
                           </button>
                         );
                       })}
