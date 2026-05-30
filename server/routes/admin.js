@@ -3921,9 +3921,12 @@ router.post('/products/description-preview', async (req, res) => {
 
 // Build leaf categories (products are only allowed in leaves) with a localized full path.
 async function loadLeafCategoriesWithPath(restaurantId) {
+  // Categories are a shared catalog: the /categories dropdown does NOT filter by
+  // restaurant_id (they mostly belong to a single default restaurant), so the
+  // classifier must use the SAME active set the client sees — otherwise a
+  // per-store filter returns 0 rows and no suggestion is ever produced.
   const result = await pool.query(
-    `SELECT id, parent_id, name_ru, name_uz FROM categories WHERE restaurant_id = $1`,
-    [restaurantId]
+    `SELECT id, parent_id, name_ru, name_uz FROM categories WHERE is_active = true`
   );
   const rows = result.rows || [];
   const byId = new Map(rows.map((c) => [Number(c.id), c]));
@@ -3979,13 +3982,12 @@ async function suggestCategoryLeafIds(restaurantId, name, leavesArg = null, debu
   if (!leaves.length) return [];
   const leafIds = new Set(leaves.map((c) => c.id));
 
-  // Load the FULL category tree so a vote can be resolved to a leaf even when
-  // the voted category is no longer a leaf (e.g. sub-categories were added under
-  // it after products were assigned). Without this, those votes are silently
-  // dropped and an identical existing product yields no suggestion.
+  // Load the FULL (shared) category tree so a vote can be resolved to a leaf even
+  // when the voted category is no longer a leaf (e.g. sub-categories were added
+  // under it after products were assigned). Uses the same active, store-agnostic
+  // set as the /categories dropdown — a per-store filter returns 0 rows here.
   const allCatsResult = await pool.query(
-    `SELECT id, parent_id, name_ru, name_uz FROM categories WHERE restaurant_id = $1`,
-    [restaurantId]
+    `SELECT id, parent_id, name_ru, name_uz FROM categories WHERE is_active = true`
   );
   const childrenOf = new Map();
   for (const c of allCatsResult.rows) {
@@ -4144,7 +4146,7 @@ router.post('/products/suggest-category-ai', async (req, res) => {
       return res.status(400).json({ error: 'Введите название товара' });
     }
     const leaves = await loadLeafCategoriesWithPath(restaurantId);
-    if (!leaves.length) return res.json({ primary_id: null, alternative_id: null });
+    if (!leaves.length) return res.json({ primary_id: null, alternative_id: null, debug: { leafCount: 0, reason: 'no-leaves' } });
     let suggestion = null;
     try {
       suggestion = await suggestProductCategoryWithAI({
