@@ -18783,6 +18783,9 @@ function AdminDashboard() {
                             unit: productForm.unit || 'шт'
                           });
                           const isInventoryTrackingEnabledForVariants = Boolean(restaurantSettings?.inventory_tracking_enabled);
+                          const isVariantDescriptionEnabled = restaurantSettings?.product_field_description_enabled !== false;
+                          const isVariantBarcodeEnabled = restaurantSettings?.product_field_barcode_enabled !== false;
+                          const isVariantIkpuEnabled = restaurantSettings?.product_field_ikpu_enabled !== false;
                           const inventoryThresholdForVariants = Math.max(0, Number.parseFloat(restaurantSettings?.inventory_min_threshold) || 0);
                           return (
                             <div className="admin-variants-simple-body">
@@ -18798,6 +18801,13 @@ function AdminDashboard() {
                                         const variantInStockByQty = Number.isFinite(parsedVariantStock)
                                           ? parsedVariantStock > inventoryThresholdForVariants
                                           : false;
+                                        const variantRowClasses = [
+                                          'admin-variant-table-input-row',
+                                          isKgUnit ? 'is-kg' : 'is-not-kg',
+                                          isVariantDescriptionEnabled ? 'has-descriptions' : 'no-descriptions',
+                                          isVariantBarcodeEnabled ? 'has-barcode' : 'no-barcode',
+                                          isVariantIkpuEnabled ? 'has-ikpu' : 'no-ikpu'
+                                        ].join(' ');
                                         return (
                                           <div key={variant.__key || `variant-row-${index}`} className="admin-variant-row admin-variants-simple-row">
                                             <div className="admin-variant-card-head">
@@ -18812,7 +18822,7 @@ function AdminDashboard() {
                                                 {language === 'uz' ? "o'chirish" : 'удалить'}
                                               </Button>
                                             </div>
-                                            <Row className={`g-0 align-items-stretch admin-variant-table-input-row ${isKgUnit ? 'is-kg' : 'is-not-kg'}`}>
+                                            <Row className={`g-0 align-items-stretch ${variantRowClasses}`}>
                                               <Col xl={6} md={12} className="admin-variant-table-col admin-variant-col-name">
                                                 <Form.Label className="admin-variant-field-label">{language === 'uz' ? 'Variant nomi' : 'Название варианта'}</Form.Label>
                                                 <Form.Control

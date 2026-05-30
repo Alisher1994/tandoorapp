@@ -14170,6 +14170,27 @@ div.form-select.admin-global-import-field {
 .admin-variant-row .admin-variant-table-input-row.is-not-kg .admin-variant-col-container-norm {
     grid-column: span 3;
 }
+.admin-variant-row .admin-variant-table-input-row.no-descriptions .admin-variant-col-name {
+    grid-column: span 6;
+}
+.admin-variant-row .admin-variant-table-input-row.no-descriptions .admin-variant-col-price,
+.admin-variant-row .admin-variant-table-input-row.no-descriptions .admin-variant-col-discount,
+.admin-variant-row .admin-variant-table-input-row.no-descriptions .admin-variant-col-stock {
+    grid-column: span 2;
+}
+.admin-variant-row .admin-variant-table-input-row.no-barcode.no-ikpu .admin-variant-col-container,
+.admin-variant-row .admin-variant-table-input-row.no-barcode.no-ikpu .admin-variant-col-container-norm {
+    grid-column: span 4;
+}
+.admin-variant-row .admin-variant-table-input-row.no-descriptions.no-barcode.no-ikpu .admin-variant-col-name {
+    grid-column: span 5;
+}
+.admin-variant-row .admin-variant-table-input-row.no-descriptions.no-barcode.no-ikpu .admin-variant-col-container {
+    grid-column: span 4;
+}
+.admin-variant-row .admin-variant-table-input-row.no-descriptions.no-barcode.no-ikpu .admin-variant-col-container-norm {
+    grid-column: span 4;
+}
 .admin-variants-simple-toolbar {
     display: flex !important;
     align-items: center !important;
