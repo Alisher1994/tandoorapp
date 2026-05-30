@@ -14459,6 +14459,44 @@ div.form-select.admin-global-import-field {
     color: #166534 !important;
 }
 
+/* Subtle (i) info trigger used next to printer section titles */
+.admin-printer-info-btn {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+    color: #94a3b8 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    box-shadow: none !important;
+    transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.admin-printer-info-btn:hover,
+.admin-printer-info-btn:focus-visible,
+.admin-printer-info-btn[aria-describedby] {
+    background: #eef2ff !important;
+    color: #4f46e5 !important;
+}
+
+.admin-printer-hint-popover {
+    max-width: 320px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+
+.admin-printer-hint-popover .popover-body {
+    color: #475569;
+}
+
+.admin-printer-hint-popover--wide {
+    max-width: 360px;
+}
+
 .admin-stock-import-modal {
     max-width: min(1680px, 97vw) !important;
 }

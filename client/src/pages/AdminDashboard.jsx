@@ -62,6 +62,7 @@ import {
   Download,
   FlaskConical,
   Home,
+  Info,
   LayoutGrid,
   MessageCircle,
   Package,
@@ -14050,7 +14051,37 @@ function AdminDashboard() {
               </Tab>
 
               <Tab eventKey="printers" title={renderAdminSidebarTabTitle('printers')}>
-                <h5 className="mb-3">{language === 'uz' ? 'Printerlar boshqaruvi' : '🖨️ Управление принтерами'}</h5>
+                <div className="d-flex align-items-center gap-2 mb-3">
+                  <h5 className="mb-0">{language === 'uz' ? 'Printerlar boshqaruvi' : '🖨️ Управление принтерами'}</h5>
+                  <OverlayTrigger
+                    trigger="click"
+                    rootClose
+                    placement="bottom-start"
+                    overlay={(
+                      <Popover id="admin-printer-howto-hint" className="admin-printer-hint-popover admin-printer-hint-popover--wide">
+                        <Popover.Header as="div" className="small fw-semibold">
+                          {language === 'uz' ? 'Qanday ishlaydi?' : '📖 Как это работает?'}
+                        </Popover.Header>
+                        <Popover.Body className="small mb-0">
+                          <ol className="ps-3 mb-0">
+                            <li className="mb-2">{language === 'uz' ? "«+» orqali agent qo‘shing. Tizim token yaratadi." : 'Через кнопку «+» добавьте агента. Система создаст уникальный Token.'}</li>
+                            <li className="mb-2">{language === 'uz' ? "Talablar Printer dasturini yuklab oling va tokenni operator kompyuteriga kiriting." : 'Скачайте Talablar Printer и вставьте Token на компьютере оператора.'}</li>
+                            <li className="mb-2">{language === 'uz' ? "Printerni qo‘shing va «Проверка принтера» tugmasi bilan test chekni chiqaring." : 'Добавьте принтер и нажмите «Проверка принтера» для тестового чека.'}</li>
+                            <li>{language === 'uz' ? "Agent ulanganda auto-test chek (logo + muvaffaqiyat matni) chiqadi." : 'При подключении агента автоматически печатается тест-чек (лого + текст успешного подключения).'}</li>
+                          </ol>
+                        </Popover.Body>
+                      </Popover>
+                    )}
+                  >
+                    <Button
+                      type="button"
+                      className="admin-printer-info-btn"
+                      aria-label={language === 'uz' ? 'Qanday ishlaydi?' : 'Как это работает?'}
+                    >
+                      <Info size={16} />
+                    </Button>
+                  </OverlayTrigger>
+                </div>
                 <div className="admin-settings-pill-tabs" role="tablist" aria-label={language === 'uz' ? 'Printer boʻlimlari' : 'Разделы принтеров'}>
                   {[
                     { key: 'settings', icon: '🖨️', label: language === 'uz' ? 'Printer sozlamalari' : 'Настройки принтера' },
@@ -14078,9 +14109,33 @@ function AdminDashboard() {
                     <Card className="admin-printer-panel h-100">
                       <Card.Body className="p-3 p-xl-4">
                         <div className="admin-printer-panel-head">
-                          <h6 className="mb-0">
-                            {language === 'uz' ? 'Agentlar (tokenlar)' : 'Токены агентов'}
-                          </h6>
+                          <div className="d-flex align-items-center gap-1">
+                            <h6 className="mb-0">
+                              {language === 'uz' ? 'Agentlar (tokenlar)' : 'Токены агентов'}
+                            </h6>
+                            <OverlayTrigger
+                              trigger="click"
+                              rootClose
+                              placement="bottom-start"
+                              overlay={(
+                                <Popover id="admin-printer-agent-hint" className="admin-printer-hint-popover">
+                                  <Popover.Body className="small mb-0">
+                                    {language === 'uz'
+                                      ? "Agent — bu printerga ulangan operator kompyuteri. Tokenni nusxalab, operator kompyuteridagi Talablar Printer dasturiga qo'ying."
+                                      : 'Агент — это компьютер оператора, к которому подключен принтер. Скопируйте токен и вставьте его в Talablar Printer на компьютере оператора.'}
+                                  </Popover.Body>
+                                </Popover>
+                              )}
+                            >
+                              <Button
+                                type="button"
+                                className="admin-printer-info-btn"
+                                aria-label={language === 'uz' ? 'Maʼlumot' : 'Справка'}
+                              >
+                                <Info size={15} />
+                              </Button>
+                            </OverlayTrigger>
+                          </div>
                           <div className="d-flex gap-2">
                             <Button
                               type="button"
@@ -14103,12 +14158,6 @@ function AdminDashboard() {
                             </Button>
                           </div>
                         </div>
-
-                        <Alert className="admin-printer-note mb-3">
-                          {language === 'uz'
-                            ? "Agent — bu printerga ulangan kompyuter. Token orqali Talablar Printer dasturini ishga tushiradi."
-                            : 'Агент — это компьютер оператора, к которому подключен принтер. Скопируйте токен и вставьте его в Talablar Printer на компьютере оператора.'}
-                        </Alert>
 
                         {printerAgents.length === 0 ? (
                           <div className="text-muted text-center py-4">
@@ -14292,17 +14341,6 @@ function AdminDashboard() {
                   </Col>
                 </Row>
 
-                <Card className="admin-printer-panel">
-                  <Card.Body className="p-3 p-xl-4">
-                    <h6 className="mb-3">{language === 'uz' ? "Qanday ishlaydi?" : '📖 Как это работает?'}</h6>
-                    <ol className="small text-muted mb-0">
-                      <li className="mb-2">{language === 'uz' ? "«+» orqali agent qo‘shing. Tizim token yaratadi." : 'Через кнопку «+» добавьте агента. Система создаст уникальный Token.'}</li>
-                      <li className="mb-2">{language === 'uz' ? "Talablar Printer dasturini yuklab oling va tokenni operator kompyuteriga kiriting." : 'Скачайте Talablar Printer и вставьте Token на компьютере оператора.'}</li>
-                      <li className="mb-2">{language === 'uz' ? "Printerni qo‘shing va «Проверка принтера» tugmasi bilan test chekni chiqaring." : 'Добавьте принтер и нажмите «Проверка принтера» для тестового чека.'}</li>
-                      <li>{language === 'uz' ? "Agent ulanganda auto-test chek (logo + muvaffaqiyat matni) chiqadi." : 'При подключении агента автоматически печатается тест-чек (лого + текст успешного подключения).'}</li>
-                    </ol>
-                  </Card.Body>
-                </Card>
                 </>)}
 
                 {printerSubTab === 'drivers' && (
