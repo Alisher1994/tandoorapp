@@ -2197,6 +2197,11 @@ function AdminDashboard() {
   ));
   const [productContainerLabelWordIndex, setProductContainerLabelWordIndex] = useState(0);
   const [isGeneratingProductLocalizedText, setIsGeneratingProductLocalizedText] = useState(false);
+  // Category suggestion: Mode 1 (auto, OLX-like) + Mode 2 (AI button)
+  const [categoryManuallySet, setCategoryManuallySet] = useState(false);
+  const [categoryAutoSuggestionId, setCategoryAutoSuggestionId] = useState(null);
+  const [categoryAiSuggestion, setCategoryAiSuggestion] = useState(null); // { primary_id, alternative_id }
+  const [categoryAiLoading, setCategoryAiLoading] = useState(false);
   const [isProductSortHintsPopupOpen, setIsProductSortHintsPopupOpen] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingRestaurantLogo, setUploadingRestaurantLogo] = useState(false);
@@ -6970,6 +6975,12 @@ function AdminDashboard() {
     }
     setIsGeneratingProductLocalizedText(false);
     setProductContainerLabelWordIndex(0);
+    // Reset category suggestions. In edit mode the product already has a category,
+    // so treat it as manually set (don't auto-override it while typing).
+    setCategoryManuallySet(Boolean(product));
+    setCategoryAutoSuggestionId(null);
+    setCategoryAiSuggestion(null);
+    setCategoryAiLoading(false);
     setProductFormTab('main');
     setShowProductModal(true);
   };
@@ -7591,6 +7602,91 @@ function AdminDashboard() {
       };
     });
   };
+  // ---- Category suggestion helpers (Mode 1 statistical + Mode 2 AI) ----
+  const isLeafCategoryId = (catId) => {
+    const id = Number(catId);
+    if (!Number.isInteger(id) || id <= 0) return false;
+    if (!categories.some((c) => Number(c.id) === id)) return false;
+    return !categories.some((c) => Number(c.parent_id) === id);
+  };
+  const getCategoryPathLabel = (catId) => {
+    const byId = new Map(categories.map((c) => [Number(c.id), c]));
+    const parts = [];
+    let current = byId.get(Number(catId));
+    let guard = 0;
+    while (current && guard < 12) {
+      parts.unshift(language === 'uz'
+        ? (current.name_uz || current.name_ru || '')
+        : (current.name_ru || current.name_uz || ''));
+      current = current.parent_id ? byId.get(Number(current.parent_id)) : null;
+      guard += 1;
+    }
+    return parts.filter(Boolean).join(' / ');
+  };
+  const applyCategorySuggestion = (catId) => {
+    if (!isLeafCategoryId(catId)) return;
+    setProductForm((prev) => ({ ...prev, category_id: String(Number(catId)) }));
+    setCategoryManuallySet(true); // accepting a suggestion is a deliberate choice
+    setCategoryAiSuggestion(null);
+    setCategoryAutoSuggestionId(null);
+  };
+  const handleSuggestCategoryAi = async () => {
+    const nameRu = String(productForm.name_ru || '').trim();
+    const nameUz = String(productForm.name_uz || '').trim();
+    if (!nameRu && !nameUz) {
+      alert(language === 'uz' ? "Avval tovar nomini kiriting" : 'Сначала введите название товара');
+      return;
+    }
+    setCategoryAiLoading(true);
+    setCategoryAiSuggestion(null);
+    try {
+      const resp = await axios.post(`${API_URL}/admin/products/suggest-category-ai`, { name_ru: nameRu, name_uz: nameUz });
+      const primaryId = Number(resp.data?.primary_id);
+      const altId = Number(resp.data?.alternative_id);
+      const primary = (Number.isInteger(primaryId) && primaryId > 0 && isLeafCategoryId(primaryId)) ? primaryId : null;
+      const alternative = (Number.isInteger(altId) && altId > 0 && altId !== primary && isLeafCategoryId(altId)) ? altId : null;
+      if (!primary && !alternative) {
+        alert(language === 'uz' ? 'Mos kategoriya topilmadi' : 'Подходящая категория не найдена');
+        return;
+      }
+      setCategoryAiSuggestion({ primary_id: primary, alternative_id: alternative });
+    } catch (error) {
+      alert(error.response?.data?.error || (language === 'uz' ? 'ИИ-подсказка не удалась' : 'Не удалось получить ИИ-подсказку категории'));
+    } finally {
+      setCategoryAiLoading(false);
+    }
+  };
+
+  // Mode 1: auto-suggest a category from existing products while the user types
+  // the name (OLX-like, no generative AI). Stops once the user picks manually.
+  useEffect(() => {
+    if (!showProductModal || categoryManuallySet) return undefined;
+    const nameRu = String(productForm.name_ru || '').trim();
+    const nameUz = String(productForm.name_uz || '').trim();
+    const query = `${nameRu} ${nameUz}`.trim();
+    if (query.length < 2) {
+      setCategoryAutoSuggestionId(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const resp = await axios.get(`${API_URL}/admin/products/suggest-category`, { params: { name: query } });
+        if (cancelled) return;
+        const suggestedId = Number(resp.data?.category_id);
+        if (Number.isInteger(suggestedId) && suggestedId > 0 && isLeafCategoryId(suggestedId)) {
+          setCategoryAutoSuggestionId(suggestedId);
+          setProductForm((prev) => ({ ...prev, category_id: String(suggestedId) }));
+        } else {
+          setCategoryAutoSuggestionId(null);
+        }
+      } catch (error) {
+        // best-effort suggestion; ignore failures
+      }
+    }, 450);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [showProductModal, categoryManuallySet, productForm.name_ru, productForm.name_uz]);
+
   const handleGenerateProductLocalizedText = async () => {
     const sourceNameRu = String(productForm.name_ru || '').trim();
     const sourceNameUz = String(productForm.name_uz || '').trim();
@@ -18774,6 +18870,9 @@ function AdminDashboard() {
                   const isRootLevel = level === 0;
 
                   const handleSelect = (newVal) => {
+                    // User picked manually -> stop auto Mode-1 suggestions overriding it.
+                    setCategoryManuallySet(true);
+                    setCategoryAutoSuggestionId(null);
                     if (newVal) {
                       setProductForm({ ...productForm, category_id: newVal });
                     } else {
@@ -18854,6 +18953,58 @@ function AdminDashboard() {
                   В категорию 1-го уровня товар добавлять нельзя. Выберите субкатегорию.
                 </Alert>
               )}
+
+              <div className="admin-category-suggest-bar mb-3">
+                <div className="d-flex flex-wrap align-items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={handleSuggestCategoryAi}
+                    disabled={categoryAiLoading}
+                    title={language === 'uz'
+                      ? 'AI yordamida kategoriyani aniqlash'
+                      : 'Подобрать категорию с помощью ИИ'}
+                  >
+                    {categoryAiLoading
+                      ? <Spinner animation="border" size="sm" />
+                      : `✨ ${language === 'uz' ? 'AI: kategoriya tavsiyasi' : 'ИИ: подобрать категорию'}`}
+                  </Button>
+                  {!categoryManuallySet
+                    && categoryAutoSuggestionId
+                    && Number(productForm.category_id) === Number(categoryAutoSuggestionId) && (
+                    <span className="small text-success">
+                      {language === 'uz' ? "Tovarlaringiz asosida taklif" : 'Предложено по вашим товарам'}:{' '}
+                      <strong>{getCategoryPathLabel(categoryAutoSuggestionId)}</strong>
+                    </span>
+                  )}
+                </div>
+                {categoryAiSuggestion && (categoryAiSuggestion.primary_id || categoryAiSuggestion.alternative_id) && (
+                  <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
+                    <span className="small text-muted">{language === 'uz' ? 'AI tavsiyasi:' : 'ИИ предлагает:'}</span>
+                    {categoryAiSuggestion.primary_id && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="primary"
+                        onClick={() => applyCategorySuggestion(categoryAiSuggestion.primary_id)}
+                      >
+                        {getCategoryPathLabel(categoryAiSuggestion.primary_id)}
+                      </Button>
+                    )}
+                    {categoryAiSuggestion.alternative_id && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline-secondary"
+                        onClick={() => applyCategorySuggestion(categoryAiSuggestion.alternative_id)}
+                      >
+                        {language === 'uz' ? 'Muqobil' : 'Альтернатива'}: {getCategoryPathLabel(categoryAiSuggestion.alternative_id)}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <Row className="g-3">
                 <Col md={6}>

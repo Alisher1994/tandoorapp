@@ -66,6 +66,7 @@ const superadminRoutes = require('./superadmin');
 
 const router = express.Router();
 const generateGlobalProductLocalizedText = superadminRoutes.generateGlobalProductLocalizedText;
+const suggestProductCategoryWithAI = superadminRoutes.suggestProductCategoryWithAI;
 const normalizeOrderStatus = (status) => status === 'in_progress' ? 'preparing' : status;
 const normalizeCategoryName = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 const CATEGORY_SORT_ORDER_MIN = 0;
@@ -3915,6 +3916,130 @@ router.post('/products/description-preview', async (req, res) => {
     res.status(isValidationError ? 400 : 500).json({
       error: isValidationError ? message : 'Не удалось сгенерировать название и описание товара'
     });
+  }
+});
+
+// Build leaf categories (products are only allowed in leaves) with a localized full path.
+async function loadLeafCategoriesWithPath(restaurantId) {
+  const result = await pool.query(
+    `SELECT id, parent_id, name_ru, name_uz FROM categories WHERE restaurant_id = $1`,
+    [restaurantId]
+  );
+  const rows = result.rows || [];
+  const byId = new Map(rows.map((c) => [Number(c.id), c]));
+  const hasChild = new Set();
+  for (const c of rows) {
+    if (c.parent_id) hasChild.add(Number(c.parent_id));
+  }
+  const localizedName = (c) => String(c?.name_ru || c?.name_uz || '').trim() || `#${c?.id}`;
+  const pathFor = (c) => {
+    const parts = [];
+    let current = c;
+    let guard = 0;
+    while (current && guard < 12) {
+      parts.unshift(localizedName(current));
+      current = current.parent_id ? byId.get(Number(current.parent_id)) : null;
+      guard += 1;
+    }
+    return parts.join(' / ');
+  };
+  return rows
+    .filter((c) => !hasChild.has(Number(c.id)))
+    .map((c) => ({ id: Number(c.id), name_ru: c.name_ru, name_uz: c.name_uz, path: pathFor(c) }));
+}
+
+// Mode 1 (OLX-like, no generative AI): suggest a category purely from the
+// store's existing products that share name tokens with the typed name.
+router.get('/products/suggest-category', async (req, res) => {
+  try {
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.json({ category_id: null });
+    const name = String(req.query.name || '').trim();
+    if (name.length < 2) return res.json({ category_id: null });
+
+    const tokens = Array.from(new Set(
+      name.toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 2)
+    )).slice(0, 12);
+    if (!tokens.length) return res.json({ category_id: null });
+
+    const leaves = await loadLeafCategoriesWithPath(restaurantId);
+    const leafIds = new Set(leaves.map((c) => c.id));
+    if (!leafIds.size) return res.json({ category_id: null });
+
+    const likeParams = tokens.map((token) => `%${token}%`);
+    const productsResult = await pool.query(
+      `SELECT category_id, name_ru, name_uz FROM products
+       WHERE restaurant_id = $1 AND category_id IS NOT NULL
+         AND (name_ru ILIKE ANY($2) OR name_uz ILIKE ANY($2))
+       LIMIT 800`,
+      [restaurantId, likeParams]
+    );
+
+    const scoreByCategory = new Map();
+    const countByCategory = new Map();
+    for (const product of productsResult.rows) {
+      const cid = Number(product.category_id);
+      if (!leafIds.has(cid)) continue; // only suggest leaf categories
+      const productName = `${product.name_ru || ''} ${product.name_uz || ''}`.toLowerCase();
+      let overlap = 0;
+      for (const token of tokens) {
+        if (productName.includes(token)) overlap += 1;
+      }
+      if (overlap <= 0) continue;
+      scoreByCategory.set(cid, (scoreByCategory.get(cid) || 0) + overlap);
+      countByCategory.set(cid, (countByCategory.get(cid) || 0) + 1);
+    }
+    if (!scoreByCategory.size) return res.json({ category_id: null });
+
+    let bestId = null;
+    let bestScore = -1;
+    let bestCount = -1;
+    for (const [cid, score] of scoreByCategory.entries()) {
+      const count = countByCategory.get(cid) || 0;
+      if (score > bestScore || (score === bestScore && count > bestCount)) {
+        bestScore = score;
+        bestCount = count;
+        bestId = cid;
+      }
+    }
+    return res.json({ category_id: bestId });
+  } catch (error) {
+    console.error('Suggest category (stats) error:', error);
+    return res.json({ category_id: null });
+  }
+});
+
+// Mode 2 (AI): smarter suggestion using the generative provider chain.
+router.post('/products/suggest-category-ai', async (req, res) => {
+  try {
+    if (typeof suggestProductCategoryWithAI !== 'function') {
+      return res.status(503).json({ error: 'AI-подсказка категории временно недоступна' });
+    }
+    const restaurantId = req.user.active_restaurant_id;
+    if (!restaurantId) return res.status(400).json({ error: 'Выберите магазин' });
+    const nameRu = toOptionalTrimmedText(req.body?.name_ru).slice(0, 255);
+    const nameUz = toOptionalTrimmedText(req.body?.name_uz).slice(0, 255);
+    if (!nameRu && !nameUz) {
+      return res.status(400).json({ error: 'Введите название товара' });
+    }
+    const leaves = await loadLeafCategoriesWithPath(restaurantId);
+    if (!leaves.length) return res.json({ primary_id: null, alternative_id: null });
+    const suggestion = await suggestProductCategoryWithAI({
+      nameRu,
+      nameUz,
+      categories: leaves.map((c) => ({ id: c.id, path: c.path }))
+    });
+    return res.json({
+      primary_id: suggestion?.primary_id ?? null,
+      alternative_id: suggestion?.alternative_id ?? null
+    });
+  } catch (error) {
+    console.error('Suggest category (AI) error:', error);
+    return res.status(500).json({ error: 'Не удалось получить ИИ-подсказку категории' });
   }
 });
 

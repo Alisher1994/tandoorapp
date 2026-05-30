@@ -2509,6 +2509,53 @@ const generateGlobalProductLocalizedText = async ({ nameRu, nameUz, variants = [
   }
 };
 
+// Mode 2 (AI): pick the best matching leaf category for a product name.
+// Reuses the same provider fallback chain as the description generator.
+// `categories` is an array of { id, path } (path = localized full category path).
+const suggestProductCategoryWithAI = async ({ nameRu, nameUz, categories = [] }) => {
+  const normalizedRu = normalizeCatalogText(nameRu, 255);
+  const normalizedUz = normalizeCatalogText(nameUz, 255);
+  const list = (Array.isArray(categories) ? categories : [])
+    .filter((c) => c && Number.isFinite(Number(c.id)) && String(c.path || '').trim())
+    .slice(0, 300);
+  if ((!normalizedRu && !normalizedUz) || list.length === 0) return null;
+
+  const allowedIds = new Set(list.map((c) => Number(c.id)));
+  const prompt = [
+    'Ты ассистент каталога товаров интернет-магазина.',
+    'Задача: по названию товара выбрать наиболее подходящую категорию ТОЛЬКО из списка ниже.',
+    'Учитывай смысл товара, бренд, назначение, рынок и контекст.',
+    'Верни строго валидный JSON без markdown и комментариев по схеме:',
+    '{"primary_id": <number>, "alternative_id": <number|null>}',
+    'primary_id — id самой точной категории из списка.',
+    'alternative_id — id второй по близости категории из списка (или null, если нет).',
+    'Используй только id из списка. Не придумывай новые id.',
+    `Название товара (RU): "${normalizedRu || ''}"`,
+    `Название товара (UZ): "${normalizedUz || ''}"`,
+    'Список категорий (формат "id: путь"):',
+    list.map((c) => `${Number(c.id)}: ${String(c.path).slice(0, 200)}`).join('\n')
+  ].join('\n');
+
+  let result = null;
+  try { result = await generateGlobalProductTextWithGemini(prompt, { expectJson: true }); } catch (e) { /* fallback below */ }
+  if (!result?.text) { try { result = await generateGlobalProductTextWithOpenAI(prompt, { expectJson: true }); } catch (e) { /* fallback */ } }
+  if (!result?.text) { try { result = await generateGlobalProductTextWithOpenRouter(prompt, { expectJson: true }); } catch (e) { /* fallback */ } }
+  if (!result?.text) { try { result = await generateGlobalProductTextWithPollinations(prompt, { expectJson: true }); } catch (e) { /* fallback */ } }
+  if (!result?.text) return null;
+
+  const parsed = extractFirstJsonObject(result.text);
+  if (!parsed || typeof parsed !== 'object') return null;
+  const toAllowedId = (raw) => {
+    const id = Number.parseInt(raw, 10);
+    return Number.isInteger(id) && allowedIds.has(id) ? id : null;
+  };
+  const primaryId = toAllowedId(parsed.primary_id ?? parsed.primaryId ?? parsed.category_id);
+  let alternativeId = toAllowedId(parsed.alternative_id ?? parsed.alternativeId);
+  if (alternativeId && alternativeId === primaryId) alternativeId = null;
+  if (!primaryId && !alternativeId) return null;
+  return { primary_id: primaryId, alternative_id: alternativeId };
+};
+
 const generateGlobalProductImageWithPollinations = async (prompt, { runtimeOverride = null } = {}) => {
   const runtime = runtimeOverride || await resolvePollinationsRuntimeConfig();
   const negativePrompt = [
@@ -12928,5 +12975,6 @@ router.get('/sessions/login-attempts', async (req, res) => {
 
 module.exports = router;
 module.exports.generateGlobalProductLocalizedText = generateGlobalProductLocalizedText;
+module.exports.suggestProductCategoryWithAI = suggestProductCategoryWithAI;
 
 
