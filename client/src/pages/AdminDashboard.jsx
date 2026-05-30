@@ -18195,45 +18195,41 @@ function AdminDashboard() {
                 <div className="animate-fade-in">
                   <Row className="g-3">
                     <Col md={6}>
-                      <div className="p-3 rounded-3 bg-white border border-light shadow-sm h-100 admin-balance-info-card">
+                      <div className="p-3 rounded-3 bg-white border border-light shadow-sm h-100 admin-balance-info-card d-flex flex-column">
                         <div className="d-flex align-items-center gap-2 mb-3">
                           <span className="fs-5">💳</span>
                           <h6 className="mb-0 small admin-balance-info-title">{t('bankCard')}</h6>
                         </div>
 
-                        {/* Plastic card visual */}
-                        <div className="admin-pay-card">
-                          <div className="admin-pay-card-top">
-                            <span className="admin-pay-card-chip" aria-hidden="true" />
-                            <span className="admin-pay-card-brand">{language === 'uz' ? 'BANK KARTASI' : 'БАНКОВСКАЯ КАРТА'}</span>
+                        {/* Plastic card visual, centered vertically + horizontally */}
+                        <div className="flex-grow-1 d-flex align-items-center justify-content-center">
+                          <div className="admin-pay-card">
+                            <div className="admin-pay-card-top">
+                              <span className="admin-pay-card-chip" aria-hidden="true" />
+                              <span className="admin-pay-card-brand">{language === 'uz' ? 'BANK KARTASI' : 'БАНКОВСКАЯ КАРТА'}</span>
+                            </div>
+                            <div className="admin-pay-card-number-row">
+                              <span className="admin-pay-card-number">{formatCardNumberMasked(billingInfo.requisites?.card_number) || '—'}</span>
+                              {billingInfo.requisites?.card_number && (
+                                <button
+                                  type="button"
+                                  className="admin-pay-card-copy"
+                                  title={language === 'uz' ? 'Nusxalash' : 'Копировать'}
+                                  aria-label={language === 'uz' ? 'Karta raqamini nusxalash' : 'Скопировать номер карты'}
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(billingInfo.requisites.card_number);
+                                    setSuccess('Скопировано');
+                                  }}
+                                >
+                                  <CopyIcon />
+                                </button>
+                              )}
+                            </div>
+                            <div className="admin-pay-card-bottom">
+                              <span className="admin-pay-card-holder-label">{t('cardHolder')}</span>
+                              <span className="admin-pay-card-holder">{billingInfo.requisites?.card_holder || '—'}</span>
+                            </div>
                           </div>
-                          <div className="admin-pay-card-number-row">
-                            <span className="admin-pay-card-number">{formatCardNumberMasked(billingInfo.requisites?.card_number) || '—'}</span>
-                            {billingInfo.requisites?.card_number && (
-                              <button
-                                type="button"
-                                className="admin-pay-card-copy"
-                                title={language === 'uz' ? 'Nusxalash' : 'Копировать'}
-                                aria-label={language === 'uz' ? 'Karta raqamini nusxalash' : 'Скопировать номер карты'}
-                                onClick={() => {
-                                  navigator.clipboard.writeText(billingInfo.requisites.card_number);
-                                  setSuccess('Скопировано');
-                                }}
-                              >
-                                <CopyIcon />
-                              </button>
-                            )}
-                          </div>
-                          <div className="admin-pay-card-bottom">
-                            <span className="admin-pay-card-holder-label">{t('cardHolder')}</span>
-                            <span className="admin-pay-card-holder">{billingInfo.requisites?.card_holder || '—'}</span>
-                          </div>
-                        </div>
-
-                        {/* Phone shown separately (a real card has no phone on it) */}
-                        <div className="mt-3">
-                          <label className="text-muted extra-small mb-1 d-block admin-balance-info-label">{t('phoneNumber')}</label>
-                          <div className="admin-balance-info-value">{billingInfo.requisites?.phone_number || '—'}</div>
                         </div>
                       </div>
                     </Col>
@@ -18245,22 +18241,31 @@ function AdminDashboard() {
                           <h6 className="mb-0 small admin-balance-info-title">{t('supportTitle')}</h6>
                         </div>
 
-                        <div className="mb-3">
-                          <label className="text-muted extra-small mb-2 d-block admin-balance-info-label">Telegram</label>
-                          <div className="p-2 bg-light rounded-3 border">
-                            {billingInfo.requisites?.telegram_username ? (
-                              <a
-                                href={`https://t.me/${billingInfo.requisites.telegram_username.replace('@', '')}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-info text-decoration-none d-flex align-items-center gap-2 admin-balance-telegram-link"
-                              >
-                                <span>@{billingInfo.requisites.telegram_username.replace('@', '')}</span>
-                                <span className="small">↗️</span>
-                              </a>
-                            ) : <span className="text-muted">—</span>}
-                          </div>
-                        </div>
+                        {/* Telegram + phone in one row */}
+                        <Row className="g-2 mb-3">
+                          <Col xs={12} sm={6}>
+                            <label className="text-muted extra-small mb-2 d-block admin-balance-info-label">Telegram</label>
+                            <div className="p-2 bg-light rounded-3 border">
+                              {billingInfo.requisites?.telegram_username ? (
+                                <a
+                                  href={`https://t.me/${billingInfo.requisites.telegram_username.replace('@', '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-info text-decoration-none d-flex align-items-center gap-2 admin-balance-telegram-link"
+                                >
+                                  <span>@{billingInfo.requisites.telegram_username.replace('@', '')}</span>
+                                  <span className="small">↗️</span>
+                                </a>
+                              ) : <span className="text-muted">—</span>}
+                            </div>
+                          </Col>
+                          <Col xs={12} sm={6}>
+                            <label className="text-muted extra-small mb-2 d-block admin-balance-info-label">{t('phoneNumber')}</label>
+                            <div className="p-2 bg-light rounded-3 border admin-balance-info-value">
+                              {billingInfo.requisites?.phone_number || '—'}
+                            </div>
+                          </Col>
+                        </Row>
 
                         <div className="d-flex flex-column gap-2">
                           <div className="p-2 bg-light rounded-3 border d-flex align-items-center justify-content-between gap-2">
