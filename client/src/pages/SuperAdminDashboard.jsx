@@ -71,6 +71,8 @@ import {
   TableSkeleton
 } from '../components/SkeletonUI';
 import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
+import SearchableSelect from '../components/SearchableSelect';
+import FieldInfo from '../components/FieldInfo';
 import HeaderGlowBackground from '../components/HeaderGlowBackground';
 import {
   getLeafletTileLayerConfig,
@@ -22099,9 +22101,6 @@ function SuperAdminDashboard() {
                       <option value="square">Квадратный</option>
                       <option value="horizontal">Горизонтальный</option>
                     </Form.Select>
-                    <Form.Text className="text-muted mt-2 d-block">
-                      Управляет отображением логотипа у клиентов в шапке магазина.
-                    </Form.Text>
                   </Form.Group>
 
                   <Row>
@@ -22134,20 +22133,19 @@ function SuperAdminDashboard() {
 
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-medium text-secondary">Вид деятельности магазина</Form.Label>
-                    <Form.Select
+                    <SearchableSelect
                       value={restaurantForm.activity_type_id || ''}
-                      onChange={(e) => setRestaurantForm({ ...restaurantForm, activity_type_id: e.target.value })}
-                    >
-                      <option value="">Не выбран</option>
-                      {restaurantActivityTypeOptions.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}{item.is_visible === false ? ' (скрыт)' : ''}
-                        </option>
-                      ))}
-                    </Form.Select>
-                    <Form.Text className="text-muted d-block mt-1">
-                      Используется в дальнейшем для классификации магазина и выбора в боте.
-                    </Form.Text>
+                      onChange={(v) => setRestaurantForm({ ...restaurantForm, activity_type_id: v })}
+                      placeholder="Не выбран"
+                      searchPlaceholder="Поиск вида деятельности..."
+                      options={[
+                        { value: '', label: 'Не выбран' },
+                        ...restaurantActivityTypeOptions.map((item) => ({
+                          value: String(item.id),
+                          label: `${item.name}${item.is_visible === false ? ' (скрыт)' : ''}`
+                        }))
+                      ]}
+                    />
                   </Form.Group>
 
                   <Form.Group className="mb-3">
@@ -22158,24 +22156,17 @@ function SuperAdminDashboard() {
                       selectedOption={countryCurrencyOptions.find((option) => option.code === (restaurantForm.currency_code || 'uz')) || countryCurrencyOptions[0] || null}
                       onChange={(code) => setRestaurantForm({ ...restaurantForm, currency_code: code })}
                     />
-                    <Form.Text className="text-muted d-block mt-1">
-                      Эта валюта будет показываться клиентам во всех суммах этого магазина.
-                    </Form.Text>
                   </Form.Group>
 
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-medium text-secondary">Часовой пояс магазина</Form.Label>
-                    <Form.Select
+                    <SearchableSelect
                       value={restaurantForm.timezone || 'Asia/Tashkent'}
-                      onChange={(e) => setRestaurantForm({ ...restaurantForm, timezone: e.target.value })}
-                    >
-                      {STORE_TIMEZONE_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </Form.Select>
-                    <Form.Text className="text-muted d-block mt-1">
-                      Используется в аналитике: время заказов считается по местному времени магазина.
-                    </Form.Text>
+                      onChange={(v) => setRestaurantForm({ ...restaurantForm, timezone: v })}
+                      placeholder="Часовой пояс"
+                      searchPlaceholder="Поиск часового пояса..."
+                      options={STORE_TIMEZONE_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                    />
                   </Form.Group>
 
                   <Form.Group className="mb-4">
@@ -22225,15 +22216,15 @@ function SuperAdminDashboard() {
                       />
                     </Suspense>
                   </div>
-                  <Form.Text className="text-muted mt-2 d-block">
-                    <i className="bi bi-cursor"></i> Кликните на карту или перетащите маркер, чтобы задать координаты магазина.
-                  </Form.Text>
                 </div>
               </Tab>
 
               <Tab eventKey="working-hours" title={language === 'uz' ? '🕒 Ish vaqti' : '🕒 Часы работы'}>
                 <div className="p-4 pt-3">
-                  <h6 className="fw-bold text-dark mt-2 mb-3"><i className="bi bi-clock text-primary"></i> {t('saWorkingHours')}</h6>
+                  <h6 className="fw-bold text-dark mt-2 mb-3 d-inline-flex align-items-center gap-1">
+                    <i className="bi bi-clock text-primary"></i> {t('saWorkingHours')}
+                    <FieldInfo text={language === 'uz' ? "Agar ko'rsatilmasa, do'kon doim ochiq deb hisoblanadi." : 'Если не указано, магазин считается открытым всегда.'} />
+                  </h6>
                   <Row className="mb-2">
                     <Col md={6}>
                       <Form.Group className="mb-3">
@@ -22256,36 +22247,28 @@ function SuperAdminDashboard() {
                       </Form.Group>
                     </Col>
                   </Row>
-                  <Form.Text className="text-muted"><i className="bi bi-info-circle"></i> {language === 'uz' ? 'Agar ko\'rsatilmasa, do\'kon doim ochiq deb hisoblanadi.' : 'Если не указано, магазин считается открытым всегда.'}</Form.Text>
-
-                  <div className="mt-4 p-3 rounded border bg-light">
+                  <div className="mt-4 p-3 rounded border bg-light d-flex align-items-center gap-2">
                     <Form.Check
                       type="switch"
                       id="restaurant-reservation-enabled-switch"
+                      className="mb-0"
                       label={language === 'uz' ? 'Bronlashni yoqish' : 'Включить бронирование'}
                       checked={Boolean(restaurantForm.reservation_enabled)}
                       onChange={(e) => setRestaurantForm({ ...restaurantForm, reservation_enabled: e.target.checked })}
                     />
-                    <Form.Text className="text-muted d-block mt-2">
-                      {language === 'uz'
-                        ? 'Faqat super-admin bu xizmatni yoqadi/o\'chiradi.'
-                        : 'Только супер-админ включает/отключает этот сервис.'}
-                    </Form.Text>
+                    <FieldInfo text={language === 'uz' ? "Faqat super-admin bu xizmatni yoqadi/o'chiradi." : 'Только супер-админ включает/отключает этот сервис.'} />
                   </div>
 
-                  <div className="mt-3 p-3 rounded border bg-light">
+                  <div className="mt-3 p-3 rounded border bg-light d-flex align-items-center gap-2">
                     <Form.Check
                       type="switch"
                       id="restaurant-size-variants-enabled-switch"
+                      className="mb-0"
                       label={language === 'uz' ? "Kiyim o'lchamlarini yoqish" : 'Включить размеры одежды'}
                       checked={Boolean(restaurantForm.size_variants_enabled)}
                       onChange={(e) => setRestaurantForm({ ...restaurantForm, size_variants_enabled: e.target.checked })}
                     />
-                    <Form.Text className="text-muted d-block mt-2">
-                      {language === 'uz'
-                        ? "Yoqilganda operator tovarlarda tayyor o'lchamlarni (S-5XL) yoki o'z variantlarini tanlay oladi."
-                        : 'При включении оператор сможет выбирать в товарах готовые размеры (S-5XL) и добавлять свои варианты.'}
-                    </Form.Text>
+                    <FieldInfo text={language === 'uz' ? "Yoqilganda operator tovarlarda tayyor o'lchamlarni (S-5XL) yoki o'z variantlarini tanlay oladi." : 'При включении оператор сможет выбирать в товарах готовые размеры (S-5XL) и добавлять свои варианты.'} />
                   </div>
                 </div>
               </Tab>
@@ -22295,7 +22278,10 @@ function SuperAdminDashboard() {
                   <h6 className="fw-bold text-dark mb-3">{t('saTgSettings')}</h6>
 
                   <Form.Group className="mb-4">
-                    <Form.Label className="fw-medium text-secondary">Bot Token</Form.Label>
+                    <Form.Label className="fw-medium text-secondary d-inline-flex align-items-center gap-1">
+                      Bot Token
+                      <FieldInfo text="Токен вашего бота, выданный @BotFather" />
+                    </Form.Label>
                     <Form.Control
                       value={restaurantForm.telegram_bot_token}
                       onChange={(e) => setRestaurantForm({ ...restaurantForm, telegram_bot_token: e.target.value })}
@@ -22306,13 +22292,15 @@ function SuperAdminDashboard() {
                         {restaurantIdentityCheck.tokenMessage || (restaurantIdentityCheck.tokenAvailable ? 'Bot Token доступен' : 'Bot Token уже используется')}
                       </Form.Text>
                     )}
-                    <Form.Text className="text-muted mt-2 d-block"><i className="bi bi-robot"></i> Токен вашего бота, выданный @BotFather</Form.Text>
                   </Form.Group>
 
                   <Row>
                     <Col md={6}>
                       <Form.Group className="mb-4">
-                        <Form.Label className="fw-medium text-secondary">{t('saGroupNoticeIds')}</Form.Label>
+                        <Form.Label className="fw-medium text-secondary d-inline-flex align-items-center gap-1">
+                          {t('saGroupNoticeIds')}
+                          <FieldInfo text="ID группы или канала для получения заказов. Бот должен быть добавлен туда с правами администратора." />
+                        </Form.Label>
                         <Form.Control
                           value={restaurantForm.telegram_group_id}
                           onChange={(e) => setRestaurantForm({ ...restaurantForm, telegram_group_id: e.target.value })}
@@ -22323,22 +22311,23 @@ function SuperAdminDashboard() {
                             {restaurantIdentityCheck.groupMessage || (restaurantIdentityCheck.groupAvailable ? 'Group ID доступен' : 'Group ID уже используется')}
                           </Form.Text>
                         )}
-                        <Form.Text className="text-muted mt-2 d-block"><i className="bi bi-people"></i> ID группы или канала для получения заказов. Бот должен быть добавлен туда с правами администратора.</Form.Text>
                       </Form.Group>
                     </Col>
                     <Col md={6}>
                       <Form.Group className="mb-4">
-                        <Form.Label className="fw-medium text-secondary">{t('saSupportUsername')}</Form.Label>
-                        <div className="input-group">
-                          <span className="input-group-text bg-light text-secondary border-end-0">@</span>
+                        <Form.Label className="fw-medium text-secondary d-inline-flex align-items-center gap-1">
+                          {t('saSupportUsername')}
+                          <FieldInfo text="Telegram username администратора для поддержки. Будет отображаться для клиентов." />
+                        </Form.Label>
+                        <div className="admin-input-prefix-wrap">
+                          <span className="admin-input-prefix">@</span>
                           <Form.Control
-                            className="border-start-0 ps-0"
+                            className="admin-input-with-prefix"
                             value={restaurantForm.support_username}
                             onChange={(e) => setRestaurantForm({ ...restaurantForm, support_username: e.target.value.replace(/^@/, '') })}
                             placeholder="admin_username"
                           />
                         </div>
-                        <Form.Text className="text-muted mt-2 d-block"><i className="bi bi-person-badge"></i> Telegram username администратора для поддержки. Будет отображаться для клиентов.</Form.Text>
                       </Form.Group>
                     </Col>
                   </Row>
@@ -22416,8 +22405,9 @@ function SuperAdminDashboard() {
                   </div>
 
                   <div className="mb-4 bg-light p-3 rounded border border-light">
-                    <Form.Label className="fw-medium text-secondary m-0">
+                    <Form.Label className="fw-medium text-secondary m-0 d-inline-flex align-items-center gap-1">
                       🛎 {language === 'uz' ? '1 chek narxi' : 'Стоимость одного чека'} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})
+                      <FieldInfo text="Укажите сумму, которая будет списываться с баланса заведения за каждый принятый заказ. Эта же сумма может отображаться клиенту в чеке как сбор за обслуживание." />
                     </Form.Label>
                     <Form.Control
                       type="number"
@@ -22428,12 +22418,12 @@ function SuperAdminDashboard() {
                       placeholder="0"
                       className="mt-3"
                     />
-                    <Form.Text className="text-muted mt-2 d-block">Укажите сумму, которая будет списываться с баланса заведения за каждый принятый заказ. Эта же сумма может отображаться клиенту в чеке как сбор за обслуживание.</Form.Text>
                   </div>
 
                   <div className="mb-4 bg-light p-3 rounded border border-light">
-                    <Form.Label className="fw-medium text-secondary m-0">
+                    <Form.Label className="fw-medium text-secondary m-0 d-inline-flex align-items-center gap-1">
                       🪑 {language === 'uz' ? 'Bron xizmati narxi' : 'Стоимость сервиса бронирования'} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})
+                      <FieldInfo text="Эта сумма списывается с баланса магазина за подтвержденную бронь." />
                     </Form.Label>
                     <Form.Control
                       type="number"
@@ -22444,9 +22434,6 @@ function SuperAdminDashboard() {
                       placeholder="0"
                       className="mt-3"
                     />
-                    <Form.Text className="text-muted mt-2 d-block">
-                      Эта сумма списывается с баланса магазина за подтвержденную бронь.
-                    </Form.Text>
                   </div>
                 </div>
               </Tab>
@@ -22469,7 +22456,10 @@ function SuperAdminDashboard() {
                       <Row className="mb-4">
                         <Col md={4}>
                           <Form.Group className="mb-3">
-                            <Form.Label className="fw-medium text-secondary small">{t('saBaseRadius')} (км)</Form.Label>
+                            <Form.Label className="fw-medium text-secondary small d-inline-flex align-items-center gap-1">
+                              {t('saBaseRadius')} (км)
+                              <FieldInfo text="Базовый радиус включенной доставки." />
+                            </Form.Label>
                             <Form.Control
                               type="number"
                               min="0"
@@ -22478,12 +22468,14 @@ function SuperAdminDashboard() {
                               value={restaurantForm.delivery_base_radius}
                               onChange={(e) => setRestaurantForm({ ...restaurantForm, delivery_base_radius: parseFloat(e.target.value) || 0 })}
                             />
-                            <Form.Text className="text-muted mt-1 d-block" style={{ fontSize: '0.75rem' }}>Базовый радиус включенной доставки.</Form.Text>
                           </Form.Group>
                         </Col>
                         <Col md={4}>
                           <Form.Group className="mb-3">
-                            <Form.Label className="fw-medium text-secondary small">{t('saBasePrice')} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})</Form.Label>
+                            <Form.Label className="fw-medium text-secondary small d-inline-flex align-items-center gap-1">
+                              {t('saBasePrice')} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})
+                              <FieldInfo text="Цена доставки в пределах базы." />
+                            </Form.Label>
                             <Form.Control
                               type="number"
                               min="0"
@@ -22492,12 +22484,14 @@ function SuperAdminDashboard() {
                               value={restaurantForm.delivery_base_price}
                               onChange={(e) => setRestaurantForm({ ...restaurantForm, delivery_base_price: parseFloat(e.target.value) || 0 })}
                             />
-                            <Form.Text className="text-muted mt-1 d-block" style={{ fontSize: '0.75rem' }}>Цена доставки в пределах базы.</Form.Text>
                           </Form.Group>
                         </Col>
                         <Col md={4}>
                           <Form.Group className="mb-3">
-                            <Form.Label className="fw-medium text-secondary small">{t('saPricePerKm')} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})</Form.Label>
+                            <Form.Label className="fw-medium text-secondary small d-inline-flex align-items-center gap-1">
+                              {t('saPricePerKm')} ({getCurrencyLabelByCode(restaurantForm.currency_code || countryCurrency?.code)})
+                              <FieldInfo text="Надбавка за каждый следующий км." />
+                            </Form.Label>
                             <Form.Control
                               type="number"
                               min="0"
@@ -22506,7 +22500,6 @@ function SuperAdminDashboard() {
                               value={restaurantForm.delivery_price_per_km}
                               onChange={(e) => setRestaurantForm({ ...restaurantForm, delivery_price_per_km: parseFloat(e.target.value) || 0 })}
                             />
-                            <Form.Text className="text-muted mt-1 d-block" style={{ fontSize: '0.75rem' }}>Надбавка за каждый следующий км.</Form.Text>
                           </Form.Group>
                         </Col>
                       </Row>
