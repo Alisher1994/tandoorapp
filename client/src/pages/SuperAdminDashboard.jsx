@@ -13800,20 +13800,24 @@ function SuperAdminDashboard() {
       <Container className="admin-panel">
         {/* Notifications */}
         <ToastContainer position="top-end" className="p-3 admin-toast-top">
-          <Toast onClose={() => setError('')} show={!!error} delay={5000} autohide bg="danger" className="text-white">
-            <Toast.Header closeButton={false} className="bg-danger text-white border-0">
-              <strong className="me-auto">Ошибка</strong>
-              <Button variant="white" className="btn-close" onClick={() => setError('')} />
-            </Toast.Header>
-            <Toast.Body>{error}</Toast.Body>
+          <Toast onClose={() => setError('')} show={!!error} delay={8000} autohide className="admin-system-toast admin-system-toast-danger">
+            <Toast.Body>
+              <span className="admin-system-toast-icon" aria-hidden="true">!</span>
+              <span className="admin-system-toast-text">{error}</span>
+              <button type="button" className="admin-system-toast-close" aria-label="Закрыть уведомление" onClick={() => setError('')}>
+                ×
+              </button>
+            </Toast.Body>
           </Toast>
 
-          <Toast onClose={() => setSuccess('')} show={!!success} delay={5000} autohide bg="success" className="text-white">
-            <Toast.Header closeButton={false} className="bg-success text-white border-0">
-              <strong className="me-auto">Успех</strong>
-              <Button variant="white" className="btn-close" onClick={() => setSuccess('')} />
-            </Toast.Header>
-            <Toast.Body>{success}</Toast.Body>
+          <Toast onClose={() => setSuccess('')} show={!!success} delay={8000} autohide className="admin-system-toast admin-system-toast-success">
+            <Toast.Body>
+              <span className="admin-system-toast-icon" aria-hidden="true">✓</span>
+              <span className="admin-system-toast-text">{success}</span>
+              <button type="button" className="admin-system-toast-close" aria-label="Закрыть уведомление" onClick={() => setSuccess('')}>
+                ×
+              </button>
+            </Toast.Body>
           </Toast>
         </ToastContainer>
 

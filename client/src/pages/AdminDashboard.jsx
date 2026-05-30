@@ -20,6 +20,8 @@ import Accordion from 'react-bootstrap/Accordion';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import Alert from 'react-bootstrap/Alert';
+import Toast from 'react-bootstrap/Toast';
+import ToastContainer from 'react-bootstrap/ToastContainer';
 import InputGroup from 'react-bootstrap/InputGroup';
 import Pagination from 'react-bootstrap/Pagination';
 import Spinner from 'react-bootstrap/Spinner';
@@ -11298,17 +11300,31 @@ function AdminDashboard() {
       </Modal>
 
       <Container fluid={isOrdersKanbanMode} className={`admin-panel${isOrdersKanbanMode ? ' admin-panel-kanban-focus' : ''}`}>
-        {/* Alerts */}
-        {alertMessage.text && (
-          <Alert
-            variant={alertMessage.type}
-            dismissible
+        {/* System notifications */}
+        <ToastContainer position="top-end" className="p-3 admin-toast-top">
+          <Toast
             onClose={() => setAlertMessage({ type: '', text: '' })}
-            className="mb-3"
+            show={Boolean(alertMessage.text)}
+            delay={8000}
+            autohide
+            className={`admin-system-toast admin-system-toast-${alertMessage.type || 'info'}`}
           >
-            {alertMessage.text}
-          </Alert>
-        )}
+            <Toast.Body>
+              <span className="admin-system-toast-icon" aria-hidden="true">
+                {alertMessage.type === 'danger' ? '!' : alertMessage.type === 'warning' ? '!' : alertMessage.type === 'success' ? '✓' : 'i'}
+              </span>
+              <span className="admin-system-toast-text">{alertMessage.text}</span>
+              <button
+                type="button"
+                className="admin-system-toast-close"
+                aria-label="Закрыть уведомление"
+                onClick={() => setAlertMessage({ type: '', text: '' })}
+              >
+                ×
+              </button>
+            </Toast.Body>
+          </Toast>
+        </ToastContainer>
 
         {/* No restaurant selected warning */}
         {!user?.active_restaurant_id && (

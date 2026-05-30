@@ -14,6 +14,8 @@ import Table from 'react-bootstrap/Table';
 import Spinner from 'react-bootstrap/Spinner';
 import Modal from 'react-bootstrap/Modal';
 import Pagination from 'react-bootstrap/Pagination';
+import Toast from 'react-bootstrap/Toast';
+import ToastContainer from 'react-bootstrap/ToastContainer';
 import { formatPrice } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -1243,16 +1245,26 @@ function AdminReservations() {
         </div>
       </div>
 
-      {error && (
-        <Alert variant="danger" dismissible onClose={() => setError('')} className="border-0">
-          {error}
-        </Alert>
-      )}
-      {success && (
-        <Alert variant="success" dismissible onClose={() => setSuccess('')} className="border-0">
-          {success}
-        </Alert>
-      )}
+      <ToastContainer position="top-end" className="p-3 admin-toast-top">
+        <Toast onClose={() => setError('')} show={Boolean(error)} delay={8000} autohide className="admin-system-toast admin-system-toast-danger">
+          <Toast.Body>
+            <span className="admin-system-toast-icon" aria-hidden="true">!</span>
+            <span className="admin-system-toast-text">{error}</span>
+            <button type="button" className="admin-system-toast-close" aria-label="Закрыть уведомление" onClick={() => setError('')}>
+              ×
+            </button>
+          </Toast.Body>
+        </Toast>
+        <Toast onClose={() => setSuccess('')} show={Boolean(success)} delay={8000} autohide className="admin-system-toast admin-system-toast-success">
+          <Toast.Body>
+            <span className="admin-system-toast-icon" aria-hidden="true">✓</span>
+            <span className="admin-system-toast-text">{success}</span>
+            <button type="button" className="admin-system-toast-close" aria-label="Закрыть уведомление" onClick={() => setSuccess('')}>
+              ×
+            </button>
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
 
       <div className="d-flex flex-wrap gap-2 mb-3">
         <Badge bg="secondary">{tx('Этажей', 'Qavatlar')}: {floors.length}</Badge>

@@ -46,6 +46,132 @@ body::-webkit-scrollbar,
     --bs-primary-rgb: 71, 85, 105;
 }
 
+.admin-toast-top {
+    z-index: 2000;
+}
+
+.admin-system-toast {
+    width: min(520px, calc(100vw - 28px));
+    border-radius: 6px !important;
+    border: 1px solid rgba(59, 130, 246, 0.72) !important;
+    background: #ffffff !important;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14) !important;
+    overflow: hidden;
+}
+
+.admin-system-toast .toast-body {
+    display: grid;
+    grid-template-columns: 38px 1fr 28px;
+    align-items: center;
+    gap: 14px;
+    min-height: 78px;
+    padding: 16px 18px;
+    color: #1f2937;
+    position: relative;
+}
+
+.admin-system-toast .toast-body::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 62%;
+    background: rgba(59, 130, 246, 0.1);
+    clip-path: polygon(0 0, 100% 0, calc(100% - 28px) 100%, 0 100%);
+    z-index: 0;
+}
+
+.admin-system-toast-icon,
+.admin-system-toast-text,
+.admin-system-toast-close {
+    position: relative;
+    z-index: 1;
+}
+
+.admin-system-toast-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.admin-system-toast-text {
+    font-size: 0.95rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.admin-system-toast-close {
+    width: 28px;
+    height: 28px;
+    border: 0;
+    background: transparent;
+    color: #64748b;
+    font-size: 1.75rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.admin-system-toast-close:hover,
+.admin-system-toast-close:focus-visible {
+    color: #111827;
+}
+
+.admin-system-toast-success {
+    border-color: #34c38f !important;
+}
+
+.admin-system-toast-success .toast-body::before {
+    background: rgba(52, 195, 143, 0.16);
+}
+
+.admin-system-toast-success .admin-system-toast-icon {
+    background: #34c38f;
+}
+
+.admin-system-toast-danger {
+    border-color: #ef4444 !important;
+}
+
+.admin-system-toast-danger .toast-body::before {
+    background: rgba(239, 68, 68, 0.12);
+}
+
+.admin-system-toast-danger .admin-system-toast-icon {
+    background: #ef4444;
+}
+
+.admin-system-toast-warning {
+    border-color: #f59e0b !important;
+}
+
+.admin-system-toast-warning .toast-body::before {
+    background: rgba(245, 158, 11, 0.12);
+}
+
+.admin-system-toast-warning .admin-system-toast-icon {
+    background: #f59e0b;
+}
+
+.admin-system-toast-info {
+    border-color: #3b82f6 !important;
+}
+
+.admin-system-toast-info .toast-body::before {
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.admin-system-toast-info .admin-system-toast-icon {
+    background: #3b82f6;
+}
+
 /* Switch styling for dominant blue */
 .form-check-input:checked {
     background-color: var(--primary-color) !important;
