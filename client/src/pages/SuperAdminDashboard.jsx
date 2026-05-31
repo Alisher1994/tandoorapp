@@ -2100,6 +2100,7 @@ function SuperAdminDashboard() {
   const [overviewRestaurantSearch, setOverviewRestaurantSearch] = useState('');
   const [overviewAnalyticsTopLimit, setOverviewAnalyticsTopLimit] = useState(10);
   const [showOverviewCompareModal, setShowOverviewCompareModal] = useState(false);
+  const [overviewAnalyticsSubTab, setOverviewAnalyticsSubTab] = useState('overview');
   const [overviewCompareRestaurantSearch, setOverviewCompareRestaurantSearch] = useState('');
   const [overviewComparisonRestaurantIds, setOverviewComparisonRestaurantIds] = useState([]);
   const [overviewComparisonPdfLoading, setOverviewComparisonPdfLoading] = useState(false);
@@ -10866,6 +10867,19 @@ function SuperAdminDashboard() {
       ]
     };
 
+    const analyticsSubTabs = [
+      { key: 'overview', icon: '📈', label: language === 'uz' ? 'Umumiy' : 'Обзор' },
+      { key: 'sales', icon: '🛒', label: language === 'uz' ? 'Sotuvlar' : 'Продажи' },
+      { key: 'shops', icon: '🏪', label: language === 'uz' ? "Do'konlar" : 'Магазины' },
+      { key: 'clients', icon: '👥', label: language === 'uz' ? 'Mijozlar' : 'Клиенты' },
+      { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov & voronka" : 'Платежи и воронка' }
+    ];
+    const isObzor = overviewAnalyticsSubTab === 'overview';
+    const isSales = overviewAnalyticsSubTab === 'sales';
+    const isShops = overviewAnalyticsSubTab === 'shops';
+    const isClients = overviewAnalyticsSubTab === 'clients';
+    const isPayments = overviewAnalyticsSubTab === 'payments';
+
     return (
       <div className="admin-analytics-layout">
         <div className="admin-analytics-header-row">
@@ -11017,6 +11031,25 @@ function SuperAdminDashboard() {
           </div>
         ) : (
           <>
+            <div className="admin-order-status-tabs admin-analytics-subtabs" role="tablist" aria-label={language === 'uz' ? 'Analitika bo\'limlari' : 'Разделы аналитики'}>
+              {analyticsSubTabs.map((tab) => (
+                <button
+                  key={`analytics-subtab-${tab.key}`}
+                  type="button"
+                  className={`admin-order-status-pill${overviewAnalyticsSubTab === tab.key ? ' is-active' : ''}`}
+                  onClick={() => setOverviewAnalyticsSubTab(tab.key)}
+                  role="tab"
+                  aria-selected={overviewAnalyticsSubTab === tab.key}
+                >
+                  <span className="admin-order-status-pill-label">
+                    <span className="admin-order-status-pill-emoji" aria-hidden="true">{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {isObzor && (<>
             <div className="admin-analytics-kpi-grid">
               <div className="admin-analytics-kpi-card">
                 <div className="admin-analytics-kpi-header">
@@ -11140,7 +11173,9 @@ function SuperAdminDashboard() {
                 </div>
               ))}
             </div>
+            </>)}
 
+            {isClients && (<>
             <Row className="g-4 mb-4">
               <Col xs={12}>
                 <Card
@@ -11544,6 +11579,9 @@ function SuperAdminDashboard() {
               </Col>
             </Row>
 
+            </>)}
+
+            {isObzor && (<>
             <Row className="g-4 mb-4">
               <Col lg={12}>
                 <Card className="border-0 shadow-sm admin-analytics-surface-card">
@@ -11636,6 +11674,9 @@ function SuperAdminDashboard() {
               </Col>
             </Row>
 
+            </>)}
+
+            {isPayments && (<>
             <Row className="g-4 mb-4">
               <Col lg={12}>
                 <Card className="border-0 shadow-sm admin-analytics-surface-card">
@@ -11697,6 +11738,9 @@ function SuperAdminDashboard() {
               </Col>
             </Row>
 
+            </>)}
+
+            {isShops && (<>
             <Row className="g-4 mb-4">
               <Col lg={4}>
                 <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
@@ -11823,6 +11867,9 @@ function SuperAdminDashboard() {
               </Col>
             </Row>
 
+            </>)}
+
+            {isSales && (<>
             <Row className="g-4">
               <Col lg={6}>
                 <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
@@ -12051,6 +12098,9 @@ function SuperAdminDashboard() {
               </Col>
             </Row>
 
+            </>)}
+
+            {isPayments && (<>
             <Row className="g-4 mt-1">
               <Col lg={4}>
                 <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card">
@@ -12190,6 +12240,7 @@ function SuperAdminDashboard() {
                 </Card>
               </Col>
             </Row>
+            </>)}
           </>
         )}
       </div>

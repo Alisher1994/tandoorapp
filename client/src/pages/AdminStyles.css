@@ -3070,6 +3070,12 @@ body::-webkit-scrollbar,
     line-height: 1.2;
 }
 
+/* Analytics sub-tab pill bar */
+.admin-analytics-subtabs {
+    margin-bottom: 18px;
+    max-width: 100%;
+}
+
 /* Superadmin KPI cards — responsive grid (5 cards) */
 .superadmin-stats-grid {
     display: grid;
