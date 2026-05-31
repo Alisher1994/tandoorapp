@@ -10601,7 +10601,9 @@ function SuperAdminDashboard() {
         trigger: 'axis',
         backgroundColor: '#0f172a',
         borderWidth: 0,
-        textStyle: { color: '#e2e8f0' },
+        padding: [8, 12],
+        extraCssText: 'border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,0.22);',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
         axisPointer: { type: 'line', lineStyle: { color: '#6366f1', width: 1 } },
         formatter: (params) => {
           const point = Array.isArray(params) ? params[0] : params;
@@ -10632,14 +10634,7 @@ function SuperAdminDashboard() {
           data: normalizedRevenueTimeline.map((item) => Number(item.value || 0)),
           lineStyle: { width: 2.5 },
           itemStyle: { color: '#6366f1' },
-          label: {
-            show: true,
-            position: 'top',
-            distance: 6,
-            color: '#475569',
-            fontSize: 10,
-            formatter: ({ value }) => formatAnalyticsAxisValue(value, 'currency')
-          },
+          label: { show: false },
           markPoint: {
             symbolSize: 40,
             label: {
@@ -10673,7 +10668,9 @@ function SuperAdminDashboard() {
         trigger: 'axis',
         backgroundColor: '#0f172a',
         borderWidth: 0,
-        textStyle: { color: '#e2e8f0' },
+        padding: [8, 12],
+        extraCssText: 'border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,0.22);',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
         axisPointer: { type: 'line', lineStyle: { color: '#f43f5e', width: 1 } },
         formatter: (params) => {
           const point = Array.isArray(params) ? params[0] : params;
@@ -10705,14 +10702,7 @@ function SuperAdminDashboard() {
           data: normalizedOrdersTimeline.map((item) => Number(item.value || 0)),
           lineStyle: { width: 2.5 },
           itemStyle: { color: '#f43f5e' },
-          label: {
-            show: true,
-            position: 'top',
-            distance: 6,
-            color: '#475569',
-            fontSize: 10,
-            formatter: ({ value }) => Math.round(Number(value || 0)).toLocaleString('ru-RU')
-          },
+          label: { show: false },
           markPoint: {
             symbolSize: 38,
             label: {
@@ -10749,7 +10739,9 @@ function SuperAdminDashboard() {
         trigger: 'axis',
         backgroundColor: '#0f172a',
         borderWidth: 0,
-        textStyle: { color: '#e2e8f0' },
+        padding: [8, 12],
+        extraCssText: 'border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,0.22);',
+        textStyle: { color: '#e2e8f0', fontSize: 12 },
         axisPointer: { type: 'shadow' },
         formatter: (params) => {
           const list = Array.isArray(params) ? params : [params];
@@ -10816,7 +10808,16 @@ function SuperAdminDashboard() {
           showSymbol: false,
           data: hourlyRevenueData,
           lineStyle: { width: 2.5, color: '#10b981' },
-          itemStyle: { color: '#10b981' }
+          itemStyle: { color: '#10b981' },
+          areaStyle: {
+            color: {
+              type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [
+                { offset: 0, color: 'rgba(16,185,129,0.18)' },
+                { offset: 1, color: 'rgba(16,185,129,0.01)' }
+              ]
+            }
+          }
         }
       ]
     };
