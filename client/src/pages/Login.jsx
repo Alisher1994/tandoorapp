@@ -8,7 +8,7 @@ import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
-import receiveOrderAnimation from '../assets/animations/Receive order.lottie?url';
+import receiveOrderAnimation from '../assets/animations/receive-order.lottie?url';
 import axios from 'axios';
 import './Login.css';
 
