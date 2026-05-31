@@ -42,8 +42,8 @@ import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 import HeaderGlowBackground from '../components/HeaderGlowBackground';
 import BannerCropModal from '../components/BannerCropModal';
 import ShowcaseBuilder from './ShowcaseBuilder';
-import boxSizeVisual from '../assets/box-size-visual.png';
 import SearchableSelect from '../components/SearchableSelect';
+import ParcelCube3D from '../components/ParcelCube3D';
 import { COUNTRY_SELECT_OPTIONS } from '../constants/countries';
 import {
   getLeafletTileLayerConfig,
@@ -19652,12 +19652,17 @@ function AdminDashboard() {
                     </span>
                   </span>
                 </Form.Label>
-                <div className="admin-parcel-visual mb-3">
-                  <img src={boxSizeVisual} alt={language === 'uz' ? "O'lchamlar sxemasi: Г — uzunlik, Ш — kenglik, В — balandlik" : 'Схема габаритов: Г — длина, Ш — ширина, В — высота'} />
-                  <span className="admin-parcel-visual-note">
+                <div className="mb-2">
+                  <ParcelCube3D
+                    lengthCm={productForm.length_cm}
+                    widthCm={productForm.width_cm}
+                    heightCm={productForm.height_cm}
+                    language={language}
+                  />
+                  <span className="admin-parcel-visual-note d-block mt-2">
                     {language === 'uz'
-                      ? 'Г — uzunlik, Ш — kenglik, В — balandlik'
-                      : 'Г — длина (глубина), Ш — ширина, В — высота'}
+                      ? 'Sichqoncha bilan aylantiring. Uzunlik, kenglik va balandlikni kiriting — kub real vaqtda o‘zgaradi.'
+                      : 'Вращайте мышью. Введите длину, ширину и высоту — куб меняется в реальном времени.'}
                   </span>
                 </div>
                 <Row className="g-3">
