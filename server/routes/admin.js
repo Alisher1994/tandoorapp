@@ -2549,8 +2549,8 @@ router.put('/restaurant', async (req, res) => {
     }
 
     // Кастомный основной цвет (акцент). null => стоковый цвет темы.
-    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ui_primary_color VARCHAR(9)').catch(() => {});
     if (req.body?.ui_primary_color !== undefined) {
+      await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ui_primary_color VARCHAR(9)').catch(() => {});
       const rawColor = String(req.body.ui_primary_color || '').trim().toLowerCase();
       const normalizedColor = /^#[0-9a-f]{6}$/.test(rawColor) ? rawColor : null;
       const colorResult = await pool.query(
@@ -2573,10 +2573,18 @@ router.put('/restaurant', async (req, res) => {
       console.error('Inventory availability sync warning:', inventorySyncError.message);
     }
 
-    try {
-      await reloadMultiBots();
-    } catch (reloadErr) {
-      console.error('Multi-bot reload warning after restaurant update:', reloadErr.message);
+    // Reload Telegram bots ONLY when the bot token actually changed. The reload
+    // tears down and re-inits every store's bot (setWebHook + per-chat menu-button
+    // backfill = many Telegram calls), so running it on ordinary settings saves
+    // (theme, texts, toggles) made every save needlessly slow. The token is the
+    // only field whose change requires a bot re-init; all other settings are read
+    // live from the DB by the bot handlers.
+    if (isTokenChanging) {
+      try {
+        await reloadMultiBots();
+      } catch (reloadErr) {
+        console.error('Multi-bot reload warning after restaurant update:', reloadErr.message);
+      }
     }
 
     let operatorNotificationResult = null;
