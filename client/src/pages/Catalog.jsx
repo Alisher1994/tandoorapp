@@ -6201,6 +6201,33 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     );
                   })()}
 
+                  {(() => {
+                    const manufacturer = String(activeProduct?.manufacturer_name || '').trim();
+                    const brand = String(activeProduct?.brand || '').trim();
+                    const model = String(activeProduct?.model || '').trim();
+                    const country = String(activeProduct?.production_country || '').trim();
+                    const rows = [
+                      manufacturer && { label: language === 'uz' ? 'Ishlab chiqaruvchi' : 'Производитель', value: manufacturer },
+                      brand && { label: language === 'uz' ? 'Brend' : 'Бренд', value: brand },
+                      model && { label: language === 'uz' ? 'Model' : 'Модель', value: model },
+                      country && { label: language === 'uz' ? 'Ishlab chiqarilgan davlat' : 'Страна производства', value: country }
+                    ].filter(Boolean);
+                    if (rows.length === 0) return null;
+                    return (
+                      <div className="product-details-block mb-3">
+                        <div className="small text-muted mb-1">{language === 'uz' ? 'Ishlab chiqaruvchi va brend' : 'Производитель и бренд'}</div>
+                        <div className="product-parcel-specs">
+                          {rows.map((row) => (
+                            <div className="product-parcel-spec" key={row.label}>
+                              <span className="product-parcel-spec-label">{row.label}</span>
+                              <span className="product-parcel-spec-value">{row.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                 </section>
 
                 {/* Похожие товары — отдельной секцией снизу, на ПК растягиваются на 2 колонки */}

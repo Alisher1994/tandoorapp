@@ -1812,10 +1812,12 @@ router.get('/:id/details', async (req, res) => {
         p.*,
         c.name_ru AS category_name_ru,
         c.name_uz AS category_name_uz,
-        r.name AS restaurant_name
+        r.name AS restaurant_name,
+        m.name AS manufacturer_name
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN restaurants r ON r.id = p.restaurant_id
+      LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
       WHERE p.id = $1
       LIMIT 1
     `,
