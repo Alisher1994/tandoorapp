@@ -10595,7 +10595,7 @@ function SuperAdminDashboard() {
     ];
     const formatAnalyticsTooltipTitle = (value) => String(value ?? '');
     const revenueChartOption = {
-      color: ['#6366f1'],
+      color: ['#10b981'],
       grid: { top: 20, right: 10, left: 10, bottom: 22, containLabel: true },
       tooltip: {
         trigger: 'axis',
@@ -10604,7 +10604,7 @@ function SuperAdminDashboard() {
         padding: [8, 12],
         extraCssText: 'border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,0.22);',
         textStyle: { color: '#e2e8f0', fontSize: 12 },
-        axisPointer: { type: 'line', lineStyle: { color: '#6366f1', width: 1 } },
+        axisPointer: { type: 'line', lineStyle: { color: '#10b981', width: 1 } },
         formatter: (params) => {
           const point = Array.isArray(params) ? params[0] : params;
           const label = formatAnalyticsTooltipTitle(point?.axisValueLabel ?? point?.axisValue);
@@ -10633,14 +10633,19 @@ function SuperAdminDashboard() {
           symbolSize: 5,
           data: normalizedRevenueTimeline.map((item) => Number(item.value || 0)),
           lineStyle: { width: 2.5 },
-          itemStyle: { color: '#6366f1' },
+          itemStyle: { color: '#10b981' },
           label: { show: false },
           markPoint: {
-            symbolSize: 40,
+            symbol: 'circle',
+            symbolSize: 9,
+            itemStyle: { color: '#10b981', borderColor: '#ffffff', borderWidth: 2 },
             label: {
               show: true,
-              color: '#1e293b',
+              position: 'top',
+              distance: 8,
+              color: '#0f172a',
               fontSize: 10,
+              fontWeight: 600,
               formatter: ({ value }) => formatAnalyticsAxisValue(value, 'currency')
             },
             data: [{ type: 'max', name: 'max' }]
@@ -10653,8 +10658,8 @@ function SuperAdminDashboard() {
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(99,102,241,0.28)' },
-                { offset: 1, color: 'rgba(99,102,241,0.02)' }
+                { offset: 0, color: 'rgba(16,185,129,0.26)' },
+                { offset: 1, color: 'rgba(16,185,129,0.02)' }
               ]
             }
           }
@@ -10662,7 +10667,7 @@ function SuperAdminDashboard() {
       ]
     };
     const ordersChartOption = {
-      color: ['#f43f5e'],
+      color: ['#6366f1'],
       grid: { top: 20, right: 10, left: 10, bottom: 22, containLabel: true },
       tooltip: {
         trigger: 'axis',
@@ -10671,7 +10676,7 @@ function SuperAdminDashboard() {
         padding: [8, 12],
         extraCssText: 'border-radius:10px;box-shadow:0 10px 28px rgba(15,23,42,0.22);',
         textStyle: { color: '#e2e8f0', fontSize: 12 },
-        axisPointer: { type: 'line', lineStyle: { color: '#f43f5e', width: 1 } },
+        axisPointer: { type: 'line', lineStyle: { color: '#6366f1', width: 1 } },
         formatter: (params) => {
           const point = Array.isArray(params) ? params[0] : params;
           const label = formatAnalyticsTooltipTitle(point?.axisValueLabel ?? point?.axisValue);
@@ -10701,14 +10706,19 @@ function SuperAdminDashboard() {
           symbolSize: 5,
           data: normalizedOrdersTimeline.map((item) => Number(item.value || 0)),
           lineStyle: { width: 2.5 },
-          itemStyle: { color: '#f43f5e' },
+          itemStyle: { color: '#6366f1' },
           label: { show: false },
           markPoint: {
-            symbolSize: 38,
+            symbol: 'circle',
+            symbolSize: 9,
+            itemStyle: { color: '#6366f1', borderColor: '#ffffff', borderWidth: 2 },
             label: {
               show: true,
-              color: '#1e293b',
+              position: 'top',
+              distance: 8,
+              color: '#0f172a',
               fontSize: 10,
+              fontWeight: 600,
               formatter: ({ value }) => Math.round(Number(value || 0)).toLocaleString('ru-RU')
             },
             data: [{ type: 'max', name: 'max' }]
@@ -10721,8 +10731,8 @@ function SuperAdminDashboard() {
               x2: 0,
               y2: 1,
               colorStops: [
-                { offset: 0, color: 'rgba(244,63,94,0.24)' },
-                { offset: 1, color: 'rgba(244,63,94,0.02)' }
+                { offset: 0, color: 'rgba(99,102,241,0.24)' },
+                { offset: 1, color: 'rgba(99,102,241,0.02)' }
               ]
             }
           }
