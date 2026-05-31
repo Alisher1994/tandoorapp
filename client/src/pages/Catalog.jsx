@@ -22,6 +22,8 @@ import { ListSkeleton, PageSkeleton } from '../components/SkeletonUI';
 import StorefrontLoader from '../components/StorefrontLoader';
 import PublicShowcaseView from '../components/PublicShowcaseView';
 import { DEFAULT_MENU_ICON_SETTINGS, isImageIconValue, normalizeMenuIconSettings } from '../constants/menuIcons';
+import { COUNTRY_CODE_BY_NAME } from '../constants/countries';
+import * as CountryFlags from 'country-flag-icons/react/3x2';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CLIENT_APP_BASE_URL = API_URL.replace('/api', '');
@@ -6215,19 +6217,29 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       manufacturer && { label: language === 'uz' ? 'Ishlab chiqaruvchi' : 'Производитель', value: manufacturer },
                       brand && { label: language === 'uz' ? 'Brend' : 'Бренд', value: brand },
                       model && { label: language === 'uz' ? 'Model' : 'Модель', value: model },
-                      country && { label: language === 'uz' ? 'Ishlab chiqarilgan davlat' : 'Страна производства', value: country }
+                      country && {
+                        label: language === 'uz' ? 'Ishlab chiqarilgan davlat' : 'Страна производства',
+                        value: country,
+                        code: COUNTRY_CODE_BY_NAME[country] || null
+                      }
                     ].filter(Boolean);
                     if (rows.length === 0) return null;
                     return (
                       <div className="product-details-block mb-3">
                         <div className="small text-muted mb-1">{language === 'uz' ? 'Ishlab chiqaruvchi va brend' : 'Производитель и бренд'}</div>
                         <div className="product-parcel-specs">
-                          {rows.map((row) => (
-                            <div className="product-parcel-spec" key={row.label}>
-                              <span className="product-parcel-spec-label">{row.label}</span>
-                              <span className="product-parcel-spec-value">{row.value}</span>
-                            </div>
-                          ))}
+                          {rows.map((row) => {
+                            const FlagIcon = row.code ? CountryFlags[String(row.code).toUpperCase()] : null;
+                            return (
+                              <div className="product-parcel-spec" key={row.label}>
+                                <span className="product-parcel-spec-label">{row.label}</span>
+                                <span className="product-parcel-spec-value">
+                                  {FlagIcon && <FlagIcon className="product-parcel-spec-flag" />}
+                                  {row.value}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );

@@ -2144,23 +2144,48 @@ h6 {
 
 .product-parcel-specs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px 24px;
+  flex-direction: column;
+  gap: 0;
 }
+/* Каждый параметр — отдельной строкой: подпись слева, значение справа.
+   Длинные значения переносятся, ничего не вылезает. */
 .product-parcel-spec {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 0;
+  border-top: 1px solid rgba(71, 85, 105, 0.12);
+}
+.product-parcel-spec:first-child {
+  padding-top: 0;
+  border-top: none;
 }
 .product-parcel-spec-label {
-  font-size: 0.74rem;
+  flex: 0 0 auto;
+  font-size: 0.8rem;
   color: inherit;
   opacity: 0.6;
+  white-space: nowrap;
 }
 .product-parcel-spec-value {
-  font-size: 0.95rem;
+  min-width: 0;
+  font-size: 0.92rem;
   font-weight: 600;
   color: inherit;
+  text-align: right;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.product-parcel-spec-flag {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: auto;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.1);
 }
 
 .product-details-variants-scroll {
@@ -2467,46 +2492,21 @@ h6 {
    Вертикальный (модалка на ПК) делаем чуть заметнее, горизонтальный (related) тоньше. */
 /* Bootstrap fullscreen-модалка скроллит .modal-body, поэтому стилизуем и его,
    и .product-details-scroll (на ПК) — иначе остаётся нативный широкий бар. */
+/* Скроллбары модалки деталей скрыты визуально (прокрутка работает). */
 .product-details-modal-fullscreen .modal-content,
 .product-details-modal-body,
 .product-details-scroll,
 .product-details-related-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--primary-color, #94a3b8) transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .product-details-modal-fullscreen .modal-content::-webkit-scrollbar,
 .product-details-modal-body::-webkit-scrollbar,
-.product-details-scroll::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-  display: block;
-}
+.product-details-scroll::-webkit-scrollbar,
 .product-details-related-scroll::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-  display: block;
-}
-.product-details-modal-fullscreen .modal-content::-webkit-scrollbar-thumb,
-.product-details-modal-body::-webkit-scrollbar-thumb,
-.product-details-scroll::-webkit-scrollbar-thumb,
-.product-details-related-scroll::-webkit-scrollbar-thumb {
-  background: var(--primary-color, rgba(148, 163, 184, 0.5));
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-.product-details-modal-fullscreen .modal-content::-webkit-scrollbar-thumb:hover,
-.product-details-modal-body::-webkit-scrollbar-thumb:hover,
-.product-details-scroll::-webkit-scrollbar-thumb:hover,
-.product-details-related-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--primary-dark, rgba(148, 163, 184, 0.75));
-  background-clip: padding-box;
-}
-.product-details-modal-fullscreen .modal-content::-webkit-scrollbar-track,
-.product-details-modal-body::-webkit-scrollbar-track,
-.product-details-scroll::-webkit-scrollbar-track,
-.product-details-related-scroll::-webkit-scrollbar-track {
-  background: transparent;
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 /* Мобайл/WebApp: фиксированная панель «В корзину» (position:absolute) перекрывала
@@ -2642,9 +2642,10 @@ h6 {
   }
   .product-details-hero {
     grid-area: hero;
-    /* Фото не липкое: вся верхняя строка (фото + инфо) скроллится единым блоком,
-       иначе фото «зависало», а правая колонка уезжала вверх. */
-    position: static;
+    /* Не липкое (вся верхняя строка скроллится вместе), но relative — чтобы
+       кнопки поверх фото (назад/избранное/поделиться/×) и стрелки ‹ › крепились
+       к фото, а не к контейнеру модалки. */
+    position: relative;
     height: auto;
     aspect-ratio: 1 / 1;
     max-height: 520px;
@@ -2662,7 +2663,12 @@ h6 {
     grid-area: info;
     padding-left: 4px !important;
     padding-right: 4px !important;
-    padding-top: 16px !important;
+    padding-top: 4px !important;
+    /* Белый фон как у левой части — без отдельной серой подложки. */
+    background: #ffffff;
+    box-shadow: none;
+    margin-top: 0;
+    border-radius: 0;
   }
   .product-details-block { box-shadow: none !important; }
   .product-details-related-section { grid-area: related; }
