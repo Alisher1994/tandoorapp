@@ -2190,7 +2190,11 @@ function AdminDashboard() {
     container_norm: 1,
     printer_id: '',
     use_segment_pricing: false,
-    segment_prices: {}
+    segment_prices: {},
+    weight_kg: '',
+    length_cm: '',
+    width_cm: '',
+    height_cm: ''
   });
   const [isProductImagesMobileLayout, setIsProductImagesMobileLayout] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 992 : false
@@ -7045,7 +7049,11 @@ function AdminDashboard() {
         use_segment_pricing: product.use_segment_pricing === true,
         segment_prices: (product.segment_prices && typeof product.segment_prices === 'object' && !Array.isArray(product.segment_prices))
           ? Object.fromEntries(Object.entries(product.segment_prices).map(([k, v]) => [String(k), String(v ?? '')]))
-          : {}
+          : {},
+        weight_kg: product.weight_kg != null ? String(product.weight_kg) : '',
+        length_cm: product.length_cm != null ? String(product.length_cm) : '',
+        width_cm: product.width_cm != null ? String(product.width_cm) : '',
+        height_cm: product.height_cm != null ? String(product.height_cm) : ''
       });
       setVisibleProductImageSlotsCount(
         isProductImagesMobileLayout
@@ -7081,7 +7089,11 @@ function AdminDashboard() {
         container_id: '',
         container_norm: 1,
         use_segment_pricing: false,
-        segment_prices: {}
+        segment_prices: {},
+        weight_kg: '',
+        length_cm: '',
+        width_cm: '',
+        height_cm: ''
       });
       setVisibleProductImageSlotsCount(isProductImagesMobileLayout ? 1 : PRODUCT_IMAGE_SLOTS_COUNT);
     }
@@ -8643,7 +8655,11 @@ function AdminDashboard() {
         unit: duplicateVariantUnit
       }).map((variant) => variant.name),
       container_id: product.container_id || '',
-      container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1
+      container_norm: Number.parseFloat(product.container_norm) > 0 ? Number.parseFloat(product.container_norm) : 1,
+      weight_kg: product.weight_kg != null ? String(product.weight_kg) : '',
+      length_cm: product.length_cm != null ? String(product.length_cm) : '',
+      width_cm: product.width_cm != null ? String(product.width_cm) : '',
+      height_cm: product.height_cm != null ? String(product.height_cm) : ''
     });
     setVisibleProductImageSlotsCount(isProductImagesMobileLayout ? 1 : PRODUCT_IMAGE_SLOTS_COUNT);
     setProductFormTab('main');
@@ -19585,6 +19601,76 @@ function AdminDashboard() {
               </Row>
 
               </>)}
+
+              {productFormTab === 'extra' && (
+              <div className="admin-settings-surface-block mb-3">
+                <Form.Label className="d-flex align-items-center gap-2 fw-semibold mb-2">
+                  <span>📦 {language === 'uz' ? 'Yetkazib berish parametrlari (BTS)' : 'Параметры доставки (BTS)'}</span>
+                  <span className="admin-container-help-trigger" tabIndex={0} aria-label="Подсказка по параметрам доставки">
+                    i
+                    <span className="admin-container-help-tooltip">
+                      {language === 'uz'
+                        ? "Vazn va o'lchamlar BTS kuryer xizmati tarifini hisoblash uchun ishlatiladi."
+                        : 'Вес и габариты используются для расчёта тарифа курьерской службы BTS.'}
+                    </span>
+                  </span>
+                </Form.Label>
+                <Row className="g-3">
+                  <Col xs={6} md={3}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Vazn (kg)' : 'Вес (кг)'}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={productForm.weight_kg}
+                        onChange={(e) => setProductForm({ ...productForm, weight_kg: e.target.value })}
+                        placeholder="0.5"
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col xs={6} md={3}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Uzunlik (sm)' : 'Длина (см)'}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={productForm.length_cm}
+                        onChange={(e) => setProductForm({ ...productForm, length_cm: e.target.value })}
+                        placeholder="20"
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col xs={6} md={3}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Kenglik (sm)' : 'Ширина (см)'}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={productForm.width_cm}
+                        onChange={(e) => setProductForm({ ...productForm, width_cm: e.target.value })}
+                        placeholder="15"
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col xs={6} md={3}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Balandlik (sm)' : 'Высота (см)'}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={productForm.height_cm}
+                        onChange={(e) => setProductForm({ ...productForm, height_cm: e.target.value })}
+                        placeholder="10"
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+              </div>
+              )}
 
               {productFormTab === 'extra' && (<>
               {Boolean(restaurantSettings?.inventory_tracking_enabled) && !productForm.size_enabled && (

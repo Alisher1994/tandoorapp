@@ -446,7 +446,12 @@ async function migrate() {
       { name: 'is_hidden_catalog', type: 'BOOLEAN DEFAULT false' },
       { name: 'order_step', type: 'DECIMAL(10, 2)' },
       { name: 'size_enabled', type: 'BOOLEAN DEFAULT false' },
-      { name: 'size_options', type: `JSONB DEFAULT '[]'::jsonb` }
+      { name: 'size_options', type: `JSONB DEFAULT '[]'::jsonb` },
+      // BTS courier integration — parcel parameters
+      { name: 'weight_kg', type: 'DECIMAL(10, 3)' },
+      { name: 'length_cm', type: 'DECIMAL(10, 1)' },
+      { name: 'width_cm', type: 'DECIMAL(10, 1)' },
+      { name: 'height_cm', type: 'DECIMAL(10, 1)' }
     ];
 
     for (const col of productColumns) {

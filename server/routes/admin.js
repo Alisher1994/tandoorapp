@@ -4286,7 +4286,8 @@ router.post('/products', async (req, res) => {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
-      discount_enabled, discount_price, stock_quantity
+      discount_enabled, discount_price, stock_quantity,
+      weight_kg, length_cm, width_cm, height_cm
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -4295,6 +4296,15 @@ router.post('/products', async (req, res) => {
     if (!restaurantId) {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
+    // BTS courier parcel parameters — positive decimals or null.
+    const normalizeParcelMetric = (value) => {
+      const parsed = Number(String(value ?? '').replace(',', '.'));
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    };
+    const normalizedWeightKg = normalizeParcelMetric(weight_kg);
+    const normalizedLengthCm = normalizeParcelMetric(length_cm);
+    const normalizedWidthCm = normalizeParcelMetric(width_cm);
+    const normalizedHeightCm = normalizeParcelMetric(height_cm);
     const inventorySettings = await getRestaurantInventorySettings(pool, restaurantId);
 
     const categoryValidation = await validateProductCategorySelection({
@@ -4376,15 +4386,17 @@ router.post('/products', async (req, res) => {
       INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options, ikpu, discount_enabled, discount_price, stock_quantity, printer_id
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26)
+    size_enabled, size_options, ikpu, discount_enabled, discount_price, stock_quantity, printer_id,
+    weight_kg, length_cm, width_cm, height_cm
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26, $27, $28, $29, $30)
 RETURNING *
   `, [
       restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, normalizedInStock, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions),
-      normalizedIkpu, normalizedDiscountEnabled, normalizedDiscountPrice, normalizedStockQuantity, printer_id || null
+      normalizedIkpu, normalizedDiscountEnabled, normalizedDiscountPrice, normalizedStockQuantity, printer_id || null,
+      normalizedWeightKg, normalizedLengthCm, normalizedWidthCm, normalizedHeightCm
     ]);
 
     const product = result.rows[0];
@@ -4427,7 +4439,8 @@ router.post('/products/upsert', async (req, res) => {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
-      discount_enabled, discount_price, stock_quantity
+      discount_enabled, discount_price, stock_quantity,
+      weight_kg, length_cm, width_cm, height_cm
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -4436,6 +4449,15 @@ router.post('/products/upsert', async (req, res) => {
     if (!restaurantId) {
       return res.status(400).json({ error: 'Выберите ресторан' });
     }
+    // BTS courier parcel parameters — positive decimals or null.
+    const normalizeParcelMetric = (value) => {
+      const parsed = Number(String(value ?? '').replace(',', '.'));
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    };
+    const normalizedWeightKg = normalizeParcelMetric(weight_kg);
+    const normalizedLengthCm = normalizeParcelMetric(length_cm);
+    const normalizedWidthCm = normalizeParcelMetric(width_cm);
+    const normalizedHeightCm = normalizeParcelMetric(height_cm);
     const inventorySettings = await getRestaurantInventorySettings(pool, restaurantId);
 
     const categoryValidation = await validateProductCategorySelection({
@@ -4638,6 +4660,27 @@ router.post('/products/upsert', async (req, res) => {
         paramIndex++;
       }
 
+      if (weight_kg !== undefined) {
+        updateFields.push(`weight_kg = $${paramIndex} `);
+        updateValues.push(normalizedWeightKg);
+        paramIndex++;
+      }
+      if (length_cm !== undefined) {
+        updateFields.push(`length_cm = $${paramIndex} `);
+        updateValues.push(normalizedLengthCm);
+        paramIndex++;
+      }
+      if (width_cm !== undefined) {
+        updateFields.push(`width_cm = $${paramIndex} `);
+        updateValues.push(normalizedWidthCm);
+        paramIndex++;
+      }
+      if (height_cm !== undefined) {
+        updateFields.push(`height_cm = $${paramIndex} `);
+        updateValues.push(normalizedHeightCm);
+        paramIndex++;
+      }
+
       updateValues.push(existingProduct.rows[0].id);
 
       result = await pool.query(`
@@ -4650,8 +4693,9 @@ RETURNING *
         INSERT INTO products(
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
-    size_enabled, size_options, ikpu, discount_enabled, discount_price, stock_quantity, printer_id
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26)
+    size_enabled, size_options, ikpu, discount_enabled, discount_price, stock_quantity, printer_id,
+    weight_kg, length_cm, width_cm, height_cm
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26, $27, $28, $29, $30)
 RETURNING *
   `, [
         restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
@@ -4659,7 +4703,8 @@ RETURNING *
         normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, normalizedInStockFromBody, sort_order || 0,
         container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog,
         normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions),
-        normalizedIkpu, normalizedDiscountEnabledFromBody, normalizedDiscountPriceFromBody, normalizedStockQuantityFromBody, printer_id || null
+        normalizedIkpu, normalizedDiscountEnabledFromBody, normalizedDiscountPriceFromBody, normalizedStockQuantityFromBody, printer_id || null,
+        normalizedWeightKg, normalizedLengthCm, normalizedWidthCm, normalizedHeightCm
       ]);
     }
 
