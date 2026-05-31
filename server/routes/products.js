@@ -1418,9 +1418,10 @@ router.get('/restaurant/:id', async (req, res) => {
     const r = result.rows[0];
     let ownerUsername = '';
     let ownerPhone = '';
+    let ownerFullName = '';
     try {
       const ownerResult = await pool.query(
-        `SELECT u.username, u.phone
+        `SELECT u.username, u.phone, u.full_name
          FROM operator_restaurants opr
          INNER JOIN users u ON u.id = opr.user_id
          WHERE opr.restaurant_id = $1
@@ -1436,10 +1437,12 @@ router.get('/restaurant/:id', async (req, res) => {
       if (ownerResult.rows[0]) {
         ownerUsername = String(ownerResult.rows[0].username || '').trim().replace(/^@+/, '');
         ownerPhone = String(ownerResult.rows[0].phone || '').trim();
+        ownerFullName = String(ownerResult.rows[0].full_name || '').trim();
       }
     } catch (_) {
       ownerUsername = '';
       ownerPhone = '';
+      ownerFullName = '';
     }
 
     const serviceFee = Number.parseFloat(r.service_fee ?? 0);
@@ -1513,6 +1516,7 @@ router.get('/restaurant/:id', async (req, res) => {
       support_username: r.support_username || '',
       owner_username: ownerUsername || String(r.support_username || '').trim().replace(/^@+/, ''),
       owner_phone: ownerPhone || '',
+      owner_full_name: ownerFullName || '',
       is_scheduled_date_delivery_enabled: isEnabledFlag(r.is_scheduled_date_delivery_enabled),
       scheduled_delivery_max_days: Math.max(1, Math.trunc(Number(r.scheduled_delivery_max_days) || 7)),
       is_asap_delivery_enabled: r.is_asap_delivery_enabled === false ? false : true,

@@ -163,6 +163,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [prevRestaurant, setPrevRestaurant] = useState(null);
+  const [storeContact, setStoreContact] = useState({ fullName: '', phone: '', username: '' });
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [adBanners, setAdBanners] = useState([]);
@@ -563,6 +564,29 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     if (!restaurantId) return;
     loadShowcase(restaurantId, isPublicStorefront);
   }, [isPublicStorefront, publicRestaurantId, user?.active_restaurant_id, loadShowcase]);
+
+  // Контакт админа магазина (ФИО + телефон) — для связи из карточки товара.
+  useEffect(() => {
+    const rid = Number.parseInt(selectedRestaurant, 10)
+      || Number.parseInt(publicRestaurantId, 10)
+      || Number.parseInt(user?.active_restaurant_id, 10);
+    if (!rid) {
+      setStoreContact({ fullName: '', phone: '', username: '' });
+      return undefined;
+    }
+    let cancelled = false;
+    axios.get(`${API_URL}/products/restaurant/${rid}`)
+      .then((res) => {
+        if (cancelled) return;
+        setStoreContact({
+          fullName: String(res.data?.owner_full_name || '').trim(),
+          phone: String(res.data?.owner_phone || '').trim(),
+          username: String(res.data?.owner_username || '').trim()
+        });
+      })
+      .catch(() => { if (!cancelled) setStoreContact({ fullName: '', phone: '', username: '' }); });
+    return () => { cancelled = true; };
+  }, [selectedRestaurant, publicRestaurantId, user?.active_restaurant_id]);
 
   // Публичная витрина: при первой загрузке открываем «Витрину», если она настроена и видима;
   // иначе остаёмся в «Меню». После первичной инициализации вкладку не трогаем (управляет юзер).
@@ -6240,6 +6264,36 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                               </div>
                             );
                           })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {(() => {
+                    const contactName = String(storeContact.fullName || '').trim();
+                    const contactPhone = String(storeContact.phone || '').trim();
+                    if (!contactName && !contactPhone) return null;
+                    const telHref = contactPhone ? `tel:${contactPhone.replace(/[^\d+]/g, '')}` : null;
+                    return (
+                      <div className="product-details-block product-details-contact mb-3">
+                        <div className="small text-muted mb-1">
+                          {language === 'uz' ? "Bog'lanish uchun" : 'Связаться с магазином'}
+                        </div>
+                        <div className="product-parcel-specs">
+                          {contactName && (
+                            <div className="product-parcel-spec">
+                              <span className="product-parcel-spec-label">{language === 'uz' ? 'Administrator' : 'Администратор'}</span>
+                              <span className="product-parcel-spec-value">{contactName}</span>
+                            </div>
+                          )}
+                          {contactPhone && (
+                            <div className="product-parcel-spec">
+                              <span className="product-parcel-spec-label">{language === 'uz' ? 'Telefon' : 'Телефон'}</span>
+                              <span className="product-parcel-spec-value">
+                                <a className="product-details-contact-phone" href={telHref}>{contactPhone}</a>
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
