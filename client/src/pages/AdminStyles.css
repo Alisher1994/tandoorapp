@@ -16177,6 +16177,46 @@ textarea.form-control {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color) 14%, transparent);
 }
+
+/* Combobox control: the field itself is the search input */
+.searchable-select-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: var(--admin-field-height, 44px);
+    padding: 0 12px;
+    border: 1px solid #d7dee8;
+    border-radius: 10px;
+    background: #ffffff;
+    cursor: text;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.searchable-select.is-open .searchable-select-control,
+.searchable-select-control:focus-within {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color) 14%, transparent);
+}
+.searchable-select-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #0f172a;
+    font-size: 0.92rem;
+    padding: 0;
+}
+.searchable-select-input::placeholder { color: #9aa3b2; opacity: 1; }
+.searchable-select-flag {
+    flex-shrink: 0;
+    width: 1.3rem;
+    height: auto;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
 .searchable-select-value {
     min-width: 0;
     overflow: hidden;
@@ -16206,6 +16246,11 @@ textarea.form-control {
     flex-direction: column;
     max-height: 300px;
 }
+/* открытие списка вверх */
+.searchable-select.is-up .searchable-select-menu {
+    top: auto;
+    bottom: calc(100% + 6px);
+}
 .searchable-select-search {
     padding: 8px;
     border-bottom: 1px solid #f1f5f9;
@@ -16229,7 +16274,9 @@ textarea.form-control {
     min-height: 0;
 }
 .searchable-select-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     width: 100%;
     text-align: left;
     border: none;
@@ -16242,6 +16289,12 @@ textarea.form-control {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.searchable-select-item-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .searchable-select-item:hover {
     background: color-mix(in srgb, var(--primary-color) 8%, #ffffff);

@@ -19770,6 +19770,7 @@ function AdminDashboard() {
                         options={COUNTRY_SELECT_OPTIONS}
                         placeholder={language === 'uz' ? 'Davlatni tanlang' : 'Выберите страну'}
                         searchPlaceholder={language === 'uz' ? 'Davlatni qidirish...' : 'Поиск страны...'}
+                        dropUp
                       />
                     </Form.Group>
                   </Col>

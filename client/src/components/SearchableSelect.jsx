@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import * as Flags from 'country-flag-icons/react/3x2';
 
-// Lightweight searchable dropdown styled to match the admin form fields.
-// Props: value, onChange(value), options [{ value, label }], placeholder, searchPlaceholder.
+// Lightweight searchable dropdown (combobox) styled to match the admin form fields.
+// The trigger itself is the search input — typing filters the list inline.
+// Props: value, onChange(value), options [{ value, label, code? }], placeholder,
+//        searchPlaceholder, disabled, dropUp (open the list upward).
 export default function SearchableSelect({
   value,
   onChange,
@@ -9,11 +12,13 @@ export default function SearchableSelect({
   placeholder = 'Выберите',
   searchPlaceholder = 'Поиск...',
   className = '',
-  disabled = false
+  disabled = false,
+  dropUp = false,
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef(null);
+  const inputRef = useRef(null);
 
   const selected = options.find((o) => String(o.value) === String(value)) || null;
 
@@ -25,7 +30,7 @@ export default function SearchableSelect({
         setQuery('');
       }
     };
-    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); setQuery(''); } };
+    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); setQuery(''); inputRef.current?.blur(); } };
     document.addEventListener('mousedown', onDocMouseDown);
     document.addEventListener('keydown', onKey);
     return () => {
@@ -40,30 +45,45 @@ export default function SearchableSelect({
     return options.filter((o) => String(o.label).toLowerCase().includes(q));
   }, [options, query]);
 
+  const Flag = ({ code }) => {
+    if (!code) return null;
+    const F = Flags[String(code).toUpperCase()];
+    return F ? <F className="searchable-select-flag" /> : null;
+  };
+
+  const openMenu = () => { if (!disabled) { setOpen(true); setQuery(''); } };
+
   return (
-    <div ref={rootRef} className={`searchable-select ${open ? 'is-open' : ''} ${disabled ? 'is-disabled' : ''} ${className}`.trim()}>
-      <button
-        type="button"
-        className="searchable-select-trigger"
-        onClick={() => { if (!disabled) setOpen((o) => !o); }}
-        disabled={disabled}
+    <div
+      ref={rootRef}
+      className={`searchable-select ${open ? 'is-open' : ''} ${dropUp ? 'is-up' : ''} ${disabled ? 'is-disabled' : ''} ${className}`.trim()}
+    >
+      <div
+        className="searchable-select-control"
+        onClick={() => { if (!open) openMenu(); inputRef.current?.focus(); }}
       >
-        <span className={`searchable-select-value${selected ? '' : ' is-placeholder'}`}>
-          {selected ? selected.label : placeholder}
+        {selected && <Flag code={selected.code} />}
+        <input
+          ref={inputRef}
+          type="text"
+          className="searchable-select-input"
+          disabled={disabled}
+          autoComplete="off"
+          value={open ? query : (selected ? selected.label : '')}
+          placeholder={selected ? selected.label : placeholder}
+          onFocus={openMenu}
+          onChange={(e) => { setOpen(true); setQuery(e.target.value); }}
+        />
+        <span
+          className={`searchable-select-chevron${open ? ' is-open' : ''}`}
+          aria-hidden="true"
+          onMouseDown={(e) => { e.preventDefault(); setOpen((o) => !o); setQuery(''); }}
+        >
+          ▾
         </span>
-        <span className={`searchable-select-chevron${open ? ' is-open' : ''}`} aria-hidden="true">▾</span>
-      </button>
+      </div>
       {open && (
         <div className="searchable-select-menu">
-          <div className="searchable-select-search">
-            <input
-              autoFocus
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={searchPlaceholder}
-            />
-          </div>
           <div className="searchable-select-list" role="listbox">
             {filtered.length === 0 ? (
               <div className="searchable-select-empty">Ничего не найдено</div>
@@ -73,9 +93,10 @@ export default function SearchableSelect({
                   type="button"
                   key={String(o.value)}
                   className={`searchable-select-item${String(o.value) === String(value) ? ' is-active' : ''}`}
-                  onClick={() => { onChange(o.value); setOpen(false); setQuery(''); }}
+                  onClick={() => { onChange(o.value); setOpen(false); setQuery(''); inputRef.current?.blur(); }}
                 >
-                  {o.label}
+                  <Flag code={o.code} />
+                  <span className="searchable-select-item-label">{o.label}</span>
                 </button>
               ))
             )}
