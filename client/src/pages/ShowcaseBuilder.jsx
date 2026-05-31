@@ -1278,33 +1278,26 @@ function ShowcaseBuilder({ embedded = false }) {
         {/* Right Panel - Canvas */}
         <div className="builder-right-panel">
           <div className="panel-section">
-            <div className="canvas-workspace-card">
-              <div className="canvas-header">
-                <div className="canvas-header-meta">
-                  <h3>Структура меню</h3>
+            {showcaseLoading ? (
+              <div className="loading-state">
+                <Spinner animation="border" /> Загрузка конструктора...
+              </div>
+            ) : showcaseLayout.length === 0 ? (
+              <div className="canvas-empty">
+                <div className="empty-canvas-message">
+                  <p>Пока нет блоков. Добавьте первый блок, чтобы собрать меню.</p>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setShowBlockTypeModal(true)}
+                  >
+                    <Plus size={14} /> Добавить блок
+                  </Button>
                 </div>
               </div>
-
-              {showcaseLoading ? (
-                <div className="loading-state">
-                  <Spinner animation="border" /> Загрузка конструктора...
-                </div>
-              ) : showcaseLayout.length === 0 ? (
-                <div className="canvas-empty">
-                  <div className="empty-canvas-message">
-                    <p>Пока нет блоков. Добавьте первый блок, чтобы собрать меню.</p>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => setShowBlockTypeModal(true)}
-                    >
-                      <Plus size={14} /> Добавить блок
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="canvas">
-                  {showcaseLayout.map((block, index) => (
+            ) : (
+              <div className="canvas">
+                {showcaseLayout.map((block, index) => (
                     <div
                       key={block.id}
                       className={`canvas-block-wrapper block-type-${block.block_type}${dropTargetBlockId === block.id ? ' is-drop-target' : ''}`}
@@ -1387,7 +1380,6 @@ function ShowcaseBuilder({ embedded = false }) {
                   ))}
                 </div>
               )}
-            </div>
           </div>
         </div>
       </div>

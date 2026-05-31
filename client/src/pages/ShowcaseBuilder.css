@@ -670,7 +670,9 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  padding: 0.9rem;
+  /* Блоки теперь лежат прямо в колонке (без карты-обёртки); внутренние отступы
+     даёт сам .canvas, поэтому у секции их обнуляем. */
+  padding: 0;
 }
 
 .canvas-workspace-card {
