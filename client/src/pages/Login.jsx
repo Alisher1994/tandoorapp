@@ -4,12 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import Container from 'react-bootstrap/Container';
 import Card from 'react-bootstrap/Card';
 import Form from 'react-bootstrap/Form';
-import InputGroup from 'react-bootstrap/InputGroup';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
 import deliveryTruckVideo from '../assets/animations/delivery-truck.mp4';
 import axios from 'axios';
+import './Login.css';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -197,16 +197,7 @@ function Login() {
                 </span>
               </div>
             )}
-            <div
-              className="mx-auto mb-3"
-              style={{
-                width: '100%',
-                maxWidth: '180px',
-                borderRadius: '14px',
-                overflow: 'hidden',
-                background: '#ffffff'
-              }}
-            >
+            <div className="login-illustration mb-3">
               <video
                 src={deliveryTruckVideo}
                 autoPlay
@@ -247,8 +238,9 @@ function Login() {
 
             <Form.Group className="mb-3">
               <Form.Label>Пароль</Form.Label>
-              <InputGroup>
+              <div className="login-password-field">
                 <Form.Control
+                  className="login-password-input"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Введите пароль"
                   value={password}
@@ -256,12 +248,11 @@ function Login() {
                   required
                   autoComplete="current-password"
                 />
-                <Button
-                  variant="outline-secondary"
+                <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                  className="login-password-toggle"
+                  className="login-password-eye"
                 >
                   {showPassword ? (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -276,14 +267,14 @@ function Login() {
                       <circle cx="12" cy="12" r="2.8" stroke="currentColor" strokeWidth="1.8" />
                     </svg>
                   )}
-                </Button>
-              </InputGroup>
+                </button>
+              </div>
             </Form.Group>
 
             <Button
               variant="primary"
               type="submit"
-              className="w-100 rounded-pill py-2 fw-semibold"
+              className="w-100 login-submit-btn"
               disabled={loading}
             >
               {loading ? 'Вход...' : 'Войти'}

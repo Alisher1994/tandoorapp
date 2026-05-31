@@ -9137,20 +9137,20 @@ body::-webkit-scrollbar,
     color: #ffffff !important;
 }
 
-.admin-panel .btn-primary:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn),
-.admin-panel .btn-secondary:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn),
-.admin-panel .btn-success:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)),
-.admin-panel .btn-info:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)),
-.admin-panel .btn-warning:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)),
-.admin-panel .btn-danger:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)),
-.admin-panel .btn-dark:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)) {
+.admin-panel .btn-primary:not(.admin-printer-icon-btn):not(.action-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn),
+.admin-panel .btn-secondary:not(.admin-printer-icon-btn):not(.action-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn),
+.admin-panel .btn-success:not(.admin-printer-icon-btn):not(.admin-icon-btn),
+.admin-panel .btn-info:not(.admin-printer-icon-btn):not(.admin-icon-btn),
+.admin-panel .btn-warning:not(.admin-printer-icon-btn):not(.admin-icon-btn),
+.admin-panel .btn-danger:not(.admin-printer-icon-btn):not(.admin-icon-btn),
+.admin-panel .btn-dark:not(.admin-printer-icon-btn):not(.admin-icon-btn) {
     background-color: var(--primary-color) !important;
     border-color: var(--primary-color) !important;
     color: #ffffff !important;
     box-shadow: none !important;
 }
 
-.admin-panel .btn:not(.action-btn):not(.btn-link):not(.btn-close):not(.admin-help-list-item):not(.admin-analytics-map-list-item):not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):not(.admin-printer-icon-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn) {
+.admin-panel .btn:not(.action-btn):not(.btn-link):not(.btn-close):not(.admin-help-list-item):not(.admin-analytics-map-list-item):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):not(.admin-printer-icon-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn) {
     height: var(--admin-btn-height);
     min-height: var(--admin-btn-height);
     padding: 0 1rem;
@@ -9164,13 +9164,13 @@ body::-webkit-scrollbar,
     white-space: nowrap;
 }
 
-.admin-panel .btn-primary:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):hover,
-.admin-panel .btn-secondary:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):hover,
-.admin-panel .btn-success:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover,
-.admin-panel .btn-info:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover,
-.admin-panel .btn-warning:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover,
-.admin-panel .btn-danger:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover,
-.admin-panel .btn-dark:not(:has(> svg:only-child)):not(:has(> i.bi:only-child)):hover {
+.admin-panel .btn-primary:not(.admin-printer-icon-btn):not(.action-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):hover,
+.admin-panel .btn-secondary:not(.admin-printer-icon-btn):not(.action-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn):not(.admin-printer-info-btn):not(.sa-global-products-paste-info-btn):hover,
+.admin-panel .btn-success:not(.admin-printer-icon-btn):not(.admin-icon-btn):hover,
+.admin-panel .btn-info:not(.admin-printer-icon-btn):not(.admin-icon-btn):hover,
+.admin-panel .btn-warning:not(.admin-printer-icon-btn):not(.admin-icon-btn):hover,
+.admin-panel .btn-danger:not(.admin-printer-icon-btn):not(.admin-icon-btn):hover,
+.admin-panel .btn-dark:not(.admin-printer-icon-btn):not(.admin-icon-btn):hover {
     background-color: var(--primary-hover) !important;
     border-color: var(--primary-hover) !important;
     color: #ffffff !important;
@@ -16040,116 +16040,10 @@ h1, h2, h3, h4, h5, h6,
     }
 }
 
-/* =====================================================================
-   THOROUGH ICON-ONLY BUTTON NORMALIZATION
-   Any button whose ONLY child is an icon (svg from lucide, or <i class="bi">)
-   becomes a light square — this removes the leftover indigo/colored fills on
-   edit / copy / delete / move / etc. across the whole admin, regardless of the
-   bootstrap variant used. Buttons with a text label are NOT matched (they have
-   more than one child), and the dedicated icon classes are excluded (already
-   styled above). Delete = red glyph, success = green, the rest = indigo glyph.
-   ===================================================================== */
-
-/* Neutral icon-only buttons (primary/secondary/info/dark/warning/light/default) */
-.btn-primary:has(> svg:only-child):not(.action-btn):not(.admin-printer-icon-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn),
-.btn-primary:has(> i.bi:only-child):not(.action-btn):not(.admin-printer-icon-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn),
-.btn-secondary:has(> svg:only-child),
-.btn-secondary:has(> i.bi:only-child),
-.btn-info:has(> svg:only-child),
-.btn-info:has(> i.bi:only-child),
-.btn-dark:has(> svg:only-child),
-.btn-dark:has(> i.bi:only-child),
-.btn-warning:has(> svg:only-child),
-.btn-warning:has(> i.bi:only-child),
-.btn-outline-primary:has(> svg:only-child),
-.btn-outline-primary:has(> i.bi:only-child),
-.btn-outline-secondary:has(> svg:only-child):not(.sa-global-products-paste-info-btn),
-.btn-outline-secondary:has(> i.bi:only-child):not(.sa-global-products-paste-info-btn) {
-    width: 36px !important;
-    height: 36px !important;
-    min-width: 36px !important;
-    padding: 0 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 10px !important;
-    background: #ffffff !important;
-    border: 1px solid rgba(99, 102, 241, 0.16) !important;
-    color: var(--primary-color) !important;
-    box-shadow: none !important;
-}
-.btn-primary:has(> svg:only-child):not(.action-btn):not(.admin-printer-icon-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn):hover,
-.btn-primary:has(> i.bi:only-child):not(.action-btn):not(.admin-printer-icon-btn):not(.sa-founders-icon-btn):not(.admin-store-logo-icon-btn):not(.admin-filter-icon-btn):not(.admin-icon-btn):hover,
-.btn-secondary:has(> svg:only-child):hover,
-.btn-secondary:has(> i.bi:only-child):hover,
-.btn-info:has(> svg:only-child):hover,
-.btn-info:has(> i.bi:only-child):hover,
-.btn-dark:has(> svg:only-child):hover,
-.btn-dark:has(> i.bi:only-child):hover,
-.btn-warning:has(> svg:only-child):hover,
-.btn-warning:has(> i.bi:only-child):hover,
-.btn-outline-primary:has(> svg:only-child):hover,
-.btn-outline-primary:has(> i.bi:only-child):hover,
-.btn-outline-secondary:has(> svg:only-child):not(.sa-global-products-paste-info-btn):hover,
-.btn-outline-secondary:has(> i.bi:only-child):not(.sa-global-products-paste-info-btn):hover {
-    background: color-mix(in srgb, var(--primary-color) 10%, #ffffff) !important;
-    border-color: var(--primary-color) !important;
-    color: var(--primary-color) !important;
-}
-
-/* Delete / danger icon-only -> red glyph on light */
-.btn-danger:has(> svg:only-child),
-.btn-danger:has(> i.bi:only-child),
-.btn-outline-danger:has(> svg:only-child),
-.btn-outline-danger:has(> i.bi:only-child) {
-    width: 36px !important;
-    height: 36px !important;
-    min-width: 36px !important;
-    padding: 0 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 10px !important;
-    background: #ffffff !important;
-    border: 1px solid rgba(220, 38, 38, 0.22) !important;
-    color: #dc2626 !important;
-    box-shadow: none !important;
-}
-.btn-danger:has(> svg:only-child):hover,
-.btn-danger:has(> i.bi:only-child):hover,
-.btn-outline-danger:has(> svg:only-child):hover,
-.btn-outline-danger:has(> i.bi:only-child):hover {
-    background: #fef2f2 !important;
-    border-color: #fecaca !important;
-    color: #b91c1c !important;
-}
-
-/* Success icon-only -> green glyph on light */
-.btn-success:has(> svg:only-child),
-.btn-success:has(> i.bi:only-child),
-.btn-outline-success:has(> svg:only-child),
-.btn-outline-success:has(> i.bi:only-child) {
-    width: 36px !important;
-    height: 36px !important;
-    min-width: 36px !important;
-    padding: 0 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 10px !important;
-    background: #ffffff !important;
-    border: 1px solid rgba(22, 163, 74, 0.22) !important;
-    color: #16a34a !important;
-    box-shadow: none !important;
-}
-.btn-success:has(> svg:only-child):hover,
-.btn-success:has(> i.bi:only-child):hover,
-.btn-outline-success:has(> svg:only-child):hover,
-.btn-outline-success:has(> i.bi:only-child):hover {
-    background: #f0fdf4 !important;
-    border-color: #bbf7d0 !important;
-    color: #15803d !important;
-}
+/* NOTE: the previous ":has(> svg/i.bi:only-child)" auto-squaring was removed —
+   CSS :only-child ignores text nodes, so it wrongly matched icon+text buttons
+   (Фильтр, Добавить блок, Очертить зону) and squashed their labels. Icon-only
+   buttons are squared via their dedicated classes only (handled above). */
 
 /* =====================================================================
    UNIFORM FORM FIELD HEIGHT
