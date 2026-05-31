@@ -4918,7 +4918,8 @@ router.put('/products/:id', async (req, res) => {
       category_id, name_ru, name_uz, description_ru, description_uz,
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
-      discount_enabled, discount_price, stock_quantity
+      discount_enabled, discount_price, stock_quantity,
+      weight_kg, length_cm, width_cm, height_cm
     } = req.body;
 
     // Get old values and check access
@@ -5056,12 +5057,22 @@ router.put('/products/:id', async (req, res) => {
         thumbUrl: oldProduct.thumb_url
       });
 
+    const normalizeParcelMetric = (value) => {
+      const parsed = Number(String(value ?? '').replace(',', '.'));
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    };
+    const normalizedWeightKg = weight_kg === undefined ? oldProduct.weight_kg : normalizeParcelMetric(weight_kg);
+    const normalizedLengthCm = length_cm === undefined ? oldProduct.length_cm : normalizeParcelMetric(length_cm);
+    const normalizedWidthCm = width_cm === undefined ? oldProduct.width_cm : normalizeParcelMetric(width_cm);
+    const normalizedHeightCm = height_cm === undefined ? oldProduct.height_cm : normalizeParcelMetric(height_cm);
+
     const result = await pool.query(`
       UPDATE products SET
 category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_uz = $5,
   image_url = $6, thumb_url = $7, product_images = $8::jsonb, price = $9, unit = $10, order_step = $11, barcode = $12, in_stock = $13, sort_order = $14,
-  container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, ikpu = $21, 
-  discount_enabled = $22, discount_price = $23, stock_quantity = $24, printer_id = $25, updated_at = CURRENT_TIMESTAMP
+  container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, ikpu = $21,
+  discount_enabled = $22, discount_price = $23, stock_quantity = $24, printer_id = $25,
+  weight_kg = $27, length_cm = $28, width_cm = $29, height_cm = $30, updated_at = CURRENT_TIMESTAMP
       WHERE id = $26
 RETURNING *
   `, [
@@ -5069,7 +5080,8 @@ RETURNING *
       mediaPayload.imageUrl, mediaPayload.thumbUrl, JSON.stringify(mediaPayload.productImages),
       normalizedPrice, nextUnit, normalizedOrderStep, barcode, normalizedInStock, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu,
-      normalizedDiscountEnabled, normalizedDiscountPrice, normalizedStockQuantity, printer_id || null, req.params.id
+      normalizedDiscountEnabled, normalizedDiscountPrice, normalizedStockQuantity, printer_id || null, req.params.id,
+      normalizedWeightKg, normalizedLengthCm, normalizedWidthCm, normalizedHeightCm
     ]);
 
     const product = result.rows[0];
