@@ -2,11 +2,21 @@
 
 /* ===== Login page — clean modern brand style ===== */
 .login-shell {
+  width: 100%;
+  max-width: 100% !important;
+  min-height: 100vh;
   background:
-    radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.10), transparent 46%),
-    radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.08), transparent 42%),
+    radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.12), transparent 46%),
+    radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.10), transparent 42%),
     linear-gradient(180deg, #f6f7fb 0%, #eef1f9 100%);
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+/* Full-bleed gradient — paint the whole viewport behind the login card too */
+body:has(.login-shell) {
+  background:
+    radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.12), transparent 46%),
+    radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.10), transparent 42%),
+    linear-gradient(180deg, #f6f7fb 0%, #eef1f9 100%) !important;
 }
 
 .login-card {
@@ -116,9 +126,7 @@
 
 .login-illustration {
   width: 100%;
-  max-width: 170px;
-  border-radius: 18px;
-  overflow: hidden;
-  background: linear-gradient(180deg, #eef2ff, #f8faff);
+  max-width: 200px;
   margin: 0 auto;
+  background: transparent;
 }

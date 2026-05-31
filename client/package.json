@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
+    "@lottiefiles/dotlottie-react": "^0.19.4",
     "axios": "^1.13.6",
     "bootstrap": "^5.3.2",
     "bootstrap-icons": "^1.11.2",

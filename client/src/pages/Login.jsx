@@ -7,7 +7,8 @@ import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
-import deliveryTruckVideo from '../assets/animations/delivery-truck.mp4';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+import receiveOrderAnimation from '../assets/animations/Receive order.lottie?url';
 import axios from 'axios';
 import './Login.css';
 
@@ -186,7 +187,7 @@ function Login() {
   };
 
   return (
-    <Container className="d-flex justify-content-center align-items-center login-shell" style={{ minHeight: '100vh' }}>
+    <Container fluid className="d-flex justify-content-center align-items-center login-shell" style={{ minHeight: '100vh' }}>
       <Card style={{ width: '100%', maxWidth: '420px' }} className="shadow login-card">
         <Card.Body className="p-4">
           <div className="text-center mb-4">
@@ -198,18 +199,11 @@ function Login() {
               </div>
             )}
             <div className="login-illustration mb-3">
-              <video
-                src={deliveryTruckVideo}
-                autoPlay
+              <DotLottieReact
+                src={receiveOrderAnimation}
+                autoplay
                 loop
-                muted
-                playsInline
-                style={{
-                  width: '100%',
-                  display: 'block',
-                  maxHeight: '120px',
-                  objectFit: 'cover'
-                }}
+                style={{ width: '100%', height: '160px' }}
               />
             </div>
             <h2>{portalTitles[loginPortal] || 'Вход в систему'}</h2>
