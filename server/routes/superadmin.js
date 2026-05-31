@@ -11449,6 +11449,119 @@ const buildAdAnalyticsWhere = ({ bannerId, days }) => {
 
 const mapPgInt = (value) => Number.parseInt(value, 10) || 0;
 
+// ===== Manufacturers (global catalog) =====
+const normalizeManufacturerName = (value) => String(value ?? '').trim().slice(0, 160);
+const normalizeManufacturerLogo = (value) => {
+  const url = String(value ?? '').trim();
+  return url ? url.slice(0, 2000) : null;
+};
+
+router.get('/manufacturers', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT m.*, COALESCE(p.products_count, 0)::int AS products_count
+      FROM manufacturers m
+      LEFT JOIN (
+        SELECT manufacturer_id, COUNT(*) AS products_count
+        FROM products
+        WHERE manufacturer_id IS NOT NULL
+        GROUP BY manufacturer_id
+      ) p ON p.manufacturer_id = m.id
+      ORDER BY m.name ASC
+    `);
+    res.json({ items: result.rows });
+  } catch (error) {
+    console.error('Get manufacturers error:', error);
+    res.status(500).json({ error: 'Ошибка получения производителей' });
+  }
+});
+
+router.post('/manufacturers', async (req, res) => {
+  try {
+    const name = normalizeManufacturerName(req.body?.name);
+    if (!name) {
+      return res.status(400).json({ error: 'Укажите название производителя' });
+    }
+    const logoUrl = normalizeManufacturerLogo(req.body?.logo_url);
+    const isActive = req.body?.is_active === undefined ? true : !!req.body.is_active;
+
+    const dup = await pool.query('SELECT id FROM manufacturers WHERE LOWER(name) = LOWER($1) LIMIT 1', [name]);
+    if (dup.rows.length > 0) {
+      return res.status(409).json({ error: 'Производитель с таким названием уже существует' });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO manufacturers (name, logo_url, is_active, created_by, updated_by)
+      VALUES ($1, $2, $3, $4, $4)
+      RETURNING *
+    `, [name, logoUrl, isActive, req.user.id]);
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create manufacturer error:', error);
+    res.status(500).json({ error: 'Ошибка создания производителя' });
+  }
+});
+
+router.put('/manufacturers/:id', async (req, res) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Некорректный ID' });
+    }
+    const existing = await pool.query('SELECT * FROM manufacturers WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Производитель не найден' });
+    }
+
+    const hasName = Object.prototype.hasOwnProperty.call(req.body || {}, 'name');
+    const name = hasName ? normalizeManufacturerName(req.body.name) : existing.rows[0].name;
+    if (hasName && !name) {
+      return res.status(400).json({ error: 'Укажите название производителя' });
+    }
+    const logoUrl = Object.prototype.hasOwnProperty.call(req.body || {}, 'logo_url')
+      ? normalizeManufacturerLogo(req.body.logo_url)
+      : existing.rows[0].logo_url;
+    const isActive = Object.prototype.hasOwnProperty.call(req.body || {}, 'is_active')
+      ? !!req.body.is_active
+      : existing.rows[0].is_active;
+
+    if (hasName && name.toLowerCase() !== String(existing.rows[0].name || '').toLowerCase()) {
+      const dup = await pool.query('SELECT id FROM manufacturers WHERE LOWER(name) = LOWER($1) AND id <> $2 LIMIT 1', [name, id]);
+      if (dup.rows.length > 0) {
+        return res.status(409).json({ error: 'Производитель с таким названием уже существует' });
+      }
+    }
+
+    const result = await pool.query(`
+      UPDATE manufacturers
+      SET name = $1, logo_url = $2, is_active = $3, updated_by = $4, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $5
+      RETURNING *
+    `, [name, logoUrl, isActive, req.user.id, id]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Update manufacturer error:', error);
+    res.status(500).json({ error: 'Ошибка обновления производителя' });
+  }
+});
+
+router.delete('/manufacturers/:id', async (req, res) => {
+  try {
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: 'Некорректный ID' });
+    }
+    const result = await pool.query('DELETE FROM manufacturers WHERE id = $1 RETURNING id', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Производитель не найден' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete manufacturer error:', error);
+    res.status(500).json({ error: 'Ошибка удаления производителя' });
+  }
+});
+
 router.get('/ads/banners', async (req, res) => {
   try {
     await ensureActivityTypesSchema();

@@ -432,7 +432,22 @@ async function migrate() {
     }
     console.log('✅ Categories table updated');
 
-    // Add columns to products table  
+    // Global manufacturers catalog (managed by superadmin, shared across stores)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS manufacturers (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(160) NOT NULL,
+        logo_url TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).catch((e) => console.log(`ℹ️  manufacturers table: ${e.message}`));
+    console.log('✅ Manufacturers table ready');
+
+    // Add columns to products table
     const productColumns = [
       { name: 'restaurant_id', type: 'INTEGER REFERENCES restaurants(id) ON DELETE CASCADE' },
       { name: 'container_id', type: 'INTEGER' },
@@ -451,7 +466,12 @@ async function migrate() {
       { name: 'weight_kg', type: 'DECIMAL(10, 3)' },
       { name: 'length_cm', type: 'DECIMAL(10, 1)' },
       { name: 'width_cm', type: 'DECIMAL(10, 1)' },
-      { name: 'height_cm', type: 'DECIMAL(10, 1)' }
+      { name: 'height_cm', type: 'DECIMAL(10, 1)' },
+      // Manufacturer / brand / model / production country
+      { name: 'manufacturer_id', type: 'INTEGER REFERENCES manufacturers(id) ON DELETE SET NULL' },
+      { name: 'brand', type: 'VARCHAR(160)' },
+      { name: 'model', type: 'VARCHAR(160)' },
+      { name: 'production_country', type: 'VARCHAR(120)' }
     ];
 
     for (const col of productColumns) {

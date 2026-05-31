@@ -4278,6 +4278,19 @@ router.get('/products', async (req, res) => {
   }
 });
 
+// Глобальный справочник производителей (только активные) — для формы товара
+router.get('/manufacturers', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, name, logo_url FROM manufacturers WHERE is_active = true ORDER BY name ASC'
+    );
+    res.json({ items: result.rows });
+  } catch (error) {
+    console.error('Admin manufacturers error:', error);
+    res.status(500).json({ error: 'Ошибка получения производителей' });
+  }
+});
+
 // Добавить товар
 router.post('/products', async (req, res) => {
   try {
@@ -4287,7 +4300,8 @@ router.post('/products', async (req, res) => {
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
       discount_enabled, discount_price, stock_quantity,
-      weight_kg, length_cm, width_cm, height_cm
+      weight_kg, length_cm, width_cm, height_cm,
+      manufacturer_id, brand, model, production_country
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -4305,6 +4319,12 @@ router.post('/products', async (req, res) => {
     const normalizedLengthCm = normalizeParcelMetric(length_cm);
     const normalizedWidthCm = normalizeParcelMetric(width_cm);
     const normalizedHeightCm = normalizeParcelMetric(height_cm);
+    // Manufacturer / brand / model / production country
+    const normalizedManufacturerId = Number.isInteger(Number(manufacturer_id)) && Number(manufacturer_id) > 0
+      ? Number(manufacturer_id) : null;
+    const normalizedBrand = String(brand ?? '').trim().slice(0, 160) || null;
+    const normalizedModel = String(model ?? '').trim().slice(0, 160) || null;
+    const normalizedProductionCountry = String(production_country ?? '').trim().slice(0, 120) || null;
     const inventorySettings = await getRestaurantInventorySettings(pool, restaurantId);
 
     const categoryValidation = await validateProductCategorySelection({
@@ -4387,8 +4407,9 @@ router.post('/products', async (req, res) => {
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
     size_enabled, size_options, ikpu, discount_enabled, discount_price, stock_quantity, printer_id,
-    weight_kg, length_cm, width_cm, height_cm
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+    weight_kg, length_cm, width_cm, height_cm,
+    manufacturer_id, brand, model, production_country
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
 RETURNING *
   `, [
       restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
@@ -4396,7 +4417,8 @@ RETURNING *
       normalizedPrice, normalizedUnit, normalizedOrderStep, barcode, normalizedInStock, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions),
       normalizedIkpu, normalizedDiscountEnabled, normalizedDiscountPrice, normalizedStockQuantity, printer_id || null,
-      normalizedWeightKg, normalizedLengthCm, normalizedWidthCm, normalizedHeightCm
+      normalizedWeightKg, normalizedLengthCm, normalizedWidthCm, normalizedHeightCm,
+      normalizedManufacturerId, normalizedBrand, normalizedModel, normalizedProductionCountry
     ]);
 
     const product = result.rows[0];
@@ -4440,7 +4462,8 @@ router.post('/products/upsert', async (req, res) => {
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
       discount_enabled, discount_price, stock_quantity,
-      weight_kg, length_cm, width_cm, height_cm
+      weight_kg, length_cm, width_cm, height_cm,
+      manufacturer_id, brand, model, production_country
     } = req.body;
 
     const restaurantId = req.user.active_restaurant_id;
@@ -4458,6 +4481,12 @@ router.post('/products/upsert', async (req, res) => {
     const normalizedLengthCm = normalizeParcelMetric(length_cm);
     const normalizedWidthCm = normalizeParcelMetric(width_cm);
     const normalizedHeightCm = normalizeParcelMetric(height_cm);
+    // Manufacturer / brand / model / production country
+    const normalizedManufacturerId = Number.isInteger(Number(manufacturer_id)) && Number(manufacturer_id) > 0
+      ? Number(manufacturer_id) : null;
+    const normalizedBrand = String(brand ?? '').trim().slice(0, 160) || null;
+    const normalizedModel = String(model ?? '').trim().slice(0, 160) || null;
+    const normalizedProductionCountry = String(production_country ?? '').trim().slice(0, 120) || null;
     const inventorySettings = await getRestaurantInventorySettings(pool, restaurantId);
 
     const categoryValidation = await validateProductCategorySelection({
@@ -4680,6 +4709,26 @@ router.post('/products/upsert', async (req, res) => {
         updateValues.push(normalizedHeightCm);
         paramIndex++;
       }
+      if (manufacturer_id !== undefined) {
+        updateFields.push(`manufacturer_id = $${paramIndex} `);
+        updateValues.push(normalizedManufacturerId);
+        paramIndex++;
+      }
+      if (brand !== undefined) {
+        updateFields.push(`brand = $${paramIndex} `);
+        updateValues.push(normalizedBrand);
+        paramIndex++;
+      }
+      if (model !== undefined) {
+        updateFields.push(`model = $${paramIndex} `);
+        updateValues.push(normalizedModel);
+        paramIndex++;
+      }
+      if (production_country !== undefined) {
+        updateFields.push(`production_country = $${paramIndex} `);
+        updateValues.push(normalizedProductionCountry);
+        paramIndex++;
+      }
 
       updateValues.push(existingProduct.rows[0].id);
 
@@ -4694,8 +4743,9 @@ RETURNING *
     restaurant_id, category_id, name_ru, name_uz, description_ru, description_uz,
     image_url, thumb_url, product_images, price, unit, order_step, barcode, in_stock, sort_order, container_id, container_norm, season_scope, is_hidden_catalog,
     size_enabled, size_options, ikpu, discount_enabled, discount_price, stock_quantity, printer_id,
-    weight_kg, length_cm, width_cm, height_cm
-  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+    weight_kg, length_cm, width_cm, height_cm,
+    manufacturer_id, brand, model, production_country
+  ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
 RETURNING *
   `, [
         restaurantId, normalizedCategoryId, normalizedNames.nameRu, normalizedNames.nameUz, normalizedDescriptionRu, normalizedDescriptionUz,
@@ -4704,7 +4754,8 @@ RETURNING *
         container_id || null, normalizedContainerNorm, normalizedSeasonScope, !!is_hidden_catalog,
         normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions),
         normalizedIkpu, normalizedDiscountEnabledFromBody, normalizedDiscountPriceFromBody, normalizedStockQuantityFromBody, printer_id || null,
-        normalizedWeightKg, normalizedLengthCm, normalizedWidthCm, normalizedHeightCm
+        normalizedWeightKg, normalizedLengthCm, normalizedWidthCm, normalizedHeightCm,
+        normalizedManufacturerId, normalizedBrand, normalizedModel, normalizedProductionCountry
       ]);
     }
 
@@ -4919,7 +4970,8 @@ router.put('/products/:id', async (req, res) => {
       image_url, thumb_url, product_images, price, unit, order_step, barcode, ikpu, in_stock, sort_order, container_id, container_norm,
       season_scope, is_hidden_catalog, size_enabled, size_options, printer_id,
       discount_enabled, discount_price, stock_quantity,
-      weight_kg, length_cm, width_cm, height_cm
+      weight_kg, length_cm, width_cm, height_cm,
+      manufacturer_id, brand, model, production_country
     } = req.body;
 
     // Get old values and check access
@@ -5065,6 +5117,14 @@ router.put('/products/:id', async (req, res) => {
     const normalizedLengthCm = length_cm === undefined ? oldProduct.length_cm : normalizeParcelMetric(length_cm);
     const normalizedWidthCm = width_cm === undefined ? oldProduct.width_cm : normalizeParcelMetric(width_cm);
     const normalizedHeightCm = height_cm === undefined ? oldProduct.height_cm : normalizeParcelMetric(height_cm);
+    const normalizedManufacturerId = manufacturer_id === undefined
+      ? oldProduct.manufacturer_id
+      : (Number.isInteger(Number(manufacturer_id)) && Number(manufacturer_id) > 0 ? Number(manufacturer_id) : null);
+    const normalizedBrand = brand === undefined ? oldProduct.brand : (String(brand ?? '').trim().slice(0, 160) || null);
+    const normalizedModel = model === undefined ? oldProduct.model : (String(model ?? '').trim().slice(0, 160) || null);
+    const normalizedProductionCountry = production_country === undefined
+      ? oldProduct.production_country
+      : (String(production_country ?? '').trim().slice(0, 120) || null);
 
     const result = await pool.query(`
       UPDATE products SET
@@ -5072,7 +5132,8 @@ category_id = $1, name_ru = $2, name_uz = $3, description_ru = $4, description_u
   image_url = $6, thumb_url = $7, product_images = $8::jsonb, price = $9, unit = $10, order_step = $11, barcode = $12, in_stock = $13, sort_order = $14,
   container_id = $15, container_norm = $16, season_scope = $17, is_hidden_catalog = $18, size_enabled = $19, size_options = $20::jsonb, ikpu = $21,
   discount_enabled = $22, discount_price = $23, stock_quantity = $24, printer_id = $25,
-  weight_kg = $27, length_cm = $28, width_cm = $29, height_cm = $30, updated_at = CURRENT_TIMESTAMP
+  weight_kg = $27, length_cm = $28, width_cm = $29, height_cm = $30,
+  manufacturer_id = $31, brand = $32, model = $33, production_country = $34, updated_at = CURRENT_TIMESTAMP
       WHERE id = $26
 RETURNING *
   `, [
@@ -5081,7 +5142,8 @@ RETURNING *
       normalizedPrice, nextUnit, normalizedOrderStep, barcode, normalizedInStock, sort_order || 0, container_id || null, normalizedContainerNorm,
       normalizedSeasonScope, !!is_hidden_catalog, normalizedSizeEnabled, JSON.stringify(normalizedSizeOptions), normalizedIkpu,
       normalizedDiscountEnabled, normalizedDiscountPrice, normalizedStockQuantity, printer_id || null, req.params.id,
-      normalizedWeightKg, normalizedLengthCm, normalizedWidthCm, normalizedHeightCm
+      normalizedWeightKg, normalizedLengthCm, normalizedWidthCm, normalizedHeightCm,
+      normalizedManufacturerId, normalizedBrand, normalizedModel, normalizedProductionCountry
     ]);
 
     const product = result.rows[0];

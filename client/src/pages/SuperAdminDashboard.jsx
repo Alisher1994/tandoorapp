@@ -38,10 +38,12 @@ import {
   Package,
   Pencil,
   PieChart,
+  Plus,
   Printer,
   Puzzle,
   Receipt,
   Send,
+  Factory,
   Settings,
   Shield,
   Store,
@@ -146,13 +148,14 @@ const SUPERADMIN_SIDEBAR_NAV_ORDER = [
   'analytics',
   'restaurants',
   'global_products',
+  'manufacturers',
   'operators',
   'customers',
   'ads',
   'founders',
   'settings'
 ];
-const MODERATOR_MENU_KEYS = ['analytics', 'restaurants', 'global_products', 'operators', 'customers', 'ads', 'founders', 'settings'];
+const MODERATOR_MENU_KEYS = ['analytics', 'restaurants', 'global_products', 'manufacturers', 'operators', 'customers', 'ads', 'founders', 'settings'];
 const normalizeModeratorPermissions = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const normalized = {};
@@ -2052,6 +2055,13 @@ function SuperAdminDashboard() {
   const [topupTransactions, setTopupTransactions] = useState([]);
   const [topupTransactionsLoading, setTopupTransactionsLoading] = useState(false);
   const [topupSubmitting, setTopupSubmitting] = useState(false);
+  const [manufacturers, setManufacturers] = useState([]);
+  const [manufacturersLoading, setManufacturersLoading] = useState(false);
+  const [showManufacturerModal, setShowManufacturerModal] = useState(false);
+  const [editingManufacturer, setEditingManufacturer] = useState(null);
+  const [manufacturerSaving, setManufacturerSaving] = useState(false);
+  const [manufacturerLogoUploading, setManufacturerLogoUploading] = useState(false);
+  const [manufacturerForm, setManufacturerForm] = useState({ name: '', logo_url: '', is_active: true });
   const [adBanners, setAdBanners] = useState([]);
   const [adBannersMeta, setAdBannersMeta] = useState({ max_slots: 10, active_now_count: 0 });
   const [adBannersLoading, setAdBannersLoading] = useState(false);
@@ -2576,6 +2586,9 @@ function SuperAdminDashboard() {
   useEffect(() => {
     if (activeTab === 'ads') loadAdBanners();
   }, [activeTab, adBannerStatusFilter]);
+  useEffect(() => {
+    if (activeTab === 'manufacturers') loadManufacturers();
+  }, [activeTab]);
   useEffect(() => {
     if (user?.role === 'moderator') {
       const normalizedTab = resolveModeratorMenuKey(activeTab);
@@ -5938,6 +5951,106 @@ function SuperAdminDashboard() {
       setError(err.response?.data?.error || 'Ошибка загрузки рекламы');
     } finally {
       setAdBannersLoading(false);
+    }
+  };
+
+  const loadManufacturers = async () => {
+    try {
+      setManufacturersLoading(true);
+      const response = await axios.get(`${API_URL}/superadmin/manufacturers`);
+      setManufacturers(response.data?.items || []);
+    } catch (err) {
+      console.error('Load manufacturers error:', err);
+      setError(err.response?.data?.error || 'Ошибка загрузки производителей');
+    } finally {
+      setManufacturersLoading(false);
+    }
+  };
+
+  const openManufacturerModal = (manufacturer = null) => {
+    if (manufacturer) {
+      setEditingManufacturer(manufacturer);
+      setManufacturerForm({
+        name: manufacturer.name || '',
+        logo_url: manufacturer.logo_url || '',
+        is_active: manufacturer.is_active !== false
+      });
+    } else {
+      setEditingManufacturer(null);
+      setManufacturerForm({ name: '', logo_url: '', is_active: true });
+    }
+    setShowManufacturerModal(true);
+  };
+
+  const handleManufacturerLogoUpload = async (file) => {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setError('Логотип слишком большой (макс. 8MB)');
+      return;
+    }
+    setManufacturerLogoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('preset', 'ad');
+      const response = await axios.post(`${API_URL}/upload/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const fullUrl = resolveAdPreviewImageUrl(response.data?.url || response.data?.imageUrl || '');
+      setManufacturerForm((prev) => ({ ...prev, logo_url: fullUrl }));
+      setSuccess('Логотип загружен');
+    } catch (err) {
+      console.error('Manufacturer logo upload error:', err);
+      setError('Ошибка загрузки логотипа');
+    } finally {
+      setManufacturerLogoUploading(false);
+    }
+  };
+
+  const saveManufacturer = async () => {
+    const name = String(manufacturerForm.name || '').trim();
+    if (!name) {
+      setError('Укажите название производителя');
+      return;
+    }
+    setManufacturerSaving(true);
+    try {
+      const payload = {
+        name,
+        logo_url: manufacturerForm.logo_url || '',
+        is_active: manufacturerForm.is_active !== false
+      };
+      if (editingManufacturer?.id) {
+        await axios.put(`${API_URL}/superadmin/manufacturers/${editingManufacturer.id}`, payload);
+        setSuccess('Производитель обновлён');
+      } else {
+        await axios.post(`${API_URL}/superadmin/manufacturers`, payload);
+        setSuccess('Производитель добавлен');
+      }
+      setShowManufacturerModal(false);
+      setEditingManufacturer(null);
+      await loadManufacturers();
+    } catch (err) {
+      console.error('Save manufacturer error:', err);
+      setError(err.response?.data?.error || 'Ошибка сохранения производителя');
+    } finally {
+      setManufacturerSaving(false);
+    }
+  };
+
+  const deleteManufacturer = async (manufacturer) => {
+    if (!manufacturer?.id) return;
+    const confirmText = manufacturer.products_count > 0
+      ? `Удалить «${manufacturer.name}»? Он привязан к товарам (${manufacturer.products_count}) — связь будет очищена.`
+      : `Удалить производителя «${manufacturer.name}»?`;
+    if (!window.confirm(confirmText)) return;
+    try {
+      await axios.delete(`${API_URL}/superadmin/manufacturers/${manufacturer.id}`);
+      setSuccess('Производитель удалён');
+      await loadManufacturers();
+    } catch (err) {
+      console.error('Delete manufacturer error:', err);
+      setError(err.response?.data?.error || 'Ошибка удаления производителя');
     }
   };
 
@@ -12362,6 +12475,7 @@ function SuperAdminDashboard() {
     analytics: { label: language === 'uz' ? 'Analitika' : 'Аналитика', icon: BarChart3 },
     restaurants: { label: t('restaurants'), icon: Store },
     global_products: { label: language === 'uz' ? 'Global mahsulotlar' : 'Глобальные товары', icon: Globe },
+    manufacturers: { label: language === 'uz' ? 'Ishlab chiqaruvchilar' : 'Производители', icon: Factory },
     activity_types: { label: language === 'uz' ? 'Faoliyat turlari' : 'Виды деятельности', icon: Puzzle },
     reservation_templates: { label: language === 'uz' ? 'Bron shablonlari' : 'Шаблоны брони', icon: Package },
     help_instructions: { label: language === 'uz' ? "Yo'riqnomalar" : 'Инструкции', icon: BookOpen },
@@ -16262,6 +16376,99 @@ function SuperAdminDashboard() {
                     </Button>
                   </Modal.Footer>
                 </Modal>
+              </Tab>
+
+              {/* Manufacturers Tab */}
+              <Tab eventKey="manufacturers" title={renderSuperAdminSidebarTabTitle('manufacturers')}>
+                <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                  <div>
+                    <h5 className="fw-bold mb-0">{language === 'uz' ? 'Ishlab chiqaruvchilar' : 'Производители'}</h5>
+                    <small className="text-muted">
+                      {language === 'uz'
+                        ? "Global katalog — barcha do'konlar shu ro'yxatdan tanlaydi"
+                        : 'Глобальный каталог — все магазины выбирают из этого списка'}
+                    </small>
+                  </div>
+                  <Button className="btn-primary-custom d-inline-flex align-items-center gap-1" onClick={() => openManufacturerModal()}>
+                    <Plus size={16} /> {language === 'uz' ? "Qo'shish" : 'Добавить'}
+                  </Button>
+                </div>
+
+                <Card className="admin-card border-0 shadow-sm">
+                  <Card.Body className="p-0">
+                    {manufacturersLoading ? (
+                      <div className="text-center text-muted py-5">
+                        <Spinner animation="border" size="sm" className="me-2" />
+                        {language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}
+                      </div>
+                    ) : manufacturers.length === 0 ? (
+                      <div className="text-center text-muted py-5">
+                        <Factory size={32} className="mb-2 opacity-50" />
+                        <div>{language === 'uz' ? 'Hali ishlab chiqaruvchilar yon' : 'Производителей пока нет'}</div>
+                      </div>
+                    ) : (
+                      <Table responsive hover className="mb-0 align-middle">
+                        <thead>
+                          <tr>
+                            <th style={{ width: 64 }}>{language === 'uz' ? 'Logo' : 'Лого'}</th>
+                            <th>{language === 'uz' ? 'Nomi' : 'Название'}</th>
+                            <th className="text-center">{language === 'uz' ? 'Mahsulotlar' : 'Товаров'}</th>
+                            <th className="text-center">{language === 'uz' ? 'Holat' : 'Статус'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Amallar' : 'Действия'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {manufacturers.map((m) => (
+                            <tr key={m.id}>
+                              <td>
+                                {m.logo_url ? (
+                                  <img
+                                    src={m.logo_url}
+                                    alt={m.name}
+                                    style={{ width: 44, height: 44, objectFit: 'contain', borderRadius: 8, background: '#f8fafc', border: '1px solid #eef0f5' }}
+                                  />
+                                ) : (
+                                  <div style={{ width: 44, height: 44, borderRadius: 8, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Factory size={20} className="text-muted opacity-50" />
+                                  </div>
+                                )}
+                              </td>
+                              <td className="fw-semibold">{m.name}</td>
+                              <td className="text-center">{m.products_count || 0}</td>
+                              <td className="text-center">
+                                <Badge bg={m.is_active !== false ? 'success' : 'secondary'}>
+                                  {m.is_active !== false
+                                    ? (language === 'uz' ? 'Faol' : 'Активен')
+                                    : (language === 'uz' ? 'Faol emas' : 'Скрыт')}
+                                </Badge>
+                              </td>
+                              <td className="text-end">
+                                <Button
+                                  size="sm"
+                                  variant="outline-secondary"
+                                  className="admin-icon-action-btn me-1"
+                                  onClick={() => openManufacturerModal(m)}
+                                  title={language === 'uz' ? 'Tahrirlash' : 'Редактировать'}
+                                >
+                                  <Pencil size={15} />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline-danger"
+                                  className="admin-icon-action-btn"
+                                  onClick={() => deleteManufacturer(m)}
+                                  title={language === 'uz' ? "O'chirish" : 'Удалить'}
+                                >
+                                  <Trash2 size={15} />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    )}
+                  </Card.Body>
+                </Card>
               </Tab>
 
               {/* Operators Tab */}
@@ -20372,6 +20579,85 @@ function SuperAdminDashboard() {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowAdAnalyticsModal(false)}>{adI18n.cancel}</Button>
+        </Modal.Footer>
+      </Modal>
+
+      <Modal show={showManufacturerModal} onHide={() => setShowManufacturerModal(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {editingManufacturer
+              ? (language === 'uz' ? 'Ishlab chiqaruvchini tahrirlash' : 'Редактировать производителя')
+              : (language === 'uz' ? "Ishlab chiqaruvchi qo'shish" : 'Добавить производителя')}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">{language === 'uz' ? 'Nomi' : 'Название'} <span className="text-danger">*</span></Form.Label>
+            <Form.Control
+              value={manufacturerForm.name}
+              onChange={(e) => setManufacturerForm((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder={language === 'uz' ? 'Masalan: Samsung' : 'Например: Samsung'}
+              maxLength={160}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label className="fw-semibold">{language === 'uz' ? 'Logo' : 'Логотип'}</Form.Label>
+            <div className="d-flex align-items-center gap-3">
+              <div
+                style={{ width: 72, height: 72, borderRadius: 12, background: '#f8fafc', border: '1px solid #eef0f5', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto', overflow: 'hidden' }}
+              >
+                {manufacturerForm.logo_url ? (
+                  <img src={manufacturerForm.logo_url} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <Factory size={26} className="text-muted opacity-50" />
+                )}
+              </div>
+              <div className="d-flex flex-column gap-2">
+                <Form.Label className="btn btn-outline-secondary btn-sm mb-0 d-inline-flex align-items-center gap-1" style={{ cursor: 'pointer' }}>
+                  <Upload size={15} />
+                  {manufacturerLogoUploading
+                    ? (language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...')
+                    : (language === 'uz' ? 'Logo yuklash' : 'Загрузить логотип')}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    disabled={manufacturerLogoUploading}
+                    onChange={(e) => { handleManufacturerLogoUpload(e.target.files?.[0]); e.target.value = ''; }}
+                  />
+                </Form.Label>
+                {manufacturerForm.logo_url && (
+                  <Button
+                    size="sm"
+                    variant="link"
+                    className="text-danger p-0 text-decoration-none"
+                    onClick={() => setManufacturerForm((prev) => ({ ...prev, logo_url: '' }))}
+                  >
+                    {language === 'uz' ? "Logoni o'chirish" : 'Убрать логотип'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Form.Group>
+
+          <Form.Check
+            type="switch"
+            id="manufacturer-active-switch"
+            label={language === 'uz' ? 'Faol (do\'konlarda ko\'rinadi)' : 'Активен (доступен магазинам)'}
+            checked={manufacturerForm.is_active !== false}
+            onChange={(e) => setManufacturerForm((prev) => ({ ...prev, is_active: e.target.checked }))}
+          />
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowManufacturerModal(false)} disabled={manufacturerSaving}>
+            {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+          </Button>
+          <Button className="btn-primary-custom" onClick={saveManufacturer} disabled={manufacturerSaving || manufacturerLogoUploading}>
+            {manufacturerSaving
+              ? (language === 'uz' ? 'Saqlanmoqda...' : 'Сохранение...')
+              : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+          </Button>
         </Modal.Footer>
       </Modal>
 

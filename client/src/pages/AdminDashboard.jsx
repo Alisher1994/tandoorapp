@@ -43,6 +43,8 @@ import HeaderGlowBackground from '../components/HeaderGlowBackground';
 import BannerCropModal from '../components/BannerCropModal';
 import ShowcaseBuilder from './ShowcaseBuilder';
 import boxSizeVisual from '../assets/box-size-visual.png';
+import SearchableSelect from '../components/SearchableSelect';
+import { COUNTRY_SELECT_OPTIONS } from '../constants/countries';
 import {
   getLeafletTileLayerConfig,
   getSavedMapProvider,
@@ -2117,6 +2119,7 @@ function AdminDashboard() {
   const [productsPage, setProductsPage] = useState(1);
   const [productsLimit, setProductsLimit] = useState(15);
   const [categories, setCategories] = useState([]);
+  const [manufacturers, setManufacturers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingGuardTriggered, setLoadingGuardTriggered] = useState(false);
   const [mainTab, setMainTab] = useState(() => {
@@ -2195,7 +2198,11 @@ function AdminDashboard() {
     weight_kg: '',
     length_cm: '',
     width_cm: '',
-    height_cm: ''
+    height_cm: '',
+    manufacturer_id: '',
+    brand: '',
+    model: '',
+    production_country: ''
   });
   const [isProductImagesMobileLayout, setIsProductImagesMobileLayout] = useState(() => (
     typeof window !== 'undefined' ? window.innerWidth < 992 : false
@@ -2654,6 +2661,23 @@ function AdminDashboard() {
     }, 1700);
     return () => window.clearInterval(intervalId);
   }, [showProductModal, containerLabelAnimatedWords.length]);
+  useEffect(() => {
+    if (!showProductModal) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await axios.get(`${API_URL}/admin/manufacturers`);
+        if (!cancelled) setManufacturers(res.data?.items || []);
+      } catch (error) {
+        console.error('Manufacturers fetch error:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showProductModal]);
+  const manufacturerSelectOptions = useMemo(
+    () => manufacturers.map((m) => ({ value: String(m.id), label: m.name })),
+    [manufacturers]
+  );
   const selectedRestaurantCurrencyOption = useMemo(() => {
     const nextCode = String(
       restaurantSettings?.currency_code
@@ -7054,7 +7078,11 @@ function AdminDashboard() {
         weight_kg: product.weight_kg != null ? String(product.weight_kg) : '',
         length_cm: product.length_cm != null ? String(product.length_cm) : '',
         width_cm: product.width_cm != null ? String(product.width_cm) : '',
-        height_cm: product.height_cm != null ? String(product.height_cm) : ''
+        height_cm: product.height_cm != null ? String(product.height_cm) : '',
+        manufacturer_id: product.manufacturer_id != null ? String(product.manufacturer_id) : '',
+        brand: product.brand || '',
+        model: product.model || '',
+        production_country: product.production_country || ''
       });
       setVisibleProductImageSlotsCount(
         isProductImagesMobileLayout
@@ -7094,7 +7122,11 @@ function AdminDashboard() {
         weight_kg: '',
         length_cm: '',
         width_cm: '',
-        height_cm: ''
+        height_cm: '',
+        manufacturer_id: '',
+        brand: '',
+        model: '',
+        production_country: ''
       });
       setVisibleProductImageSlotsCount(isProductImagesMobileLayout ? 1 : PRODUCT_IMAGE_SLOTS_COUNT);
     }
@@ -8660,7 +8692,11 @@ function AdminDashboard() {
       weight_kg: product.weight_kg != null ? String(product.weight_kg) : '',
       length_cm: product.length_cm != null ? String(product.length_cm) : '',
       width_cm: product.width_cm != null ? String(product.width_cm) : '',
-      height_cm: product.height_cm != null ? String(product.height_cm) : ''
+      height_cm: product.height_cm != null ? String(product.height_cm) : '',
+      manufacturer_id: product.manufacturer_id != null ? String(product.manufacturer_id) : '',
+      brand: product.brand || '',
+      model: product.model || '',
+      production_country: product.production_country || ''
     });
     setVisibleProductImageSlotsCount(isProductImagesMobileLayout ? 1 : PRODUCT_IMAGE_SLOTS_COUNT);
     setProductFormTab('main');
@@ -19674,6 +19710,62 @@ function AdminDashboard() {
                         value={productForm.height_cm}
                         onChange={(e) => setProductForm({ ...productForm, height_cm: e.target.value })}
                         placeholder="10"
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+              </div>
+              )}
+
+              {productFormTab === 'extra' && (
+              <div className="admin-settings-surface-block mb-3">
+                <Form.Label className="fw-semibold mb-2 d-block">
+                  🏭 {language === 'uz' ? 'Ishlab chiqaruvchi va brend' : 'Производитель и бренд'}
+                </Form.Label>
+                <Row className="g-3">
+                  <Col xs={12} md={6}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Ishlab chiqaruvchi' : 'Производитель'}</Form.Label>
+                      <SearchableSelect
+                        value={productForm.manufacturer_id}
+                        onChange={(val) => setProductForm({ ...productForm, manufacturer_id: val })}
+                        options={manufacturerSelectOptions}
+                        placeholder={language === 'uz' ? 'Tanlang' : 'Выберите'}
+                        searchPlaceholder={language === 'uz' ? 'Qidirish...' : 'Поиск...'}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Ishlab chiqarilgan davlat' : 'Страна производства'}</Form.Label>
+                      <SearchableSelect
+                        value={productForm.production_country}
+                        onChange={(val) => setProductForm({ ...productForm, production_country: val })}
+                        options={COUNTRY_SELECT_OPTIONS}
+                        placeholder={language === 'uz' ? 'Davlatni tanlang' : 'Выберите страну'}
+                        searchPlaceholder={language === 'uz' ? 'Davlatni qidirish...' : 'Поиск страны...'}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col xs={6} md={6}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Brend' : 'Бренд'}</Form.Label>
+                      <Form.Control
+                        value={productForm.brand}
+                        onChange={(e) => setProductForm({ ...productForm, brand: e.target.value })}
+                        placeholder={language === 'uz' ? 'Masalan: Galaxy' : 'Например: Galaxy'}
+                        maxLength={160}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col xs={6} md={6}>
+                    <Form.Group>
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Model' : 'Модель'}</Form.Label>
+                      <Form.Control
+                        value={productForm.model}
+                        onChange={(e) => setProductForm({ ...productForm, model: e.target.value })}
+                        placeholder={language === 'uz' ? 'Masalan: S24 Ultra' : 'Например: S24 Ultra'}
+                        maxLength={160}
                       />
                     </Form.Group>
                   </Col>
