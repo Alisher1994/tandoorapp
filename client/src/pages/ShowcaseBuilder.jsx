@@ -700,6 +700,15 @@ function ShowcaseBuilder({ embedded = false }) {
     String(block?.settings?.title ?? block?.title ?? '')
   );
 
+  // Компактный счётчик слотов для сеток — показываем в шапке рядом с типом.
+  const getGridSlotCountLabel = (block) => {
+    if (!isGridBlockType(block?.block_type)) return null;
+    const limit = getGridCategoryLimit(block);
+    const assigned = Array.isArray(block?.content) ? block.content : [];
+    const used = Number.isInteger(limit) ? Math.min(assigned.length, limit) : assigned.length;
+    return `${used}/${Number.isInteger(limit) ? limit : '∞'}`;
+  };
+
   const handleBlockTitleInputChange = (block, rawTitle) => {
     const nextTitle = String(rawTitle ?? '');
     const nextSettings = {
@@ -720,11 +729,9 @@ function ShowcaseBuilder({ embedded = false }) {
       const assignedSource = Array.isArray(block.content) ? block.content : [];
       const assigned = Number.isInteger(limit) ? assignedSource.slice(0, limit) : assignedSource;
       const rowPattern = getGridRowPattern(block, assigned.length, true);
-      const limitLabel = Number.isInteger(limit) ? limit : '∞';
       let currentSlotIndex = 0;
       return (
         <div className="block-slots-wrap">
-          <div className="block-slots-title">Слоты категорий: {assigned.length}/{limitLabel}</div>
           <div className="block-slots-pattern">
             {rowPattern.map((rowSize, rowIndex) => {
               const rowStartIndex = currentSlotIndex;
@@ -776,7 +783,6 @@ function ShowcaseBuilder({ embedded = false }) {
       const selectedCategory = getCategoryById(block.category_id);
       return (
         <div className="block-slots-wrap">
-          <div className="block-slots-title">Категория слайдера</div>
           {selectedCategory ? (
             <div className="block-slot filled slider-slot">
               <span className="slot-label">{getCategoryDisplayName(selectedCategory)}</span>
@@ -802,7 +808,6 @@ function ShowcaseBuilder({ embedded = false }) {
       const ctaText = String(block?.settings?.ctaText || 'Подробнее').trim();
       return (
         <div className="block-slots-wrap">
-          <div className="block-slots-title">Баннер</div>
           <div className="block-slot filled slider-slot">
             <span className="slot-label">{String(block?.title || 'Без заголовка')}</span>
             <span className="slot-subtitle-inline">{ctaText}</span>
@@ -943,14 +948,13 @@ function ShowcaseBuilder({ embedded = false }) {
   return (
     <div className={`showcase-builder-container${embedded ? ' showcase-builder-embedded' : ''}`}>
       <div className="builder-header">
-        <h1>Конструктор меню</h1>
         <div className="header-actions">
           <div className="header-switches">
             <Form.Check
               type="switch"
               id="showcase-visible-switch"
               className="header-visibility-switch"
-              label="Отображать витрину клиенту"
+              label={<span title="Отображать витрину клиенту">Витрина</span>}
               checked={showcaseVisible}
               onChange={(event) => setShowcaseVisible(event.target.checked)}
             />
@@ -958,7 +962,7 @@ function ShowcaseBuilder({ embedded = false }) {
               type="switch"
               id="menu-visible-switch"
               className="header-visibility-switch"
-              label="Отображать основное меню"
+              label={<span title="Отображать основное меню">Меню</span>}
               checked={menuVisible}
               onChange={(event) => setMenuVisible(event.target.checked)}
             />
@@ -966,7 +970,7 @@ function ShowcaseBuilder({ embedded = false }) {
               type="switch"
               id="category-title-bg-global-switch"
               className="header-visibility-switch"
-              label="Скрыть фон названий категорий"
+              label={<span title="Скрыть фон названий категорий">Скрыть фон</span>}
               checked={hideCategoryTitleBackgroundGlobal}
               onChange={(event) => handleToggleGlobalCategoryTitleBackground(event.target.checked)}
             />
@@ -974,7 +978,7 @@ function ShowcaseBuilder({ embedded = false }) {
               type="switch"
               id="category-title-bg-transparent-global-switch"
               className="header-visibility-switch"
-              label="Полупрозрачный фон названий категорий"
+              label={<span title="Полупрозрачный фон названий категорий">Прозрачный фон</span>}
               checked={categoryTitleBackgroundTransparentGlobal}
               onChange={(event) => handleToggleGlobalCategoryTitleBackgroundTransparent(event.target.checked)}
             />
@@ -982,11 +986,11 @@ function ShowcaseBuilder({ embedded = false }) {
               type="switch"
               id="category-title-outside-global-switch"
               className="header-visibility-switch"
-              label="Название категории снаружи фото"
+              label={<span title="Название категории снаружи фото">Снаружи фото</span>}
               checked={categoryTitleOutsideImageGlobal}
               onChange={(event) => handleToggleGlobalCategoryTitleOutsideImage(event.target.checked)}
             />
-            {isDirty && <span className="unsaved-indicator">• Несохраненные изменения</span>}
+            {isDirty && <span className="unsaved-indicator">• Несохранённые изменения</span>}
           </div>
           <div className="header-primary-actions">
             <Button
@@ -1311,6 +1315,11 @@ function ShowcaseBuilder({ embedded = false }) {
                           <span className={`block-type-badge type-${block.block_type}`}>
                             {getBlockTypeLabel(block)}
                           </span>
+                          {isGridBlockType(block.block_type) && (
+                            <span className="block-slot-count" title="Заполнено слотов">
+                              {getGridSlotCountLabel(block)}
+                            </span>
+                          )}
                         </div>
                         <div className="button-group">
                           {index > 0 && (
@@ -1333,6 +1342,7 @@ function ShowcaseBuilder({ embedded = false }) {
                               <ChevronDown size={18} />
                             </button>
                           )}
+                          {!isGridBlockType(block.block_type) && (
                           <button
                             type="button"
                             className="btn-icon"
@@ -1344,6 +1354,7 @@ function ShowcaseBuilder({ embedded = false }) {
                           >
                             <SettingsIcon size={18} />
                           </button>
+                          )}
                           <button
                             type="button"
                             className="btn-icon danger"
@@ -1582,16 +1593,6 @@ function BlockSettingsModal({ show, block, categories, onHide, onSave }) {
       </Modal.Header>
       <Modal.Body>
         <Form>
-          <Form.Group className="mb-3">
-            <Form.Label>Название блока</Form.Label>
-            <Form.Control
-              type="text"
-              value={settings.title || ''}
-              onChange={(e) => handleChange('title', e.target.value)}
-              placeholder="Введите название"
-            />
-          </Form.Group>
-
           {block.block_type === BLOCK_TYPES.SLIDER && (
             <Form.Group className="mb-3">
               <Form.Label>Выберите категорию</Form.Label>
