@@ -19758,6 +19758,7 @@ function AdminDashboard() {
                         options={manufacturerSelectOptions}
                         placeholder={language === 'uz' ? 'Tanlang' : 'Выберите'}
                         searchPlaceholder={language === 'uz' ? 'Qidirish...' : 'Поиск...'}
+                        dropUp
                       />
                     </Form.Group>
                   </Col>
