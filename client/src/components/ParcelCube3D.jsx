@@ -53,7 +53,7 @@ export default function ParcelCube3D({ lengthCm, widthCm, heightCm, language = '
     controls.enablePan = false;
     controls.rotateSpeed = 0.7;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.6; // медленно
+    controls.autoRotateSpeed = 0.18; // очень медленно
     controls.minDistance = 5;
     controls.maxDistance = 4000;
 
@@ -66,11 +66,24 @@ export default function ParcelCube3D({ lengthCm, widthCm, heightCm, language = '
       side: THREE.DoubleSide, depthWrite: false,
     });
     const edgeMat = new THREE.LineBasicMaterial({ color: 0x5b73e8 });
+    const COLORS = { len: 0x5b73e8, wid: 0x10b981, hgt: 0xf59e0b };
+    // основная размерная линия (насыщенная)
     const dimMat = {
-      len: new THREE.LineBasicMaterial({ color: 0x5b73e8 }),
-      wid: new THREE.LineBasicMaterial({ color: 0x10b981 }),
-      hgt: new THREE.LineBasicMaterial({ color: 0xf59e0b }),
+      len: new THREE.LineBasicMaterial({ color: COLORS.len }),
+      wid: new THREE.LineBasicMaterial({ color: COLORS.wid }),
+      hgt: new THREE.LineBasicMaterial({ color: COLORS.hgt }),
     };
+    // наконечники-стрелки
+    const arrowMat = {
+      len: new THREE.MeshBasicMaterial({ color: COLORS.len }),
+      wid: new THREE.MeshBasicMaterial({ color: COLORS.wid }),
+      hgt: new THREE.MeshBasicMaterial({ color: COLORS.hgt }),
+    };
+    // выносные (штрихпунктирные) линии — прозрачные
+    const mkExt = (c) => new THREE.LineDashedMaterial({
+      color: c, transparent: true, opacity: 0.32, dashSize: 1.1, gapSize: 0.7,
+    });
+    const extMat = { len: mkExt(COLORS.len), wid: mkExt(COLORS.wid), hgt: mkExt(COLORS.hgt) };
 
     let boxEdges = null, boxFill = null;
     let dimLines = new THREE.Group();
@@ -115,6 +128,24 @@ export default function ParcelCube3D({ lengthCm, widthCm, heightCm, language = '
       return new THREE.LineSegments(g, mat);
     }
 
+    // штрихпунктирная выносная линия
+    function dashLine(a, b, mat) {
+      const g = new THREE.BufferGeometry().setFromPoints([a, b]);
+      const line = new THREE.Line(g, mat);
+      line.computeLineDistances();
+      return line;
+    }
+
+    // маленькая аккуратная стрелка-наконечник: вершина в точке tip, смотрит вдоль dir
+    function arrow(tip, dir, mat, size) {
+      const d = dir.clone().normalize();
+      const geo = new THREE.ConeGeometry(size * 0.4, size, 14);
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+      mesh.position.copy(tip).addScaledVector(d, -size / 2); // вершина конуса = tip
+      return mesh;
+    }
+
     function rebuildBox(L, W, H) {
       if (boxEdges) { group.remove(boxEdges); boxEdges.geometry.dispose(); }
       if (boxFill) { group.remove(boxFill); boxFill.geometry.dispose(); }
@@ -131,21 +162,35 @@ export default function ParcelCube3D({ lengthCm, widthCm, heightCm, language = '
       dimLines = new THREE.Group();
       group.add(dimLines);
 
-      const gap = Math.max(L, W, H) * 0.12 + 2;
+      const gap = Math.max(L, W, H) * 0.16 + 4;
+      const aSize = Math.max(L, W, H) * 0.045 + 1.3; // размер стрелок
       const x = L / 2, y = H / 2, z = W / 2;
       const V = THREE.Vector3;
 
-      dimLines.add(lineSeg(new V(-x, -y - gap, z), new V(x, -y - gap, z), dimMat.len));
-      labels.len.position.set(0, -y - gap, z);
-      labels.len.element.textContent = `${Lcm} ${unit}`;
+      // одна размерная аннотация: выносные линии до концов + размерная линия со стрелками + подпись
+      const addDim = (edgeA, edgeB, off, key, text) => {
+        const dimA = edgeA.clone().add(off);
+        const dimB = edgeB.clone().add(off);
+        // штрихпунктирные выносные линии (прозрачные) — «опускают» от ребра к концам
+        dimLines.add(dashLine(edgeA, dimA, extMat[key]));
+        dimLines.add(dashLine(edgeB, dimB, extMat[key]));
+        // основная размерная линия
+        dimLines.add(lineSeg(dimA, dimB, dimMat[key]));
+        // стрелки на обоих концах, смотрят наружу
+        const dir = dimB.clone().sub(dimA).normalize();
+        dimLines.add(arrow(dimA, dir.clone().negate(), arrowMat[key], aSize));
+        dimLines.add(arrow(dimB, dir, arrowMat[key], aSize));
+        // подпись по центру
+        labels[key].position.copy(dimA.clone().add(dimB).multiplyScalar(0.5));
+        labels[key].element.textContent = `${text} ${unit}`;
+      };
 
-      dimLines.add(lineSeg(new V(x + gap, -y - gap, -z), new V(x + gap, -y - gap, z), dimMat.wid));
-      labels.wid.position.set(x + gap, -y - gap, 0);
-      labels.wid.element.textContent = `${Wcm} ${unit}`;
-
-      dimLines.add(lineSeg(new V(x + gap, -y, z), new V(x + gap, y, z), dimMat.hgt));
-      labels.hgt.position.set(x + gap, 0, z);
-      labels.hgt.element.textContent = `${Hcm} ${unit}`;
+      // Длина (X): переднее нижнее ребро, опускаем вниз
+      addDim(new V(-x, -y, z), new V(x, -y, z), new V(0, -gap, 0), 'len', Lcm);
+      // Ширина (Z): правое нижнее ребро (вглубь), опускаем вниз
+      addDim(new V(x, -y, -z), new V(x, -y, z), new V(0, -gap, 0), 'wid', Wcm);
+      // Высота (Y): переднее правое ребро, отводим вправо
+      addDim(new V(x, -y, z), new V(x, y, z), new V(gap, 0, 0), 'hgt', Hcm);
     }
 
     function fitModel(L, W, H) {

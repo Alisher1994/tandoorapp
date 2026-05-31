@@ -2140,6 +2140,7 @@ function AdminDashboard() {
     }
   });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const adminTabsShellRef = useRef(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [editingItems, setEditingItems] = useState([]);
@@ -3391,6 +3392,32 @@ function AdminDashboard() {
       // ignore localStorage failures
     }
   }, [isSidebarCollapsed]);
+
+  // Sticky-сайдбар прилипает под навбаром. Высота навбара не фиксирована
+  // (логотип, бейджи баланса, перенос строк, ширина экрана), поэтому жёсткое
+  // значение top давало зазор/«подъезд» под шапку при скролле. Меряем реальную
+  // высоту навбара и кладём её в --admin-sidebar-sticky-top.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const navbar = document.querySelector('.admin-navbar');
+    const shell = adminTabsShellRef.current;
+    if (!navbar || !shell) return undefined;
+
+    const syncStickyTop = () => {
+      const h = Math.round(navbar.getBoundingClientRect().height);
+      if (h > 0) shell.style.setProperty('--admin-sidebar-sticky-top', `${h + 8}px`);
+    };
+
+    syncStickyTop();
+    const ro = new ResizeObserver(syncStickyTop);
+    ro.observe(navbar);
+    window.addEventListener('resize', syncStickyTop);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', syncStickyTop);
+    };
+  }, [isOrdersKanbanMode, language, mainTab]);
+
   const handleSidebarTabSelect = useCallback((key) => {
     if (!key) return;
     const isDesktopSidebar = typeof window !== 'undefined' && window.innerWidth >= 992;
@@ -11976,7 +12003,7 @@ function AdminDashboard() {
           </Alert>
         )}
 
-        <div className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
+        <div ref={adminTabsShellRef} className={`admin-tabs-shell${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
           <div className={`admin-sidebar-column${isSidebarCollapsed ? ' is-collapsed' : ''}`}>
             <Nav
               activeKey={mainTab}
@@ -19652,21 +19679,54 @@ function AdminDashboard() {
                     </span>
                   </span>
                 </Form.Label>
-                <div className="mb-2">
-                  <ParcelCube3D
-                    lengthCm={productForm.length_cm}
-                    widthCm={productForm.width_cm}
-                    heightCm={productForm.height_cm}
-                    language={language}
-                  />
-                  <span className="admin-parcel-visual-note d-block mt-2">
-                    {language === 'uz'
-                      ? 'Sichqoncha bilan aylantiring. Uzunlik, kenglik va balandlikni kiriting — kub real vaqtda o‘zgaradi.'
-                      : 'Вращайте мышью. Введите длину, ширину и высоту — куб меняется в реальном времени.'}
-                  </span>
-                </div>
-                <Row className="g-3">
-                  <Col xs={6} md={3}>
+                <Row className="g-3 align-items-center">
+                  <Col xs={12} lg={7}>
+                    <ParcelCube3D
+                      lengthCm={productForm.length_cm}
+                      widthCm={productForm.width_cm}
+                      heightCm={productForm.height_cm}
+                      language={language}
+                    />
+                    <span className="admin-parcel-visual-note d-block mt-2">
+                      {language === 'uz'
+                        ? 'Sichqoncha bilan aylantiring. Uzunlik, kenglik va balandlikni kiriting — kub real vaqtda o‘zgaradi.'
+                        : 'Вращайте мышью. Введите длину, ширину и высоту — куб меняется в реальном времени.'}
+                    </span>
+                  </Col>
+                  <Col xs={12} lg={5}>
+                    <Form.Group className="mb-3">
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Uzunlik (sm)' : 'Длина (см)'}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={productForm.length_cm}
+                        onChange={(e) => setProductForm({ ...productForm, length_cm: e.target.value })}
+                        placeholder="0"
+                      />
+                    </Form.Group>
+                    <Form.Group className="mb-3">
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Kenglik (sm)' : 'Ширина (см)'}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={productForm.width_cm}
+                        onChange={(e) => setProductForm({ ...productForm, width_cm: e.target.value })}
+                        placeholder="0"
+                      />
+                    </Form.Group>
+                    <Form.Group className="mb-3">
+                      <Form.Label className="small text-muted">{language === 'uz' ? 'Balandlik (sm)' : 'Высота (см)'}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={productForm.height_cm}
+                        onChange={(e) => setProductForm({ ...productForm, height_cm: e.target.value })}
+                        placeholder="0"
+                      />
+                    </Form.Group>
                     <Form.Group>
                       <Form.Label className="small text-muted">{language === 'uz' ? 'Vazn (kg)' : 'Вес (кг)'}</Form.Label>
                       <Form.Control
@@ -19675,46 +19735,7 @@ function AdminDashboard() {
                         step="0.001"
                         value={productForm.weight_kg}
                         onChange={(e) => setProductForm({ ...productForm, weight_kg: e.target.value })}
-                        placeholder="0.5"
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col xs={6} md={3}>
-                    <Form.Group>
-                      <Form.Label className="small text-muted">{language === 'uz' ? 'Uzunlik (sm)' : 'Длина (см)'}</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={productForm.length_cm}
-                        onChange={(e) => setProductForm({ ...productForm, length_cm: e.target.value })}
-                        placeholder="20"
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col xs={6} md={3}>
-                    <Form.Group>
-                      <Form.Label className="small text-muted">{language === 'uz' ? 'Kenglik (sm)' : 'Ширина (см)'}</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={productForm.width_cm}
-                        onChange={(e) => setProductForm({ ...productForm, width_cm: e.target.value })}
-                        placeholder="15"
-                      />
-                    </Form.Group>
-                  </Col>
-                  <Col xs={6} md={3}>
-                    <Form.Group>
-                      <Form.Label className="small text-muted">{language === 'uz' ? 'Balandlik (sm)' : 'Высота (см)'}</Form.Label>
-                      <Form.Control
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={productForm.height_cm}
-                        onChange={(e) => setProductForm({ ...productForm, height_cm: e.target.value })}
-                        placeholder="10"
+                        placeholder="0"
                       />
                     </Form.Group>
                   </Col>
