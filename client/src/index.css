@@ -2642,8 +2642,9 @@ h6 {
   }
   .product-details-hero {
     grid-area: hero;
-    position: sticky;
-    top: 0;
+    /* Фото не липкое: вся верхняя строка (фото + инфо) скроллится единым блоком,
+       иначе фото «зависало», а правая колонка уезжала вверх. */
+    position: static;
     height: auto;
     aspect-ratio: 1 / 1;
     max-height: 520px;

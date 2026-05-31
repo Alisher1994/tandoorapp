@@ -867,7 +867,9 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       addImage(selectedVariantDetails?.image_url);
       getProductImageItems(selectedVariantDetails).forEach((item) => addImage(item.url));
       if (!result.length) addImage(selectedVariantDetails?.thumb_url);
-      if (result.length) return result;
+      // Показываем ТОЛЬКО фото выбранного варианта. Если у него нет фото — возвращаем
+      // пусто, чтобы вместо чужого фото отрисовать логотип магазина.
+      return result;
     }
 
     addImage(product?.image_url);
@@ -4479,7 +4481,10 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const activeProductGalleryIndex = activeProductGalleryImages.length > 0
     ? Math.max(0, Math.min(productHeroIndex, activeProductGalleryImages.length - 1))
     : 0;
-  const activeProductHeroImage = activeProductGalleryImages[activeProductGalleryIndex] || activeProductCardImage;
+  // Когда выбран вариант — фото берём строго из его галереи (если её нет, показываем
+  // логотип, не подставляя фото товара/других вариантов). Без вариантов — обычный фолбэк.
+  const activeProductHeroFallbackImage = activeProductSelectedVariantDetails ? null : activeProductCardImage;
+  const activeProductHeroImage = activeProductGalleryImages[activeProductGalleryIndex] || activeProductHeroFallbackImage;
   const activeProductDescription = getSelectedVariantDescription(activeProduct, activeProductSelectedVariant);
   const activeProductPriceMeta = getSelectedVariantPriceMeta(activeProduct, activeProductSelectedVariant);
   const activeProductDisplayPrice = activeProductPriceMeta.currentPrice;
