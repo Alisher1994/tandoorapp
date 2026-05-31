@@ -10392,6 +10392,8 @@ function SuperAdminDashboard() {
     const categoriesByRevenue = analyticsPayload?.categories?.byRevenue || [];
     const activityTypesByQuantity = analyticsPayload?.activityTypes?.byQuantity || [];
     const activityTypesByRevenue = analyticsPayload?.activityTypes?.byRevenue || [];
+    const topManufacturers = analyticsPayload?.topManufacturers || [];
+    const topCountries = analyticsPayload?.topCountries || [];
     const funnel = analyticsPayload?.funnel || {};
     const startDate = analyticsPayload?.startDate || '';
     const operatorPaymentsAnalytics = analyticsPayload?.operatorPayments || {};
@@ -11961,6 +11963,82 @@ function SuperAdminDashboard() {
                               <td>{item.name || '—'}</td>
                               <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
                               <td className="text-end">{Number(item.ordersCount || 0).toLocaleString('ru-RU')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
+
+            <Row className="g-4 mt-1">
+              <Col lg={6}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>🏭</span>
+                      {language === 'uz' ? 'TOP ishlab chiqaruvchilar (sotuv)' : 'Топ производителей (продажи)'}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {topManufacturers.length > 0 ? (
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? 'Ishlab chiqaruvchi' : 'Производитель'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Soni' : 'Шт'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topManufacturers.map((item, idx) => (
+                            <tr key={`sa-manuf-${item.id || 'na'}-${idx}`}>
+                              <td>{idx + 1}</td>
+                              <td>{item.name || '—'}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
+                              <td className="text-end">{Number(item.units || 0).toLocaleString('ru-RU')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </Table>
+                    ) : (
+                      <div className="text-center text-muted py-4">{t('noDataForPeriod')}</div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+
+              <Col lg={6}>
+                <Card className="border-0 shadow-sm h-100 admin-analytics-surface-card admin-analytics-table-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#0f172a', background: '#f1f5f9' }}>🌍</span>
+                      {language === 'uz' ? 'TOP ishlab chiqarilgan davlatlar (sotuv)' : 'Топ стран производства (продажи)'}
+                    </h6>
+                  </Card.Header>
+                  <Card.Body className="p-0">
+                    {topCountries.length > 0 ? (
+                      <Table hover className="mb-0 admin-analytics-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>{language === 'uz' ? 'Davlat' : 'Страна'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Summa' : 'Сумма'}</th>
+                            <th className="text-end">{language === 'uz' ? 'Soni' : 'Шт'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topCountries.map((item, idx) => (
+                            <tr key={`sa-country-${item.country || 'na'}-${idx}`}>
+                              <td>{idx + 1}</td>
+                              <td>{item.country || '—'}</td>
+                              <td className="text-end">{formatAnalyticsMoney(item.revenue || 0)} {t('sum')}</td>
+                              <td className="text-end">{Number(item.units || 0).toLocaleString('ru-RU')}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -14577,52 +14655,53 @@ function SuperAdminDashboard() {
                 className="admin-tabs admin-tabs-content-only"
               >
               <Tab eventKey="analytics" title={renderSuperAdminSidebarTabTitle('analytics')}>
-                <Row className="mb-4 g-3 superadmin-stats-grid">
-                  <Col xs={6} md={3}>
-                    <Card className="admin-card stat-card border-0 superadmin-stat-card">
-                      <Card.Body className="p-4 d-flex align-items-center gap-3">
-                        <div className="stat-icon bg-primary bg-opacity-10 text-primary mb-0">🏪</div>
-                        <div>
-                          <h4 className="fw-bold mb-0 text-dark">{stats.restaurants_count || 0}</h4>
-                          <small className="text-muted fw-semibold superadmin-stat-label">{t('saRestaurantsCount')}</small>
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col xs={6} md={3}>
-                    <Card className="admin-card stat-card border-0 superadmin-stat-card">
-                      <Card.Body className="p-4 d-flex align-items-center gap-3">
-                        <div className="stat-icon bg-success bg-opacity-10 text-success mb-0">👥</div>
-                        <div>
-                          <h4 className="fw-bold mb-0 text-dark">{stats.operators_count || 0}</h4>
-                          <small className="text-muted fw-semibold superadmin-stat-label">{t('saOperatorsCount')}</small>
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col xs={6} md={3}>
-                    <Card className="admin-card stat-card border-0 superadmin-stat-card">
-                      <Card.Body className="p-4 d-flex align-items-center gap-3">
-                        <div className="stat-icon bg-info bg-opacity-10 text-info mb-0">👤</div>
-                        <div>
-                          <h4 className="fw-bold mb-0 text-dark">{stats.customers_count || 0}</h4>
-                          <small className="text-muted fw-semibold superadmin-stat-label">{t('saCustomersCount')}</small>
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                  <Col xs={6} md={3}>
-                    <Card className="admin-card stat-card border-0 superadmin-stat-card">
-                      <Card.Body className="p-4 d-flex align-items-center gap-3">
-                        <div className="stat-icon bg-warning bg-opacity-10 text-warning mb-0">📦</div>
-                        <div>
-                          <h4 className="fw-bold mb-0 text-dark">{stats.new_orders_count || 0}</h4>
-                          <small className="text-muted fw-semibold superadmin-stat-label">{t('saNewOrdersCount')}</small>
-                        </div>
-                      </Card.Body>
-                    </Card>
-                  </Col>
-                </Row>
+                <div className="mb-4 superadmin-stats-grid">
+                  <Card className="admin-card stat-card border-0 superadmin-stat-card">
+                    <Card.Body className="p-4 d-flex align-items-center gap-3">
+                      <div className="stat-icon bg-primary bg-opacity-10 text-primary mb-0">🏪</div>
+                      <div>
+                        <h4 className="fw-bold mb-0 text-dark">{stats.restaurants_count || 0}</h4>
+                        <small className="text-muted fw-semibold superadmin-stat-label">{t('saRestaurantsCount')}</small>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                  <Card className="admin-card stat-card border-0 superadmin-stat-card">
+                    <Card.Body className="p-4 d-flex align-items-center gap-3">
+                      <div className="stat-icon bg-success bg-opacity-10 text-success mb-0">👥</div>
+                      <div>
+                        <h4 className="fw-bold mb-0 text-dark">{stats.operators_count || 0}</h4>
+                        <small className="text-muted fw-semibold superadmin-stat-label">{t('saOperatorsCount')}</small>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                  <Card className="admin-card stat-card border-0 superadmin-stat-card">
+                    <Card.Body className="p-4 d-flex align-items-center gap-3">
+                      <div className="stat-icon bg-info bg-opacity-10 text-info mb-0">👤</div>
+                      <div>
+                        <h4 className="fw-bold mb-0 text-dark">{stats.customers_count || 0}</h4>
+                        <small className="text-muted fw-semibold superadmin-stat-label">{t('saCustomersCount')}</small>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                  <Card className="admin-card stat-card border-0 superadmin-stat-card">
+                    <Card.Body className="p-4 d-flex align-items-center gap-3">
+                      <div className="stat-icon mb-0" style={{ background: 'rgba(99,102,241,0.10)', color: '#6366f1' }}>🏭</div>
+                      <div>
+                        <h4 className="fw-bold mb-0 text-dark">{stats.products_count || 0}</h4>
+                        <small className="text-muted fw-semibold superadmin-stat-label">{language === 'uz' ? 'Jami mahsulotlar' : 'Всего товаров'}</small>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                  <Card className="admin-card stat-card border-0 superadmin-stat-card">
+                    <Card.Body className="p-4 d-flex align-items-center gap-3">
+                      <div className="stat-icon bg-warning bg-opacity-10 text-warning mb-0">📦</div>
+                      <div>
+                        <h4 className="fw-bold mb-0 text-dark">{stats.new_orders_count || 0}</h4>
+                        <small className="text-muted fw-semibold superadmin-stat-label">{t('saNewOrdersCount')}</small>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                </div>
                 {renderOverviewAnalyticsTab()}
               </Tab>
 

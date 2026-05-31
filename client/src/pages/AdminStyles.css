@@ -3070,6 +3070,18 @@ body::-webkit-scrollbar,
     line-height: 1.2;
 }
 
+/* Superadmin KPI cards — responsive grid (5 cards) */
+.superadmin-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
+}
+@media (max-width: 1199.98px) {
+    .superadmin-stats-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
 .mobile-bottom-sheet .modal-dialog {
     margin: auto 0 0 0;
     max-width: 100%;
@@ -3623,7 +3635,8 @@ body::-webkit-scrollbar,
     }
 
     .superadmin-stats-grid {
-        row-gap: 12px !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 12px !important;
     }
 
     .superadmin-stat-card .card-body {

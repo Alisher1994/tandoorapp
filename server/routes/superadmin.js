@@ -10436,6 +10436,7 @@ router.get('/stats', async (req, res) => {
         (SELECT COUNT(*) FROM restaurants) as restaurants_count,
         (SELECT COUNT(*) FROM users WHERE role = 'operator' AND is_active = true) as operators_count,
         (SELECT COUNT(*) FROM users WHERE role = 'customer') as customers_count,
+        (SELECT COUNT(*) FROM products) as products_count,
         (SELECT COUNT(*) FROM orders WHERE status = 'new') as new_orders_count,
         (SELECT COUNT(*) FROM orders WHERE created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + INTERVAL '1 day') as today_orders_count,
         (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + INTERVAL '1 day') as today_revenue
@@ -10625,6 +10626,54 @@ router.get('/analytics/overview', async (req, res) => {
       GROUP BY r.id, r.name
       HAVING COUNT(o.id) > 0
       ORDER BY delivered_revenue DESC, orders_count DESC, r.name ASC
+      LIMIT $4
+      `,
+      [startDateKey, endDateKeyExclusive, restaurantId, topLimit]
+    );
+
+    // Top manufacturers by delivered-order sales (revenue = qty * unit price)
+    const topManufacturersResult = await pool.query(
+      `
+      SELECT
+        m.id AS manufacturer_id,
+        m.name AS manufacturer_name,
+        COALESCE(SUM(oi.quantity), 0)::float AS units,
+        COALESCE(SUM(oi.quantity * oi.price), 0)::float AS revenue,
+        COUNT(DISTINCT o.id)::int AS orders_count
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      JOIN products p ON p.id = oi.product_id
+      JOIN manufacturers m ON m.id = p.manufacturer_id
+      WHERE o.created_at >= $1::date
+        AND o.created_at < $2::date
+        AND ($3::int IS NULL OR o.restaurant_id = $3)
+        AND LOWER(o.status) = 'delivered'
+      GROUP BY m.id, m.name
+      ORDER BY revenue DESC, units DESC, m.name ASC
+      LIMIT $4
+      `,
+      [startDateKey, endDateKeyExclusive, restaurantId, topLimit]
+    );
+
+    // Top production countries by delivered-order sales
+    const topCountriesResult = await pool.query(
+      `
+      SELECT
+        BTRIM(p.production_country) AS country,
+        COALESCE(SUM(oi.quantity), 0)::float AS units,
+        COALESCE(SUM(oi.quantity * oi.price), 0)::float AS revenue,
+        COUNT(DISTINCT o.id)::int AS orders_count
+      FROM orders o
+      JOIN order_items oi ON oi.order_id = o.id
+      JOIN products p ON p.id = oi.product_id
+      WHERE o.created_at >= $1::date
+        AND o.created_at < $2::date
+        AND ($3::int IS NULL OR o.restaurant_id = $3)
+        AND LOWER(o.status) = 'delivered'
+        AND p.production_country IS NOT NULL
+        AND BTRIM(p.production_country) <> ''
+      GROUP BY BTRIM(p.production_country)
+      ORDER BY revenue DESC, units DESC, country ASC
       LIMIT $4
       `,
       [startDateKey, endDateKeyExclusive, restaurantId, topLimit]
@@ -11181,6 +11230,19 @@ router.get('/analytics/overview', async (req, res) => {
         byQuantity: activityTypesByQuantity,
         byRevenue: activityTypesByRevenue
       },
+      topManufacturers: topManufacturersResult.rows.map((row) => ({
+        id: row.manufacturer_id,
+        name: row.manufacturer_name,
+        units: Number(row.units) || 0,
+        revenue: Number(row.revenue) || 0,
+        ordersCount: Number.parseInt(row.orders_count, 10) || 0
+      })),
+      topCountries: topCountriesResult.rows.map((row) => ({
+        country: row.country,
+        units: Number(row.units) || 0,
+        revenue: Number(row.revenue) || 0,
+        ordersCount: Number.parseInt(row.orders_count, 10) || 0
+      })),
       operatorPayments: {
         paymentMethods: OPERATOR_PAYMENT_METHODS.map((methodKey) => ({
           key: methodKey,
