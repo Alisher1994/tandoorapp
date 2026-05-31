@@ -42,6 +42,7 @@ import CountryCurrencyDropdown from '../components/CountryCurrencyDropdown';
 import HeaderGlowBackground from '../components/HeaderGlowBackground';
 import BannerCropModal from '../components/BannerCropModal';
 import ShowcaseBuilder from './ShowcaseBuilder';
+import boxSizeVisual from '../assets/box-size-visual.png';
 import {
   getLeafletTileLayerConfig,
   getSavedMapProvider,
@@ -19605,16 +19606,24 @@ function AdminDashboard() {
               {productFormTab === 'extra' && (
               <div className="admin-settings-surface-block mb-3">
                 <Form.Label className="d-flex align-items-center gap-2 fw-semibold mb-2">
-                  <span>📦 {language === 'uz' ? 'Yetkazib berish parametrlari (BTS)' : 'Параметры доставки (BTS)'}</span>
+                  <span>📦 {language === 'uz' ? 'Yetkazib berish parametrlari' : 'Параметры доставки'}</span>
                   <span className="admin-container-help-trigger" tabIndex={0} aria-label="Подсказка по параметрам доставки">
                     i
                     <span className="admin-container-help-tooltip">
                       {language === 'uz'
-                        ? "Vazn va o'lchamlar BTS kuryer xizmati tarifini hisoblash uchun ishlatiladi."
-                        : 'Вес и габариты используются для расчёта тарифа курьерской службы BTS.'}
+                        ? "Vazn va o'lchamlar kuryer xizmati tarifini hisoblash uchun ishlatiladi."
+                        : 'Вес и габариты используются для расчёта стоимости доставки.'}
                     </span>
                   </span>
                 </Form.Label>
+                <div className="admin-parcel-visual mb-3">
+                  <img src={boxSizeVisual} alt={language === 'uz' ? "O'lchamlar sxemasi: Г — uzunlik, Ш — kenglik, В — balandlik" : 'Схема габаритов: Г — длина, Ш — ширина, В — высота'} />
+                  <span className="admin-parcel-visual-note">
+                    {language === 'uz'
+                      ? 'Г — uzunlik, Ш — kenglik, В — balandlik'
+                      : 'Г — длина (глубина), Ш — ширина, В — высота'}
+                  </span>
+                </div>
                 <Row className="g-3">
                   <Col xs={6} md={3}>
                     <Form.Group>

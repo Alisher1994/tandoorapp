@@ -9439,6 +9439,32 @@ body::-webkit-scrollbar,
     padding: 0.95rem;
 }
 
+/* Parcel-dimensions helper visual (product form → Дополнительно) */
+.admin-parcel-visual {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.7rem 0.85rem;
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 12px;
+}
+.admin-parcel-visual img {
+    width: 116px;
+    height: auto;
+    flex: 0 0 auto;
+    object-fit: contain;
+}
+.admin-parcel-visual-note {
+    font-size: 0.82rem;
+    color: #64748b;
+    line-height: 1.45;
+}
+@media (max-width: 575.98px) {
+    .admin-parcel-visual { flex-direction: column; align-items: flex-start; }
+    .admin-parcel-visual img { width: 140px; }
+}
+
 .admin-appearance-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
