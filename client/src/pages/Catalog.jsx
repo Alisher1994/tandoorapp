@@ -6173,6 +6173,34 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     </div>
                   </div>
 
+                  {(() => {
+                    const weight = Number(activeProduct?.weight_kg);
+                    const dims = [activeProduct?.length_cm, activeProduct?.width_cm, activeProduct?.height_cm]
+                      .map((v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : null; });
+                    const hasWeight = Number.isFinite(weight) && weight > 0;
+                    const hasDims = dims.some((v) => v != null);
+                    if (!hasWeight && !hasDims) return null;
+                    return (
+                      <div className="product-details-block mb-3">
+                        <div className="small text-muted mb-1">{language === 'uz' ? "O'lcham va vazn" : 'Габариты и вес'}</div>
+                        <div className="product-parcel-specs">
+                          {hasWeight && (
+                            <div className="product-parcel-spec">
+                              <span className="product-parcel-spec-label">{language === 'uz' ? 'Vazn' : 'Вес'}</span>
+                              <span className="product-parcel-spec-value">{weight} {language === 'uz' ? 'kg' : 'кг'}</span>
+                            </div>
+                          )}
+                          {hasDims && (
+                            <div className="product-parcel-spec">
+                              <span className="product-parcel-spec-label">{language === 'uz' ? "O'lchami (U×K×B)" : 'Габариты (Д×Ш×В)'}</span>
+                              <span className="product-parcel-spec-value">{dims.map((v) => (v != null ? v : '—')).join(' × ')} {language === 'uz' ? 'sm' : 'см'}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                 </section>
 
                 {/* Похожие товары — отдельной секцией снизу, на ПК растягиваются на 2 колонки */}

@@ -2142,6 +2142,27 @@ h6 {
   background: #ffffff;
 }
 
+.product-parcel-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+}
+.product-parcel-spec {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.product-parcel-spec-label {
+  font-size: 0.74rem;
+  color: inherit;
+  opacity: 0.6;
+}
+.product-parcel-spec-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: inherit;
+}
+
 .product-details-variants-scroll {
   -ms-overflow-style: none;
   scrollbar-width: none;
