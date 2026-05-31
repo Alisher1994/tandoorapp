@@ -16309,3 +16309,93 @@ textarea.form-control {
     font-size: 0.92rem;
 }
 .admin-input-with-prefix { padding-left: 26px !important; }
+
+/* =====================================================================
+   SEARCH FIELD with in-field icon (lucide) instead of an emoji prepend box
+   ===================================================================== */
+.admin-search-field { position: relative; width: 100%; }
+.admin-search-field-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    pointer-events: none;
+    z-index: 2;
+}
+.admin-search-field .form-control,
+.admin-search-field-input {
+    padding-left: 38px !important;
+    padding-right: 34px !important;
+}
+.admin-search-field-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 2;
+    font-size: 0.85rem;
+}
+.admin-search-field-clear:hover { background: #f1f5f9; color: #475569; }
+
+/* Filter buttons: rectangular (not a cramped square) */
+.admin-filter-icon-btn {
+    width: auto !important;
+    min-width: 0 !important;
+    padding: 0 14px !important;
+    gap: 6px !important;
+}
+
+/* Keep text action buttons (e.g. "Добавить блок") on one line */
+.header-primary-actions .btn { white-space: nowrap !important; }
+
+/* =====================================================================
+   DELIVERY ZONE draw toolbar — make icons visible (the leaflet-draw sprite
+   often fails to load under bundlers) + 10s red attention blink.
+   ===================================================================== */
+.dz-map-wrap .leaflet-draw-toolbar a {
+    background-image: none !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    color: #334155;
+    text-indent: 0 !important;
+    position: relative;
+}
+.dz-map-wrap .leaflet-draw-draw-polygon::after { content: '⬠'; }
+.dz-map-wrap .leaflet-draw-edit-edit::after { content: '✎'; }
+.dz-map-wrap .leaflet-draw-edit-remove::after { content: '🗑'; }
+
+@keyframes dzToolbarPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    50% { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0.5); }
+}
+.dz-hint-active .leaflet-draw-toolbar {
+    animation: dzToolbarPulse 1.1s ease-in-out infinite;
+    border-radius: 6px;
+}
+.dz-hint-active .leaflet-draw-draw-polygon::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 10px;
+    height: 10px;
+    background: #ef4444;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    z-index: 6;
+    animation: dzDotBlink 0.8s steps(1, end) infinite;
+}
+@keyframes dzDotBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }

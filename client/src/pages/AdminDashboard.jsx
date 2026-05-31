@@ -13360,19 +13360,18 @@ function AdminDashboard() {
                 {showProductsFilterPanel && (
                 <Row className="mb-3 g-2 admin-products-filter-panel">
                   <Col lg={3}>
-                    <InputGroup size="sm">
-                      <InputGroup.Text>🔍</InputGroup.Text>
+                    <div className="admin-search-field">
+                      <SearchIcon size={16} className="admin-search-field-icon" aria-hidden="true" />
                       <Form.Control
+                        className="admin-search-field-input"
                         placeholder={t('searchByName')}
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
                       />
                       {productSearch && (
-                        <Button variant="outline-secondary" onClick={() => setProductSearch('')}>
-                          ✕
-                        </Button>
+                        <button type="button" className="admin-search-field-clear" onClick={() => setProductSearch('')} aria-label="Очистить">✕</button>
                       )}
-                    </InputGroup>
+                    </div>
                   </Col>
                   <Col lg={2}>
                     <Dropdown popperConfig={{ strategy: 'fixed' }}>

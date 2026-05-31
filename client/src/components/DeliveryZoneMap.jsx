@@ -280,6 +280,8 @@ function DeliveryZoneMap({
 }) {
   const wrapperRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  // Briefly blink the draw toolbar (red) to point users at the controls; auto-off after 10s.
+  const [hintActive, setHintActive] = React.useState(true);
   const safeCenter = useMemo(() => normalizeCenter(center), [center]);
   const parsedZone = useMemo(() => normalizeZone(zone), [zone]);
   const [selectedMapProvider, setSelectedMapProvider] = React.useState(() => normalizeMapProvider(mapProvider || getSavedMapProvider()));
@@ -304,6 +306,13 @@ function DeliveryZoneMap({
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    if (!editable) { setHintActive(false); return undefined; }
+    setHintActive(true);
+    const timer = setTimeout(() => setHintActive(false), 10000);
+    return () => clearTimeout(timer);
+  }, [editable]);
 
   const handleMapProviderSelect = (event) => {
     const nextProvider = normalizeMapProvider(event.target.value);
@@ -330,7 +339,7 @@ function DeliveryZoneMap({
   };
 
   return (
-    <div ref={wrapperRef} style={{ height, width: '100%', borderRadius: '8px', overflow: 'hidden', position: 'relative', background: '#fff' }}>
+    <div ref={wrapperRef} className={`dz-map-wrap${hintActive && editable ? ' dz-hint-active' : ''}`} style={{ height, width: '100%', borderRadius: '8px', overflow: 'hidden', position: 'relative', background: '#fff' }}>
       <div
         style={{
           position: 'absolute',

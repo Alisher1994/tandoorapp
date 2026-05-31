@@ -22506,7 +22506,7 @@ function SuperAdminDashboard() {
 
                       <Form.Group className="mb-2">
                         <Form.Label className="fw-medium text-secondary mb-2">🗺️ Зона доставки</Form.Label>
-                        <div className="d-flex align-items-center justify-content-between p-3 border rounded bg-light">
+                        <div className="d-flex align-items-center justify-content-between gap-2 flex-wrap p-3 border rounded bg-light">
                           <div className="d-flex align-items-center gap-3">
                             {restaurantForm.delivery_zone ? (
                               <div className="d-flex flex-column">
