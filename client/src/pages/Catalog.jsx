@@ -194,6 +194,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [productDetailsError, setProductDetailsError] = useState('');
   const [selectedProductSummary, setSelectedProductSummary] = useState(null);
   const [selectedProductDetails, setSelectedProductDetails] = useState(null);
+  const [phoneRevealed, setPhoneRevealed] = useState(false);
+  const phoneRevealTrackedRef = useRef(false);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [productReviews, setProductReviews] = useState([]);
   const [productReviewsTotal, setProductReviewsTotal] = useState(0);
@@ -3876,6 +3878,34 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     }
   };
 
+  // Патчим счётчик у текущего товара в обоих стейтах
+  const patchProductCounters = (productId, patch) => {
+    const apply = (prev) => (
+      prev && Number(prev.id) === Number(productId) ? { ...prev, ...patch } : prev
+    );
+    setSelectedProductDetails(apply);
+    setSelectedProductSummary(apply);
+  };
+
+  const recordProductView = async (productId) => {
+    if (!productId) return;
+    try {
+      const res = await axios.post(`${API_URL}/products/${productId}/view`);
+      const viewCount = Number(res.data?.view_count);
+      if (Number.isFinite(viewCount)) patchProductCounters(productId, { view_count: viewCount });
+    } catch (_) { /* тихо: учёт просмотра не критичен */ }
+  };
+
+  const recordPhoneReveal = async (productId) => {
+    if (!productId || phoneRevealTrackedRef.current) return;
+    phoneRevealTrackedRef.current = true;
+    try {
+      const res = await axios.post(`${API_URL}/products/${productId}/phone-reveal`);
+      const count = Number(res.data?.phone_reveal_count);
+      if (Number.isFinite(count)) patchProductCounters(productId, { phone_reveal_count: count });
+    } catch (_) { /* тихо */ }
+  };
+
   const openProductDetailsModal = (product) => {
     if (!product?.id) return;
     setSelectedProductSummary(product);
@@ -3885,10 +3915,13 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     setProductReviewComment('');
     setShowProductReviewComposer(false);
     setProductHeroIndex(0);
+    setPhoneRevealed(false);
+    phoneRevealTrackedRef.current = false;
     productHeroSwipeTriggeredRef.current = false;
     productHeroTouchStartXRef.current = null;
     productHeroTouchStartYRef.current = null;
     loadProductDetails(product.id, product);
+    recordProductView(product.id);
   };
 
   // Handle category filtering from Showcase navigation
@@ -6282,7 +6315,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         <div className="product-parcel-specs">
                           {contactName && (
                             <div className="product-parcel-spec">
-                              <span className="product-parcel-spec-label">{language === 'uz' ? 'Administrator' : 'Администратор'}</span>
+                              <span className="product-parcel-spec-label">{language === 'uz' ? 'Sotuvchi' : 'Продавец'}</span>
                               <span className="product-parcel-spec-value">{contactName}</span>
                             </div>
                           )}
@@ -6290,7 +6323,19 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             <div className="product-parcel-spec">
                               <span className="product-parcel-spec-label">{language === 'uz' ? 'Telefon' : 'Телефон'}</span>
                               <span className="product-parcel-spec-value">
-                                <a className="product-details-contact-phone" href={telHref}>{contactPhone}</a>
+                                {phoneRevealed ? (
+                                  <a className="product-details-contact-phone" href={telHref}>{contactPhone}</a>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="product-details-phone-reveal"
+                                    onClick={() => { setPhoneRevealed(true); recordPhoneReveal(activeProduct?.id); }}
+                                    title={language === 'uz' ? "Raqamni ko'rsatish" : 'Показать номер'}
+                                  >
+                                    <span className="product-details-phone-dots">+998 •• ••• •• ••</span>
+                                    <span className="product-details-phone-show">{language === 'uz' ? "ko'rsatish" : 'показать'}</span>
+                                  </button>
+                                )}
                               </span>
                             </div>
                           )}
@@ -6298,6 +6343,16 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       </div>
                     );
                   })()}
+
+                  {Number(activeProduct?.view_count) > 0 && (
+                    <div className="product-details-views">
+                      <i className="bi bi-eye" aria-hidden="true" />
+                      <span>
+                        {Number(activeProduct.view_count).toLocaleString('ru-RU')}{' '}
+                        {language === 'uz' ? "ko'rishlar" : 'просмотров'}
+                      </span>
+                    </div>
+                  )}
 
                 </section>
 

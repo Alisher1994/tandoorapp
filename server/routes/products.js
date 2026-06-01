@@ -324,6 +324,8 @@ let restaurantCurrencySchemaReady = false;
 let restaurantCurrencySchemaPromise = null;
 let productReviewsSchemaReady = false;
 let productReviewsSchemaPromise = null;
+let productAnalyticsSchemaReady = false;
+let productAnalyticsSchemaPromise = null;
 let categoryImageOverridesSchemaReady = false;
 let categoryImageOverridesSchemaPromise = null;
 const ensureAdBannerTargetingSchema = async () => {
@@ -531,6 +533,21 @@ const ensureCategoryImageOverridesSchema = async () => {
   } finally {
     categoryImageOverridesSchemaPromise = null;
   }
+};
+
+// Счётчики просмотров товара и нажатий «показать номер продавца».
+const ensureProductAnalyticsSchema = async () => {
+  if (productAnalyticsSchemaReady) return;
+  if (productAnalyticsSchemaPromise) {
+    await productAnalyticsSchemaPromise;
+    return;
+  }
+  productAnalyticsSchemaPromise = (async () => {
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS view_count BIGINT DEFAULT 0').catch(() => {});
+    await pool.query('ALTER TABLE products ADD COLUMN IF NOT EXISTS phone_reveal_count BIGINT DEFAULT 0').catch(() => {});
+    productAnalyticsSchemaReady = true;
+  })();
+  await productAnalyticsSchemaPromise;
 };
 
 const ensureProductReviewsSchema = async () => {
@@ -1714,6 +1731,109 @@ router.get('/ads-banners/:id/click', async (req, res) => {
   }
 });
 
+// Учёт просмотра карточки товара (публично, с витрины)
+router.post('/:id(\\d+)/view', async (req, res) => {
+  try {
+    await ensureProductAnalyticsSchema();
+    const productId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID товара' });
+    }
+    const result = await pool.query(
+      'UPDATE products SET view_count = COALESCE(view_count, 0) + 1 WHERE id = $1 RETURNING view_count',
+      [productId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Товар не найден' });
+    }
+    res.json({ tracked: true, view_count: Number(result.rows[0].view_count || 0) });
+  } catch (error) {
+    console.error('Track product view error:', error);
+    res.status(500).json({ error: 'Ошибка учёта просмотра' });
+  }
+});
+
+// Учёт нажатия «показать номер продавца» (публично, с витрины)
+router.post('/:id(\\d+)/phone-reveal', async (req, res) => {
+  try {
+    await ensureProductAnalyticsSchema();
+    const productId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(productId) || productId <= 0) {
+      return res.status(400).json({ error: 'Некорректный ID товара' });
+    }
+    const result = await pool.query(
+      'UPDATE products SET phone_reveal_count = COALESCE(phone_reveal_count, 0) + 1 WHERE id = $1 RETURNING phone_reveal_count',
+      [productId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Товар не найден' });
+    }
+    res.json({ tracked: true, phone_reveal_count: Number(result.rows[0].phone_reveal_count || 0) });
+  } catch (error) {
+    console.error('Track product phone reveal error:', error);
+    res.status(500).json({ error: 'Ошибка учёта показа номера' });
+  }
+});
+
+// Аналитика просмотров товаров. Оператор — свой магазин, суперадмин — все (или фильтр).
+router.get('/analytics/product-views', authenticate, async (req, res) => {
+  try {
+    await ensureProductAnalyticsSchema();
+    const role = String(req.user?.role || '');
+    const limit = Math.min(500, Math.max(1, Number.parseInt(req.query.limit, 10) || 100));
+
+    const params = [];
+    const conditions = ['(COALESCE(p.view_count, 0) > 0 OR COALESCE(p.phone_reveal_count, 0) > 0)'];
+
+    if (role === 'superadmin') {
+      const qr = Number.parseInt(req.query.restaurant_id, 10);
+      if (Number.isInteger(qr) && qr > 0) {
+        params.push(qr);
+        conditions.push(`p.restaurant_id = $${params.length}`);
+      }
+    } else {
+      const restaurantId = Number.parseInt(req.user?.active_restaurant_id, 10);
+      if (!Number.isInteger(restaurantId) || restaurantId <= 0) {
+        return res.json({ products: [] });
+      }
+      params.push(restaurantId);
+      conditions.push(`p.restaurant_id = $${params.length}`);
+    }
+
+    params.push(limit);
+    const result = await pool.query(`
+      SELECT
+        p.id,
+        p.name_ru,
+        p.name_uz,
+        p.restaurant_id,
+        r.name AS restaurant_name,
+        COALESCE(p.view_count, 0)::bigint AS view_count,
+        COALESCE(p.phone_reveal_count, 0)::bigint AS phone_reveal_count
+      FROM products p
+      LEFT JOIN restaurants r ON r.id = p.restaurant_id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY COALESCE(p.view_count, 0) DESC, COALESCE(p.phone_reveal_count, 0) DESC, p.id DESC
+      LIMIT $${params.length}
+    `, params);
+
+    res.json({
+      products: result.rows.map((row) => ({
+        id: row.id,
+        name_ru: row.name_ru || '',
+        name_uz: row.name_uz || '',
+        restaurant_id: row.restaurant_id,
+        restaurant_name: row.restaurant_name || '',
+        view_count: Number(row.view_count || 0),
+        phone_reveal_count: Number(row.phone_reveal_count || 0)
+      }))
+    });
+  } catch (error) {
+    console.error('Product view analytics error:', error);
+    res.status(500).json({ error: 'Ошибка загрузки аналитики просмотров' });
+  }
+});
+
 // Get active seasonal catalog animation (public - for customer catalog)
 router.get('/catalog-animation-season', async (req, res) => {
   try {
@@ -1804,6 +1924,7 @@ router.get('/reviews/pending', authenticate, async (req, res) => {
 router.get('/:id/details', async (req, res) => {
   try {
     await ensureProductReviewsSchema();
+    await ensureProductAnalyticsSchema();
 
     const productId = Number.parseInt(req.params.id, 10);
     if (!Number.isInteger(productId) || productId <= 0) {

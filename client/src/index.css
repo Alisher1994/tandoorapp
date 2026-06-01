@@ -2196,6 +2196,47 @@ h6 {
 .product-details-contact-phone:hover {
   text-decoration: underline;
 }
+/* Скрытый номер продавца — точки + «показать» (как в Telegram) */
+.product-details-phone-reveal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.product-details-phone-dots {
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #64748b;
+}
+.product-details-phone-show {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary-color, #0f766e);
+  text-transform: lowercase;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #0f766e) 40%, transparent);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.product-details-phone-reveal:hover .product-details-phone-show {
+  background: color-mix(in srgb, var(--primary-color, #0f766e) 10%, transparent);
+}
+/* Счётчик просмотров внизу карточки */
+.product-details-views {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 2px 2px 6px;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+.product-details-views .bi-eye {
+  font-size: 0.95rem;
+}
 
 .product-details-variants-scroll {
   -ms-overflow-style: none;

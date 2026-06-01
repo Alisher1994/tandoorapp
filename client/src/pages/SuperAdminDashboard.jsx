@@ -2101,9 +2101,21 @@ function SuperAdminDashboard() {
   const [overviewAnalyticsTopLimit, setOverviewAnalyticsTopLimit] = useState(10);
   const [showOverviewCompareModal, setShowOverviewCompareModal] = useState(false);
   const [overviewAnalyticsSubTab, setOverviewAnalyticsSubTab] = useState('overview');
+  const [productViewsAnalytics, setProductViewsAnalytics] = useState([]);
+  const [productViewsAnalyticsLoading, setProductViewsAnalyticsLoading] = useState(false);
   const [overviewCompareRestaurantSearch, setOverviewCompareRestaurantSearch] = useState('');
   const [overviewComparisonRestaurantIds, setOverviewComparisonRestaurantIds] = useState([]);
   const [overviewComparisonPdfLoading, setOverviewComparisonPdfLoading] = useState(false);
+  useEffect(() => {
+    if (overviewAnalyticsSubTab !== 'views') return undefined;
+    let cancelled = false;
+    setProductViewsAnalyticsLoading(true);
+    axios.get(`${API_URL}/products/analytics/product-views?limit=300`)
+      .then((res) => { if (!cancelled) setProductViewsAnalytics(Array.isArray(res.data?.products) ? res.data.products : []); })
+      .catch(() => { if (!cancelled) setProductViewsAnalytics([]); })
+      .finally(() => { if (!cancelled) setProductViewsAnalyticsLoading(false); });
+    return () => { cancelled = true; };
+  }, [overviewAnalyticsSubTab]);
   const [overviewAnalyticsYear, setOverviewAnalyticsYear] = useState(() => new Date().getFullYear());
   const [overviewAnalyticsMonth, setOverviewAnalyticsMonth] = useState(() => new Date().getMonth() + 1);
   const [overviewAnalyticsDate, setOverviewAnalyticsDate] = useState(() => {
@@ -10883,13 +10895,15 @@ function SuperAdminDashboard() {
       { key: 'sales', icon: '🛒', label: language === 'uz' ? 'Sotuvlar' : 'Продажи' },
       { key: 'shops', icon: '🏪', label: language === 'uz' ? "Do'konlar" : 'Магазины' },
       { key: 'clients', icon: '👥', label: language === 'uz' ? 'Mijozlar' : 'Клиенты' },
-      { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov & voronka" : 'Платежи и воронка' }
+      { key: 'payments', icon: '💳', label: language === 'uz' ? "To'lov & voronka" : 'Платежи и воронка' },
+      { key: 'views', icon: '👁', label: language === 'uz' ? "Ko'rishlar" : 'Просмотры' }
     ];
     const isObzor = overviewAnalyticsSubTab === 'overview';
     const isSales = overviewAnalyticsSubTab === 'sales';
     const isShops = overviewAnalyticsSubTab === 'shops';
     const isClients = overviewAnalyticsSubTab === 'clients';
     const isPayments = overviewAnalyticsSubTab === 'payments';
+    const isViews = overviewAnalyticsSubTab === 'views';
 
     return (
       <div className="admin-analytics-layout">
@@ -12252,6 +12266,56 @@ function SuperAdminDashboard() {
               </Col>
             </Row>
             </>)}
+
+            {isViews && (
+            <Row className="g-4 mt-1">
+              <Col xs={12}>
+                <Card className="border-0 shadow-sm admin-analytics-surface-card">
+                  <Card.Header className="bg-white border-0 admin-analytics-card-header">
+                    <h6 className="mb-0 admin-analytics-card-title">
+                      <span className="admin-analytics-card-title-icon" style={{ color: '#7c3aed', background: '#f5f3ff' }}>👁</span>
+                      {language === 'uz' ? "Mahsulot ko'rishlari" : 'Просмотры товаров'}
+                    </h6>
+                    <small className="text-muted">
+                      {language === 'uz' ? "Eng ko'p ko'rilgan tovarlar va raqam ko'rsatishlar" : 'Самые просматриваемые товары и показы номера'}
+                    </small>
+                  </Card.Header>
+                  <Card.Body>
+                    {productViewsAnalyticsLoading ? (
+                      <div className="text-center text-muted py-4">{language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}</div>
+                    ) : productViewsAnalytics.length === 0 ? (
+                      <div className="text-center text-muted py-4">{language === 'uz' ? "Ma'lumot yo'q" : 'Пока нет просмотров'}</div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table className="table align-middle mb-0">
+                          <thead>
+                            <tr>
+                              <th style={{ width: 48 }}>#</th>
+                              <th>{language === 'uz' ? 'Tovar' : 'Товар'}</th>
+                              <th>{language === 'uz' ? "Do'kon" : 'Магазин'}</th>
+                              <th className="text-end">👁 {language === 'uz' ? "ko'rishlar" : 'просмотры'}</th>
+                              <th className="text-end">📞 {language === 'uz' ? "raqam" : 'показы номера'}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {productViewsAnalytics.map((p, i) => (
+                              <tr key={p.id}>
+                                <td className="text-muted">{i + 1}</td>
+                                <td>{language === 'uz' && p.name_uz ? p.name_uz : (p.name_ru || p.name_uz || `#${p.id}`)}</td>
+                                <td className="text-muted">{p.restaurant_name || '—'}</td>
+                                <td className="text-end fw-semibold">{Number(p.view_count || 0).toLocaleString('ru-RU')}</td>
+                                <td className="text-end fw-semibold">{Number(p.phone_reveal_count || 0).toLocaleString('ru-RU')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </Card.Body>
+                </Card>
+              </Col>
+            </Row>
+            )}
           </>
         )}
       </div>

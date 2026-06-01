@@ -2361,6 +2361,8 @@ function AdminDashboard() {
   });
   const [analyticsProductReviews, setAnalyticsProductReviews] = useState(() => createEmptyProductReviewAnalytics());
   const [loadingAnalyticsProductReviews, setLoadingAnalyticsProductReviews] = useState(false);
+  const [analyticsProductViews, setAnalyticsProductViews] = useState([]);
+  const [loadingAnalyticsProductViews, setLoadingAnalyticsProductViews] = useState(false);
   const [showAnalyticsMapModal, setShowAnalyticsMapModal] = useState(false);
   const [leafletMapProvider, setLeafletMapProvider] = useState(() => getSavedMapProvider());
   const [selectedAnalyticsLocation, setSelectedAnalyticsLocation] = useState(null);
@@ -4350,6 +4352,26 @@ function AdminDashboard() {
     }
   }, [user?.active_restaurant_id, buildProductReviewAnalyticsParams]);
 
+  const fetchAnalyticsProductViews = useCallback(async () => {
+    if (!user?.active_restaurant_id) {
+      setAnalyticsProductViews([]);
+      return;
+    }
+    setLoadingAnalyticsProductViews(true);
+    try {
+      const response = await axios.get(`${API_URL}/products/analytics/product-views`, {
+        params: { limit: 100 },
+        timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
+      });
+      setAnalyticsProductViews(Array.isArray(response.data?.products) ? response.data.products : []);
+    } catch (error) {
+      console.error('Error fetching product view analytics:', error);
+      setAnalyticsProductViews([]);
+    } finally {
+      setLoadingAnalyticsProductViews(false);
+    }
+  }, [user?.active_restaurant_id]);
+
   const fetchSegmentAnalytics = useCallback(async () => {
     if (!user?.active_restaurant_id) {
       setSegmentAnalytics({ segments: [], multiSegment: false, segmentationEnabled: false });
@@ -4390,6 +4412,11 @@ function AdminDashboard() {
     if (mainTab !== 'dashboard') return;
     fetchSegmentAnalytics();
   }, [mainTab, fetchSegmentAnalytics]);
+
+  useEffect(() => {
+    if (mainTab !== 'dashboard') return;
+    fetchAnalyticsProductViews();
+  }, [mainTab, fetchAnalyticsProductViews]);
 
   useEffect(() => {
     const instructionId = Number.parseInt(selectedHelpInstruction?.id, 10);
@@ -10820,6 +10847,51 @@ function AdminDashboard() {
     </Row>
   );
 
+  const renderAnalyticsProductViews = () => (
+    <Row className="g-4 mt-0">
+      <Col xs={12}>
+        <Card className="border-0 shadow-sm admin-analytics-surface-card admin-analytics-table-card">
+          <Card.Header className="bg-white border-0 admin-analytics-card-header">
+            <h6 className="mb-0 admin-analytics-card-title">
+              <span className="admin-analytics-card-title-icon" style={{ color: '#7c3aed', background: '#f5f3ff' }}>👁</span>
+              {language === 'uz' ? "Mahsulot ko'rishlari" : 'Просмотры товаров'}
+            </h6>
+          </Card.Header>
+          <Card.Body className="p-0">
+            {loadingAnalyticsProductViews ? (
+              <div className="text-center text-muted py-4">{language === 'uz' ? 'Yuklanmoqda...' : 'Загрузка...'}</div>
+            ) : analyticsProductViews.length > 0 ? (
+              <Table hover className="mb-0 admin-analytics-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>{t('productName')}</th>
+                    <th className="text-end">👁 {language === 'uz' ? "ko'rishlar" : 'просмотры'}</th>
+                    <th className="text-end">📞 {language === 'uz' ? 'raqam' : 'показы номера'}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analyticsProductViews.map((item, idx) => (
+                    <tr key={`product-views-${item.id}`}>
+                      <td>
+                        <span className={`admin-analytics-rank ${idx === 0 ? 'r1' : idx === 1 ? 'r2' : idx === 2 ? 'r3' : ''}`}>{idx + 1}</span>
+                      </td>
+                      <td>{language === 'uz' && item.name_uz ? item.name_uz : (item.name_ru || item.name_uz || `#${item.id}`)}</td>
+                      <td className="text-end fw-semibold">{Number(item.view_count || 0).toLocaleString('ru-RU')}</td>
+                      <td className="text-end fw-semibold">{Number(item.phone_reveal_count || 0).toLocaleString('ru-RU')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            ) : (
+              <div className="text-center text-muted py-4">{language === 'uz' ? "Hozircha ko'rishlar yo'q" : 'Пока нет просмотров'}</div>
+            )}
+          </Card.Body>
+        </Card>
+      </Col>
+    </Row>
+  );
+
   const renderAnalyticsProductReviews = () => {
     const summary = analyticsProductReviews?.summary || {};
     const latestComments = Array.isArray(analyticsProductReviews?.latestComments)
@@ -11416,6 +11488,7 @@ function AdminDashboard() {
       </Row>
 
       {renderAnalyticsTopTables()}
+      {renderAnalyticsProductViews()}
       {renderAnalyticsProductReviews()}
       {renderSegmentAnalytics()}
     </div>
