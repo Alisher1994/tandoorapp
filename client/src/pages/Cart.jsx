@@ -14,6 +14,7 @@ import { useCart, formatPrice, formatQuantity, resolveQuantityStep } from '../co
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import OrderReceipt from '../components/OrderReceipt';
+import HoldRepeatButton from '../components/HoldRepeatButton';
 import ClientLocationPicker from '../components/ClientLocationPicker';
 import ClientEmptyState from '../components/ClientEmptyState';
 import ClientTopBar from '../components/ClientTopBar';
@@ -1409,22 +1410,20 @@ function Cart() {
                   </div>
                   <div className="d-flex align-items-center">
                     <div className="d-flex align-items-center bg-light rounded-pill">
-                      <Button
-                        variant="link"
-                        className="p-1 px-2 text-dark text-decoration-none"
-                        onClick={() => updateQuantity(item.id, item.quantity - quantityStep, item.selected_variant)}
+                      <HoldRepeatButton
+                        className="btn btn-link p-1 px-2 text-dark text-decoration-none"
+                        onTrigger={() => updateQuantity(item.id, item.quantity - quantityStep, item.selected_variant)}
                       >
                         −
-                      </Button>
+                      </HoldRepeatButton>
                       <span className="mx-1 fw-semibold" style={{ minWidth: 20, textAlign: 'center' }}>
                         {formatQuantity(item.quantity)}
                       </span>
-                      <Button
-                        variant="link"
-                        className="p-1 px-2 text-dark text-decoration-none"
+                      <HoldRepeatButton
+                        className="btn btn-link p-1 px-2 text-dark text-decoration-none"
                         style={{ opacity: isAtStockLimit ? 0.45 : 1 }}
                         disabled={isAtStockLimit}
-                        onClick={() => {
+                        onTrigger={() => {
                           const requestedQty = Number(item?.quantity || 0) + Number(quantityStep || 0);
                           const nextQty = Number.isFinite(stockLimit) ? Math.min(requestedQty, stockLimit) : requestedQty;
                           if (!Number.isFinite(nextQty) || nextQty <= Number(item?.quantity || 0)) return;
@@ -1432,7 +1431,7 @@ function Cart() {
                         }}
                       >
                         +
-                      </Button>
+                      </HoldRepeatButton>
                     </div>
                     <Button
                       variant="link"

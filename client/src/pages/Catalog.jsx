@@ -24,6 +24,7 @@ import PublicShowcaseView from '../components/PublicShowcaseView';
 import { DEFAULT_MENU_ICON_SETTINGS, isImageIconValue, normalizeMenuIconSettings } from '../constants/menuIcons';
 import { COUNTRY_CODE_BY_NAME } from '../constants/countries';
 import * as CountryFlags from 'country-flag-icons/react/3x2';
+import HoldRepeatButton from '../components/HoldRepeatButton';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const CLIENT_APP_BASE_URL = API_URL.replace('/api', '');
@@ -3500,36 +3501,29 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     }, 2000);
                   }}
                 >
-                    <button
-                      type="button"
+                    <HoldRepeatButton
                       className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
-                      style={{ width: 34, height: 34, fontSize: '18px', touchAction: 'manipulation' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateQuantity(product.id, qty - quantityStep, selectedVariant);
-                      }}
+                      style={{ width: 34, height: 34, fontSize: '18px' }}
+                      stopPropagation
+                      onTrigger={() => updateQuantity(product.id, qty - quantityStep, selectedVariant)}
                     >
                       −
-                  </button>
+                  </HoldRepeatButton>
                   <span className="fw-bold px-2" style={{ fontSize: '15px' }}>{formatQuantity(qty)}</span>
-                  <button
-                    type="button"
+                  <HoldRepeatButton
                     className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
                     style={{
                       width: 34,
                       height: 34,
                       fontSize: '18px',
-                      touchAction: 'manipulation',
                       opacity: isAtStockLimit ? 0.45 : 1
                     }}
                     disabled={isAtStockLimit}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateProductQuantityWithinStock(product, qty, quantityStep, selectedVariant);
-                      }}
-                    >
+                    stopPropagation
+                    onTrigger={() => updateProductQuantityWithinStock(product, qty, quantityStep, selectedVariant)}
+                  >
                       +
-                  </button>
+                  </HoldRepeatButton>
                 </div>
               )}
             </>
@@ -3578,20 +3572,20 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                   style={{ background: 'rgba(148,163,184,0.16)', minHeight: 38 }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <button
-                    type="button"
+                  <HoldRepeatButton
                     className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
-                    style={{ width: 32, height: 32, fontSize: '18px', touchAction: 'manipulation' }}
-                    onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, qty - quantityStep, selectedVariant); }}
-                  >−</button>
+                    style={{ width: 32, height: 32, fontSize: '18px' }}
+                    stopPropagation
+                    onTrigger={() => updateQuantity(product.id, qty - quantityStep, selectedVariant)}
+                  >−</HoldRepeatButton>
                   <span className="fw-bold" style={{ fontSize: '14px' }}>{formatQuantity(qty)}</span>
-                  <button
-                    type="button"
+                  <HoldRepeatButton
                     className="btn btn-sm p-0 d-flex align-items-center justify-content-center"
-                    style={{ width: 32, height: 32, fontSize: '18px', touchAction: 'manipulation', opacity: isAtStockLimit ? 0.45 : 1 }}
+                    style={{ width: 32, height: 32, fontSize: '18px', opacity: isAtStockLimit ? 0.45 : 1 }}
                     disabled={isAtStockLimit}
-                    onClick={(e) => { e.stopPropagation(); updateProductQuantityWithinStock(product, qty, quantityStep, selectedVariant); }}
-                  >+</button>
+                    stopPropagation
+                    onTrigger={() => updateProductQuantityWithinStock(product, qty, quantityStep, selectedVariant)}
+                  >+</HoldRepeatButton>
                 </div>
               )}
             </div>
@@ -4397,41 +4391,34 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                             height: 38
                           }}
                         >
-                          <button
-                            type="button"
+                          <HoldRepeatButton
                             className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
-                            style={{ width: 32, height: 32, color: '#4b5563', fontSize: '18px', touchAction: 'manipulation' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateQuantity(product.id, qty - quantityStep, selectedVariant);
-                            }}
-                            aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
+                            style={{ width: 32, height: 32, color: '#4b5563', fontSize: '18px' }}
+                            stopPropagation
+                            onTrigger={() => updateQuantity(product.id, qty - quantityStep, selectedVariant)}
+                            ariaLabel={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
                           >
                             -
-                          </button>
+                          </HoldRepeatButton>
                           <span style={{ fontWeight: 700, color: '#111827', fontSize: '0.86rem', minWidth: 18, textAlign: 'center' }}>
                             {formatQuantity(qty)}
                           </span>
-                          <button
-                            type="button"
+                          <HoldRepeatButton
                             className="btn btn-sm p-0 d-flex align-items-center justify-content-center border-0 bg-transparent"
                             style={{
                               width: 32,
                               height: 32,
                               color: 'var(--primary-color)',
                               fontSize: '18px',
-                              touchAction: 'manipulation',
                               opacity: isAtStockLimit ? 0.45 : 1
                             }}
                             disabled={isAtStockLimit}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateProductQuantityWithinStock(product, qty, quantityStep, selectedVariant);
-                            }}
-                            aria-label={language === 'uz' ? 'Ko‘paytirish' : 'Увеличить'}
+                            stopPropagation
+                            onTrigger={() => updateProductQuantityWithinStock(product, qty, quantityStep, selectedVariant)}
+                            ariaLabel={language === 'uz' ? 'Ko‘paytirish' : 'Увеличить'}
                           >
                             +
-                          </button>
+                          </HoldRepeatButton>
                         </div>
                       ) : (
                         <button
@@ -6116,26 +6103,21 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                       activeProductQty > 0 ? (
                         <>
                           <div className="product-details-bottom-stepper">
-                            <button
-                              type="button"
+                            <HoldRepeatButton
                               className="btn btn-sm p-0 border-0 bg-transparent"
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant); }}
-                              aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
-                            >−</button>
+                              stopPropagation
+                              onTrigger={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant)}
+                              ariaLabel={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
+                            >−</HoldRepeatButton>
                             <span>{formatQuantity(activeProductQty)}</span>
-                            <button
-                              type="button"
+                            <HoldRepeatButton
                               className="btn btn-sm p-0 border-0 bg-transparent"
                               style={{ opacity: activeProductIsAtStockLimit ? 0.45 : 1 }}
                               disabled={activeProductIsAtStockLimit}
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateProductQuantityWithinStock(
-                                activeProduct,
-                                activeProductQty,
-                                activeProductQuantityStep,
-                                activeProductSelectedVariant
-                              ); }}
-                              aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
-                            >+</button>
+                              stopPropagation
+                              onTrigger={() => updateProductQuantityWithinStock(activeProduct, activeProductQty, activeProductQuantityStep, activeProductSelectedVariant)}
+                              ariaLabel={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
+                            >+</HoldRepeatButton>
                           </div>
                           <Button
                             type="button"
@@ -6569,30 +6551,25 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     activeProductQty > 0 ? (
                       <>
                         <div className="product-details-bottom-stepper">
-                          <button
-                            type="button"
+                          <HoldRepeatButton
                             className="btn btn-sm p-0 border-0 bg-transparent"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant); }}
-                            aria-label={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
+                            stopPropagation
+                            onTrigger={() => updateQuantity(activeProduct.id, activeProductQty - activeProductQuantityStep, activeProductSelectedVariant)}
+                            ariaLabel={language === 'uz' ? 'Kamaytirish' : 'Уменьшить'}
                           >
                             −
-                          </button>
+                          </HoldRepeatButton>
                           <span>{formatQuantity(activeProductQty)}</span>
-                          <button
-                            type="button"
+                          <HoldRepeatButton
                             className="btn btn-sm p-0 border-0 bg-transparent"
                             style={{ opacity: activeProductIsAtStockLimit ? 0.45 : 1 }}
                             disabled={activeProductIsAtStockLimit}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); updateProductQuantityWithinStock(
-                              activeProduct,
-                              activeProductQty,
-                              activeProductQuantityStep,
-                              activeProductSelectedVariant
-                            ); }}
-                            aria-label={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
+                            stopPropagation
+                            onTrigger={() => updateProductQuantityWithinStock(activeProduct, activeProductQty, activeProductQuantityStep, activeProductSelectedVariant)}
+                            ariaLabel={language === 'uz' ? "Ko'paytirish" : 'Увеличить'}
                           >
                             +
-                          </button>
+                          </HoldRepeatButton>
                         </div>
                         <Button
                           type="button"
@@ -6976,17 +6953,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                               </div>
                               <div className="d-flex align-items-center gap-1">
                                 <div className="d-flex align-items-center" style={{ background: '#f1f5f9', borderRadius: 999, padding: '2px 4px' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateQuantity(item.id, qty - step, item.selected_variant)}
+                                  <HoldRepeatButton
+                                    onTrigger={() => updateQuantity(item.id, qty - step, item.selected_variant)}
                                     style={{ border: 'none', background: 'transparent', padding: '2px 8px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}
-                                  >−</button>
+                                  >−</HoldRepeatButton>
                                   <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 600, fontSize: '0.9rem' }}>{qty}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateQuantity(item.id, qty + step, item.selected_variant)}
+                                  <HoldRepeatButton
+                                    onTrigger={() => updateQuantity(item.id, qty + step, item.selected_variant)}
                                     style={{ border: 'none', background: 'transparent', padding: '2px 8px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}
-                                  >+</button>
+                                  >+</HoldRepeatButton>
                                 </div>
                                 <button
                                   type="button"
