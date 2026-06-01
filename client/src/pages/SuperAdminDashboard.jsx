@@ -22658,46 +22658,46 @@ function SuperAdminDashboard() {
                     />
                   </Form.Group>
 
-                  <Form.Group className="mb-3">
-                    <Form.Label className="fw-medium text-secondary d-inline-flex align-items-center gap-1">
-                      {language === 'uz' ? "Mahsulot kartasida do'kon kontaktlari" : 'Контакты магазина в карточке товара'}
+                  <div className="mb-3 p-3 rounded border bg-light d-flex flex-column gap-3">
+                    <div className="d-flex align-items-center gap-2">
+                      <Form.Check
+                        type="switch"
+                        id="restaurant-show-store-contacts-switch-main"
+                        className="mb-0"
+                        label={language === 'uz' ? "Mahsulot kartasida do'kon kontaktlari" : 'Контакты магазина в карточке товара'}
+                        checked={Boolean(restaurantForm.show_store_contacts)}
+                        onChange={(e) => setRestaurantForm({ ...restaurantForm, show_store_contacts: e.target.checked })}
+                      />
                       <FieldInfo text={language === 'uz'
                         ? "Yoqilganda xaridorlar mahsulot kartasida sotuvchining ismi va telefon raqamini ko'radi. Faqat super-admin boshqaradi."
                         : 'При включении покупатели видят ФИО и телефон продавца в карточке товара. Управляется только супер-админом.'} />
-                    </Form.Label>
-                    <div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={restaurantForm.show_store_contacts ? 'success' : 'danger'}
-                        className="d-inline-flex align-items-center gap-2"
-                        onClick={() => setRestaurantForm({ ...restaurantForm, show_store_contacts: !restaurantForm.show_store_contacts })}
-                      >
-                        <i className={`bi ${restaurantForm.show_store_contacts ? 'bi-toggle-on' : 'bi-toggle-off'}`}></i>
-                        {restaurantForm.show_store_contacts
-                          ? (language === 'uz' ? 'Yoqilgan' : 'Включено')
-                          : (language === 'uz' ? "O'chirilgan" : 'Выключено')}
-                      </Button>
                     </div>
-                  </Form.Group>
-
-                  <div className="mb-3 p-3 rounded border bg-light d-flex flex-column gap-2">
-                    <Form.Check
-                      type="switch"
-                      id="restaurant-size-variants-enabled-switch-main"
-                      className="mb-0"
-                      label={language === 'uz' ? 'Mahsulot variantlari' : 'Варианты товара'}
-                      checked={Boolean(restaurantForm.size_variants_enabled)}
-                      onChange={(e) => setRestaurantForm({ ...restaurantForm, size_variants_enabled: e.target.checked })}
-                    />
-                    <Form.Check
-                      type="switch"
-                      id="restaurant-reservation-enabled-switch-main"
-                      className="mb-0"
-                      label={language === 'uz' ? 'Bronlash' : 'Бронирование'}
-                      checked={Boolean(restaurantForm.reservation_enabled)}
-                      onChange={(e) => setRestaurantForm({ ...restaurantForm, reservation_enabled: e.target.checked })}
-                    />
+                    <div className="d-flex align-items-center gap-2">
+                      <Form.Check
+                        type="switch"
+                        id="restaurant-size-variants-enabled-switch-main"
+                        className="mb-0"
+                        label={language === 'uz' ? 'Mahsulot variantlari' : 'Варианты товара'}
+                        checked={Boolean(restaurantForm.size_variants_enabled)}
+                        onChange={(e) => setRestaurantForm({ ...restaurantForm, size_variants_enabled: e.target.checked })}
+                      />
+                      <FieldInfo text={language === 'uz'
+                        ? "Yoqilganda operator tovarlarda tayyor o'lchamlarni (S-5XL) yoki o'z variantlarini tanlay oladi."
+                        : 'При включении оператор сможет выбирать в товарах готовые размеры (S-5XL) и добавлять свои варианты.'} />
+                    </div>
+                    <div className="d-flex align-items-center gap-2">
+                      <Form.Check
+                        type="switch"
+                        id="restaurant-reservation-enabled-switch-main"
+                        className="mb-0"
+                        label={language === 'uz' ? 'Bronlash' : 'Бронирование'}
+                        checked={Boolean(restaurantForm.reservation_enabled)}
+                        onChange={(e) => setRestaurantForm({ ...restaurantForm, reservation_enabled: e.target.checked })}
+                      />
+                      <FieldInfo text={language === 'uz'
+                        ? "Faqat super-admin bu xizmatni yoqadi/o'chiradi."
+                        : 'Только супер-админ включает/отключает этот сервис.'} />
+                    </div>
                   </div>
 
                   <Form.Group className="mb-3">
