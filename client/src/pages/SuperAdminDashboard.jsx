@@ -153,9 +153,10 @@ const SUPERADMIN_SIDEBAR_NAV_ORDER = [
   'customers',
   'ads',
   'founders',
+  'tariffs',
   'settings'
 ];
-const MODERATOR_MENU_KEYS = ['analytics', 'restaurants', 'global_products', 'manufacturers', 'operators', 'customers', 'ads', 'founders', 'settings'];
+const MODERATOR_MENU_KEYS = ['analytics', 'restaurants', 'global_products', 'manufacturers', 'operators', 'customers', 'ads', 'founders', 'tariffs', 'settings'];
 const normalizeModeratorPermissions = (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const normalized = {};
@@ -12690,6 +12691,7 @@ function SuperAdminDashboard() {
     ads: { label: adI18n.tab, icon: Megaphone },
     billing_transactions: { label: language === 'uz' ? "To'lovlar" : 'Поступления', icon: Receipt },
     founders: { label: language === 'uz' ? 'Ta’sischilar' : 'Учредители', icon: PieChart },
+    tariffs: { label: language === 'uz' ? 'Tariflar' : 'Тарифы', icon: DollarSign },
     billing: { label: t('billingSettings'), icon: Wallet },
     bot_settings: { label: language === 'uz' ? 'Telegram' : 'Телеграм', icon: MessageSquare },
     themes: { label: language === 'uz' ? 'Mavzular' : 'Темы', icon: Settings },
@@ -18546,6 +18548,18 @@ function SuperAdminDashboard() {
                     </div>
                   </>
                 )}
+              </Tab>
+
+              {/* Tariffs Tab — пока пустой, наполним позже */}
+              <Tab eventKey="tariffs" title={renderSuperAdminSidebarTabTitle('tariffs')}>
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                  <h5 className="fw-bold mb-0 superadmin-mobile-hide-title">
+                    {language === 'uz' ? 'Tariflar' : 'Тарифы'}
+                  </h5>
+                </div>
+                <div className="text-center text-muted py-5">
+                  {language === 'uz' ? 'Tez orada' : 'Раздел в разработке'}
+                </div>
               </Tab>
 
               {/* Billing Settings Tab */}
