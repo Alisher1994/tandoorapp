@@ -397,6 +397,11 @@ const ensureRestaurantMinimumOrderSchema = async () => {
   await pool.query(
     `UPDATE restaurants SET minimum_order_amount = 0 WHERE minimum_order_amount IS NULL`
   ).catch(() => {});
+  // Показывать контакты магазина (ФИО + телефон продавца) в карточке товара на витрине.
+  // Управляется суперадмином, по умолчанию выключено.
+  await pool.query(
+    `ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS show_store_contacts BOOLEAN DEFAULT false`
+  ).catch(() => {});
 };
 
 // Колонки, которые использует INSERT гостевого заказа. На некоторых БД основная
@@ -1498,6 +1503,7 @@ router.get('/restaurant/:id', async (req, res) => {
       menu_liquid_glass_opacity: normalizeMenuGlassOpacity(r.menu_liquid_glass_opacity, MENU_GLASS_OPACITY_DEFAULT),
       menu_liquid_glass_blur: normalizeMenuGlassBlur(r.menu_liquid_glass_blur, MENU_GLASS_BLUR_DEFAULT),
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
+      show_store_contacts: isEnabledFlag(r.show_store_contacts),
       size_variants_enabled: isEnabledFlag(r.size_variants_enabled),
       inventory_tracking_enabled: isEnabledFlag(r.inventory_tracking_enabled),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,
@@ -2571,6 +2577,7 @@ router.get('/restaurants/list', async (req, res) => {
       menu_liquid_glass_opacity: normalizeMenuGlassOpacity(r.menu_liquid_glass_opacity, MENU_GLASS_OPACITY_DEFAULT),
       menu_liquid_glass_blur: normalizeMenuGlassBlur(r.menu_liquid_glass_blur, MENU_GLASS_BLUR_DEFAULT),
       currency_code: normalizeRestaurantCurrencyCode(r.currency_code, 'uz'),
+      show_store_contacts: isEnabledFlag(r.show_store_contacts),
       size_variants_enabled: isEnabledFlag(r.size_variants_enabled),
       inventory_tracking_enabled: isEnabledFlag(r.inventory_tracking_enabled),
       service_fee: Number.isFinite(serviceFee) ? serviceFee : 0,

@@ -3795,6 +3795,15 @@ const ensureRestaurantGuvohnomaSchema = async () => {
   }
 };
 
+// Флаг «показывать контакты магазина (продавца) в карточке товара на витрине».
+// Включается/выключается только суперадмином. По умолчанию всегда выключен.
+let restaurantShowContactsSchemaReady = false;
+const ensureRestaurantShowContactsSchema = async () => {
+  if (restaurantShowContactsSchemaReady) return;
+  await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS show_store_contacts BOOLEAN DEFAULT false').catch(() => {});
+  restaurantShowContactsSchemaReady = true;
+};
+
 const ensureRestaurantNamePolicy = async () => {
   if (restaurantNamePolicyReady) return;
   if (restaurantNamePolicyPromise) {
@@ -4244,6 +4253,7 @@ router.get('/restaurants', async (req, res) => {
     await ensureRestaurantAdminCommentSchema();
     await ensureRestaurantWorkflowStatusSchema();
     await ensureRestaurantGuvohnomaSchema();
+    await ensureRestaurantShowContactsSchema();
     await ensureRestaurantNamePolicy();
     await ensureReservationSchema();
     const parsedPage = Number.parseInt(req.query.page, 10);
@@ -6968,6 +6978,7 @@ router.post('/restaurants', async (req, res) => {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
     await ensureRestaurantWorkflowStatusSchema();
+    await ensureRestaurantShowContactsSchema();
     await ensureRestaurantNamePolicy();
     const {
       name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
@@ -6975,6 +6986,7 @@ router.post('/restaurants', async (req, res) => {
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
       reservation_enabled
     } = req.body;
+    const normalizedShowStoreContacts = normalizeBooleanFlag(req.body?.show_store_contacts, false);
     const normalizedBotTokenRaw = telegram_bot_token === undefined || telegram_bot_token === null
       ? null
       : String(telegram_bot_token).trim();
@@ -7093,6 +7105,11 @@ router.post('/restaurants', async (req, res) => {
       [parsedReservationCost, result.rows[0].id]
     );
 
+    await pool.query(
+      'UPDATE restaurants SET show_store_contacts = $1 WHERE id = $2',
+      [normalizedShowStoreContacts, result.rows[0].id]
+    ).catch(() => {});
+
     const reservationEnabled = reservation_enabled === true || reservation_enabled === 'true';
     await ensureRestaurantReservationSettingsRow(pool, result.rows[0].id);
     await pool.query(
@@ -7106,34 +7123,47 @@ router.post('/restaurants', async (req, res) => {
 
     const restaurant = {
       ...result.rows[0],
+      show_store_contacts: normalizedShowStoreContacts,
       reservation_cost: parsedReservationCost,
       reservation_enabled: reservationEnabled,
       reservation_service_cost: parsedReservationCost
     };
 
-    try {
-      await reloadMultiBots();
-    } catch (reloadErr) {
-      console.error('Multi-bot reload warning after restaurant create:', reloadErr.message);
-    }
-
-    // Log activity
-    await logActivity({
-      userId: req.user.id,
-      restaurantId: restaurant.id,
-      actionType: ACTION_TYPES.CREATE_RESTAURANT,
-      entityType: ENTITY_TYPES.RESTAURANT,
-      entityId: restaurant.id,
-      entityName: restaurant.name,
-      newValues: restaurant,
-      ipAddress: getIpFromRequest(req),
-      userAgent: getUserAgentFromRequest(req)
-    });
-
+    // Отвечаем сразу; перезапуск ботов и лог делаем в фоне, чтобы не ждать Telegram API.
     res.status(201).json(restaurant);
+
+    const hasBotTokenForReload = Boolean(normalizedBotToken);
+    setImmediate(async () => {
+      // Перезапуск ботов нужен только если у нового магазина задан токен бота.
+      if (hasBotTokenForReload) {
+        try {
+          await reloadMultiBots();
+        } catch (reloadErr) {
+          console.error('Multi-bot reload warning after restaurant create:', reloadErr.message);
+        }
+      }
+
+      try {
+        await logActivity({
+          userId: req.user.id,
+          restaurantId: restaurant.id,
+          actionType: ACTION_TYPES.CREATE_RESTAURANT,
+          entityType: ENTITY_TYPES.RESTAURANT,
+          entityId: restaurant.id,
+          entityName: restaurant.name,
+          newValues: restaurant,
+          ipAddress: getIpFromRequest(req),
+          userAgent: getUserAgentFromRequest(req)
+        });
+      } catch (logErr) {
+        console.error('Create restaurant activity log warning:', logErr.message);
+      }
+    });
   } catch (error) {
     console.error('Create restaurant error:', error);
-    res.status(500).json({ error: 'Ошибка создания ресторана' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Ошибка создания ресторана' });
+    }
   }
 });
 
@@ -7143,6 +7173,7 @@ router.put('/restaurants/:id', async (req, res) => {
     await ensureActivityTypesSchema();
     await ensureRestaurantCurrencySchema();
     await ensureRestaurantWorkflowStatusSchema();
+    await ensureRestaurantShowContactsSchema();
     await ensureRestaurantNamePolicy();
     const {
       name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
@@ -7183,6 +7214,10 @@ router.put('/restaurants/:id', async (req, res) => {
       req.body?.size_variants_enabled,
       oldValues.size_variants_enabled === true
     );
+    const normalizedShowStoreContacts = normalizeBooleanFlag(
+      req.body?.show_store_contacts,
+      oldValues.show_store_contacts === true
+    );
     const previousBotToken = normalizeRestaurantTokenForCompare(oldValues.telegram_bot_token);
     const nextBotToken = normalizedBotToken === null
       ? previousBotToken
@@ -7206,23 +7241,9 @@ router.put('/restaurants/:id', async (req, res) => {
       return res.status(409).json({ error: 'Этот Group ID уже используется в другом магазине' });
     }
 
-    let customerMigrationResult = null;
-    if (isTokenChanging && nextBotToken) {
-      customerMigrationResult = await notifyCustomersAboutRestaurantBotMigration({
-        restaurantId: parseInt(req.params.id, 10),
-        restaurantName: nextNameForCheck || oldValues.name || 'Ваш магазин',
-        oldToken: oldValues.telegram_bot_token,
-        newToken: nextBotToken
-      });
-
-      if (!customerMigrationResult.ok) {
-        return res.status(409).json({
-          error: customerMigrationResult.error,
-          details: customerMigrationResult.details || null,
-          token_migration: customerMigrationResult
-        });
-      }
-    }
+    // Уведомление клиентов о смене токена и перезапуск ботов вынесены в фон
+    // (после ответа), чтобы сохранение магазина не блокировалось недоступным
+    // старым ботом / медленными вызовами Telegram API. См. блок в конце обработчика.
 
     // Store timezone (IANA) — used by analytics to bucket order times by local hour.
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'timezone')) {
@@ -7350,8 +7371,9 @@ router.put('/restaurants/:id', async (req, res) => {
            currency_code = $32,
            ui_theme = $33,
            size_variants_enabled = $34,
+           show_store_contacts = $35,
            updated_at = CURRENT_TIMESTAMP
-      WHERE id = $35
+      WHERE id = $36
       RETURNING *
     `, [
       name,
@@ -7388,6 +7410,7 @@ router.put('/restaurants/:id', async (req, res) => {
       normalizedCurrencyCode,
       normalizedUiTheme,
       normalizedSizeVariantsEnabled,
+      normalizedShowStoreContacts,
       req.params.id
     ]);
 
@@ -7414,46 +7437,88 @@ router.put('/restaurants/:id', async (req, res) => {
       reservation_service_cost: parsedReservationCost
     };
 
-    try {
-      await reloadMultiBots();
-    } catch (reloadErr) {
-      console.error('Multi-bot reload warning after restaurant update:', reloadErr.message);
-    }
+    // Перезапуск ботов нужен только при смене токена или активации/деактивации
+    // магазина (бот привязан к токену). Для обычных правок (адрес, валюта,
+    // контакты и т.п.) дорогостоящий reloadMultiBots() пропускаем — это и было
+    // главной причиной долгого сохранения.
+    const nextIsActive = (is_active === undefined || is_active === null)
+      ? oldValues.is_active
+      : (is_active === true || is_active === 'true');
+    const isActiveChanging = Boolean(nextIsActive) !== Boolean(oldValues.is_active);
+    const needsBotReload = isTokenChanging || isActiveChanging;
 
-    let operatorNotificationResult = null;
-    try {
-      operatorNotificationResult = await notifyRestaurantTokenChanged({
-        restaurantId: restaurant.id,
-        restaurantName: restaurant.name,
-        oldToken: oldValues.telegram_bot_token,
-        newToken: restaurant.telegram_bot_token
-      });
-    } catch (notifyErr) {
-      console.error('Restaurant token change notification warning:', notifyErr.message);
-    }
-
-    // Log activity
-    await logActivity({
-      userId: req.user.id,
-      restaurantId: restaurant.id,
-      actionType: ACTION_TYPES.UPDATE_RESTAURANT,
-      entityType: ENTITY_TYPES.RESTAURANT,
-      entityId: restaurant.id,
-      entityName: restaurant.name,
-      oldValues,
-      newValues: restaurant,
-      ipAddress: getIpFromRequest(req),
-      userAgent: getUserAgentFromRequest(req)
-    });
-
+    // Отвечаем сразу — клиент не ждёт Telegram API и уведомления клиентов/операторов.
     res.json({
       ...restaurant,
-      token_migration: customerMigrationResult,
-      operator_notification: operatorNotificationResult
+      token_migration: null,
+      operator_notification: null
+    });
+
+    // Фоновая работа: лог активности, уведомления и перезапуск ботов.
+    // Любые ошибки тут не должны влиять на уже отправленный ответ.
+    const oldBotToken = oldValues.telegram_bot_token;
+    const newBotTokenForBg = restaurant.telegram_bot_token;
+    setImmediate(async () => {
+      try {
+        await logActivity({
+          userId: req.user.id,
+          restaurantId: restaurant.id,
+          actionType: ACTION_TYPES.UPDATE_RESTAURANT,
+          entityType: ENTITY_TYPES.RESTAURANT,
+          entityId: restaurant.id,
+          entityName: restaurant.name,
+          oldValues,
+          newValues: restaurant,
+          ipAddress: getIpFromRequest(req),
+          userAgent: getUserAgentFromRequest(req)
+        });
+      } catch (logErr) {
+        console.error('Update restaurant activity log warning:', logErr.message);
+      }
+
+      // Уведомляем клиентов о переезде на новый бот — best-effort, без блокировки.
+      if (isTokenChanging && nextBotToken) {
+        try {
+          const migration = await notifyCustomersAboutRestaurantBotMigration({
+            restaurantId: parseInt(req.params.id, 10),
+            restaurantName: restaurant.name || oldValues.name || 'Ваш магазин',
+            oldToken: oldBotToken,
+            newToken: nextBotToken
+          });
+          if (migration && migration.ok === false) {
+            console.warn('Customer bot-migration notice partial/failed:', migration.error || migration.reason);
+          }
+        } catch (migrationErr) {
+          console.error('Customer bot-migration notice warning:', migrationErr.message);
+        }
+      }
+
+      if (needsBotReload) {
+        try {
+          await reloadMultiBots();
+        } catch (reloadErr) {
+          console.error('Multi-bot reload warning after restaurant update:', reloadErr.message);
+        }
+      }
+
+      if (isTokenChanging) {
+        try {
+          await notifyRestaurantTokenChanged({
+            restaurantId: restaurant.id,
+            restaurantName: restaurant.name,
+            oldToken: oldBotToken,
+            newToken: newBotTokenForBg
+          });
+        } catch (notifyErr) {
+          console.error('Restaurant token change notification warning:', notifyErr.message);
+        }
+      }
     });
   } catch (error) {
     console.error('Update restaurant error:', error);
-    res.status(500).json({ error: 'Ошибка обновления ресторана' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Ошибка обновления ресторана' });
+    }
   }
 });
 

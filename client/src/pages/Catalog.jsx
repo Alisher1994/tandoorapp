@@ -164,7 +164,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const [restaurants, setRestaurants] = useState([]);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
   const [prevRestaurant, setPrevRestaurant] = useState(null);
-  const [storeContact, setStoreContact] = useState({ fullName: '', phone: '', username: '' });
+  const [storeContact, setStoreContact] = useState({ fullName: '', phone: '', username: '', showContacts: false });
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [adBanners, setAdBanners] = useState([]);
@@ -574,7 +574,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       || Number.parseInt(publicRestaurantId, 10)
       || Number.parseInt(user?.active_restaurant_id, 10);
     if (!rid) {
-      setStoreContact({ fullName: '', phone: '', username: '' });
+      setStoreContact({ fullName: '', phone: '', username: '', showContacts: false });
       return undefined;
     }
     let cancelled = false;
@@ -584,10 +584,11 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
         setStoreContact({
           fullName: String(res.data?.owner_full_name || '').trim(),
           phone: String(res.data?.owner_phone || '').trim(),
-          username: String(res.data?.owner_username || '').trim()
+          username: String(res.data?.owner_username || '').trim(),
+          showContacts: res.data?.show_store_contacts === true
         });
       })
-      .catch(() => { if (!cancelled) setStoreContact({ fullName: '', phone: '', username: '' }); });
+      .catch(() => { if (!cancelled) setStoreContact({ fullName: '', phone: '', username: '', showContacts: false }); });
     return () => { cancelled = true; };
   }, [selectedRestaurant, publicRestaurantId, user?.active_restaurant_id]);
 
@@ -6285,6 +6286,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                   })()}
 
                   {(() => {
+                    // Контакты магазина показываем только если суперадмин включил их для этого магазина.
+                    if (!storeContact.showContacts) return null;
                     const contactName = String(storeContact.fullName || '').trim();
                     const contactPhone = String(storeContact.phone || '').trim();
                     if (!contactName && !contactPhone) return null;

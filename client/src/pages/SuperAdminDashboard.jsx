@@ -1814,6 +1814,7 @@ function SuperAdminDashboard() {
     reservation_cost: 0,
     reservation_enabled: false,
     size_variants_enabled: false,
+    show_store_contacts: false,
     latitude: '',
     longitude: '',
     delivery_base_radius: 3,
@@ -8992,6 +8993,7 @@ function SuperAdminDashboard() {
         reservation_cost: restaurant.hasOwnProperty('reservation_cost') ? parseFloat(restaurant.reservation_cost) : 0,
         reservation_enabled: restaurant.reservation_enabled === true,
         size_variants_enabled: restaurant.size_variants_enabled === true,
+        show_store_contacts: restaurant.show_store_contacts === true,
         latitude: restaurant.latitude || '',
         longitude: restaurant.longitude || '',
         delivery_base_radius: restaurant.hasOwnProperty('delivery_base_radius') ? parseFloat(restaurant.delivery_base_radius) : 3,
@@ -9030,6 +9032,7 @@ function SuperAdminDashboard() {
         reservation_cost: 0,
         reservation_enabled: false,
         size_variants_enabled: false,
+        show_store_contacts: false,
         latitude: '',
         longitude: '',
         delivery_base_radius: 3,
@@ -22654,6 +22657,48 @@ function SuperAdminDashboard() {
                       ]}
                     />
                   </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-medium text-secondary d-inline-flex align-items-center gap-1">
+                      {language === 'uz' ? "Mahsulot kartasida do'kon kontaktlari" : 'Контакты магазина в карточке товара'}
+                      <FieldInfo text={language === 'uz'
+                        ? "Yoqilganda xaridorlar mahsulot kartasida sotuvchining ismi va telefon raqamini ko'radi. Faqat super-admin boshqaradi."
+                        : 'При включении покупатели видят ФИО и телефон продавца в карточке товара. Управляется только супер-админом.'} />
+                    </Form.Label>
+                    <div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={restaurantForm.show_store_contacts ? 'success' : 'danger'}
+                        className="d-inline-flex align-items-center gap-2"
+                        onClick={() => setRestaurantForm({ ...restaurantForm, show_store_contacts: !restaurantForm.show_store_contacts })}
+                      >
+                        <i className={`bi ${restaurantForm.show_store_contacts ? 'bi-toggle-on' : 'bi-toggle-off'}`}></i>
+                        {restaurantForm.show_store_contacts
+                          ? (language === 'uz' ? 'Yoqilgan' : 'Включено')
+                          : (language === 'uz' ? "O'chirilgan" : 'Выключено')}
+                      </Button>
+                    </div>
+                  </Form.Group>
+
+                  <div className="mb-3 p-3 rounded border bg-light d-flex flex-column gap-2">
+                    <Form.Check
+                      type="switch"
+                      id="restaurant-size-variants-enabled-switch-main"
+                      className="mb-0"
+                      label={language === 'uz' ? 'Mahsulot variantlari' : 'Варианты товара'}
+                      checked={Boolean(restaurantForm.size_variants_enabled)}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, size_variants_enabled: e.target.checked })}
+                    />
+                    <Form.Check
+                      type="switch"
+                      id="restaurant-reservation-enabled-switch-main"
+                      className="mb-0"
+                      label={language === 'uz' ? 'Bronlash' : 'Бронирование'}
+                      checked={Boolean(restaurantForm.reservation_enabled)}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, reservation_enabled: e.target.checked })}
+                    />
+                  </div>
 
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-medium text-secondary">Валюта магазина</Form.Label>
