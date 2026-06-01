@@ -15389,9 +15389,11 @@ function SuperAdminDashboard() {
                                               multiple
                                               accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
                                               onChange={(event) => {
-                                                const files = event.target.files;
+                                                // Копируем файлы ДО сброса value: event.target.files —
+                                                // живой FileList, и обнуление value его опустошает.
+                                                const files = Array.from(event.target.files || []);
                                                 event.target.value = '';
-                                                if (files?.length) handleRestaurantGuvohnomaUpload(r, files);
+                                                if (files.length) handleRestaurantGuvohnomaUpload(r, files);
                                               }}
                                               disabled={guvohnomaUploading || guvohnomaFiles.length >= 5}
                                             />
