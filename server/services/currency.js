@@ -8,7 +8,7 @@ const CURRENCY_LABELS = {
   kg: { ru: 'сом', uz: 'som' },
   af: { ru: 'афгани', uz: "afg'oni" },
   ru: { ru: 'руб', uz: 'rubl' },
-  us: { ru: 'доллар', uz: 'dollar' }
+  us: { ru: '$', uz: '$' }
 };
 
 const DEFAULT_CURRENCY_CODE = 'uz';

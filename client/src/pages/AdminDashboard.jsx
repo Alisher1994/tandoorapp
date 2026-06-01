@@ -4360,7 +4360,9 @@ function AdminDashboard() {
     setLoadingAnalyticsProductViews(true);
     try {
       const response = await axios.get(`${API_URL}/products/analytics/product-views`, {
-        params: { limit: 100 },
+        // Жёстко ограничиваем аналитику текущим магазином: суперадмин, открывший
+        // панель магазина, иначе получил бы товары всех магазинов.
+        params: { limit: 100, restaurant_id: user.active_restaurant_id },
         timeout: ADMIN_DASHBOARD_REQUEST_TIMEOUT_MS
       });
       setAnalyticsProductViews(Array.isArray(response.data?.products) ? response.data.products : []);

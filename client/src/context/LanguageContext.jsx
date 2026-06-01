@@ -64,8 +64,8 @@ const COUNTRY_CURRENCY_OPTIONS = [
     flag: '/flags/us.svg',
     nameRu: 'США',
     nameUz: 'AQSH',
-    currencyRu: 'доллар',
-    currencyUz: 'dollar'
+    currencyRu: '$',
+    currencyUz: '$'
   }
 ];
 const normalizeCountryCurrencyCode = (value) => {
