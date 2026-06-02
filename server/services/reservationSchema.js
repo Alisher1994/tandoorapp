@@ -151,6 +151,16 @@ const SYSTEM_TABLE_TEMPLATES = [
     image_url: '/reservation-furniture/garage_box.svg'
   },
   {
+    code: 'car_slot_1',
+    name: 'Автомобиль (1 место)',
+    shape: 'custom',
+    furniture_category: 'garage_box',
+    seats_count: 1,
+    width: 2.8,
+    height: 1.6,
+    image_url: '/reservation-furniture/car.png'
+  },
+  {
     code: 'work_desk_1',
     name: 'Рабочий стол (1 место)',
     shape: 'custom',
@@ -159,6 +169,16 @@ const SYSTEM_TABLE_TEMPLATES = [
     width: 1.6,
     height: 0.9,
     image_url: '/reservation-furniture/work_desk.svg'
+  },
+  {
+    code: 'dental_place_1',
+    name: 'Стоматологическое место (1 место)',
+    shape: 'custom',
+    furniture_category: 'work_desk',
+    seats_count: 1,
+    width: 1.6,
+    height: 1.2,
+    image_url: '/reservation-furniture/tooth.png'
   },
   {
     code: 'bunk_bed_2',
