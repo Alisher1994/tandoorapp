@@ -2114,18 +2114,6 @@ function AdminReservations({ embedded = false } = {}) {
                       className={`admin-reservation-plan-template-grid mb-1 ${isPlanGalleryScrolling ? 'is-scrolling' : ''}`}
                       onScroll={handlePlanGalleryScroll}
                     >
-                      <button
-                        type="button"
-                        className={`admin-reservation-plan-template-item ${!tableForm.template_id ? 'is-active' : ''}`}
-                        onClick={() => applyTemplateSelection(null)}
-                        draggable={Boolean(selectedFloorId) && !isCreatingPlanTable}
-                        onDragStart={(event) => handlePlanDraftDragStart(event, null)}
-                        onDragEnd={handlePlanDraftDragEnd}
-                        title={tx('Без шаблона • перетащите на схему', 'Shablonsiz • sxemaga sudrang')}
-                        disabled={!selectedFloorId || isCreatingPlanTable}
-                      >
-                        <span className="small text-muted">{tx('Без шаблона', 'Shablonsiz')}</span>
-                      </button>
                       {filteredTemplates.map((template) => {
                         const isActive = Number(tableForm.template_id) === Number(template.id);
                         const imageUrl = toAbsoluteMediaUrl(template.image_url);
