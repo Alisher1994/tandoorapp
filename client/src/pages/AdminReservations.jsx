@@ -127,7 +127,7 @@ const TEMPLATE_CATEGORY_OPTIONS = [
   { value: 'bunk', ru: 'Койки', uz: 'Koykalar' }
 ];
 
-function AdminReservations() {
+function AdminReservations({ embedded = false } = {}) {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const floorPlanRef = useRef(null);
@@ -1229,16 +1229,18 @@ function AdminReservations() {
   }
 
   return (
-    <Container fluid className="admin-panel py-3">
+    <Container fluid className={`admin-panel ${embedded ? 'px-0 pt-0 pb-2' : 'py-3'}`}>
       <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div>
           <h4 className="mb-1">{tx('Управление бронированием', 'Bronlash boshqaruvi')}</h4>
           <div className="text-muted small">{tx('Этажи, фото этажей, столы, вместимость и статусы броней', 'Qavatlar, qavat rasmi, stollar sig\'imi va bron holatlari')}</div>
         </div>
         <div className="d-flex gap-2">
-          <Button variant="outline-secondary" onClick={() => navigate('/admin')}>
-            {tx('Назад в админку', 'Admin panelga qaytish')}
-          </Button>
+          {!embedded && (
+            <Button variant="outline-secondary" onClick={() => navigate('/admin')}>
+              {tx('Назад в админку', 'Admin panelga qaytish')}
+            </Button>
+          )}
           <Button variant="outline-primary" onClick={loadInitial}>
             {tx('Обновить', 'Yangilash')}
           </Button>

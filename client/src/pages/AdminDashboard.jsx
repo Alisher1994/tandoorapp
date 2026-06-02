@@ -81,6 +81,7 @@ import {
 } from 'lucide-react';
 
 const ReactECharts = lazy(() => import('echarts-for-react'));
+const AdminReservations = lazy(() => import('./AdminReservations'));
 
 // Curated IANA timezones for the store timezone selector. Analytics groups order
 // times by store-local hour, so multi-country stores read their real peak hours.
@@ -3520,7 +3521,7 @@ function AdminDashboard() {
             className="admin-sidebar-mobile-action"
             onClick={() => {
               setIsMobileSidebarOpen(false);
-              navigate('/admin/reservations');
+              setMainTab('reservations');
             }}
           >
             <span className="admin-sidebar-mobile-action-icon" aria-hidden="true">
@@ -11732,7 +11733,7 @@ function AdminDashboard() {
               </Nav.Link>
               {isReservationModuleEnabled && (
                 <Nav.Link
-                  onClick={() => navigate('/admin/reservations')}
+                  onClick={() => setMainTab('reservations')}
                   className="admin-nav-link admin-header-pill admin-header-action-pill admin-collapsible-pill admin-collapsible-pill--action"
                   title={t('reservations')}
                 >
@@ -13450,23 +13451,17 @@ function AdminDashboard() {
 
               {isReservationModuleEnabled && (
               <Tab eventKey="reservations" title={renderAdminSidebarTabTitle('reservations')}>
-                <Card className="border-0 shadow-sm mb-3">
-                  <Card.Body>
-                    <div className="d-flex flex-wrap justify-content-between align-items-start gap-3">
-                      <div>
-                        <h5 className="mb-2">{language === 'uz' ? 'Bronlash moduli' : 'Модуль бронирования'}</h5>
-                        <div className="text-muted">
-                          {language === 'uz'
-                            ? 'Qavatlar, stol sig‘imi, stol rasmi va bron holatlarini boshqarish.'
-                            : 'Управление этажами, вместимостью столов, фото столов и статусами броней.'}
-                        </div>
-                      </div>
-                      <Button variant="primary" onClick={() => navigate('/admin/reservations')}>
-                        {language === 'uz' ? 'Modulni ochish' : 'Открыть модуль'}
-                      </Button>
+                {mainTab === 'reservations' && (
+                  <Suspense fallback={(
+                    <div className="d-flex align-items-center justify-content-center text-muted" style={{ minHeight: 280 }}>
+                      <Spinner size="sm" animation="border" className="me-2" />
+                      {t('loading')}
                     </div>
-                  </Card.Body>
-                </Card>
+                  )}
+                  >
+                    <AdminReservations embedded />
+                  </Suspense>
+                )}
               </Tab>
               )}
 
