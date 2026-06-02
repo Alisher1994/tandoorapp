@@ -2154,7 +2154,6 @@ router.put('/restaurant', async (req, res) => {
     );
     const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(currency_code, previousRestaurant.currency_code || 'uz');
     const normalizedCardReceiptTarget = normalizeCardReceiptTarget(card_receipt_target, 'bot');
-    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS card_bank_account VARCHAR(64)').catch(() => {});
     const normalizedCashEnabled = normalizeOptionalBoolean(cash_enabled);
     const normalizedPaymentPlaceholders = normalizePaymentPlaceholders(payment_placeholders);
     const normalizedSendBalanceAfterConfirm = normalizeOptionalBoolean(send_balance_after_confirm);
@@ -2339,8 +2338,11 @@ router.put('/restaurant', async (req, res) => {
           product_field_season_enabled = COALESCE($71, product_field_season_enabled),
           product_field_barcode_enabled = COALESCE($72, product_field_barcode_enabled),
           product_field_ikpu_enabled = COALESCE($73, product_field_ikpu_enabled),
+          card_bank_account = $74,
+          catalog_card_mode = $75,
+          ui_font_family = $76,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $74
+      WHERE id = $77
       RETURNING *
     `, [
       nextNameForCheck, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
@@ -2397,12 +2399,20 @@ router.put('/restaurant', async (req, res) => {
       normalizedProductFieldSeasonEnabled,
       normalizedProductFieldBarcodeEnabled,
       normalizedProductFieldIkpuEnabled,
+      card_bank_account ? String(card_bank_account).trim() : null,
+      normalizedCatalogCardMode,
+      normalizedUiFontFamily,
       restaurantId
     ]);
-    await pool.query(
-      'UPDATE restaurants SET card_bank_account = $1 WHERE id = $2',
-      [card_bank_account ? String(card_bank_account).trim() : null, Number(restaurantId)]
-    ).catch(() => {});
+    // catalog_card_mode и ui_font_family теперь пишутся в основном UPDATE выше
+    // (RETURNING * уже вернул их в result.rows[0]). Нормализуем на всякий случай.
+    if (result.rows[0]) {
+      result.rows[0].catalog_card_mode = normalizeCatalogCardMode(
+        result.rows[0].catalog_card_mode,
+        normalizedCatalogCardMode
+      );
+      result.rows[0].ui_font_family = result.rows[0].ui_font_family || normalizedUiFontFamily;
+    }
 
     // Global on/off switch for customer price segmentation (preserves stored prices).
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'segment_pricing_enabled')) {
@@ -2421,7 +2431,6 @@ router.put('/restaurant', async (req, res) => {
         try { new Intl.DateTimeFormat('en-US', { timeZone: tzValue }); } catch (_) { tzValue = ''; }
       }
       if (tzValue) {
-        await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS timezone VARCHAR(64)').catch(() => {});
         await pool.query(
           'UPDATE restaurants SET timezone = $1 WHERE id = $2',
           [tzValue, Number(restaurantId)]
@@ -2431,14 +2440,12 @@ router.put('/restaurant', async (req, res) => {
 
     // Receipt QR target: use the storefront site URL instead of the Telegram bot link.
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'receipt_qr_use_storefront')) {
-      await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS receipt_qr_use_storefront BOOLEAN DEFAULT false').catch(() => {});
       await pool.query(
         'UPDATE restaurants SET receipt_qr_use_storefront = $1 WHERE id = $2',
         [normalizeOptionalBoolean(req.body.receipt_qr_use_storefront) === true, Number(restaurantId)]
       ).catch(() => {});
     }
 
-    await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_pickup_enabled BOOLEAN DEFAULT true').catch(() => {});
     const normalizedPickupEnabled = normalizeOptionalBoolean(is_pickup_enabled);
     if (normalizedPickupEnabled !== null) {
       const pickupResult = await pool.query(
@@ -2499,32 +2506,7 @@ router.put('/restaurant', async (req, res) => {
       result.rows[0].promo_codes_enabled = promoUpdate.rows[0]?.promo_codes_enabled === true;
     }
 
-    const cardModeUpdateResult = await pool.query(
-      `UPDATE restaurants
-       SET catalog_card_mode = $1,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2
-       RETURNING catalog_card_mode`,
-      [normalizedCatalogCardMode, restaurantId]
-    );
-    result.rows[0].catalog_card_mode = normalizeCatalogCardMode(
-      cardModeUpdateResult.rows[0]?.catalog_card_mode,
-      normalizedCatalogCardMode
-    );
-
-    const fontUpdateResult = await pool.query(
-      `UPDATE restaurants
-       SET ui_font_family = $1,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2
-       RETURNING ui_font_family`,
-      [normalizedUiFontFamily, restaurantId]
-    );
-    result.rows[0].ui_font_family = fontUpdateResult.rows[0]?.ui_font_family || normalizedUiFontFamily;
-
-    // Рекламные баннеры магазина (JSONB-массив). Колонку добавляем «на лету»,
-    // чтобы работало и до прогона миграции.
-    await pool.query("ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS store_ad_banners JSONB NOT NULL DEFAULT '[]'::jsonb").catch(() => {});
+    // Рекламные баннеры магазина (JSONB-массив).
     if (req.body?.store_ad_banners !== undefined) {
       const normalizedStoreBanners = normalizeStoreAdBanners(req.body.store_ad_banners);
       const storeBannersResult = await pool.query(
@@ -2543,7 +2525,6 @@ router.put('/restaurant', async (req, res) => {
 
     // Кастомный основной цвет (акцент). null => стоковый цвет темы.
     if (req.body?.ui_primary_color !== undefined) {
-      await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS ui_primary_color VARCHAR(9)').catch(() => {});
       const rawColor = String(req.body.ui_primary_color || '').trim().toLowerCase();
       const normalizedColor = /^#[0-9a-f]{6}$/.test(rawColor) ? rawColor : null;
       const colorResult = await pool.query(

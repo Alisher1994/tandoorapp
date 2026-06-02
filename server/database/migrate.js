@@ -133,7 +133,8 @@ async function migrate() {
       'guvohnoma_uploaded_at TIMESTAMP',
       'guvohnoma_uploaded_by_id INTEGER',
       'guvohnoma_uploaded_by_name TEXT',
-      'timezone VARCHAR(64)'
+      'timezone VARCHAR(64)',
+      'receipt_qr_use_storefront BOOLEAN DEFAULT false'
     ];
 
     for (const col of restaurantColumns) {
