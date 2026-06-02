@@ -1230,7 +1230,7 @@ function AdminReservations({ embedded = false } = {}) {
 
   return (
     <Container fluid className={`admin-panel ${embedded ? 'px-0 pt-0 pb-2' : 'py-3'}`}>
-      <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 admin-reservation-page-header">
         <div>
           <h4 className="mb-1">{tx('Управление бронированием', 'Bronlash boshqaruvi')}</h4>
           <div className="text-muted small">{tx('Этажи, фото этажей, столы, вместимость и статусы броней', 'Qavatlar, qavat rasmi, stollar sig\'imi va bron holatlari')}</div>
@@ -1351,7 +1351,7 @@ function AdminReservations({ embedded = false } = {}) {
       </div>
 
       {activeTab === 'settings' && (
-      <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+      <Card className="border-0 shadow-sm mb-0 admin-reservation-card admin-reservation-content-card">
         <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
           <span>{tx('Настройки сервиса брони', 'Bron xizmati sozlamalari')}</span>
         </Card.Header>
@@ -1444,7 +1444,7 @@ function AdminReservations({ embedded = false } = {}) {
       <Row className="g-3 m-0">
         {activeTab === 'floors' && (
         <Col lg={12} className="px-0">
-          <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+          <Card className="border-0 shadow-sm mb-0 admin-reservation-card admin-reservation-content-card">
             <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
               <span>{tx('Этажи', 'Qavatlar')}</span>
             </Card.Header>
@@ -1521,7 +1521,7 @@ function AdminReservations({ embedded = false } = {}) {
         {activeTab === 'tables' && (
         <Col lg={12} className="px-0">
           <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
-          <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+          <Card className="border-0 shadow-sm mb-0 admin-reservation-card admin-reservation-content-card">
             <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
               <span>{tx('Столы', 'Stollar')} {selectedFloor ? `(${selectedFloor.name})` : ''}</span>
               <div className="d-flex align-items-center gap-2 admin-reservation-header-controls">
@@ -1652,7 +1652,7 @@ function AdminReservations({ embedded = false } = {}) {
       )}
 
       {activeTab === 'plan' && (
-        <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+        <Card className="border-0 shadow-sm mb-0 admin-reservation-card admin-reservation-content-card">
           <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
             <span>{tx('Схема этажа', 'Qavat sxemasi')}: {selectedFloor?.name || '—'}</span>
             {isCreatingPlanTable && <span className="small text-muted">{tx('Добавляем стол...', 'Stol qo\'shilmoqda...')}</span>}
@@ -2129,7 +2129,7 @@ function AdminReservations({ embedded = false } = {}) {
       )}
 
       {activeTab === 'requests' && (
-      <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
+      <Card className="border-0 shadow-sm mb-0 admin-reservation-card admin-reservation-content-card">
         <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
           <span>{tx('Заявки на бронирование', 'Bron so\'rovlari')}</span>
         </Card.Header>
