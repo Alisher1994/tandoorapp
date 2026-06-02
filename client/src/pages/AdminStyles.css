@@ -1718,8 +1718,9 @@ body::-webkit-scrollbar,
 
 .admin-reservations-tab-pane {
     min-height: calc(100vh - var(--admin-navbar-height, 88px));
-    padding: 20px 0 28px !important;
+    padding: 18px clamp(12px, 1.35vw, 22px) 28px !important;
     background: #f8fafc;
+    box-sizing: border-box;
 }
 
 .admin-main-card-reservations {
@@ -1730,7 +1731,7 @@ body::-webkit-scrollbar,
 }
 
 .admin-main-card-reservations > .card-body {
-    padding: 0 !important;
+    padding: 0 clamp(12px, 1.2vw, 18px) clamp(12px, 1.2vw, 18px) !important;
 }
 
 .admin-main-card-reservations .admin-tab-content-shell,
@@ -1742,6 +1743,8 @@ body::-webkit-scrollbar,
 .admin-reservations-tab-pane .admin-panel {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
 }
 
 .admin-reservations-tab-pane .admin-reservation-card,
