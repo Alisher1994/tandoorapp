@@ -131,6 +131,7 @@ function AdminReservations({ embedded = false } = {}) {
   const navigate = useNavigate();
   const { language } = useLanguage();
   const floorPlanRef = useRef(null);
+  const floorImageInputRef = useRef(null);
   const draggedPositionRef = useRef(null);
   const planDraggedDraftRef = useRef(null);
   const planDragDepthRef = useRef(0);
@@ -147,6 +148,7 @@ function AdminReservations({ embedded = false } = {}) {
   const [loadingTables, setLoadingTables] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingFloorImage, setUploadingFloorImage] = useState(false);
+  const [floorImageDropActive, setFloorImageDropActive] = useState(false);
   const [uploadingTablePhoto, setUploadingTablePhoto] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -830,8 +832,7 @@ function AdminReservations({ embedded = false } = {}) {
     setShowImageModal(true);
   };
 
-  const handleFloorImageFileChange = async (event) => {
-    const file = event.target.files?.[0];
+  const uploadFloorImageFile = async (file) => {
     if (!file) return;
 
     setError('');
@@ -845,8 +846,24 @@ function AdminReservations({ embedded = false } = {}) {
       setError(err.response?.data?.error || err.message || tx('Ошибка загрузки фото этажа', 'Qavat rasmini yuklashda xatolik'));
     } finally {
       setUploadingFloorImage(false);
+      setFloorImageDropActive(false);
+    }
+  };
+
+  const handleFloorImageFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    try {
+      await uploadFloorImageFile(file);
+    } finally {
       event.target.value = '';
     }
+  };
+
+  const handleFloorImageDrop = async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const file = Array.from(event.dataTransfer?.files || []).find((item) => item.type?.startsWith('image/'));
+    await uploadFloorImageFile(file);
   };
 
   const handleTablePhotoFileChange = async (event) => {
@@ -2252,10 +2269,50 @@ function AdminReservations({ embedded = false } = {}) {
                 />
               </Col>
               <Col xs={12}>
-                <Form.Control type="file" accept="image/*" onChange={handleFloorImageFileChange} disabled={uploadingFloorImage} />
-                <Form.Text className="text-muted">
-                  {uploadingFloorImage ? tx('Загрузка и сжатие...', 'Yuklash va siqish...') : tx('Фото/план этажа (загрузка из файла)', 'Qavat rasmi/rejasi (fayldan yuklash)')}
-                </Form.Text>
+                <Form.Control
+                  ref={floorImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFloorImageFileChange}
+                  disabled={uploadingFloorImage}
+                  className="visually-hidden"
+                />
+                <button
+                  type="button"
+                  className={`admin-reservation-upload-dropzone ${floorImageDropActive ? 'is-active' : ''} ${floorForm.image_url ? 'is-filled' : ''}`}
+                  onClick={() => floorImageInputRef.current?.click()}
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setFloorImageDropActive(true);
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setFloorImageDropActive(true);
+                  }}
+                  onDragLeave={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setFloorImageDropActive(false);
+                  }}
+                  onDrop={handleFloorImageDrop}
+                  disabled={uploadingFloorImage}
+                >
+                  <span className="admin-reservation-upload-icon" aria-hidden="true">↥</span>
+                  <span className="admin-reservation-upload-title">
+                    {uploadingFloorImage
+                      ? tx('Загрузка и сжатие...', 'Yuklash va siqish...')
+                      : floorForm.image_url
+                        ? tx('Файл загружен', 'Fayl yuklandi')
+                        : tx('Перетащите изображение сюда', 'Rasmni shu yerga tashlang')}
+                  </span>
+                  <span className="admin-reservation-upload-subtitle">
+                    {floorForm.image_url
+                      ? tx('Нажмите или перетащите новый файл для замены', 'Almashtirish uchun bosing yoki yangi faylni tashlang')
+                      : tx('или нажмите, чтобы выбрать файл', 'yoki fayl tanlash uchun bosing')}
+                  </span>
+                </button>
               </Col>
               {floorForm.image_url && (
                 <Col xs={12}>
