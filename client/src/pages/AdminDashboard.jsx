@@ -12090,7 +12090,7 @@ function AdminDashboard() {
             </Nav>
             {renderAdminSidebarUtilityActions()}
           </div>
-          <Card className={`admin-card admin-main-card admin-workspace-main${isOrdersKanbanMode ? ' admin-main-card-kanban-focus' : ''}`}>
+          <Card className={`admin-card admin-main-card admin-workspace-main${isOrdersKanbanMode ? ' admin-main-card-kanban-focus' : ''}${mainTab === 'reservations' ? ' admin-main-card-reservations' : ''}`}>
             <Card.Body>
               <div className="admin-tab-content-shell">
               <Tabs
@@ -13450,7 +13450,7 @@ function AdminDashboard() {
               </Tab>
 
               {isReservationModuleEnabled && (
-              <Tab eventKey="reservations" title={renderAdminSidebarTabTitle('reservations')}>
+              <Tab eventKey="reservations" title={renderAdminSidebarTabTitle('reservations')} className="admin-reservations-tab-pane">
                 {mainTab === 'reservations' && (
                   <Suspense fallback={(
                     <div className="d-flex align-items-center justify-content-center text-muted" style={{ minHeight: 280 }}>
