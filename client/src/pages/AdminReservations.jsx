@@ -216,6 +216,7 @@ function AdminReservations({ embedded = false } = {}) {
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
   const planScaleRef = useRef(1);
   const planOffsetRef = useRef({ x: 0, y: 0 });
+  const planAutoFitKeyRef = useRef('');
   const [planTableScale, setPlanTableScale] = useState(1);
   const [planPanStart, setPlanPanStart] = useState(null);
   const [selectedPlanTableId, setSelectedPlanTableId] = useState(null);
@@ -324,6 +325,20 @@ function AdminReservations({ embedded = false } = {}) {
       y: Number(((rect.height - (planWorldHeight * scale)) / 2).toFixed(2))
     };
     setPlanTransform(Number(scale.toFixed(3)), offset);
+  };
+
+  const schedulePlanFit = () => {
+    let firstFrame = 0;
+    let secondFrame = 0;
+    firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        fitPlanToCanvas();
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
   };
   const queueSaveFloorVisualConfig = (floorId, nextOpacity, nextOverlay) => {
     floorVisualDraftRef.current = {
@@ -626,11 +641,28 @@ function AdminReservations({ embedded = false } = {}) {
     } else {
       setPlanTableScale(1);
     }
-    const animationFrame = window.requestAnimationFrame(() => {
-      fitPlanToCanvas();
-    });
-    return () => window.cancelAnimationFrame(animationFrame);
   }, [selectedFloorId, planWorldHeight]);
+
+  useEffect(() => {
+    if (activeTab !== 'plan' || !selectedFloorId) return undefined;
+    const fitKey = [
+      selectedFloorId,
+      selectedFloorImageUrl || 'no-image',
+      planWorldHeight,
+      floorImageMeta.width || 0,
+      floorImageMeta.height || 0
+    ].join(':');
+    if (planAutoFitKeyRef.current === fitKey) return undefined;
+    planAutoFitKeyRef.current = fitKey;
+    return schedulePlanFit();
+  }, [
+    activeTab,
+    selectedFloorId,
+    selectedFloorImageUrl,
+    planWorldHeight,
+    floorImageMeta.width,
+    floorImageMeta.height
+  ]);
 
   useEffect(() => {
     if (!selectedFloorId) return;
