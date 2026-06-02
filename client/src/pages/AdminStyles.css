@@ -1737,6 +1737,18 @@ body::-webkit-scrollbar,
 .admin-reservation-header-controls {
     flex-wrap: wrap;
     justify-content: flex-end;
+    min-height: var(--admin-btn-height);
+}
+
+.admin-reservation-toolbar-slot {
+    width: clamp(200px, 18vw, 240px);
+    min-height: var(--admin-btn-height);
+    display: flex;
+    align-items: center;
+}
+
+.admin-reservation-toolbar-slot .admin-reservation-control {
+    width: 100%;
 }
 
 .admin-reservation-control.form-select,
@@ -2221,6 +2233,11 @@ body::-webkit-scrollbar,
 
     .admin-reservation-header-controls .admin-reservation-control {
         flex: 1 1 160px;
+    }
+
+    .admin-reservation-toolbar-slot {
+        width: 100%;
+        flex: 1 1 100%;
     }
 
     .admin-reservation-plan-rotation-panel {

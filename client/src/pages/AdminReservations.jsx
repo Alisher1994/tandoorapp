@@ -1241,59 +1241,60 @@ function AdminReservations({ embedded = false } = {}) {
               {tx('Назад в админку', 'Admin panelga qaytish')}
             </Button>
           )}
-          {activeTab === 'plan' && (
-            <Form.Select
-              size="sm"
-              className="admin-reservation-control"
-              style={{ minWidth: 200 }}
-              value={selectedFloorId || ''}
-              onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
-            >
-              <option value="">{tx('Выберите этаж', 'Qavatni tanlang')}</option>
-              {floors.map((floor) => (
-                <option key={floor.id} value={floor.id}>{floor.name}</option>
-              ))}
-            </Form.Select>
-          )}
-          {activeTab === 'requests' && (
-            <Form.Select
-              size="sm"
-              className="admin-reservation-control"
-              value={statusFilter}
-              onChange={async (event) => {
-                const next = event.target.value;
-                setStatusFilter(next);
-                await loadReservations(next);
-              }}
-            >
-              <option value="all">{tx('Все статусы', 'Barcha statuslar')}</option>
-              {RESERVATION_STATUSES.map((status) => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </Form.Select>
-          )}
-          {activeTab === 'floors' && (
-            <Button
-              size="sm"
-              className="btn-primary-custom admin-reservation-control"
-              onClick={() => {
-                setFloorForm({ name: '', sort_order: floors.length, image_url: '' });
-                setShowFloorModal(true);
-              }}
-            >
-              {tx('Добавить этаж', 'Qavat qo\'shish')}
-            </Button>
-          )}
-          {activeTab === 'settings' && (
-            <Button
-              size="sm"
-              className="btn-primary-custom admin-reservation-control"
-              onClick={saveSettings}
-              disabled={savingSettings}
-            >
-              {savingSettings ? tx('Сохраняем...', 'Saqlanmoqda...') : tx('Сохранить настройки', 'Sozlamalarni saqlash')}
-            </Button>
-          )}
+          <div className="admin-reservation-toolbar-slot">
+            {activeTab === 'plan' && (
+              <Form.Select
+                size="sm"
+                className="admin-reservation-control"
+                value={selectedFloorId || ''}
+                onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
+              >
+                <option value="">{tx('Выберите этаж', 'Qavatni tanlang')}</option>
+                {floors.map((floor) => (
+                  <option key={floor.id} value={floor.id}>{floor.name}</option>
+                ))}
+              </Form.Select>
+            )}
+            {activeTab === 'requests' && (
+              <Form.Select
+                size="sm"
+                className="admin-reservation-control"
+                value={statusFilter}
+                onChange={async (event) => {
+                  const next = event.target.value;
+                  setStatusFilter(next);
+                  await loadReservations(next);
+                }}
+              >
+                <option value="all">{tx('Все статусы', 'Barcha statuslar')}</option>
+                {RESERVATION_STATUSES.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </Form.Select>
+            )}
+            {activeTab === 'floors' && (
+              <Button
+                size="sm"
+                className="btn-primary-custom admin-reservation-control"
+                onClick={() => {
+                  setFloorForm({ name: '', sort_order: floors.length, image_url: '' });
+                  setShowFloorModal(true);
+                }}
+              >
+                {tx('Добавить этаж', 'Qavat qo\'shish')}
+              </Button>
+            )}
+            {activeTab === 'settings' && (
+              <Button
+                size="sm"
+                className="btn-primary-custom admin-reservation-control"
+                onClick={saveSettings}
+                disabled={savingSettings}
+              >
+                {savingSettings ? tx('Сохраняем...', 'Saqlanmoqda...') : tx('Сохранить настройки', 'Sozlamalarni saqlash')}
+              </Button>
+            )}
+          </div>
           <Button variant="outline-primary" onClick={loadInitial}>
             {tx('Обновить', 'Yangilash')}
           </Button>
@@ -1324,9 +1325,9 @@ function AdminReservations({ embedded = false } = {}) {
       <div className="admin-reservation-tabs-row">
         <div className="admin-settings-pill-tabs" role="tablist" aria-label={tx('Вкладки бронирования', 'Bronlash bo\'limlari')}>
           {[
-            { key: 'plan', label: tx('Схемы', 'Sxemalar'), emoji: '🗺️' },
-            { key: 'floors', label: tx('Этажи', 'Qavatlar'), emoji: '🏢' },
             { key: 'requests', label: tx('Заявки', 'So\'rovlar'), emoji: '📋' },
+            { key: 'floors', label: tx('Этажи', 'Qavatlar'), emoji: '🏢' },
+            { key: 'plan', label: tx('Схемы', 'Sxemalar'), emoji: '🗺️' },
             { key: 'settings', label: tx('Настройки', 'Sozlamalar'), emoji: '⚙️' }
           ].map((tab) => {
             const isActive = activeTab === tab.key;
