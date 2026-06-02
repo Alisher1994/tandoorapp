@@ -73,12 +73,35 @@ const EyeIcon = () => (
   </svg>
 );
 
+const EditIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+    <path d="M4 20h4.5L19 9.5a2.1 2.1 0 0 0-3-3L5.5 17 4 20Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="m14.5 8.5 3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const TrashIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
     <path d="M4 7h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     <path d="M10 4h4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     <path d="M7 7v11a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     <path d="M10 11v5M14 11v5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+
+const ImagePlaceholderGraphic = ({ className = 'admin-reservation-image-placeholder-graphic' } = {}) => (
+  <svg
+    className={className}
+    viewBox="0 0 80 80"
+    width="48"
+    height="48"
+    fill="none"
+    aria-hidden="true"
+  >
+    <rect x="18" y="20" width="44" height="34" rx="4" transform="rotate(-9 40 37)" fill="#e6e9ed" />
+    <rect x="20" y="26" width="40" height="30" rx="4" fill="#f1f3f6" stroke="#d3d8de" strokeWidth="2.5" />
+    <circle cx="48" cy="35" r="3.6" fill="#cdd3da" />
+    <path d="M24 54 L34 41 L41 48 L48 39 L57 54 Z" fill="#cdd3da" />
   </svg>
 );
 
@@ -186,6 +209,7 @@ function AdminReservations({ embedded = false } = {}) {
   const [showImageModal, setShowImageModal] = useState(false);
   const [activeTab, setActiveTab] = useState('plan');
   const [showFloorModal, setShowFloorModal] = useState(false);
+  const [editingFloorId, setEditingFloorId] = useState(null);
   const [showTableModal, setShowTableModal] = useState(false);
   const [dragState, setDragState] = useState(null);
   const [planScale, setPlanScale] = useState(1);
@@ -672,7 +696,32 @@ function AdminReservations({ embedded = false } = {}) {
     }
   };
 
-  const addFloor = async (event) => {
+  const openAddFloorModal = () => {
+    setEditingFloorId(null);
+    setFloorForm({ name: '', sort_order: floors.length, image_url: '' });
+    setFloorImageDropActive(false);
+    setShowFloorModal(true);
+  };
+
+  const openEditFloorModal = (floor) => {
+    if (!floor?.id) return;
+    setEditingFloorId(Number(floor.id));
+    setFloorForm({
+      name: floor.name || '',
+      sort_order: asInt(floor.sort_order, 0),
+      image_url: floor.image_url || ''
+    });
+    setFloorImageDropActive(false);
+    setShowFloorModal(true);
+  };
+
+  const closeFloorModal = () => {
+    setShowFloorModal(false);
+    setEditingFloorId(null);
+    setFloorImageDropActive(false);
+  };
+
+  const saveFloor = async (event) => {
     event.preventDefault();
     setError('');
     setSuccess('');
@@ -686,16 +735,27 @@ function AdminReservations({ embedded = false } = {}) {
         setError(tx('Введите название этажа', 'Qavat nomini kiriting'));
         return;
       }
-      const response = await axios.post(`${API_URL}/admin/reservations/floors`, payload);
-      const created = response.data;
-      const nextFloors = [...floors, created].sort((a, b) => asInt(a.sort_order) - asInt(b.sort_order));
-      setFloors(nextFloors);
-      setSelectedFloorId(created.id);
+      if (editingFloorId) {
+        const response = await axios.put(`${API_URL}/admin/reservations/floors/${editingFloorId}`, payload);
+        const updated = response.data;
+        const nextFloors = floors
+          .map((floor) => (Number(floor.id) === Number(editingFloorId) ? { ...floor, ...updated } : floor))
+          .sort((a, b) => asInt(a.sort_order) - asInt(b.sort_order));
+        setFloors(nextFloors);
+        setSelectedFloorId(updated.id);
+        setSuccess(tx('Этаж обновлен', 'Qavat yangilandi'));
+      } else {
+        const response = await axios.post(`${API_URL}/admin/reservations/floors`, payload);
+        const created = response.data;
+        const nextFloors = [...floors, created].sort((a, b) => asInt(a.sort_order) - asInt(b.sort_order));
+        setFloors(nextFloors);
+        setSelectedFloorId(created.id);
+        setSuccess(tx('Этаж добавлен', 'Qavat qo\'shildi'));
+      }
       setFloorForm({ name: '', sort_order: 0, image_url: '' });
-      setShowFloorModal(false);
-      setSuccess(tx('Этаж добавлен', 'Qavat qo\'shildi'));
+      closeFloorModal();
     } catch (err) {
-      setError(err.response?.data?.error || tx('Ошибка создания этажа', 'Qavat yaratishda xatolik'));
+      setError(err.response?.data?.error || tx('Ошибка сохранения этажа', 'Qavatni saqlashda xatolik'));
     }
   };
 
@@ -1290,14 +1350,11 @@ function AdminReservations({ embedded = false } = {}) {
               </Form.Select>
             )}
             {activeTab === 'floors' && (
-              <Button
-                size="sm"
-                className="btn-primary-custom admin-reservation-control"
-                onClick={() => {
-                  setFloorForm({ name: '', sort_order: floors.length, image_url: '' });
-                  setShowFloorModal(true);
-                }}
-              >
+            <Button
+              size="sm"
+              className="btn-primary-custom admin-reservation-control"
+              onClick={openAddFloorModal}
+            >
                 {tx('Добавить этаж', 'Qavat qo\'shish')}
               </Button>
             )}
@@ -1491,12 +1548,30 @@ function AdminReservations({ embedded = false } = {}) {
                             {isActiveFloor && <Badge bg="info" text="dark" className="ms-2">{tx('Выбран', 'Tanlangan')}</Badge>}
                           </td>
                           <td>{asInt(floor.sort_order, 0)}</td>
-                          <td>{floor.image_url ? <Badge bg="secondary">{tx('Есть', 'Bor')}</Badge> : '—'}</td>
+                          <td>
+                            {floor.image_url ? (
+                              <button
+                                type="button"
+                                className="admin-reservation-floor-thumb"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openImagePreview(`Этаж: ${floor.name}`, floor.image_url);
+                                }}
+                                title={tx('Открыть фото', 'Rasmni ochish')}
+                              >
+                                <img src={toAbsoluteMediaUrl(floor.image_url)} alt={floor.name} />
+                              </button>
+                            ) : (
+                              <div className="admin-reservation-floor-thumb is-empty" aria-label={tx('Фото нет', 'Rasm yo\'q')}>
+                                <ImagePlaceholderGraphic className="admin-reservation-floor-thumb-placeholder" />
+                              </div>
+                            )}
+                          </td>
                           <td className="text-end">
                             <div className="d-inline-flex gap-1">
                               <Button
-                                className="action-btn admin-reservation-action-btn"
-                                variant="primary"
+                                className="action-btn bg-info bg-opacity-10 text-info border-0"
+                                variant="light"
                                 title={tx('Просмотр', 'Ko\'rish')}
                                 onClick={(event) => {
                                   event.stopPropagation();
@@ -1507,8 +1582,19 @@ function AdminReservations({ embedded = false } = {}) {
                                 <EyeIcon />
                               </Button>
                               <Button
-                                className="action-btn admin-reservation-action-btn"
-                                variant="primary"
+                                className="action-btn bg-primary bg-opacity-10 text-primary border-0"
+                                variant="light"
+                                title={tx('Изменить', 'O\'zgartirish')}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openEditFloorModal(floor);
+                                }}
+                              >
+                                <EditIcon />
+                              </Button>
+                              <Button
+                                className="action-btn bg-danger bg-opacity-10 text-danger border-0"
+                                variant="light"
                                 title={tx('Удалить', 'O\'chirish')}
                                 onClick={(event) => {
                                   event.stopPropagation();
@@ -2246,12 +2332,12 @@ function AdminReservations({ embedded = false } = {}) {
       </Card>
       )}
 
-      <Modal show={showFloorModal} onHide={() => setShowFloorModal(false)} centered>
+      <Modal show={showFloorModal} onHide={closeFloorModal} centered>
         <Modal.Header closeButton>
-          <Modal.Title>{tx('Добавить этаж', 'Qavat qo\'shish')}</Modal.Title>
+          <Modal.Title>{editingFloorId ? tx('Изменить этаж', 'Qavatni o\'zgartirish') : tx('Добавить этаж', 'Qavat qo\'shish')}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form onSubmit={addFloor}>
+          <Form onSubmit={saveFloor}>
             <Row className="g-2">
               <Col xs={12}>
                 <Form.Control
@@ -2277,10 +2363,20 @@ function AdminReservations({ embedded = false } = {}) {
                   disabled={uploadingFloorImage}
                   className="visually-hidden"
                 />
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={uploadingFloorImage ? -1 : 0}
+                  aria-disabled={uploadingFloorImage}
                   className={`admin-reservation-upload-dropzone ${floorImageDropActive ? 'is-active' : ''} ${floorForm.image_url ? 'is-filled' : ''}`}
-                  onClick={() => floorImageInputRef.current?.click()}
+                  onClick={() => {
+                    if (!uploadingFloorImage) floorImageInputRef.current?.click();
+                  }}
+                  onKeyDown={(event) => {
+                    if ((event.key === 'Enter' || event.key === ' ') && !uploadingFloorImage) {
+                      event.preventDefault();
+                      floorImageInputRef.current?.click();
+                    }
+                  }}
                   onDragEnter={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -2297,46 +2393,64 @@ function AdminReservations({ embedded = false } = {}) {
                     setFloorImageDropActive(false);
                   }}
                   onDrop={handleFloorImageDrop}
-                  disabled={uploadingFloorImage}
                 >
-                  <span className="admin-reservation-upload-icon" aria-hidden="true">↥</span>
-                  <span className="admin-reservation-upload-title">
-                    {uploadingFloorImage
-                      ? tx('Загрузка и сжатие...', 'Yuklash va siqish...')
-                      : floorForm.image_url
-                        ? tx('Файл загружен', 'Fayl yuklandi')
-                        : tx('Перетащите изображение сюда', 'Rasmni shu yerga tashlang')}
-                  </span>
-                  <span className="admin-reservation-upload-subtitle">
-                    {floorForm.image_url
-                      ? tx('Нажмите или перетащите новый файл для замены', 'Almashtirish uchun bosing yoki yangi faylni tashlang')
-                      : tx('или нажмите, чтобы выбрать файл', 'yoki fayl tanlash uchun bosing')}
-                  </span>
-                </button>
+                  {floorForm.image_url ? (
+                    <>
+                      <img
+                        src={toAbsoluteMediaUrl(floorForm.image_url)}
+                        alt={tx('Фото этажа', 'Qavat rasmi')}
+                        className="admin-reservation-upload-preview"
+                      />
+                      <span className="admin-reservation-upload-overlay">
+                        <span className="admin-reservation-upload-title">{tx('Файл загружен', 'Fayl yuklandi')}</span>
+                        <span className="admin-reservation-upload-subtitle">
+                          {tx('Нажмите или перетащите новый файл для замены', 'Almashtirish uchun bosing yoki yangi faylni tashlang')}
+                        </span>
+                      </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="admin-reservation-upload-remove"
+                        title={tx('Удалить фото', 'Rasmni o\'chirish')}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setFloorForm((prev) => ({ ...prev, image_url: '' }));
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setFloorForm((prev) => ({ ...prev, image_url: '' }));
+                          }
+                        }}
+                      >
+                        <TrashIcon />
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <ImagePlaceholderGraphic />
+                      <span className="admin-reservation-upload-title">
+                        {uploadingFloorImage
+                          ? tx('Загрузка и сжатие...', 'Yuklash va siqish...')
+                          : tx('Перетащите изображение сюда', 'Rasmni shu yerga tashlang')}
+                      </span>
+                      <span className="admin-reservation-upload-subtitle">
+                        {tx('или нажмите, чтобы выбрать файл', 'yoki fayl tanlash uchun bosing')}
+                      </span>
+                    </>
+                  )}
+                </div>
               </Col>
-              {floorForm.image_url && (
-                <Col xs={12}>
-                  <div className="d-flex align-items-center gap-2 flex-wrap">
-                    <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview('Новый этаж', floorForm.image_url)}>
-                      {tx('Просмотр', 'Ko\'rish')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline-danger"
-                      type="button"
-                      onClick={() => setFloorForm((prev) => ({ ...prev, image_url: '' }))}
-                    >
-                      {tx('Удалить фото', 'Rasmni o\'chirish')}
-                    </Button>
-                  </div>
-                </Col>
-              )}
             </Row>
             <div className="d-flex justify-content-end gap-2 mt-3">
-              <Button type="button" variant="outline-secondary" onClick={() => setShowFloorModal(false)}>
+              <Button type="button" variant="outline-secondary" onClick={closeFloorModal}>
                 {tx('Отмена', 'Bekor qilish')}
               </Button>
-              <Button type="submit">{tx('Добавить этаж', 'Qavat qo\'shish')}</Button>
+              <Button type="submit">
+                {editingFloorId ? tx('Сохранить', 'Saqlash') : tx('Добавить этаж', 'Qavat qo\'shish')}
+              </Button>
             </div>
           </Form>
         </Modal.Body>
