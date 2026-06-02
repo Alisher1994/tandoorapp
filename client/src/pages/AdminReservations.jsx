@@ -1268,15 +1268,8 @@ function AdminReservations({ embedded = false } = {}) {
         </Toast>
       </ToastContainer>
 
-      <div className="d-flex flex-wrap gap-2 mb-3">
-        <Badge bg="secondary">{tx('Этажей', 'Qavatlar')}: {floors.length}</Badge>
-        <Badge bg="secondary">{tx('Столов', 'Stollar')}: {tables.length}</Badge>
-        <Badge bg="secondary">{tx('Заявок', 'So\'rovlar')}: {reservations.length}</Badge>
-        {selectedFloor && <Badge bg="info" text="dark">{tx('Текущий этаж', 'Joriy qavat')}: {selectedFloor.name}</Badge>}
-      </div>
-
       <Card className="border-0 shadow-sm mb-3 admin-reservation-tabs-card">
-        <Card.Body className="p-3">
+        <Card.Body className="p-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
           <div className="admin-settings-pill-tabs" role="tablist" aria-label={tx('Вкладки бронирования', 'Bronlash bo\'limlari')}>
             {[
               { key: 'plan', label: tx('Схемы', 'Sxemalar'), emoji: '🗺️' },
@@ -1302,17 +1295,69 @@ function AdminReservations({ embedded = false } = {}) {
               );
             })}
           </div>
+
+          <div className="d-flex flex-wrap align-items-center gap-2 admin-reservation-header-controls">
+            {activeTab === 'plan' && (
+              <Form.Select
+                size="sm"
+                className="admin-reservation-control"
+                style={{ minWidth: 200 }}
+                value={selectedFloorId || ''}
+                onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
+              >
+                <option value="">{tx('Выберите этаж', 'Qavatni tanlang')}</option>
+                {floors.map((floor) => (
+                  <option key={floor.id} value={floor.id}>{floor.name}</option>
+                ))}
+              </Form.Select>
+            )}
+            {activeTab === 'requests' && (
+              <Form.Select
+                size="sm"
+                className="admin-reservation-control"
+                value={statusFilter}
+                onChange={async (event) => {
+                  const next = event.target.value;
+                  setStatusFilter(next);
+                  await loadReservations(next);
+                }}
+              >
+                <option value="all">{tx('Все статусы', 'Barcha statuslar')}</option>
+                {RESERVATION_STATUSES.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </Form.Select>
+            )}
+            {activeTab === 'floors' && (
+              <Button
+                size="sm"
+                className="btn-primary-custom admin-reservation-control"
+                onClick={() => {
+                  setFloorForm({ name: '', sort_order: floors.length, image_url: '' });
+                  setShowFloorModal(true);
+                }}
+              >
+                {tx('Добавить этаж', 'Qavat qo\'shish')}
+              </Button>
+            )}
+            {activeTab === 'settings' && (
+              <Button
+                size="sm"
+                className="btn-primary-custom admin-reservation-control"
+                onClick={saveSettings}
+                disabled={savingSettings}
+              >
+                {savingSettings ? tx('Сохраняем...', 'Saqlanmoqda...') : tx('Сохранить настройки', 'Sozlamalarni saqlash')}
+              </Button>
+            )}
+          </div>
         </Card.Body>
       </Card>
 
       {activeTab === 'settings' && (
-      <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
       <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
         <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
           <span>{tx('Настройки сервиса брони', 'Bron xizmati sozlamalari')}</span>
-          <Button className="btn-primary-custom admin-reservation-header-btn" onClick={saveSettings} disabled={savingSettings}>
-            {savingSettings ? tx('Сохраняем...', 'Saqlanmoqda...') : tx('Сохранить настройки', 'Sozlamalarni saqlash')}
-          </Button>
         </Card.Header>
         <Card.Body>
           <Row className="g-3">
@@ -1397,26 +1442,15 @@ function AdminReservations({ embedded = false } = {}) {
           </Row>
         </Card.Body>
       </Card>
-      </div>
       )}
 
       {(activeTab === 'floors' || activeTab === 'tables') && (
       <Row className="g-3 m-0">
         {activeTab === 'floors' && (
         <Col lg={12} className="px-0">
-          <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
           <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
             <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
               <span>{tx('Этажи', 'Qavatlar')}</span>
-              <Button
-                className="btn-primary-custom admin-reservation-header-btn"
-                onClick={() => {
-                  setFloorForm({ name: '', sort_order: floors.length, image_url: '' });
-                  setShowFloorModal(true);
-                }}
-              >
-                {tx('Добавить этаж', 'Qavat qo\'shish')}
-              </Button>
             </Card.Header>
             <Card.Body className="p-0">
               <div className="admin-table-container">
@@ -1485,7 +1519,6 @@ function AdminReservations({ embedded = false } = {}) {
               </div>
             </Card.Body>
           </Card>
-          </div>
         </Col>
         )}
 
@@ -1623,25 +1656,10 @@ function AdminReservations({ embedded = false } = {}) {
       )}
 
       {activeTab === 'plan' && (
-        <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
         <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
           <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
             <span>{tx('Схема этажа', 'Qavat sxemasi')}: {selectedFloor?.name || '—'}</span>
-            <div className="d-flex align-items-center gap-2 admin-reservation-header-controls">
-              <Form.Select
-                size="sm"
-                className="admin-reservation-control"
-                style={{ minWidth: 220 }}
-                value={selectedFloorId || ''}
-                onChange={(event) => setSelectedFloorId(Number(event.target.value) || null)}
-              >
-                <option value="">{tx('Выберите этаж', 'Qavatni tanlang')}</option>
-                {floors.map((floor) => (
-                  <option key={floor.id} value={floor.id}>{floor.name}</option>
-                ))}
-              </Form.Select>
-              {isCreatingPlanTable && <span className="small text-muted">{tx('Добавляем стол...', 'Stol qo\'shilmoqda...')}</span>}
-            </div>
+            {isCreatingPlanTable && <span className="small text-muted">{tx('Добавляем стол...', 'Stol qo\'shilmoqda...')}</span>}
           </Card.Header>
           <Card.Body>
             {!selectedFloorId && (
@@ -2112,34 +2130,12 @@ function AdminReservations({ embedded = false } = {}) {
             )}
           </Card.Body>
         </Card>
-        </div>
       )}
 
       {activeTab === 'requests' && (
-      <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
       <Card className="border-0 shadow-sm mb-0 admin-reservation-card">
         <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
           <span>{tx('Заявки на бронирование', 'Bron so\'rovlari')}</span>
-          <div className="d-flex gap-2 admin-reservation-header-controls">
-            <Form.Select
-              size="sm"
-              className="admin-reservation-control"
-              value={statusFilter}
-              onChange={async (event) => {
-                const next = event.target.value;
-                setStatusFilter(next);
-                await loadReservations(next);
-              }}
-            >
-              <option value="all">{tx('Все статусы', 'Barcha statuslar')}</option>
-              {RESERVATION_STATUSES.map((status) => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </Form.Select>
-            <Button size="sm" className="admin-reservation-control" variant="outline-primary" onClick={() => loadReservations(statusFilter)}>
-              {tx('Обновить', 'Yangilash')}
-            </Button>
-          </div>
         </Card.Header>
         <Card.Body className="p-0">
           <div className="admin-table-container">
@@ -2235,7 +2231,6 @@ function AdminReservations({ embedded = false } = {}) {
           )}
         </Card.Body>
       </Card>
-      </div>
       )}
 
       <Modal show={showFloorModal} onHide={() => setShowFloorModal(false)} centered>
