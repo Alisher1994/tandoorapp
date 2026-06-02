@@ -1502,7 +1502,7 @@ function Reservations() {
 
             {bookingStep === 'plan' ? (
               <>
-                <section ref={planStageRef} className={`client-res-map-shell ${controlsCollapsed ? 'is-controls-collapsed' : ''}`}>
+                <section ref={planStageRef} className={`client-res-map-shell ${controlsCollapsed ? 'is-controls-collapsed' : ''} ${selectedTableIds.length > 0 ? 'has-selection' : ''}`}>
                   <div className={`client-res-controls-overlay ${controlsCollapsed ? 'is-collapsed' : ''}`}>
                     <div
                       className="client-res-controls-head"
@@ -1514,8 +1514,17 @@ function Reservations() {
                     >
                       <div className="client-res-controls-summary-row">
                         <div className="client-res-controls-meta">
-                          <span className="client-res-controls-date-value">{bookingDateCompact}</span>
-                          <span className="client-res-controls-floor-line">{selectedFloor?.name || '—'}</span>
+                          {controlsCollapsed ? (
+                            <>
+                              <span className="client-res-controls-date-value">{bookingDateCompact}</span>
+                              <span className="client-res-controls-floor-line">{selectedFloor?.name || '—'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="client-res-controls-date-value">{t('Бронирование', 'Band qilish')}</span>
+                              <span className="client-res-controls-floor-line">{t('Дата и этаж', 'Sana va qavat')}</span>
+                            </>
+                          )}
                         </div>
                         <div className="client-res-controls-action-slot">
                           <Button
@@ -1540,6 +1549,7 @@ function Reservations() {
                     {!controlsCollapsed && (
                       <div className="client-res-controls-stack">
                         <div className="client-res-overlay-row">
+                          <span className="client-res-overlay-label">{t('Дата', 'Sana')}</span>
                           <Form.Control
                             ref={planDateInputRef}
                             type="date"
@@ -1561,6 +1571,7 @@ function Reservations() {
                           />
                         </div>
                         <div className="client-res-overlay-row">
+                          <span className="client-res-overlay-label">{t('Этаж', 'Qavat')}</span>
                           <Form.Select
                             ref={planFloorSelectRef}
                             className="client-res-overlay-input"
