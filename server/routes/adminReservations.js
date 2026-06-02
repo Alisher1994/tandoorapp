@@ -568,6 +568,8 @@ router.post('/tables', async (req, res) => {
     const templateId = parsePositiveInt(req.body?.template_id, null);
     const capacity = parsePositiveInt(req.body?.capacity, 1);
     const photoUrl = req.body?.photo_url ? String(req.body.photo_url).trim() : null;
+    const reservationPrice = Math.max(0, parseAmount(req.body?.reservation_price, 0));
+    const description = String(req.body?.description || '').trim().slice(0, 1200) || null;
     const x = parseAmount(req.body?.x, 0);
     const y = parseAmount(req.body?.y, 0);
     const rotation = parseAmount(req.body?.rotation, 0);
@@ -597,11 +599,11 @@ router.post('/tables', async (req, res) => {
 
     const result = await client.query(
       `INSERT INTO reservation_tables (
-         restaurant_id, floor_id, template_id, name, capacity, photo_url, x, y, rotation, is_active
+         restaurant_id, floor_id, template_id, name, capacity, photo_url, reservation_price, description, x, y, rotation, is_active
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [restaurantId, floorId, templateId, name, capacity, photoUrl, x, y, rotation, isActive]
+      [restaurantId, floorId, templateId, name, capacity, photoUrl, reservationPrice, description, x, y, rotation, isActive]
     );
 
     await client.query('COMMIT');
@@ -688,6 +690,14 @@ router.put('/tables/:id', async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'photo_url')) {
       params.push(req.body.photo_url ? String(req.body.photo_url).trim() : null);
       updates.push(`photo_url = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'reservation_price')) {
+      params.push(Math.max(0, parseAmount(req.body.reservation_price, 0)));
+      updates.push(`reservation_price = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'description')) {
+      params.push(String(req.body.description || '').trim().slice(0, 1200) || null);
+      updates.push(`description = $${params.length}`);
     }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'x')) {
       params.push(parseAmount(req.body.x, 0));

@@ -202,6 +202,7 @@ function Reservations() {
   const [allowMultiTable, setAllowMultiTable] = useState(true);
   const [selectedTableIds, setSelectedTableIds] = useState([]);
   const [bookingStep, setBookingStep] = useState('plan');
+  const [bookingViewMode, setBookingViewMode] = useState('plan');
   const [controlsCollapsed, setControlsCollapsed] = useState(true);
   const [planScale, setPlanScale] = useState(1);
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
@@ -255,6 +256,11 @@ function Reservations() {
   const selectedFloorImageUrl = useMemo(() => toAbsoluteMediaUrl(selectedFloor?.image_url), [selectedFloor?.image_url]);
   const selectedTables = useMemo(() => tables.filter((table) => selectedTableIds.includes(Number(table.id))), [tables, selectedTableIds]);
   const totalSelectedCapacity = useMemo(() => selectedTables.reduce((sum, table) => sum + (Number.parseInt(table.capacity, 10) || 0), 0), [selectedTables]);
+  const selectedTablesReservationFee = useMemo(
+    () => selectedTables.reduce((sum, table) => sum + Math.max(0, asNumber(table.reservation_price, 0)), 0),
+    [selectedTables]
+  );
+  const effectiveReservationFee = selectedTablesReservationFee > 0 ? selectedTablesReservationFee : reservationFee;
   const isCapacityEnough = totalSelectedCapacity >= guestsCount;
   const timeSlots = useMemo(
     () => buildTimeSlots(workingWindow.startMinutes, workingWindow.endMinutes, normalizeTimeSlotStep(timeSlotStepMinutes, 30)),
@@ -291,7 +297,7 @@ function Reservations() {
     [bookingDurationOptions, startTime]
   );
   const selectedEndTime = useMemo(() => addMinutesWithinDay(startTime, durationMinutes), [startTime, durationMinutes]);
-  const bookingTotalCost = useMemo(() => Math.max(0, reservationFee) + Math.max(0, reservationServiceCost), [reservationFee, reservationServiceCost]);
+  const bookingTotalCost = useMemo(() => Math.max(0, effectiveReservationFee) + Math.max(0, reservationServiceCost), [effectiveReservationFee, reservationServiceCost]);
   const tutorialSteps = useMemo(() => ([
     {
       id: 'date',
@@ -1453,7 +1459,7 @@ function Reservations() {
         floorName: selectedFloor?.name || '',
         guestsCount,
         tableNames: selectedTables.map((table) => String(table.name || '')),
-        reservationFee,
+        reservationFee: effectiveReservationFee,
         reservationServiceCost,
         totalCost: bookingTotalCost
       });
@@ -1595,6 +1601,28 @@ function Reservations() {
                     )}
                   </div>
 
+                  <div className="client-res-view-switch" role="tablist" aria-label={t('Режим выбора места', 'Joy tanlash rejimi')}>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={bookingViewMode === 'plan'}
+                      className={bookingViewMode === 'plan' ? 'is-active' : ''}
+                      onClick={() => setBookingViewMode('plan')}
+                    >
+                      {t('План', 'Sxema')}
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={bookingViewMode === 'list'}
+                      className={bookingViewMode === 'list' ? 'is-active' : ''}
+                      onClick={() => setBookingViewMode('list')}
+                    >
+                      {t('Список', 'Ro‘yxat')}
+                    </button>
+                  </div>
+
+                  {bookingViewMode === 'plan' ? (
                   <div ref={planViewportRef} className={`client-res-plan-stage ${planGestureMode !== 'idle' ? 'is-gesturing' : ''}`} onWheel={handlePlanWheel} onPointerDown={handlePlanPointerDown} onPointerMove={handlePlanPointerMove} onPointerUp={endPointerSession} onPointerCancel={endPointerSession} onPointerLeave={(event) => { if (event.pointerType === 'mouse') endPointerSession(event); }}>
                     {loadingAvailability && <div className="client-res-map-loading">{t('Проверяем доступность столов...', 'Stollar mavjudligi tekshirilmoqda...')}</div>}
                     {!loadingAvailability && tables.length === 0 && (
@@ -1668,7 +1696,61 @@ function Reservations() {
                       })}
                     </div>
                   </div>
+                  ) : (
+                    <div className="client-res-list-stage">
+                      {loadingAvailability && <div className="client-res-map-loading">{t('Проверяем доступность мест...', 'Joylar mavjudligi tekshirilmoqda...')}</div>}
+                      {!loadingAvailability && tables.length === 0 && (
+                        <div className="client-res-map-empty">{t('На выбранное время мест пока нет', 'Tanlangan vaqt uchun joylar yo‘q')}</div>
+                      )}
+                      <div className="client-res-place-list">
+                        {tables.map((table) => {
+                          const tableId = Number(table.id);
+                          const selected = selectedTableIds.includes(tableId);
+                          const available = Boolean(table.is_available);
+                          const tableImageUrl = toAbsoluteMediaUrl(table.photo_url || table.template_image_url);
+                          const tablePrice = Math.max(0, asNumber(table.reservation_price, 0));
+                          return (
+                            <button
+                              key={`reservation-place-card-${table.id}`}
+                              type="button"
+                              className={`client-res-place-card ${selected ? 'is-selected' : ''} ${available ? '' : 'is-disabled'}`}
+                              onClick={() => toggleTableSelection(table)}
+                              disabled={!available}
+                            >
+                              <div className="client-res-place-photo">
+                                {tableImageUrl ? (
+                                  <img src={tableImageUrl} alt={table.name || t('Место', 'Joy')} />
+                                ) : (
+                                  <span>{extractTableCenterLabel(table.name, table.id)}</span>
+                                )}
+                              </div>
+                              <div className="client-res-place-info">
+                                <div className="client-res-place-title-row">
+                                  <span className="client-res-place-title">{table.name}</span>
+                                  <span className="client-res-place-price">
+                                    {tablePrice > 0 ? `${formatMoney(tablePrice)} ${moneyLabel}` : t('Без депозита', 'Depozitsiz')}
+                                  </span>
+                                </div>
+                                <div className="client-res-place-meta">
+                                  {table.floor_name || selectedFloor?.name || '—'} · {table.capacity || 0} {t('мест', 'joy')}
+                                </div>
+                                {table.description && (
+                                  <div className="client-res-place-description">{table.description}</div>
+                                )}
+                                <div className="client-res-place-status">
+                                  {available
+                                    ? (selected ? t('Выбрано', 'Tanlandi') : t('Нажмите, чтобы выбрать', 'Tanlash uchun bosing'))
+                                    : t('Занято', 'Band')}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
+                  {bookingViewMode === 'plan' && (
                   <div className="client-res-plan-controls" aria-label={t('Управление картой', 'Xarita boshqaruvi')}>
                     <button type="button" className="client-res-map-control-btn" onClick={handlePlanZoomIn} title={t('Приблизить', 'Yaqinlashtirish')} aria-label={t('Приблизить', 'Yaqinlashtirish')}>
                       <Plus aria-hidden="true" />
@@ -1700,6 +1782,7 @@ function Reservations() {
                       <CircleHelp aria-hidden="true" />
                     </button>
                   </div>
+                  )}
 
                   <div className="client-res-time-strip" aria-label={t('Выбор времени', 'Vaqt tanlash')}>
                     <div className="client-res-time-strip-head">
@@ -1831,7 +1914,7 @@ function Reservations() {
                           <div className="client-res-summary-card mb-3">
                             <div className="client-res-summary-row">
                               <span>{t('Сумма брони', 'Bron summasi')}</span>
-                              <strong>{formatMoney(reservationFee)} {moneyLabel}</strong>
+                              <strong>{formatMoney(effectiveReservationFee)} {moneyLabel}</strong>
                             </div>
                             <div className="client-res-summary-row">
                               <span>{t('Сервис брони', 'Bron servisi')}</span>

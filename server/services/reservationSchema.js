@@ -346,6 +346,8 @@ async function createReservationSchema(executor) {
       name VARCHAR(120) NOT NULL,
       capacity INTEGER DEFAULT 1,
       photo_url TEXT,
+      reservation_price DECIMAL(12, 2) DEFAULT 0,
+      description TEXT,
       x DECIMAL(10, 3) DEFAULT 0,
       y DECIMAL(10, 3) DEFAULT 0,
       rotation DECIMAL(8, 2) DEFAULT 0,
@@ -357,6 +359,14 @@ async function createReservationSchema(executor) {
   await run(executor, `
     ALTER TABLE reservation_tables
     ADD COLUMN IF NOT EXISTS photo_url TEXT
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_tables
+    ADD COLUMN IF NOT EXISTS reservation_price DECIMAL(12, 2) DEFAULT 0
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_tables
+    ADD COLUMN IF NOT EXISTS description TEXT
   `).catch(() => {});
   await run(executor, `
     CREATE UNIQUE INDEX IF NOT EXISTS uq_reservation_tables_floor_name

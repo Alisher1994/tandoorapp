@@ -125,6 +125,8 @@ const createEmptyTableForm = () => ({
   capacity: 2,
   template_id: '',
   photo_url: '',
+  reservation_price: 0,
+  description: '',
   x: 50,
   y: 50
 });
@@ -198,6 +200,7 @@ function AdminReservations({ embedded = false } = {}) {
   const [showFloorModal, setShowFloorModal] = useState(false);
   const [editingFloorId, setEditingFloorId] = useState(null);
   const [showTableModal, setShowTableModal] = useState(false);
+  const [editingTableId, setEditingTableId] = useState(null);
   const [dragState, setDragState] = useState(null);
   const [planScale, setPlanScale] = useState(1);
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
@@ -811,6 +814,8 @@ function AdminReservations({ embedded = false } = {}) {
       capacity: Math.max(1, asInt(draftPayload?.capacity, 1)),
       template_id: draftPayload?.template_id ? asInt(draftPayload.template_id, 0) : null,
       photo_url: String(draftPayload?.photo_url || '').trim() || null,
+      reservation_price: Math.max(0, asNumber(draftPayload?.reservation_price, 0)),
+      description: String(draftPayload?.description || '').trim() || null,
       x: clamp(asNumber(draftPayload?.x, 50), 2, 98),
       y: clamp(asNumber(draftPayload?.y, 50), 2, 98),
       rotation: normalizeRotationAngle(draftPayload?.rotation, 0),
@@ -846,6 +851,8 @@ function AdminReservations({ embedded = false } = {}) {
       capacity: tableForm.capacity,
       template_id: tableForm.template_id,
       photo_url: tableForm.photo_url,
+      reservation_price: tableForm.reservation_price,
+      description: tableForm.description,
       x: tableForm.x,
       y: tableForm.y,
       rotation: 0
@@ -853,6 +860,65 @@ function AdminReservations({ embedded = false } = {}) {
     if (!created) return;
     setTableForm(createEmptyTableForm());
     setShowTableModal(false);
+  };
+
+  const closeTableModal = () => {
+    setShowTableModal(false);
+    setEditingTableId(null);
+    setTableForm(createEmptyTableForm());
+  };
+
+  const openAddTableModal = () => {
+    setEditingTableId(null);
+    setTableForm(createEmptyTableForm());
+    setShowTableModal(true);
+  };
+
+  const openEditTableModal = (table) => {
+    if (!table) return;
+    setEditingTableId(Number(table.id));
+    setTableForm({
+      name: String(table.name || ''),
+      capacity: table.capacity || 1,
+      template_id: table.template_id || '',
+      photo_url: table.photo_url || '',
+      reservation_price: table.reservation_price || 0,
+      description: table.description || '',
+      x: asNumber(table.x, 50),
+      y: asNumber(table.y, 50)
+    });
+    setShowTableModal(true);
+  };
+
+  const saveTableDetails = async (event) => {
+    event.preventDefault();
+    const tableId = Number(editingTableId);
+    if (!tableId) {
+      await addTable(event);
+      return;
+    }
+    setError('');
+    setSuccess('');
+    const payload = {
+      name: String(tableForm.name || '').trim(),
+      capacity: Math.max(1, asInt(tableForm.capacity, 1)),
+      template_id: tableForm.template_id ? asInt(tableForm.template_id, 0) : null,
+      photo_url: String(tableForm.photo_url || '').trim() || null,
+      reservation_price: Math.max(0, asNumber(tableForm.reservation_price, 0)),
+      description: String(tableForm.description || '').trim() || null
+    };
+    if (!payload.name) {
+      setError(tx('Введите название стола', 'Stol nomini kiriting'));
+      return;
+    }
+    try {
+      await axios.put(`${API_URL}/admin/reservations/tables/${tableId}`, payload);
+      await loadTables(selectedFloorId);
+      closeTableModal();
+      setSuccess(tx('Место обновлено', 'Joy yangilandi'));
+    } catch (err) {
+      setError(err.response?.data?.error || tx('Ошибка сохранения места', 'Joyni saqlashda xatolik'));
+    }
   };
 
   const deleteTable = async (tableId) => {
@@ -1167,6 +1233,8 @@ function AdminReservations({ embedded = false } = {}) {
       capacity: Math.max(1, asInt(tableForm.capacity, activeTemplate?.seats_count || 2)),
       template_id: effectiveTemplateId || null,
       photo_url: String(tableForm.photo_url || '').trim() || null,
+      reservation_price: Math.max(0, asNumber(tableForm.reservation_price, 0)),
+      description: String(tableForm.description || '').trim() || null,
       rotation: 0
     };
   };
@@ -1663,10 +1731,7 @@ function AdminReservations({ embedded = false } = {}) {
                   size="sm"
                   className="btn-primary-custom admin-reservation-control"
                   disabled={!selectedFloorId}
-                  onClick={() => {
-                    setTableForm(createEmptyTableForm());
-                    setShowTableModal(true);
-                  }}
+                    onClick={openAddTableModal}
                 >
                   {tx('Добавить стол', 'Stol qo\'shish')}
                 </Button>
@@ -1694,7 +1759,9 @@ function AdminReservations({ embedded = false } = {}) {
                           <tr>
                             <th>{tx('Стол', 'Stol')}</th>
                             <th>{tx('Вместимость', 'Sig\'im')}</th>
+                            <th>{tx('Цена брони', 'Bron narxi')}</th>
                             <th>{tx('Шаблон', 'Shablon')}</th>
+                            <th>{tx('Описание', 'Tavsif')}</th>
                             <th>{tx('Позиция', 'Joylashuv')}</th>
                             <th>{tx('Фото', 'Rasm')}</th>
                             <th className="text-end">{tx('Действия', 'Amallar')}</th>
@@ -1705,7 +1772,11 @@ function AdminReservations({ embedded = false } = {}) {
                             <tr key={table.id}>
                               <td>{table.name}</td>
                               <td>{table.capacity}</td>
+                              <td>{formatPrice(asNumber(table.reservation_price, 0))}</td>
                               <td>{table.template_name || '—'}</td>
+                              <td className="small text-muted" style={{ maxWidth: 220 }}>
+                                <div className="text-truncate">{table.description || '—'}</div>
+                              </td>
                               <td className="small text-muted">
                                 x: {Number.parseFloat(table.x || 0).toFixed(1)}%<br />
                                 y: {Number.parseFloat(table.y || 0).toFixed(1)}%<br />
@@ -1726,6 +1797,14 @@ function AdminReservations({ embedded = false } = {}) {
                                   <Button
                                     className="action-btn admin-reservation-action-btn"
                                     variant="primary"
+                                    title={tx('Изменить', 'O\'zgartirish')}
+                                    onClick={() => openEditTableModal(table)}
+                                  >
+                                    <EditIcon />
+                                  </Button>
+                                  <Button
+                                    className="action-btn admin-reservation-action-btn"
+                                    variant="primary"
                                     title={tx('Удалить', 'O\'chirish')}
                                     onClick={() => deleteTable(table.id)}
                                   >
@@ -1737,7 +1816,7 @@ function AdminReservations({ embedded = false } = {}) {
                           ))}
                           {tables.length === 0 && (
                             <tr>
-                              <td colSpan={6} className="text-muted text-center py-3">{tx('Столов пока нет', 'Stollar hali yo\'q')}</td>
+                              <td colSpan={8} className="text-muted text-center py-3">{tx('Столов пока нет', 'Stollar hali yo\'q')}</td>
                             </tr>
                           )}
                         </tbody>
@@ -2463,12 +2542,15 @@ function AdminReservations({ embedded = false } = {}) {
         </Modal.Body>
       </Modal>
 
-      <Modal show={showTableModal} onHide={() => setShowTableModal(false)} centered>
+      <Modal show={showTableModal} onHide={closeTableModal} centered>
         <Modal.Header closeButton>
-          <Modal.Title>{tx('Добавить стол', 'Stol qo\'shish')} {selectedFloor ? `(${selectedFloor.name})` : ''}</Modal.Title>
+          <Modal.Title>
+            {editingTableId ? tx('Изменить место', 'Joyni o\'zgartirish') : tx('Добавить место', 'Joy qo\'shish')}
+            {selectedFloor ? ` (${selectedFloor.name})` : ''}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form onSubmit={addTable}>
+          <Form onSubmit={saveTableDetails}>
             <Row className="g-2">
               <Col xs={12}>
                 <Form.Control
@@ -2484,6 +2566,26 @@ function AdminReservations({ embedded = false } = {}) {
                   placeholder={tx('Вместимость', 'Sig\'im')}
                   value={tableForm.capacity}
                   onChange={(event) => setTableForm((prev) => ({ ...prev, capacity: event.target.value }))}
+                />
+              </Col>
+              <Col xs={12}>
+                <Form.Control
+                  type="number"
+                  min={0}
+                  step="1000"
+                  placeholder={tx('Цена бронирования для этого места', 'Bu joy uchun bron narxi')}
+                  value={tableForm.reservation_price}
+                  onChange={(event) => setTableForm((prev) => ({ ...prev, reservation_price: event.target.value }))}
+                />
+              </Col>
+              <Col xs={12}>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  maxLength={1200}
+                  placeholder={tx('Описание места: вид, зона, условия брони', 'Joy tavsifi: hudud, sharoitlar')}
+                  value={tableForm.description}
+                  onChange={(event) => setTableForm((prev) => ({ ...prev, description: event.target.value }))}
                 />
               </Col>
               <Col xs={12}>
@@ -2586,7 +2688,7 @@ function AdminReservations({ embedded = false } = {}) {
                     <img src={toAbsoluteMediaUrl(tableForm.photo_url)} alt={tx('Фото стола', 'Stol rasmi')} className="admin-reservation-photo-slot-img" />
                   </div>
                   <div className="d-flex align-items-center gap-2 flex-wrap">
-                    <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview('Новый стол', tableForm.photo_url)}>
+                    <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview(tableForm.name || tx('Место', 'Joy'), tableForm.photo_url)}>
                       {tx('Просмотр фото', 'Rasmni ko\'rish')}
                     </Button>
                     <Button
@@ -2605,10 +2707,12 @@ function AdminReservations({ embedded = false } = {}) {
               {tx('После добавления перетащите стол на вкладке "Схема" в нужную точку.', 'Qo\'shilgandan keyin stolni "Sxema" bo\'limida kerakli joyga olib boring.')}
             </div>
             <div className="d-flex justify-content-end gap-2 mt-3">
-              <Button type="button" variant="outline-secondary" onClick={() => setShowTableModal(false)}>
+              <Button type="button" variant="outline-secondary" onClick={closeTableModal}>
                 {tx('Отмена', 'Bekor qilish')}
               </Button>
-              <Button type="submit" disabled={!selectedFloorId}>{tx('Добавить стол', 'Stol qo\'shish')}</Button>
+              <Button type="submit" disabled={!selectedFloorId}>
+                {editingTableId ? tx('Сохранить', 'Saqlash') : tx('Добавить место', 'Joy qo\'shish')}
+              </Button>
             </div>
           </Form>
         </Modal.Body>

@@ -246,6 +246,8 @@ router.get('/availability', async (req, res) => {
          t.name,
          t.capacity,
          t.photo_url,
+         t.reservation_price,
+         t.description,
          t.x,
          t.y,
          t.rotation,
@@ -416,7 +418,7 @@ router.post('/', async (req, res) => {
     }
 
     const tablesResult = await client.query(
-      `SELECT id, capacity
+      `SELECT id, capacity, reservation_price
        FROM reservation_tables
        WHERE restaurant_id = $1
          AND is_active = true
@@ -464,7 +466,13 @@ router.post('/', async (req, res) => {
 
     const reservationNumber = await generateReservationNumber(client);
     const bookingMode = normalizeReservationMode(req.body?.booking_mode, 'reservation_only');
-    const reservationFee = Math.max(0, parseAmount(config.reservation_fee, 0));
+    const tableReservationFee = tablesResult.rows.reduce(
+      (sum, row) => sum + Math.max(0, parseAmount(row.reservation_price, 0)),
+      0
+    );
+    const reservationFee = tableReservationFee > 0
+      ? tableReservationFee
+      : Math.max(0, parseAmount(config.reservation_fee, 0));
     const itemsPrepayAmount = bookingMode === 'with_items'
       ? Math.max(0, parseAmount(req.body?.items_prepay_amount, 0))
       : 0;
