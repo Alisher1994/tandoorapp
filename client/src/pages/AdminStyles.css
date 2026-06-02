@@ -2005,6 +2005,13 @@ body::-webkit-scrollbar,
     opacity: 0.45;
 }
 
+.admin-reservation-action-btn svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    flex-shrink: 0;
+}
+
 .admin-reservation-plan-tools {
     position: absolute;
     right: 10px;

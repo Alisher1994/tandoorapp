@@ -105,24 +105,24 @@ const ImagePlaceholderGraphic = ({ className = 'admin-reservation-image-placehol
   </svg>
 );
 
-const ResetIcon = () => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+const ResetIcon = ({ size = 16 } = {}) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" aria-hidden="true">
     <path d="M4 4v6h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     <path d="M20 12a8 8 0 1 1-2.34-5.66L16 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
-const RotateLeftMiniIcon = () => (
-  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" aria-hidden="true">
-    <path d="M8 4H4v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M20 12a8 8 0 1 0-2.34 5.66" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+const RotateLeftMiniIcon = ({ size = 16 } = {}) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" aria-hidden="true">
+    <path d="M8 5H4v4" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4.9 8.6A8 8 0 1 1 6.7 18" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
-const RotateRightMiniIcon = () => (
-  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" aria-hidden="true">
-    <path d="M16 4h4v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M4 12a8 8 0 1 1 2.34 5.66" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+const RotateRightMiniIcon = ({ size = 16 } = {}) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" aria-hidden="true">
+    <path d="M16 5h4v4" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M19.1 8.6A8 8 0 1 0 17.3 18" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -2007,7 +2007,7 @@ function AdminReservations({ embedded = false } = {}) {
                       disabled={!selectedPlanTable}
                       onClick={() => setShowPlanRotationControls((prev) => !prev)}
                     >
-                      ↻
+                      <RotateRightMiniIcon />
                     </Button>
                   </div>
                   {showPlanRotationControls && selectedPlanTable && (
