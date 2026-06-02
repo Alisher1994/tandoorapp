@@ -1085,7 +1085,9 @@ const notifyCustomersAboutRestaurantBotMigration = async ({
     oldBot = getRestaurantBot(previousToken);
     await oldBot.getMe();
   } catch (error) {
-    return { ok: false, error: 'Старый бот недоступен. Нельзя уведомить клиентов перед сменой токена', details: error.message };
+    // Старый бот мёртв (токен перевыпущен/бот удалён) — уведомить клиентов уже нельзя,
+    // но это не должно блокировать смену токена. Иначе невозможно уйти с мёртвого бота.
+    return { ok: true, skipped: true, reason: 'old_bot_unavailable', details: error.message, newBotUsername };
   }
 
   const recipientsResult = await pool.query(
@@ -1138,23 +1140,14 @@ const notifyCustomersAboutRestaurantBotMigration = async ({
     }
   }
 
-  if (failures.length > 0) {
-    return {
-      ok: false,
-      error: 'Не удалось уведомить всех клиентов через старый бот. Смена токена остановлена.',
-      total: recipients.length,
-      delivered,
-      failed: failures.length,
-      failedRecipients: failures.slice(0, 20),
-      newBotUsername
-    };
-  }
-
+  // Сбои доставки отдельным клиентам (бот заблокирован, чат удалён и т.п.) — best-effort,
+  // не блокируем смену токена.
   return {
     ok: true,
     total: recipients.length,
     delivered,
-    failed: 0,
+    failed: failures.length,
+    failedRecipients: failures.slice(0, 20),
     newBotUsername
   };
 };
