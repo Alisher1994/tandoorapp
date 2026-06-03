@@ -214,6 +214,7 @@ async function createReservationSchema(executor) {
       max_duration_minutes INTEGER DEFAULT 180,
       time_slot_step_minutes INTEGER DEFAULT 30,
       allow_multi_table BOOLEAN DEFAULT true,
+      show_floor_plan BOOLEAN DEFAULT true,
       prepay_mode VARCHAR(20) DEFAULT 'none',
       prepay_percent DECIMAL(5, 2) DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -238,6 +239,10 @@ async function createReservationSchema(executor) {
     UPDATE restaurant_reservation_settings
     SET time_slot_step_minutes = 30
     WHERE time_slot_step_minutes IS NULL
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE restaurant_reservation_settings
+    ADD COLUMN IF NOT EXISTS show_floor_plan BOOLEAN DEFAULT true
   `).catch(() => {});
   await ensureCheckConstraint(executor, {
     tableName: 'restaurant_reservation_settings',
@@ -348,6 +353,8 @@ async function createReservationSchema(executor) {
       photo_url TEXT,
       reservation_price DECIMAL(12, 2) DEFAULT 0,
       description TEXT,
+      description_ru TEXT,
+      description_uz TEXT,
       x DECIMAL(10, 3) DEFAULT 0,
       y DECIMAL(10, 3) DEFAULT 0,
       rotation DECIMAL(8, 2) DEFAULT 0,
@@ -367,6 +374,19 @@ async function createReservationSchema(executor) {
   await run(executor, `
     ALTER TABLE reservation_tables
     ADD COLUMN IF NOT EXISTS description TEXT
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_tables
+    ADD COLUMN IF NOT EXISTS description_ru TEXT
+  `).catch(() => {});
+  await run(executor, `
+    ALTER TABLE reservation_tables
+    ADD COLUMN IF NOT EXISTS description_uz TEXT
+  `).catch(() => {});
+  await run(executor, `
+    UPDATE reservation_tables
+    SET description_ru = description
+    WHERE description_ru IS NULL AND description IS NOT NULL
   `).catch(() => {});
   await run(executor, `
     CREATE UNIQUE INDEX IF NOT EXISTS uq_reservation_tables_floor_name

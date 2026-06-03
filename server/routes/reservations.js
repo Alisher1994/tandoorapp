@@ -128,6 +128,7 @@ const getReservationConfig = async (client, restaurantId) => {
        COALESCE(rs.max_duration_minutes, 180) AS max_duration_minutes,
        COALESCE(rs.time_slot_step_minutes, 30) AS time_slot_step_minutes,
        COALESCE(rs.allow_multi_table, true) AS allow_multi_table,
+       COALESCE(rs.show_floor_plan, true) AS show_floor_plan,
        COALESCE(rs.prepay_mode, 'none') AS prepay_mode,
        COALESCE(rs.prepay_percent, 0) AS prepay_percent,
        COALESCE(rs.reservation_service_cost, COALESCE(r.reservation_cost, 0)) AS reservation_service_cost
@@ -248,6 +249,8 @@ router.get('/availability', async (req, res) => {
          t.photo_url,
          t.reservation_price,
          t.description,
+         t.description_ru,
+         t.description_uz,
          t.x,
          t.y,
          t.rotation,
@@ -306,6 +309,7 @@ router.get('/availability', async (req, res) => {
       work_end_time: toHHMM(config.work_end_time),
       time_slot_step_minutes: parsePositiveInt(config.time_slot_step_minutes, 30),
       allow_multi_table: Boolean(config.allow_multi_table),
+      show_floor_plan: config.show_floor_plan !== false,
       tables
     });
   } catch (error) {

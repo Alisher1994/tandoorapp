@@ -3900,6 +3900,78 @@ h6 {
   font-weight: 800;
 }
 
+.client-res-place-details-card {
+  max-width: 560px;
+  margin-inline: auto;
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.client-res-place-details-hero {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 20px;
+  background: #f1f5f9;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.client-res-place-details-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.client-res-place-details-head {
+  margin-top: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.client-res-place-details-head h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 1.25rem;
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.client-res-place-details-meta {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.client-res-place-details-price {
+  flex: 0 0 auto;
+  color: #16835d;
+  font-size: 0.96rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.client-res-place-details-description {
+  margin: 14px 0 0;
+  color: #475569;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.client-res-time-ruler--details {
+  margin-top: 0;
+  padding: 9px 0 6px;
+  background: #ffffff;
+  border-color: #e1e7f0;
+}
+
 .client-res-map-loading {
   position: absolute;
   top: 12px;

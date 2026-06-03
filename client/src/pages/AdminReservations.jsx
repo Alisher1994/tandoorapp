@@ -18,6 +18,7 @@ import Toast from 'react-bootstrap/Toast';
 import ToastContainer from 'react-bootstrap/ToastContainer';
 import { RotateCcw, RotateCw } from 'lucide-react';
 import { formatPrice } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -43,6 +44,17 @@ const asNumber = (value, fallback = 0) => {
 const asInt = (value, fallback = 0) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) ? parsed : fallback;
+};
+const getCurrencyLabel = (code, fallback = 'сум') => {
+  const normalized = String(code || '').trim().toLowerCase();
+  if (normalized === 'kz') return '₸';
+  if (normalized === 'tm') return 'TMT';
+  if (normalized === 'tj') return 'сомони';
+  if (normalized === 'kg') return 'сом';
+  if (normalized === 'af') return 'AFN';
+  if (normalized === 'ru') return '₽';
+  if (normalized === 'us') return '$';
+  return fallback;
 };
 
 const normalizeRotationAngle = (value, fallback = 0) => {
@@ -127,6 +139,8 @@ const createEmptyTableForm = () => ({
   photo_url: '',
   reservation_price: 0,
   description: '',
+  description_ru: '',
+  description_uz: '',
   x: 50,
   y: 50
 });
@@ -141,6 +155,7 @@ const TEMPLATE_CATEGORY_OPTIONS = [
 
 function AdminReservations({ embedded = false } = {}) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { language } = useLanguage();
   const floorPlanRef = useRef(null);
   const floorImageInputRef = useRef(null);
@@ -155,6 +170,7 @@ function AdminReservations({ embedded = false } = {}) {
   });
   const isUz = language === 'uz';
   const tx = (ru, uz) => (isUz ? uz : ru);
+  const moneyLabel = getCurrencyLabel(user?.active_restaurant_currency_code, tx('сум', 'so‘m'));
 
   const [loading, setLoading] = useState(true);
   const [loadingTables, setLoadingTables] = useState(false);
@@ -169,7 +185,8 @@ function AdminReservations({ embedded = false } = {}) {
     reservation_fee: 0,
     max_duration_minutes: 180,
     time_slot_step_minutes: 30,
-    allow_multi_table: true
+    allow_multi_table: true,
+    show_floor_plan: true
   });
   const [supportContact, setSupportContact] = useState({
     support_username: '',
@@ -533,7 +550,8 @@ function AdminReservations({ embedded = false } = {}) {
         reservation_fee: asNumber(nextSettings.reservation_fee, 0),
         max_duration_minutes: asInt(nextSettings.max_duration_minutes, 180),
         time_slot_step_minutes: Math.min(60, Math.max(5, asInt(nextSettings.time_slot_step_minutes, 30))),
-        allow_multi_table: nextSettings.allow_multi_table !== false
+        allow_multi_table: nextSettings.allow_multi_table !== false,
+        show_floor_plan: nextSettings.show_floor_plan !== false
       });
       setSupportContact({
         support_username: String(billingRes.data?.requisites?.telegram_username || '').trim(),
@@ -707,7 +725,8 @@ function AdminReservations({ embedded = false } = {}) {
         reservation_fee: Math.max(0, asNumber(settings.reservation_fee, 0)),
         max_duration_minutes: Math.max(30, asInt(settings.max_duration_minutes, 180)),
         time_slot_step_minutes: Math.min(60, Math.max(5, asInt(settings.time_slot_step_minutes, 30))),
-        allow_multi_table: !!settings.allow_multi_table
+        allow_multi_table: !!settings.allow_multi_table,
+        show_floor_plan: settings.show_floor_plan !== false
       };
       await axios.put(`${API_URL}/admin/reservations/settings`, payload);
       setSuccess(tx('Настройки бронирования сохранены', 'Bronlash sozlamalari saqlandi'));
@@ -816,6 +835,8 @@ function AdminReservations({ embedded = false } = {}) {
       photo_url: String(draftPayload?.photo_url || '').trim() || null,
       reservation_price: Math.max(0, asNumber(draftPayload?.reservation_price, 0)),
       description: String(draftPayload?.description || '').trim() || null,
+      description_ru: String(draftPayload?.description_ru ?? draftPayload?.description ?? '').trim() || null,
+      description_uz: String(draftPayload?.description_uz || '').trim() || null,
       x: clamp(asNumber(draftPayload?.x, 50), 2, 98),
       y: clamp(asNumber(draftPayload?.y, 50), 2, 98),
       rotation: normalizeRotationAngle(draftPayload?.rotation, 0),
@@ -853,6 +874,8 @@ function AdminReservations({ embedded = false } = {}) {
       photo_url: tableForm.photo_url,
       reservation_price: tableForm.reservation_price,
       description: tableForm.description,
+      description_ru: tableForm.description_ru,
+      description_uz: tableForm.description_uz,
       x: tableForm.x,
       y: tableForm.y,
       rotation: 0
@@ -884,6 +907,8 @@ function AdminReservations({ embedded = false } = {}) {
       photo_url: table.photo_url || '',
       reservation_price: table.reservation_price || 0,
       description: table.description || '',
+      description_ru: table.description_ru || table.description || '',
+      description_uz: table.description_uz || '',
       x: asNumber(table.x, 50),
       y: asNumber(table.y, 50)
     });
@@ -905,7 +930,9 @@ function AdminReservations({ embedded = false } = {}) {
       template_id: tableForm.template_id ? asInt(tableForm.template_id, 0) : null,
       photo_url: String(tableForm.photo_url || '').trim() || null,
       reservation_price: Math.max(0, asNumber(tableForm.reservation_price, 0)),
-      description: String(tableForm.description || '').trim() || null
+      description: String(tableForm.description_ru || tableForm.description || '').trim() || null,
+      description_ru: String(tableForm.description_ru || tableForm.description || '').trim() || null,
+      description_uz: String(tableForm.description_uz || '').trim() || null
     };
     if (!payload.name) {
       setError(tx('Введите название стола', 'Stol nomini kiriting'));
@@ -1235,6 +1262,8 @@ function AdminReservations({ embedded = false } = {}) {
       photo_url: String(tableForm.photo_url || '').trim() || null,
       reservation_price: Math.max(0, asNumber(tableForm.reservation_price, 0)),
       description: String(tableForm.description || '').trim() || null,
+      description_ru: String(tableForm.description_ru || tableForm.description || '').trim() || null,
+      description_uz: String(tableForm.description_uz || '').trim() || null,
       rotation: 0
     };
   };
@@ -1580,6 +1609,14 @@ function AdminReservations({ embedded = false } = {}) {
                 onChange={(event) => setSettings((prev) => ({ ...prev, allow_multi_table: event.target.checked }))}
               />
             </Col>
+            <Col md={6} className="d-flex align-items-end">
+              <Form.Check
+                type="switch"
+                label={tx('Показывать план этажа клиенту', 'Mijozga qavat sxemasini ko\'rsatish')}
+                checked={settings.show_floor_plan !== false}
+                onChange={(event) => setSettings((prev) => ({ ...prev, show_floor_plan: event.target.checked }))}
+              />
+            </Col>
             <Col md={6}>
               <Alert variant="light" className="mb-0 border">
                 <div className="small">
@@ -1772,10 +1809,10 @@ function AdminReservations({ embedded = false } = {}) {
                             <tr key={table.id}>
                               <td>{table.name}</td>
                               <td>{table.capacity}</td>
-                              <td>{formatPrice(asNumber(table.reservation_price, 0))}</td>
+                              <td>{formatPrice(asNumber(table.reservation_price, 0))} {moneyLabel}</td>
                               <td>{table.template_name || '—'}</td>
                               <td className="small text-muted" style={{ maxWidth: 220 }}>
-                                <div className="text-truncate">{table.description || '—'}</div>
+                                <div className="text-truncate">{(isUz ? table.description_uz : table.description_ru) || table.description || '—'}</div>
                               </td>
                               <td className="small text-muted">
                                 x: {Number.parseFloat(table.x || 0).toFixed(1)}%<br />
@@ -2569,6 +2606,9 @@ function AdminReservations({ embedded = false } = {}) {
                 />
               </Col>
               <Col xs={12}>
+                <Form.Label className="small text-muted mb-1">
+                  {tx('Цена бронирования', 'Bron narxi')} ({moneyLabel})
+                </Form.Label>
                 <Form.Control
                   type="number"
                   min={0}
@@ -2579,13 +2619,29 @@ function AdminReservations({ embedded = false } = {}) {
                 />
               </Col>
               <Col xs={12}>
+                <Form.Label className="small text-muted mb-1">
+                  {tx('Описание RU', 'RU tavsif')}
+                </Form.Label>
                 <Form.Control
                   as="textarea"
                   rows={3}
                   maxLength={1200}
                   placeholder={tx('Описание места: вид, зона, условия брони', 'Joy tavsifi: hudud, sharoitlar')}
-                  value={tableForm.description}
-                  onChange={(event) => setTableForm((prev) => ({ ...prev, description: event.target.value }))}
+                  value={tableForm.description_ru}
+                  onChange={(event) => setTableForm((prev) => ({ ...prev, description_ru: event.target.value, description: event.target.value }))}
+                />
+              </Col>
+              <Col xs={12}>
+                <Form.Label className="small text-muted mb-1">
+                  {tx('Описание UZ', 'UZ tavsif')}
+                </Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  maxLength={1200}
+                  placeholder={tx('Описание на узбекском', 'O‘zbekcha tavsif')}
+                  value={tableForm.description_uz}
+                  onChange={(event) => setTableForm((prev) => ({ ...prev, description_uz: event.target.value }))}
                 />
               </Col>
               <Col xs={12}>

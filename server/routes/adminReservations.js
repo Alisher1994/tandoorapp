@@ -60,6 +60,7 @@ const ensureRestaurantSettingsRow = async (client, restaurantId) => {
        max_duration_minutes,
        time_slot_step_minutes,
        allow_multi_table,
+       show_floor_plan,
        prepay_mode,
        prepay_percent
      )
@@ -70,6 +71,7 @@ const ensureRestaurantSettingsRow = async (client, restaurantId) => {
        COALESCE(r.reservation_cost, 0),
        180,
        30,
+       true,
        true,
        'none',
        0
@@ -276,6 +278,10 @@ router.put('/settings', async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'allow_multi_table')) {
       params.push(!!req.body.allow_multi_table);
       updates.push(`allow_multi_table = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'show_floor_plan')) {
+      params.push(req.body.show_floor_plan !== false);
+      updates.push(`show_floor_plan = $${params.length}`);
     }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'prepay_mode')) {
       const prepayMode = String(req.body.prepay_mode || '').trim().toLowerCase();
@@ -569,7 +575,8 @@ router.post('/tables', async (req, res) => {
     const capacity = parsePositiveInt(req.body?.capacity, 1);
     const photoUrl = req.body?.photo_url ? String(req.body.photo_url).trim() : null;
     const reservationPrice = Math.max(0, parseAmount(req.body?.reservation_price, 0));
-    const description = String(req.body?.description || '').trim().slice(0, 1200) || null;
+    const descriptionRu = String(req.body?.description_ru ?? req.body?.description ?? '').trim().slice(0, 1200) || null;
+    const descriptionUz = String(req.body?.description_uz || '').trim().slice(0, 1200) || null;
     const x = parseAmount(req.body?.x, 0);
     const y = parseAmount(req.body?.y, 0);
     const rotation = parseAmount(req.body?.rotation, 0);
@@ -599,11 +606,11 @@ router.post('/tables', async (req, res) => {
 
     const result = await client.query(
       `INSERT INTO reservation_tables (
-         restaurant_id, floor_id, template_id, name, capacity, photo_url, reservation_price, description, x, y, rotation, is_active
+         restaurant_id, floor_id, template_id, name, capacity, photo_url, reservation_price, description, description_ru, description_uz, x, y, rotation, is_active
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [restaurantId, floorId, templateId, name, capacity, photoUrl, reservationPrice, description, x, y, rotation, isActive]
+      [restaurantId, floorId, templateId, name, capacity, photoUrl, reservationPrice, descriptionRu, descriptionRu, descriptionUz, x, y, rotation, isActive]
     );
 
     await client.query('COMMIT');
@@ -698,6 +705,17 @@ router.put('/tables/:id', async (req, res) => {
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'description')) {
       params.push(String(req.body.description || '').trim().slice(0, 1200) || null);
       updates.push(`description = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'description_ru')) {
+      const descriptionRu = String(req.body.description_ru || '').trim().slice(0, 1200) || null;
+      params.push(descriptionRu);
+      updates.push(`description_ru = $${params.length}`);
+      params.push(descriptionRu);
+      updates.push(`description = $${params.length}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'description_uz')) {
+      params.push(String(req.body.description_uz || '').trim().slice(0, 1200) || null);
+      updates.push(`description_uz = $${params.length}`);
     }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'x')) {
       params.push(parseAmount(req.body.x, 0));

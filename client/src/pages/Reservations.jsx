@@ -200,6 +200,7 @@ function Reservations() {
   const [bookingMode, setBookingMode] = useState('reservation_only');
   const [comment, setComment] = useState('');
   const [allowMultiTable, setAllowMultiTable] = useState(true);
+  const [showFloorPlan, setShowFloorPlan] = useState(true);
   const [selectedTableIds, setSelectedTableIds] = useState([]);
   const [bookingStep, setBookingStep] = useState('plan');
   const [bookingViewMode, setBookingViewMode] = useState('plan');
@@ -255,6 +256,13 @@ function Reservations() {
   const selectedFloor = useMemo(() => floors.find((floor) => Number(floor.id) === Number(selectedFloorId)) || null, [floors, selectedFloorId]);
   const selectedFloorImageUrl = useMemo(() => toAbsoluteMediaUrl(selectedFloor?.image_url), [selectedFloor?.image_url]);
   const selectedTables = useMemo(() => tables.filter((table) => selectedTableIds.includes(Number(table.id))), [tables, selectedTableIds]);
+  const primarySelectedTable = selectedTables[0] || null;
+  const primarySelectedDescription = useMemo(() => {
+    if (!primarySelectedTable) return '';
+    return (language === 'uz'
+      ? (primarySelectedTable.description_uz || primarySelectedTable.description_ru || primarySelectedTable.description)
+      : (primarySelectedTable.description_ru || primarySelectedTable.description || primarySelectedTable.description_uz)) || '';
+  }, [language, primarySelectedTable]);
   const totalSelectedCapacity = useMemo(() => selectedTables.reduce((sum, table) => sum + (Number.parseInt(table.capacity, 10) || 0), 0), [selectedTables]);
   const selectedTablesReservationFee = useMemo(
     () => selectedTables.reduce((sum, table) => sum + Math.max(0, asNumber(table.reservation_price, 0)), 0),
@@ -385,6 +393,14 @@ function Reservations() {
     return isOperatorUser ? '/admin' : '/catalog';
   }, [isOperator, user?.role]);
   const handleBackClick = useCallback(() => {
+    if (bookingStep === 'details') {
+      setBookingStep('place');
+      return;
+    }
+    if (bookingStep === 'place') {
+      setBookingStep('plan');
+      return;
+    }
     if (bookingStep !== 'plan') {
       setBookingStep('plan');
       return;
@@ -680,6 +696,10 @@ function Reservations() {
       planVisibilityRecoveryAttemptsRef.current = 0;
       setTables(nextTables);
       setAllowMultiTable(payload.allow_multi_table !== false);
+      setShowFloorPlan(payload.show_floor_plan !== false);
+      if (payload.show_floor_plan === false) {
+        setBookingViewMode('list');
+      }
       setTimeSlotStepMinutes(normalizeTimeSlotStep(payload.time_slot_step_minutes, 30));
       setReservationFee(Number.isFinite(Number(payload.reservation_fee)) ? Number(payload.reservation_fee) : 0);
       setReservationServiceCost(Number.isFinite(Number(payload.reservation_service_cost)) ? Number(payload.reservation_service_cost) : 0);
@@ -1431,8 +1451,8 @@ function Reservations() {
       setError(t('Для этого магазина бронирование отключено', 'Ushbu do‘kon uchun band qilish xizmati o‘chirilgan'));
       return;
     }
-    if (!selectedTableIds.length) return setError(t('Выберите хотя бы один стол', 'Kamida bitta stol tanlang'));
-    if (!isCapacityEnough) return setError(t('Вместимость выбранных столов меньше количества гостей', 'Tanlangan stollar sig‘imi mehmonlar sonidan kam'));
+    if (!selectedTableIds.length) return setError(t('Выберите хотя бы одно место', 'Kamida bitta joy tanlang'));
+    if (!isCapacityEnough) return setError(t('Вместимость выбранных мест меньше количества гостей', 'Tanlangan joylar sig‘imi mehmonlar sonidan kam'));
     setSubmitting(true);
     setError('');
     setSuccessMessage('');
@@ -1522,13 +1542,13 @@ function Reservations() {
                         <div className="client-res-controls-meta">
                           {controlsCollapsed ? (
                             <>
-                              <span className="client-res-controls-date-value">{bookingDateCompact}</span>
-                              <span className="client-res-controls-floor-line">{selectedFloor?.name || '—'}</span>
+                              <span className="client-res-controls-date-value">{t('Выберите место', 'Joyni tanlang')}</span>
+                              <span className="client-res-controls-floor-line">{selectedFloor?.name || t('Все этажи', 'Barcha qavatlar')}</span>
                             </>
                           ) : (
                             <>
-                              <span className="client-res-controls-date-value">{t('Бронирование', 'Band qilish')}</span>
-                              <span className="client-res-controls-floor-line">{t('Дата и этаж', 'Sana va qavat')}</span>
+                              <span className="client-res-controls-date-value">{t('Выберите место', 'Joyni tanlang')}</span>
+                              <span className="client-res-controls-floor-line">{t('Этаж и режим просмотра', 'Qavat va ko‘rinish')}</span>
                             </>
                           )}
                         </div>
@@ -1543,7 +1563,7 @@ function Reservations() {
                             onClick={(event) => {
                               event.stopPropagation();
                               advanceTutorialStep('next');
-                              setBookingStep('details');
+                              setBookingStep('place');
                             }}
                           >
                             {t('Далее', 'Keyingi')}
@@ -1554,28 +1574,6 @@ function Reservations() {
 
                     {!controlsCollapsed && (
                       <div className="client-res-controls-stack">
-                        <div className="client-res-overlay-row">
-                          <span className="client-res-overlay-label">{t('Дата', 'Sana')}</span>
-                          <Form.Control
-                            ref={planDateInputRef}
-                            type="date"
-                            className="client-res-overlay-input"
-                            value={bookingDate}
-                            min={todayDate()}
-                            onClick={(event) => {
-                              event.currentTarget.showPicker?.();
-                              advanceTutorialStep('date');
-                            }}
-                            onFocus={(event) => event.currentTarget.showPicker?.()}
-                            onChange={(event) => {
-                              const nextDate = String(event.target.value || '').trim();
-                              if (/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
-                                setBookingDate(nextDate);
-                                advanceTutorialStep('date');
-                              }
-                            }}
-                          />
-                        </div>
                         <div className="client-res-overlay-row">
                           <span className="client-res-overlay-label">{t('Этаж', 'Qavat')}</span>
                           <Form.Select
@@ -1602,15 +1600,17 @@ function Reservations() {
                   </div>
 
                   <div className="client-res-view-switch" role="tablist" aria-label={t('Режим выбора места', 'Joy tanlash rejimi')}>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={bookingViewMode === 'plan'}
-                      className={bookingViewMode === 'plan' ? 'is-active' : ''}
-                      onClick={() => setBookingViewMode('plan')}
-                    >
-                      {t('План', 'Sxema')}
-                    </button>
+                    {showFloorPlan && (
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={bookingViewMode === 'plan'}
+                        className={bookingViewMode === 'plan' ? 'is-active' : ''}
+                        onClick={() => setBookingViewMode('plan')}
+                      >
+                        {t('План', 'Sxema')}
+                      </button>
+                    )}
                     <button
                       type="button"
                       role="tab"
@@ -1622,7 +1622,7 @@ function Reservations() {
                     </button>
                   </div>
 
-                  {bookingViewMode === 'plan' ? (
+                  {showFloorPlan && bookingViewMode === 'plan' ? (
                   <div ref={planViewportRef} className={`client-res-plan-stage ${planGestureMode !== 'idle' ? 'is-gesturing' : ''}`} onWheel={handlePlanWheel} onPointerDown={handlePlanPointerDown} onPointerMove={handlePlanPointerMove} onPointerUp={endPointerSession} onPointerCancel={endPointerSession} onPointerLeave={(event) => { if (event.pointerType === 'mouse') endPointerSession(event); }}>
                     {loadingAvailability && <div className="client-res-map-loading">{t('Проверяем доступность столов...', 'Stollar mavjudligi tekshirilmoqda...')}</div>}
                     {!loadingAvailability && tables.length === 0 && (
@@ -1709,6 +1709,9 @@ function Reservations() {
                           const available = Boolean(table.is_available);
                           const tableImageUrl = toAbsoluteMediaUrl(table.photo_url || table.template_image_url);
                           const tablePrice = Math.max(0, asNumber(table.reservation_price, 0));
+                          const tableDescription = (language === 'uz'
+                            ? (table.description_uz || table.description_ru || table.description)
+                            : (table.description_ru || table.description || table.description_uz)) || '';
                           return (
                             <button
                               key={`reservation-place-card-${table.id}`}
@@ -1734,8 +1737,8 @@ function Reservations() {
                                 <div className="client-res-place-meta">
                                   {table.floor_name || selectedFloor?.name || '—'} · {table.capacity || 0} {t('мест', 'joy')}
                                 </div>
-                                {table.description && (
-                                  <div className="client-res-place-description">{table.description}</div>
+                                {tableDescription && (
+                                  <div className="client-res-place-description">{tableDescription}</div>
                                 )}
                                 <div className="client-res-place-status">
                                   {available
@@ -1750,7 +1753,7 @@ function Reservations() {
                     </div>
                   )}
 
-                  {bookingViewMode === 'plan' && (
+                  {showFloorPlan && bookingViewMode === 'plan' && (
                   <div className="client-res-plan-controls" aria-label={t('Управление картой', 'Xarita boshqaruvi')}>
                     <button type="button" className="client-res-map-control-btn" onClick={handlePlanZoomIn} title={t('Приблизить', 'Yaqinlashtirish')} aria-label={t('Приблизить', 'Yaqinlashtirish')}>
                       <Plus aria-hidden="true" />
@@ -1784,31 +1787,55 @@ function Reservations() {
                   </div>
                   )}
 
-                  <div className="client-res-time-strip" aria-label={t('Выбор времени', 'Vaqt tanlash')}>
-                    <div className="client-res-time-strip-head">
-                      <span className="client-res-time-strip-label">{t('Время', 'Vaqt')}</span>
-                      <span className="client-res-time-strip-range">{selectedEndTime ? `${startTime} - ${selectedEndTime}` : startTime}</span>
-                    </div>
-                    <div ref={timeRulerRef} className="client-res-time-ruler client-res-time-ruler--floating" onScroll={handleTimeRulerScroll}>
-                      {timeSlots.map((slot, index) => {
-                        const active = slot.value === startTime;
-                        const isHour = slot.minutes % 60 === 0;
-                        return (
-                          <button key={slot.value} type="button" data-slot-value={slot.value} className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => { timeRulerManualScrollRef.current = false; setStartTime(slot.value); centerTimeSlot(slot.value, 'smooth'); advanceTutorialStep('time'); }} title={slot.value} aria-label={slot.value}>
-                            <span className="client-res-ruler-line" />
-                            {isHour && <span className="client-res-ruler-label">{slot.hourLabel}</span>}
-                            {!isHour && active && <span className="client-res-ruler-label">{slot.value}</span>}
-                            {index === timeSlots.length - 1 ? <span className="client-res-ruler-end" /> : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
                 </section>
 
                 {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mt-2 mb-2">{t('Вместимости выбранных столов недостаточно для указанного количества гостей', 'Tanlangan stollar sig‘imi mehmonlar soni uchun yetarli emas')}</Alert>}
               </>
+            ) : bookingStep === 'place' ? (
+              <Card className="border-0 shadow-sm mt-3 mb-3 client-res-details-card client-res-place-details-card">
+                <Card.Body>
+                  {!primarySelectedTable ? (
+                    <Alert variant="warning" className="border-0 mb-0">{t('Место не выбрано', 'Joy tanlanmagan')}</Alert>
+                  ) : (
+                    <>
+                      <div className="client-res-place-details-hero">
+                        {toAbsoluteMediaUrl(primarySelectedTable.photo_url || primarySelectedTable.template_image_url) ? (
+                          <img
+                            src={toAbsoluteMediaUrl(primarySelectedTable.photo_url || primarySelectedTable.template_image_url)}
+                            alt={primarySelectedTable.name || t('Место', 'Joy')}
+                          />
+                        ) : (
+                          <span>{extractTableCenterLabel(primarySelectedTable.name, primarySelectedTable.id)}</span>
+                        )}
+                      </div>
+                      <div className="client-res-place-details-head">
+                        <div>
+                          <h2>{primarySelectedTable.name}</h2>
+                          <div className="client-res-place-details-meta">
+                            {primarySelectedTable.floor_name || selectedFloor?.name || '—'} · {primarySelectedTable.capacity || 0} {t('мест', 'joy')}
+                          </div>
+                        </div>
+                        <div className="client-res-place-details-price">
+                          {Math.max(0, asNumber(primarySelectedTable.reservation_price, 0)) > 0
+                            ? `${formatMoney(primarySelectedTable.reservation_price)} ${moneyLabel}`
+                            : t('Без депозита', 'Depozitsiz')}
+                        </div>
+                      </div>
+                      {primarySelectedDescription && (
+                        <p className="client-res-place-details-description">{primarySelectedDescription}</p>
+                      )}
+                      <div className="d-grid gap-2 mt-3">
+                        <Button variant="primary" className="client-res-book-btn" onClick={() => setBookingStep('details')}>
+                          {t('Выбрать дату и время', 'Sana va vaqt tanlash')}
+                        </Button>
+                        <Button variant="outline-secondary" onClick={() => setBookingStep('plan')}>
+                          {t('Назад к списку', 'Ro‘yxatga qaytish')}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </Card.Body>
+              </Card>
             ) : (
                 <Card className="border-0 shadow-sm mt-3 mb-3 client-res-details-card">
                 <Card.Body>
@@ -1820,19 +1847,21 @@ function Reservations() {
                     <Col lg={7}>
                       <Card className="h-100 border-0 client-res-selected-card">
                         <Card.Body>
-                          <div className="client-res-selected-title">{t('Выбранные столы', 'Tanlangan stollar')}</div>
+                          <div className="client-res-selected-title">{t('Выбранные места', 'Tanlangan joylar')}</div>
                           {selectedTables.length === 0 ? (
-                            <Alert variant="warning" className="mb-0 border-0">{t('Столы не выбраны', 'Stollar tanlanmagan')}</Alert>
+                            <Alert variant="warning" className="mb-0 border-0">{t('Места не выбраны', 'Joylar tanlanmagan')}</Alert>
                           ) : (
                             <div className="client-res-selected-list">
                               {selectedTables.map((table) => {
-                                const templateImageUrl = toAbsoluteMediaUrl(table.template_image_url);
+                                const templateImageUrl = toAbsoluteMediaUrl(table.photo_url || table.template_image_url);
                                 return (
                                   <div key={table.id} className="client-res-selected-item">
                                     <div className="client-res-selected-thumb">{templateImageUrl ? <img src={templateImageUrl} alt={table.template_name || table.name} /> : <span>{table.name}</span>}</div>
                                     <div>
                                       <div className="client-res-selected-name">{table.name}</div>
-                                      <div className="client-res-selected-capacity">{t('Вместимость', 'Sig‘im')}: {table.capacity || 0}</div>
+                                      <div className="client-res-selected-capacity">
+                                        {table.capacity || 0} {t('мест', 'joy')} · {Math.max(0, asNumber(table.reservation_price, 0)) > 0 ? `${formatMoney(table.reservation_price)} ${moneyLabel}` : t('Без депозита', 'Depozitsiz')}
+                                      </div>
                                     </div>
                                   </div>
                                 );
@@ -1849,11 +1878,41 @@ function Reservations() {
                           <Form.Group className="mb-3">
                             <Form.Label>{t('Дата', 'Sana')}</Form.Label>
                             <Form.Control
-                              type="text"
-                              readOnly
-                              className="client-res-readonly-input"
-                              value={bookingDateCompact}
+                              ref={planDateInputRef}
+                              type="date"
+                              value={bookingDate}
+                              min={todayDate()}
+                              onClick={(event) => {
+                                event.currentTarget.showPicker?.();
+                                advanceTutorialStep('date');
+                              }}
+                              onFocus={(event) => event.currentTarget.showPicker?.()}
+                              onChange={(event) => {
+                                const nextDate = String(event.target.value || '').trim();
+                                if (/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+                                  setBookingDate(nextDate);
+                                  advanceTutorialStep('date');
+                                }
+                              }}
                             />
+                          </Form.Group>
+
+                          <Form.Group className="mb-3">
+                            <Form.Label>{t('Время', 'Vaqt')}</Form.Label>
+                            <div className="client-res-time-ruler client-res-time-ruler--details" ref={timeRulerRef} onScroll={handleTimeRulerScroll}>
+                              {timeSlots.map((slot, index) => {
+                                const active = slot.value === startTime;
+                                const isHour = slot.minutes % 60 === 0;
+                                return (
+                                  <button key={slot.value} type="button" data-slot-value={slot.value} className={`client-res-ruler-tick ${active ? 'is-active' : ''} ${isHour ? 'is-hour' : ''}`} onClick={() => { timeRulerManualScrollRef.current = false; setStartTime(slot.value); centerTimeSlot(slot.value, 'smooth'); advanceTutorialStep('time'); }} title={slot.value} aria-label={slot.value}>
+                                    <span className="client-res-ruler-line" />
+                                    {isHour && <span className="client-res-ruler-label">{slot.hourLabel}</span>}
+                                    {!isHour && active && <span className="client-res-ruler-label">{slot.value}</span>}
+                                    {index === timeSlots.length - 1 ? <span className="client-res-ruler-end" /> : null}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </Form.Group>
 
                           <Row className="g-2 mb-3">
