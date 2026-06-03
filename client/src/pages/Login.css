@@ -1,28 +1,215 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* ===== Login page — clean modern brand style ===== */
-.login-shell {
-  width: 100%;
-  max-width: 100% !important;
+/* ===== Split-screen Layout ===== */
+.login-split-page {
+  display: flex;
+  width: 100vw;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.12), transparent 46%),
-    radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.10), transparent 42%),
-    linear-gradient(180deg, #f6f7fb 0%, #eef1f9 100%);
+  background: #f8fafc;
+  overflow: hidden;
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
-/* Full-bleed gradient — paint the whole viewport behind the login card too */
-body:has(.login-shell) {
-  background:
-    radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.12), transparent 46%),
-    radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.10), transparent 42%),
-    linear-gradient(180deg, #f6f7fb 0%, #eef1f9 100%) !important;
+
+/* ===== Left panel: Video Wall ===== */
+.login-visual-panel {
+  flex: 1.1;
+  position: relative;
+  height: 100vh;
+  background: #090d16;
+  overflow: hidden;
+  display: flex;
+  animation: fadeScaleIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.video-wall-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  gap: 16px;
+  padding: 24px;
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
+}
+
+.video-wall-scroll {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  height: 100%;
+}
+
+.video-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.video-track {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  will-change: transform;
+}
+
+/* Animations for scrolling up with slight offset */
+.col-left .video-track {
+  animation: scrollColumnUp1 36s linear infinite;
+}
+
+.col-right .video-track {
+  animation: scrollColumnUp2 44s linear infinite;
+}
+
+@keyframes scrollColumnUp1 {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-828px); /* Height of 3 items (260px each) + 3 gaps (16px each) */
+  }
+}
+
+@keyframes scrollColumnUp2 {
+  0% {
+    transform: translateY(-200px); /* Start with offset for natural look */
+  }
+  100% {
+    transform: translateY(-1028px); /* -200px - 828px */
+  }
+}
+
+.video-card-wrapper {
+  width: 100%;
+  height: 260px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease;
+}
+
+.video-card-wrapper:hover {
+  transform: scale(1.04);
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+.video-card-element {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Floating Brand Glassmorphic Panel */
+.visual-brand-overlay {
+  position: absolute;
+  left: 40px;
+  bottom: 40px;
+  right: 40px;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 32px;
+  color: #ffffff;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  animation: slideUpFade 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.brand-logo-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.brand-logo-img {
+  height: 34px;
+  width: auto;
+}
+
+.brand-divider {
+  width: 48px;
+  height: 4px;
+  background: linear-gradient(90deg, #6366f1, #4f46e5);
+  border-radius: 2px;
+  margin-bottom: 16px;
+}
+
+.brand-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.brand-subtitle {
+  font-size: 0.95rem;
+  color: #94a3b8;
+  margin: 0;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* ===== Right Panel: Form ===== */
+.login-form-panel {
+  flex: 0.9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background:
+    radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.04), transparent 46%),
+    radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.03), transparent 42%),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  animation: slideInRight 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.login-form-wrapper {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-brand-header {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.mobile-brand-logo-container {
+  background: #0f172a;
+  padding: 12px 24px;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-brand-logo {
+  height: 28px;
+  width: auto;
+}
+
+/* ===== Form Card & Core Styling ===== */
 .login-card {
-  border: 1px solid rgba(99, 102, 241, 0.10) !important;
-  border-radius: 22px !important;
-  box-shadow: 0 24px 60px rgba(79, 70, 229, 0.10) !important;
+  border: 1px solid rgba(99, 102, 241, 0.08) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 20px 50px rgba(79, 70, 229, 0.06) !important;
   background: #ffffff;
 }
 
@@ -30,40 +217,52 @@ body:has(.login-shell) {
   font-family: 'Inter', sans-serif;
   font-weight: 700;
   color: #1e293b;
-  font-size: 1.6rem;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
 }
 
-.login-card .text-muted { color: #94a3b8 !important; }
+.login-card .text-muted {
+  color: #94a3b8 !important;
+  font-size: 0.9rem;
+}
 
 .login-card .form-label {
   font-weight: 600;
   color: #475569;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   margin-bottom: 0.4rem;
 }
 
 .login-card .form-control {
-  height: 46px;
+  height: 48px;
   border-radius: 12px;
-  border: 1px solid rgba(99, 102, 241, 0.18);
+  border: 1px solid rgba(99, 102, 241, 0.16);
   font-size: 0.95rem;
+  padding: 0 16px;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
+
 .login-card .form-control:focus {
   border-color: #5850ec;
-  box-shadow: 0 0 0 4px rgba(88, 80, 236, 0.15);
+  box-shadow: 0 0 0 4px rgba(88, 80, 236, 0.12);
 }
 
 /* Eye toggle inside the password field */
-.login-password-field { position: relative; }
-.login-password-input { padding-right: 46px !important; }
+.login-password-field {
+  position: relative;
+}
+
+.login-password-input {
+  padding-right: 48px !important;
+}
+
 .login-password-eye {
   position: absolute;
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: transparent;
   color: #94a3b8;
@@ -75,33 +274,42 @@ body:has(.login-shell) {
   z-index: 3;
   transition: background-color 0.16s ease, color 0.16s ease;
 }
-.login-password-eye:hover { background: #f1f5f9; color: #5850ec; }
 
+.login-password-eye:hover {
+  background: #f1f5f9;
+  color: #5850ec;
+}
+
+/* Button & Links Styling */
 .login-submit-btn {
   height: 48px;
   border: none !important;
-  border-radius: 999px !important;
+  border-radius: 14px !important;
   font-weight: 600 !important;
   color: #ffffff !important;
   background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
-  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.28) !important;
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.22) !important;
   transition: transform 0.16s ease, box-shadow 0.16s ease;
 }
+
 .login-submit-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(79, 70, 229, 0.34) !important;
+  box-shadow: 0 12px 26px rgba(79, 70, 229, 0.28) !important;
 }
-.login-submit-btn:disabled { opacity: 0.7; }
+
+.login-submit-btn:disabled {
+  opacity: 0.7;
+}
 
 .login-context-chip {
   display: inline-block;
   padding: 4px 12px;
   border-radius: 999px;
-  background: rgba(88, 80, 236, 0.10);
+  background: rgba(88, 80, 236, 0.08);
   color: #4f46e5;
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -113,20 +321,96 @@ body:has(.login-shell) {
   font-size: 0.85rem;
   padding: 0;
   text-decoration: none;
+  transition: color 0.15s ease;
 }
-.login-inline-link:hover { text-decoration: underline; }
-.login-inline-link:disabled { opacity: 0.6; }
+
+.login-inline-link:hover {
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.login-inline-link:disabled {
+  opacity: 0.6;
+}
 
 .login-forgot-panel {
   background: #f8fafc;
-  border: 1px solid #eef0f5;
+  border: 1px solid #e2e8f0;
   border-radius: 14px;
-  padding: 14px;
+  padding: 16px;
 }
 
-.login-illustration {
-  width: 100%;
-  max-width: 200px;
-  margin: 0 auto;
-  background: transparent;
+/* Footer in Right Panel */
+.login-page-footer {
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+
+.footer-link {
+  color: #64748b;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.footer-link:hover {
+  color: #4f46e5;
+}
+
+/* ===== Entrance Animations ===== */
+@keyframes fadeScaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  0% {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideUpFade {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== Responsive Adaptability ===== */
+@media (max-width: 991.98px) {
+  .login-visual-panel {
+    display: none;
+  }
+  
+  .login-split-page {
+    background:
+      radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.05), transparent 46%),
+      radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.04), transparent 42%),
+      linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  }
+
+  .login-form-panel {
+    flex: 1;
+    padding: 24px 16px;
+    background: transparent;
+    animation: fadeScaleIn 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .mobile-brand-header {
+    display: flex;
+  }
 }
