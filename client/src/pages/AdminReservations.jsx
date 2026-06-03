@@ -1474,6 +1474,16 @@ function AdminReservations({ embedded = false } = {}) {
                 {tx('Добавить этаж', 'Qavat qo\'shish')}
               </Button>
             )}
+            {activeTab === 'tables' && (
+              <Button
+                size="sm"
+                className="btn-primary-custom admin-reservation-control"
+                onClick={openAddTableModal}
+                disabled={!selectedFloorId}
+              >
+                {tx('Добавить место', 'Joy qo\'shish')}
+              </Button>
+            )}
             {activeTab === 'settings' && (
               <Button
                 size="sm"
@@ -1517,6 +1527,7 @@ function AdminReservations({ embedded = false } = {}) {
           {[
             { key: 'requests', label: tx('Заявки', 'So\'rovlar'), emoji: '📋' },
             { key: 'floors', label: tx('Этажи', 'Qavatlar'), emoji: '🏢' },
+            { key: 'tables', label: tx('Места', 'Joylar'), emoji: '🪑' },
             { key: 'plan', label: tx('Схемы', 'Sxemalar'), emoji: '🗺️' },
             { key: 'settings', label: tx('Настройки', 'Sozlamalar'), emoji: '⚙️' }
           ].map((tab) => {
@@ -2283,6 +2294,16 @@ function AdminReservations({ embedded = false } = {}) {
                           : tx('Сначала выберите элемент на схеме.', 'Avval sxemadan element tanlang.')}
                       </Form.Text>
                     </Form.Group>
+                    <div className="d-grid mb-3">
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        disabled={!selectedPlanTable}
+                        onClick={() => openEditTableModal(selectedPlanTable)}
+                      >
+                        {tx('Фото, цена и описание места', 'Joy rasmi, narxi va tavsifi')}
+                      </Button>
+                    </div>
                     <Form.Group className="mb-2">
                       <Form.Label className="small text-muted mb-1">
                         {tx('Масштаб столов на схеме', 'Sxemadagi stollar masshtabi')}
