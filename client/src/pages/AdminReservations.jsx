@@ -1761,7 +1761,7 @@ function AdminReservations({ embedded = false } = {}) {
           <div className="admin-settings-content admin-reservation-workspace p-3 rounded-4">
           <Card className="border-0 shadow-sm mb-0 admin-reservation-card admin-reservation-content-card">
             <Card.Header className="bg-white fw-semibold card-header admin-reservation-card-header">
-              <span>{tx('Столы', 'Stollar')} {selectedFloor ? `(${selectedFloor.name})` : ''}</span>
+              <span>{tx('Места', 'Joylar')} {selectedFloor ? `(${selectedFloor.name})` : ''}</span>
               <div className="d-flex align-items-center gap-2 admin-reservation-header-controls">
                 <Form.Select
                   size="sm"
@@ -1781,7 +1781,7 @@ function AdminReservations({ embedded = false } = {}) {
                   disabled={!selectedFloorId}
                     onClick={openAddTableModal}
                 >
-                  {tx('Добавить стол', 'Stol qo\'shish')}
+                  {tx('Добавить место', 'Joy qo\'shish')}
                 </Button>
               </div>
             </Card.Header>
@@ -1795,17 +1795,17 @@ function AdminReservations({ embedded = false } = {}) {
               {!!selectedFloorId && (
                 <>
                   <div className="small text-muted mb-3">
-                    {tx('Быстрое добавление и размещение столов теперь доступно на вкладке "Схема" через правую панель.', 'Stollarni tez qo\'shish va joylashtirish endi "Sxema" bo\'limida o\'ng panel orqali bajariladi.')}
+                    {tx('Фото, цена, описание и вместимость редактируются здесь через кнопку карандаша. Размещение места на плане настраивается во вкладке "Схемы".', 'Rasm, narx, tavsif va sig\'im bu yerda qalam tugmasi orqali tahrirlanadi. Joyning sxemadagi o\'rni "Sxemalar" bo\'limida sozlanadi.')}
                   </div>
 
                   {loadingTables ? (
-                    <div className="text-muted">{tx('Загрузка столов...', 'Stollar yuklanmoqda...')}</div>
+                    <div className="text-muted">{tx('Загрузка мест...', 'Joylar yuklanmoqda...')}</div>
                   ) : (
                     <div className="admin-table-container">
                       <Table size="sm" hover className="admin-table mb-0 align-middle">
                         <thead>
                           <tr>
-                            <th>{tx('Стол', 'Stol')}</th>
+                            <th>{tx('Место', 'Joy')}</th>
                             <th>{tx('Вместимость', 'Sig\'im')}</th>
                             <th>{tx('Цена брони', 'Bron narxi')}</th>
                             <th>{tx('Шаблон', 'Shablon')}</th>
@@ -1836,8 +1836,8 @@ function AdminReservations({ embedded = false } = {}) {
                                   <Button
                                     className="action-btn admin-reservation-action-btn"
                                     variant="primary"
-                                    title={tx('Просмотр', 'Ko\'rish')}
-                                    onClick={() => openImagePreview(`Стол: ${table.name}`, table.photo_url)}
+                                    title={tx('Просмотр фото', 'Rasmni ko\'rish')}
+                                    onClick={() => openImagePreview(`${tx('Место', 'Joy')}: ${table.name}`, table.photo_url)}
                                     disabled={!table.photo_url}
                                   >
                                     <EyeIcon />
@@ -1845,7 +1845,7 @@ function AdminReservations({ embedded = false } = {}) {
                                   <Button
                                     className="action-btn admin-reservation-action-btn"
                                     variant="primary"
-                                    title={tx('Изменить', 'O\'zgartirish')}
+                                    title={tx('Изменить фото, цену и описание', 'Rasm, narx va tavsifni o\'zgartirish')}
                                     onClick={() => openEditTableModal(table)}
                                   >
                                     <EditIcon />
@@ -1864,7 +1864,7 @@ function AdminReservations({ embedded = false } = {}) {
                           ))}
                           {tables.length === 0 && (
                             <tr>
-                              <td colSpan={8} className="text-muted text-center py-3">{tx('Столов пока нет', 'Stollar hali yo\'q')}</td>
+                              <td colSpan={8} className="text-muted text-center py-3">{tx('Мест пока нет', 'Joylar hali yo\'q')}</td>
                             </tr>
                           )}
                         </tbody>
@@ -2612,7 +2612,7 @@ function AdminReservations({ embedded = false } = {}) {
             <Row className="g-2">
               <Col xs={12}>
                 <Form.Control
-                  placeholder={tx('Название стола', 'Stol nomi')}
+                  placeholder={tx('Название места', 'Joy nomi')}
                   value={tableForm.name}
                   onChange={(event) => setTableForm((prev) => ({ ...prev, name: event.target.value }))}
                 />
@@ -2756,13 +2756,13 @@ function AdminReservations({ embedded = false } = {}) {
               <Col xs={12}>
                 <Form.Control type="file" accept="image/*" onChange={handleTablePhotoFileChange} disabled={uploadingTablePhoto} />
                 <Form.Text className="text-muted">
-                  {uploadingTablePhoto ? tx('Загрузка и сжатие...', 'Yuklash va siqish...') : tx('Реальное фото стола (из файла)', 'Stolning real rasmi (fayldan)')}
+                  {uploadingTablePhoto ? tx('Загрузка и сжатие...', 'Yuklash va siqish...') : tx('Реальное фото места (из файла)', 'Joyning real rasmi (fayldan)')}
                 </Form.Text>
               </Col>
               {tableForm.photo_url && (
                 <Col xs={12}>
                   <div className="admin-reservation-photo-slot mb-2">
-                    <img src={toAbsoluteMediaUrl(tableForm.photo_url)} alt={tx('Фото стола', 'Stol rasmi')} className="admin-reservation-photo-slot-img" />
+                    <img src={toAbsoluteMediaUrl(tableForm.photo_url)} alt={tx('Фото места', 'Joy rasmi')} className="admin-reservation-photo-slot-img" />
                   </div>
                   <div className="d-flex align-items-center gap-2 flex-wrap">
                     <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview(tableForm.name || tx('Место', 'Joy'), tableForm.photo_url)}>
@@ -2781,7 +2781,7 @@ function AdminReservations({ embedded = false } = {}) {
               )}
             </Row>
             <div className="small text-muted mt-2">
-              {tx('После добавления перетащите стол на вкладке "Схема" в нужную точку.', 'Qo\'shilgandan keyin stolni "Sxema" bo\'limida kerakli joyga olib boring.')}
+              {tx('После добавления перетащите место на вкладке "Схемы" в нужную точку.', 'Qo\'shilgandan keyin joyni "Sxemalar" bo\'limida kerakli joyga olib boring.')}
             </div>
             <div className="d-flex justify-content-end gap-2 mt-3">
               <Button type="button" variant="outline-secondary" onClick={closeTableModal}>
