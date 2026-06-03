@@ -4496,6 +4496,7 @@ function AdminDashboard() {
     runFetchByTab();
 
     let interval = null;
+    let eventSource = null;
     // Background polling only for the live "Orders" tab. While any modal/form is
     // open, skip the tick so an in-flight GET cannot overwrite the user's edits.
     // The Analytics ("dashboard") tab no longer auto-polls — it caused visible
@@ -4514,10 +4515,38 @@ function AdminDashboard() {
           includeFeedbackStats: false
         });
       }, 12000);
+
+      // Подключение к Server-Sent Events для моментального обновления заказов
+      const token = localStorage.getItem('token') || '';
+      if (token) {
+        try {
+          eventSource = new EventSource(`${API_URL}/admin/orders/events?token=${encodeURIComponent(token)}`);
+          
+          eventSource.onmessage = (event) => {
+            if (event.data === ': ping') return;
+            // Триггерим моментальное обновление
+            fetchData({
+              includeOrders: true,
+              includeAllOrders: false,
+              includeProducts: false,
+              includeCategories: false,
+              includeContainers: false,
+              includeFeedbackStats: false
+            });
+          };
+
+          eventSource.onerror = (error) => {
+            console.error('SSE connection error, EventSource will automatically reconnect:', error);
+          };
+        } catch (sseErr) {
+          console.error('Failed to establish EventSource connection:', sseErr);
+        }
+      }
     }
 
     return () => {
       if (interval) clearInterval(interval);
+      if (eventSource) eventSource.close();
     };
   }, [effectiveOrdersStatusFilter, user?.active_restaurant_id, mainTab]);
 

@@ -1104,6 +1104,13 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
     
+    try {
+      const sseManager = require('../services/sseManager');
+      sseManager.broadcast(finalRestaurantId, 'order_created', { orderId: order.id });
+    } catch (sseErr) {
+      console.error('SSE broadcast error:', sseErr.message);
+    }
+
     res.status(201).json({
       message: 'Заказ создан успешно',
       order: {
@@ -1224,6 +1231,13 @@ router.post('/:id/cancel', authenticate, async (req, res) => {
       console.error('Update group cancel message error:', error);
     }
     
+    try {
+      const sseManager = require('../services/sseManager');
+      sseManager.broadcast(order.restaurant_id, 'order_updated', { orderId: order.id, status: 'cancelled' });
+    } catch (sseErr) {
+      console.error('SSE broadcast error:', sseErr.message);
+    }
+
     res.json({ message: 'Заказ отменен', order: cancelledOrderForResponse });
   } catch (error) {
     await client.query('ROLLBACK');

@@ -1254,6 +1254,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       }
     }
 
+    try {
+      const sseManager = require('../services/sseManager');
+      sseManager.broadcast(order.restaurant_id, 'order_updated', { orderId, status: 'cancelled' });
+    } catch (sseErr) {
+      console.error('SSE broadcast error:', sseErr.message);
+    }
+
     return order;
   };
 
@@ -3517,6 +3524,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
            WHERE id = $1`,
           [orderId, nextStatus, processedByUserId]
         );
+
+        try {
+          const sseManager = require('../services/sseManager');
+          sseManager.broadcast(current.order.restaurant_id, 'order_updated', { orderId, status: nextStatus });
+        } catch (sseErr) {
+          console.error('SSE broadcast error:', sseErr.message);
+        }
 
         try {
           await pool.query(

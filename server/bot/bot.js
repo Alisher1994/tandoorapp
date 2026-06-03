@@ -3193,6 +3193,13 @@ async function initBot() {
         if (orderResult.rows.length > 0) {
           const order = orderResult.rows[0];
           
+          try {
+            const sseManager = require('../services/sseManager');
+            sseManager.broadcast(order.restaurant_id, 'order_updated', { orderId, status: 'preparing' });
+          } catch (sseErr) {
+            console.error('SSE broadcast error:', sseErr.message);
+          }
+          
           // Notify customer using restaurant's bot
           if (order.telegram_id) {
             const { sendOrderUpdateToUser } = require('./notifications');
@@ -3356,6 +3363,13 @@ async function initBot() {
           
           if (orderResult.rows.length > 0) {
             const order = orderResult.rows[0];
+            
+            try {
+              const sseManager = require('../services/sseManager');
+              sseManager.broadcast(order.restaurant_id, 'order_updated', { orderId, status: 'cancelled' });
+            } catch (sseErr) {
+              console.error('SSE broadcast error:', sseErr.message);
+            }
             
             // Notify customer with reason using restaurant's bot
             if (order.telegram_id) {

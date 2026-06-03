@@ -1469,6 +1469,37 @@ router.post('/switch-restaurant', async (req, res) => {
 // ЗАКАЗЫ
 // =====================================================
 
+// SSE Endpoint для обновлений заказов в реальном времени
+router.get('/orders/events', async (req, res) => {
+  const restaurantId = req.user.active_restaurant_id;
+  if (!restaurantId) {
+    return res.status(400).json({ error: 'Ресторан не выбран' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+
+  // Начальный ответ для установления соединения
+  res.write(': sse connection established\n\n');
+
+  const sseManager = require('../services/sseManager');
+  sseManager.addClient(restaurantId, res);
+
+  // Пинг каждые 30 секунд для предотвращения таймаута
+  const keepAliveInterval = setInterval(() => {
+    try {
+      res.write(': ping\n\n');
+    } catch (_) {}
+  }, 30000);
+
+  req.on('close', () => {
+    clearInterval(keepAliveInterval);
+    sseManager.removeClient(restaurantId, res);
+  });
+});
+
 // Получить заказы (фильтруются по активному ресторану)
 router.get('/orders', async (req, res) => {
   try {
@@ -1820,6 +1851,13 @@ router.post('/orders/:id/accept-and-pay', async (req, res) => {
       } catch (err) {
         console.error('Notify low balance on accept-and-pay error:', err);
       }
+    }
+
+    try {
+      const sseManager = require('../services/sseManager');
+      sseManager.broadcast(order.restaurant_id, 'order_updated', { orderId: orderId, status: 'preparing' });
+    } catch (sseErr) {
+      console.error('SSE broadcast error:', sseErr.message);
     }
 
     res.json(updatedOrder.rows[0]);
@@ -3104,6 +3142,13 @@ router.patch('/orders/:id/status', async (req, res) => {
       );
     } catch (groupNotifyError) {
       console.error('Group order notification sync error:', groupNotifyError);
+    }
+
+    try {
+      const sseManager = require('../services/sseManager');
+      sseManager.broadcast(order.restaurant_id, 'order_updated', { orderId: order.id, status: normalizedStatus });
+    } catch (sseErr) {
+      console.error('SSE broadcast error:', sseErr.message);
     }
 
     res.json({

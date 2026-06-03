@@ -1377,6 +1377,13 @@ router.post('/storefront-orders', async (req, res) => {
       }
     }
 
+    try {
+      const sseManager = require('../services/sseManager');
+      sseManager.broadcast(restaurantId, 'order_created', { orderId: order.id });
+    } catch (sseErr) {
+      console.error('SSE broadcast error:', sseErr.message);
+    }
+
     return res.json({
       ok: true,
       order_number: order.order_number,

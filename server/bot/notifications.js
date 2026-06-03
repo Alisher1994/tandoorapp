@@ -754,28 +754,37 @@ function buildGroupOrderActionKeyboard(orderId, stage, operatorName = '', option
 
   if (stage === 'accepted') {
     return {
-      inline_keyboard: [withPreview([
-        { text: '👨‍🍳 Готовится', callback_data: `order_step_${orderId}_preparing` },
-        printButton
-      ])]
+      inline_keyboard: [
+        withPreview([
+          { text: '👨‍🍳 Готовится', callback_data: `order_step_${orderId}_preparing` },
+          { text: '❌ Отменить', callback_data: `reject_order_${orderId}` }
+        ]),
+        [printButton]
+      ]
     };
   }
 
   if (stage === 'preparing') {
     return {
-      inline_keyboard: [withPreview([
-        { text: '🚚 Доставляется', callback_data: `order_step_${orderId}_delivering` },
-        printButton
-      ])]
+      inline_keyboard: [
+        withPreview([
+          { text: '🚚 Доставляется', callback_data: `order_step_${orderId}_delivering` },
+          { text: '❌ Отменить', callback_data: `reject_order_${orderId}` }
+        ]),
+        [printButton]
+      ]
     };
   }
 
   if (stage === 'delivering') {
     return {
-      inline_keyboard: [withPreview([
-        { text: '✅ Доставлен', callback_data: `order_step_${orderId}_delivered` },
-        printButton
-      ])]
+      inline_keyboard: [
+        withPreview([
+          { text: '✅ Доставлен', callback_data: `order_step_${orderId}_delivered` },
+          { text: '❌ Отменить', callback_data: `reject_order_${orderId}` }
+        ]),
+        [printButton]
+      ]
     };
   }
 
