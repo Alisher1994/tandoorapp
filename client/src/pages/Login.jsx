@@ -190,6 +190,7 @@ function Login() {
 
   const videoListCol1 = [droneDelivery, deliveryTruck, droneDelivery, droneDelivery, deliveryTruck, droneDelivery];
   const videoListCol2 = [deliveryTruck, droneDelivery, deliveryTruck, deliveryTruck, droneDelivery, deliveryTruck];
+  const videoListCol3 = [droneDelivery, droneDelivery, deliveryTruck, droneDelivery, droneDelivery, deliveryTruck];
 
   return (
     <div className="login-split-page">
@@ -201,6 +202,15 @@ function Login() {
               <div className="video-track">
                 {videoListCol1.map((vid, idx) => (
                   <div className="video-card-wrapper" key={`col1-${idx}`}>
+                    <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="video-column col-middle">
+              <div className="video-track">
+                {videoListCol3.map((vid, idx) => (
+                  <div className="video-card-wrapper" key={`col3-${idx}`}>
                     <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
                   </div>
                 ))}
@@ -367,17 +377,17 @@ function Login() {
               </Form>
             </Card.Body>
           </Card>
+        </div>
 
-          {/* Footer inside form wrapper to layout cleanly */}
-          <div className="login-page-footer mt-4 text-center text-muted">
-            <div className="footer-links d-flex justify-content-center gap-3 mb-2">
-              <a href="#privacy" className="footer-link">Политика конфиденциальности</a>
-              <a href="#terms" className="footer-link">Условия использования</a>
-              <a href="#cookie" className="footer-link">Политика Cookie</a>
-            </div>
-            <div className="footer-copyright">
-              Открыты с февраля 2026 года.
-            </div>
+        {/* Footer placed outside form wrapper to sit cleanly at the bottom */}
+        <div className="login-page-footer text-center text-muted">
+          <div className="footer-links d-flex justify-content-center gap-3 mb-2">
+            <a href="#privacy" className="footer-link">Политика конфиденциальности</a>
+            <a href="#terms" className="footer-link">Условия использования</a>
+            <a href="#cookie" className="footer-link">Политика Cookie</a>
+          </div>
+          <div className="footer-copyright">
+            Открыты с февраля 2026 года.
           </div>
         </div>
       </div>

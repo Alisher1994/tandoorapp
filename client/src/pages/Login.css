@@ -55,11 +55,15 @@
 
 /* Animations for scrolling up with slight offset */
 .col-left .video-track {
-  animation: scrollColumnUp1 36s linear infinite;
+  animation: scrollColumnUp1 32s linear infinite;
+}
+
+.col-middle .video-track {
+  animation: scrollColumnUp3 48s linear infinite;
 }
 
 .col-right .video-track {
-  animation: scrollColumnUp2 44s linear infinite;
+  animation: scrollColumnUp2 40s linear infinite;
 }
 
 @keyframes scrollColumnUp1 {
@@ -77,6 +81,15 @@
   }
   100% {
     transform: translateY(-1028px); /* -200px - 828px */
+  }
+}
+
+@keyframes scrollColumnUp3 {
+  0% {
+    transform: translateY(-400px); /* Start with offset for middle column */
+  }
+  100% {
+    transform: translateY(-1228px); /* -400px - 828px */
   }
 }
 
@@ -166,19 +179,23 @@
 .login-form-panel {
   flex: 0.9;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: 40px 20px 24px 20px;
   background:
     radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.04), transparent 46%),
     radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.03), transparent 42%),
     linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   animation: slideInRight 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  position: relative;
+  min-height: 100vh;
 }
 
 .login-form-wrapper {
   width: 100%;
   max-width: 420px;
+  margin: auto 0;
   display: flex;
   flex-direction: column;
 }
@@ -342,13 +359,27 @@
 
 /* Footer in Right Panel */
 .login-page-footer {
+  width: 100%;
+  max-width: 500px;
+  margin-top: auto;
+  padding-top: 24px;
   font-size: 0.82rem;
   color: #94a3b8;
+  z-index: 5;
+}
+
+.footer-links {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
 }
 
 .footer-link {
   color: #64748b;
   text-decoration: none;
+  white-space: nowrap;
   transition: color 0.15s ease;
 }
 
