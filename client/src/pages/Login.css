@@ -27,8 +27,8 @@
   display: flex;
   gap: 16px;
   padding: 24px;
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
 }
 
 .video-wall-scroll {
@@ -41,10 +41,14 @@
   position: absolute;
   left: -20%;
   top: -20%;
+  justify-content: center;
 }
 
 .video-column {
-  flex: 1;
+  width: 16vw;
+  min-width: 150px;
+  max-width: 220px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -81,33 +85,33 @@
 
 @keyframes scrollColumnUp1 {
   0% { transform: translateY(0); }
-  100% { transform: translateY(-828px); }
+  100% { transform: translateY(-498px); } /* Height of 3 items (150px each) + 3 gaps (16px each) */
 }
 
 @keyframes scrollColumnUp2 {
-  0% { transform: translateY(-200px); }
-  100% { transform: translateY(-1028px); }
+  0% { transform: translateY(-150px); }
+  100% { transform: translateY(-648px); }
 }
 
 @keyframes scrollColumnUp3 {
-  0% { transform: translateY(-400px); }
-  100% { transform: translateY(-1228px); }
+  0% { transform: translateY(-300px); }
+  100% { transform: translateY(-798px); }
 }
 
 @keyframes scrollColumnUp4 {
-  0% { transform: translateY(-100px); }
-  100% { transform: translateY(-928px); }
+  0% { transform: translateY(-75px); }
+  100% { transform: translateY(-573px); }
 }
 
 @keyframes scrollColumnUp5 {
-  0% { transform: translateY(-300px); }
-  100% { transform: translateY(-1128px); }
+  0% { transform: translateY(-225px); }
+  100% { transform: translateY(-723px); }
 }
 
 .video-card-wrapper {
   width: 100%;
-  height: 260px;
-  border-radius: 16px;
+  height: 150px;
+  border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(0, 0, 0, 0.05);
