@@ -1572,7 +1572,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       const rawStock = targetVariantDetails?.stock_quantity ?? targetProduct?.stock_quantity;
       const parsedStock = Number(rawStock);
       if (!Number.isFinite(parsedStock) || parsedStock < 0) return null;
-      return parsedStock;
+      const inventoryMinThreshold = Number(currentRestaurant?.inventory_min_threshold || 0);
+      return Math.max(0, parsedStock - inventoryMinThreshold);
     };
     const variantPrice = getSelectedVariantPrice(product, selectedVariant);
     const selectedVariantDescription = getSelectedVariantDescription(product, selectedVariant);
@@ -1644,7 +1645,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     const rawStock = variantDetails?.stock_quantity ?? product?.stock_quantity;
     const parsedStock = Number(rawStock);
     if (!Number.isFinite(parsedStock) || parsedStock < 0) return null;
-    return parsedStock;
+    const inventoryMinThreshold = Number(currentRestaurant?.inventory_min_threshold || 0);
+    return Math.max(0, parsedStock - inventoryMinThreshold);
   };
   const updateProductQuantityWithinStock = (product, currentQty, quantityStep, selectedVariant = null) => {
     if (!product?.id) return;
@@ -4546,13 +4548,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const activeProductSelectedVariantAvailable = activeProduct
     ? getSelectedVariantAvailability(activeProduct, activeProductSelectedVariant)
     : false;
-  const activeProductStockQuantity = Number(
+  const rawActiveProductStockQuantity = Number(
     activeProductSelectedVariantDetails?.stock_quantity ?? activeProduct?.stock_quantity
   );
+  const inventoryMinThreshold = Number(currentRestaurant?.inventory_min_threshold || 0);
+  const activeProductStockQuantity = Math.max(0, rawActiveProductStockQuantity - inventoryMinThreshold);
   const shouldShowActiveProductStockLine = (
     isInventoryTrackingEnabled
-    && Number.isFinite(activeProductStockQuantity)
-    && activeProductStockQuantity > 0
+    && Number.isFinite(rawActiveProductStockQuantity)
+    && rawActiveProductStockQuantity > 0
   );
   const activeProductUnitLabel = language === 'uz' && activeProduct?.unit_uz
     ? activeProduct.unit_uz
