@@ -228,13 +228,15 @@ function Login() {
           </div>
         </div>
 
+        {/* Blur overlays at top and bottom */}
+        <div className="blur-overlay-top"></div>
+        <div className="blur-overlay-bottom"></div>
+
         {/* Floating Brand Overlay */}
         <div className="visual-brand-overlay">
           <div className="brand-logo-container">
             <img src="/talablar.svg" alt="Talablar Logo" className="brand-logo-img" />
           </div>
-          <div className="brand-divider"></div>
-          <h1 className="brand-title">Talablar</h1>
           <p className="brand-subtitle">Умная система управления заказами и доставкой</p>
         </div>
       </div>

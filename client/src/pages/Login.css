@@ -15,7 +15,7 @@
   flex: 1.1;
   position: relative;
   height: 100vh;
-  background: #090d16;
+  background: #f8fafc;
   overflow: hidden;
   display: flex;
   animation: fadeScaleIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -27,15 +27,20 @@
   display: flex;
   gap: 16px;
   padding: 24px;
-  mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 15%, #000 85%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
 }
 
 .video-wall-scroll {
   display: flex;
   gap: 16px;
-  width: 100%;
-  height: 100%;
+  width: 140%;
+  height: 140%;
+  transform: rotate(-12deg) scale(1.2);
+  transform-origin: center center;
+  position: absolute;
+  left: -20%;
+  top: -20%;
 }
 
 .video-column {
@@ -98,15 +103,15 @@
   height: 260px;
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.02);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.4);
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease;
 }
 
 .video-card-wrapper:hover {
   transform: scale(1.04);
-  border-color: rgba(99, 102, 241, 0.45);
+  border-color: rgba(99, 102, 241, 0.4);
 }
 
 .video-card-element {
@@ -115,20 +120,47 @@
   object-fit: cover;
 }
 
-/* Floating Brand Glassmorphic Panel */
+/* White Cloud/Blur Overlays at Top and Bottom */
+.blur-overlay-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 18vh;
+  background: linear-gradient(to bottom, rgba(248, 250, 252, 1) 0%, rgba(248, 250, 252, 0.7) 50%, rgba(248, 250, 252, 0) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.blur-overlay-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 18vh;
+  background: linear-gradient(to top, rgba(248, 250, 252, 1) 0%, rgba(248, 250, 252, 0.7) 50%, rgba(248, 250, 252, 0) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Floating Brand Glassmorphic Panel (Light Theme) */
 .visual-brand-overlay {
   position: absolute;
   left: 40px;
   bottom: 40px;
   right: 40px;
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 24px;
-  padding: 32px;
-  color: #ffffff;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+  padding: 24px 32px;
+  color: #0f172a;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.05);
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -141,37 +173,20 @@
 .brand-logo-container {
   display: flex;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .brand-logo-img {
-  height: 34px;
+  height: 32px;
   width: auto;
-}
-
-.brand-divider {
-  width: 48px;
-  height: 4px;
-  background: linear-gradient(90deg, #6366f1, #4f46e5);
-  border-radius: 2px;
-  margin-bottom: 16px;
-}
-
-.brand-title {
-  font-size: 1.8rem;
-  font-weight: 800;
-  margin: 0 0 6px 0;
-  letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  filter: invert(1) brightness(0.2); /* Colors white logo path to dark slate */
 }
 
 .brand-subtitle {
   font-size: 0.95rem;
-  color: #94a3b8;
+  color: #475569;
   margin: 0;
-  font-weight: 400;
+  font-weight: 500;
   line-height: 1.5;
 }
 
