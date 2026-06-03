@@ -1291,6 +1291,28 @@ router.post('/storefront-orders', async (req, res) => {
 
     // Итоговая сумма заказа = товары+упаковка + сервис + доставка − скидка.
     const grandTotal = Math.max(0, totalAmount + serviceFeeFinal + deliveryCostApplied - promoDiscount);
+
+    let inventoryReserved = false;
+    try {
+      const { reserveInventoryForOrder } = require('../services/inventoryManager');
+      const reservationResult = await reserveInventoryForOrder({
+        client,
+        restaurantId,
+        items: normalizedItems
+      });
+      inventoryReserved = reservationResult?.reserved === true;
+    } catch (error) {
+      if (error?.code === 'INVENTORY_SHORTAGE') {
+        await client.query('ROLLBACK');
+        return res.status(error.status || 409).json({
+          error: error.message || 'Недостаточно остатка товара на складе',
+          code: error.code,
+          details: Array.isArray(error.details) ? error.details : []
+        });
+      }
+      throw error;
+    }
+
     // order_number уникален глобально; короткий 6-значный случайный может совпасть
     // с уже существующим (платформа накопила много заказов). Повторяем со SAVEPOINT
     // при коллизии (23505), чтобы заказ не падал с «Ошибка создания заказа».
@@ -1304,14 +1326,14 @@ router.post('/storefront-orders', async (req, res) => {
             (restaurant_id, user_id, order_number, total_amount, delivery_address, delivery_coordinates,
              customer_name, customer_phone, payment_method, payment_status, comment, status,
              service_fee, delivery_cost, delivery_distance_km, delivery_date,
-             promo_code, promo_discount_amount)
-           VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 'unpaid', $9, 'new', $10, $11, $12, $13, $14, $15)
+             promo_code, promo_discount_amount, inventory_reserved)
+           VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, 'unpaid', $9, 'new', $10, $11, $12, $13, $14, $15, $16)
            RETURNING *`,
           [restaurantId, orderNumber, grandTotal, addressClean, coordinatesApplied, nameClean, phoneClean,
            paymentMethod,
            comment ? String(comment).slice(0, 1000) : null,
            serviceFeeFinal, deliveryCostApplied, deliveryDistanceApplied, deliveryDate,
-           promoCodeApplied, promoDiscount]
+           promoCodeApplied, promoDiscount, inventoryReserved]
         );
         order = orderInsert.rows[0];
       } catch (insErr) {

@@ -1157,11 +1157,45 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       } catch (_) { }
     }
 
+    try {
+      const orderCheck = await pool.query(
+        `SELECT status, restaurant_id, inventory_reserved FROM orders WHERE id = $1`,
+        [orderId]
+      );
+      const oldOrder = orderCheck.rows[0];
+      if (oldOrder) {
+        const oldOrderStatus = String(oldOrder.status || '').trim().toLowerCase();
+        const shouldReleaseInventory = (
+          oldOrderStatus !== 'cancelled'
+          && oldOrder.restaurant_id
+          && (oldOrder.inventory_reserved === true || oldOrder.inventory_reserved === 'true' || oldOrder.inventory_reserved === 1 || oldOrder.inventory_reserved === '1')
+        );
+
+        if (shouldReleaseInventory) {
+          const orderItemsResult = await pool.query(
+            `SELECT product_id, quantity, product_name, selected_variant
+             FROM order_items
+             WHERE order_id = $1`,
+            [orderId]
+          );
+          const { releaseInventoryForOrder } = require('../services/inventoryManager');
+          await releaseInventoryForOrder({
+            client: pool,
+            restaurantId: oldOrder.restaurant_id,
+            items: orderItemsResult.rows
+          });
+        }
+      }
+    } catch (releaseError) {
+      console.error('Failed to release inventory during group cancel:', releaseError);
+    }
+
     await pool.query(
       `UPDATE orders
        SET status = 'cancelled',
            admin_comment = $1,
            cancel_reason = $1,
+           inventory_reserved = false,
            processed_at = CURRENT_TIMESTAMP,
            processed_by = $3,
            updated_at = CURRENT_TIMESTAMP
