@@ -189,16 +189,18 @@ function Login() {
   };
 
   const videoListCol1 = [droneDelivery, deliveryTruck, droneDelivery, droneDelivery, deliveryTruck, droneDelivery];
-  const videoListCol2 = [deliveryTruck, droneDelivery, deliveryTruck, deliveryTruck, droneDelivery, deliveryTruck];
+  const videoListCol2 = [deliveryTruck, droneDelivery, deliveryTruck, deliveryTruck, deliveryTruck, droneDelivery];
   const videoListCol3 = [droneDelivery, droneDelivery, deliveryTruck, droneDelivery, droneDelivery, deliveryTruck];
+  const videoListCol4 = [deliveryTruck, droneDelivery, deliveryTruck, droneDelivery, deliveryTruck, droneDelivery];
+  const videoListCol5 = [droneDelivery, deliveryTruck, droneDelivery, deliveryTruck, droneDelivery, deliveryTruck];
 
   return (
     <div className="login-split-page">
-      {/* Left panel: Vertical Video Wall */}
+      {/* Background Video Wall (Spans Full Screen) */}
       <div className="login-visual-panel">
         <div className="video-wall-mask">
           <div className="video-wall-scroll">
-            <div className="video-column col-left">
+            <div className="video-column col-1">
               <div className="video-track">
                 {videoListCol1.map((vid, idx) => (
                   <div className="video-card-wrapper" key={`col1-${idx}`}>
@@ -207,7 +209,16 @@ function Login() {
                 ))}
               </div>
             </div>
-            <div className="video-column col-middle">
+            <div className="video-column col-2">
+              <div className="video-track">
+                {videoListCol4.map((vid, idx) => (
+                  <div className="video-card-wrapper" key={`col2-${idx}`}>
+                    <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="video-column col-3">
               <div className="video-track">
                 {videoListCol3.map((vid, idx) => (
                   <div className="video-card-wrapper" key={`col3-${idx}`}>
@@ -216,10 +227,19 @@ function Login() {
                 ))}
               </div>
             </div>
-            <div className="video-column col-right">
+            <div className="video-column col-4">
+              <div className="video-track">
+                {videoListCol5.map((vid, idx) => (
+                  <div className="video-card-wrapper" key={`col4-${idx}`}>
+                    <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="video-column col-5">
               <div className="video-track">
                 {videoListCol2.map((vid, idx) => (
-                  <div className="video-card-wrapper" key={`col2-${idx}`}>
+                  <div className="video-card-wrapper" key={`col5-${idx}`}>
                     <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
                   </div>
                 ))}
@@ -227,10 +247,6 @@ function Login() {
             </div>
           </div>
         </div>
-
-        {/* Blur overlays at top and bottom */}
-        <div className="blur-overlay-top"></div>
-        <div className="blur-overlay-bottom"></div>
 
         {/* Floating Brand Overlay */}
         <div className="visual-brand-overlay">

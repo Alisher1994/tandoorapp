@@ -10,14 +10,14 @@
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-/* ===== Left panel: Video Wall ===== */
+/* ===== Full-Screen Video Wall Background ===== */
 .login-visual-panel {
-  flex: 1.1;
-  position: relative;
-  height: 100vh;
+  position: absolute;
+  inset: 0;
   background: #f8fafc;
   overflow: hidden;
   display: flex;
+  z-index: 1; /* behind form */
   animation: fadeScaleIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -59,43 +59,49 @@
 }
 
 /* Animations for scrolling up with slight offset */
-.col-left .video-track {
+.col-1 .video-track {
   animation: scrollColumnUp1 32s linear infinite;
 }
 
-.col-middle .video-track {
+.col-2 .video-track {
+  animation: scrollColumnUp4 36s linear infinite;
+}
+
+.col-3 .video-track {
   animation: scrollColumnUp3 48s linear infinite;
 }
 
-.col-right .video-track {
+.col-4 .video-track {
+  animation: scrollColumnUp5 44s linear infinite;
+}
+
+.col-5 .video-track {
   animation: scrollColumnUp2 40s linear infinite;
 }
 
 @keyframes scrollColumnUp1 {
-  0% {
-    transform: translateY(0);
-  }
-  100% {
-    transform: translateY(-828px); /* Height of 3 items (260px each) + 3 gaps (16px each) */
-  }
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-828px); }
 }
 
 @keyframes scrollColumnUp2 {
-  0% {
-    transform: translateY(-200px); /* Start with offset for natural look */
-  }
-  100% {
-    transform: translateY(-1028px); /* -200px - 828px */
-  }
+  0% { transform: translateY(-200px); }
+  100% { transform: translateY(-1028px); }
 }
 
 @keyframes scrollColumnUp3 {
-  0% {
-    transform: translateY(-400px); /* Start with offset for middle column */
-  }
-  100% {
-    transform: translateY(-1228px); /* -400px - 828px */
-  }
+  0% { transform: translateY(-400px); }
+  100% { transform: translateY(-1228px); }
+}
+
+@keyframes scrollColumnUp4 {
+  0% { transform: translateY(-100px); }
+  100% { transform: translateY(-928px); }
+}
+
+@keyframes scrollColumnUp5 {
+  0% { transform: translateY(-300px); }
+  100% { transform: translateY(-1128px); }
 }
 
 .video-card-wrapper {
@@ -120,47 +126,20 @@
   object-fit: cover;
 }
 
-/* White Cloud/Blur Overlays at Top and Bottom */
-.blur-overlay-top {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 18vh;
-  background: linear-gradient(to bottom, rgba(248, 250, 252, 1) 0%, rgba(248, 250, 252, 0.7) 50%, rgba(248, 250, 252, 0) 100%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  pointer-events: none;
-  z-index: 4;
-}
-
-.blur-overlay-bottom {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 18vh;
-  background: linear-gradient(to top, rgba(248, 250, 252, 1) 0%, rgba(248, 250, 252, 0.7) 50%, rgba(248, 250, 252, 0) 100%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  pointer-events: none;
-  z-index: 4;
-}
-
 /* Floating Brand Glassmorphic Panel (Light Theme) */
 .visual-brand-overlay {
   position: absolute;
-  left: 40px;
-  bottom: 40px;
-  right: 40px;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  left: 60px;
+  bottom: 60px;
+  width: 380px; /* Floating width on full-screen layout */
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 24px;
   padding: 24px 32px;
   color: #0f172a;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.05);
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -190,21 +169,20 @@
   line-height: 1.5;
 }
 
-/* ===== Right Panel: Form ===== */
+/* ===== Floating Form Panel on Right ===== */
 .login-form-panel {
-  flex: 0.9;
+  position: relative;
+  z-index: 5; /* on top of video background */
+  margin-left: auto; /* push to right side of viewport */
+  width: 50%; /* right 50% */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 40px 20px 24px 20px;
-  background:
-    radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.04), transparent 46%),
-    radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.03), transparent 42%),
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-  animation: slideInRight 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  position: relative;
+  background: transparent; /* transparent panel shows video wall underneath */
   min-height: 100vh;
+  animation: slideInRight 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .login-form-wrapper {
@@ -237,12 +215,14 @@
   width: auto;
 }
 
-/* ===== Form Card & Core Styling ===== */
+/* ===== Premium Glassmorphism Form Card ===== */
 .login-card {
-  border: 1px solid rgba(99, 102, 241, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
   border-radius: 24px !important;
-  box-shadow: 0 20px 50px rgba(79, 70, 229, 0.06) !important;
-  background: #ffffff;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.06) !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
 }
 
 .login-card h2 {
@@ -450,7 +430,8 @@
   }
 
   .login-form-panel {
-    flex: 1;
+    width: 100%;
+    margin-left: 0;
     padding: 24px 16px;
     background: transparent;
     animation: fadeScaleIn 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
