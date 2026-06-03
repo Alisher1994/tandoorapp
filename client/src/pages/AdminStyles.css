@@ -2435,6 +2435,79 @@ body::-webkit-scrollbar,
     object-fit: contain;
 }
 
+.admin-reservation-place-modal .modal-content {
+    border: 0;
+    border-radius: 18px;
+    overflow: hidden;
+}
+
+.admin-reservation-place-modal .modal-header {
+    padding: 20px 24px;
+}
+
+.admin-reservation-place-modal-body {
+    padding: 20px 24px 18px;
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
+}
+
+.admin-reservation-place-panel {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 16px;
+}
+
+.admin-reservation-place-template-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.admin-reservation-place-template {
+    min-height: 116px;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 12px;
+    background: #ffffff;
+    color: #1f2937;
+    padding: 8px;
+    text-align: center;
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.admin-reservation-place-template:hover {
+    border-color: rgba(79, 70, 229, 0.45);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.admin-reservation-place-template.is-active {
+    border-color: #4f46e5;
+    background: rgba(79, 70, 229, 0.1);
+    box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.2);
+}
+
+.admin-reservation-place-template-thumb {
+    width: 100%;
+    height: 48px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 9px;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.admin-reservation-place-template-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
 @media (max-width: 767.98px) {
     .admin-reservation-tabs-row {
         margin-bottom: 14px;
@@ -2474,6 +2547,16 @@ body::-webkit-scrollbar,
         left: 10px;
         width: auto;
         top: 56px;
+    }
+
+    .admin-reservation-place-modal-body {
+        padding: 16px;
+        max-height: calc(100vh - 120px);
+    }
+
+    .admin-reservation-place-template-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        max-height: 320px;
     }
 }
 

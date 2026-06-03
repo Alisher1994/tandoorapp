@@ -2600,185 +2600,176 @@ function AdminReservations({ embedded = false } = {}) {
         </Modal.Body>
       </Modal>
 
-      <Modal show={showTableModal} onHide={closeTableModal} centered>
+      <Modal show={showTableModal} onHide={closeTableModal} centered size="xl" dialogClassName="admin-reservation-place-modal">
         <Modal.Header closeButton>
           <Modal.Title>
             {editingTableId ? tx('Изменить место', 'Joyni o\'zgartirish') : tx('Добавить место', 'Joy qo\'shish')}
             {selectedFloor ? ` (${selectedFloor.name})` : ''}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        <Modal.Body className="admin-reservation-place-modal-body">
           <Form onSubmit={saveTableDetails}>
-            <Row className="g-2">
-              <Col xs={12}>
-                <Form.Control
-                  placeholder={tx('Название места', 'Joy nomi')}
-                  value={tableForm.name}
-                  onChange={(event) => setTableForm((prev) => ({ ...prev, name: event.target.value }))}
-                />
-              </Col>
-              <Col xs={12}>
-                <Form.Control
-                  type="number"
-                  min={1}
-                  placeholder={tx('Вместимость', 'Sig\'im')}
-                  value={tableForm.capacity}
-                  onChange={(event) => setTableForm((prev) => ({ ...prev, capacity: event.target.value }))}
-                />
-              </Col>
-              <Col xs={12}>
-                <Form.Label className="small text-muted mb-1">
-                  {tx('Цена бронирования', 'Bron narxi')} ({moneyLabel})
-                </Form.Label>
-                <Form.Control
-                  type="number"
-                  min={0}
-                  step="1000"
-                  placeholder={tx('Цена бронирования для этого места', 'Bu joy uchun bron narxi')}
-                  value={tableForm.reservation_price}
-                  onChange={(event) => setTableForm((prev) => ({ ...prev, reservation_price: event.target.value }))}
-                />
-              </Col>
-              <Col xs={12}>
-                <Form.Label className="small text-muted mb-1">
-                  {tx('Описание RU', 'RU tavsif')}
-                </Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  maxLength={1200}
-                  placeholder={tx('Описание места: вид, зона, условия брони', 'Joy tavsifi: hudud, sharoitlar')}
-                  value={tableForm.description_ru}
-                  onChange={(event) => setTableForm((prev) => ({ ...prev, description_ru: event.target.value, description: event.target.value }))}
-                />
-              </Col>
-              <Col xs={12}>
-                <Form.Label className="small text-muted mb-1">
-                  {tx('Описание UZ', 'UZ tavsif')}
-                </Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  maxLength={1200}
-                  placeholder={tx('Описание на узбекском', 'O‘zbekcha tavsif')}
-                  value={tableForm.description_uz}
-                  onChange={(event) => setTableForm((prev) => ({ ...prev, description_uz: event.target.value }))}
-                />
-              </Col>
-              <Col xs={12}>
-                <Form.Select
-                  value={tableForm.template_id}
-                  onChange={(event) => applyTemplateSelection(event.target.value)}
-                >
-                  <option value="">{tx('Шаблон (необязательно)', 'Shablon (ixtiyoriy)')}</option>
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
-                </Form.Select>
-              </Col>
-              <Col xs={12}>
-                <div className="small fw-semibold text-dark mb-2">
-                  {tx('Галерея элементов', 'Elementlar galereyasi')}
+            <Row className="g-3">
+              <Col lg={7}>
+                <div className="admin-reservation-place-panel">
+                  <Row className="g-3">
+                    <Col md={7}>
+                      <Form.Label className="small text-muted mb-1">{tx('Название места', 'Joy nomi')}</Form.Label>
+                      <Form.Control
+                        placeholder={tx('Например: стол у окна', 'Masalan: deraza yonidagi joy')}
+                        value={tableForm.name}
+                        onChange={(event) => setTableForm((prev) => ({ ...prev, name: event.target.value }))}
+                      />
+                    </Col>
+                    <Col md={5}>
+                      <Form.Label className="small text-muted mb-1">{tx('Вместимость', 'Sig\'im')}</Form.Label>
+                      <Form.Control
+                        type="number"
+                        min={1}
+                        placeholder={tx('Кол-во гостей', 'Mehmonlar soni')}
+                        value={tableForm.capacity}
+                        onChange={(event) => setTableForm((prev) => ({ ...prev, capacity: event.target.value }))}
+                      />
+                    </Col>
+                    <Col xs={12}>
+                      <Form.Label className="small text-muted mb-1">
+                        {tx('Цена бронирования', 'Bron narxi')} ({moneyLabel})
+                      </Form.Label>
+                      <Form.Control
+                        type="number"
+                        min={0}
+                        step="1000"
+                        placeholder={tx('Цена бронирования для этого места', 'Bu joy uchun bron narxi')}
+                        value={tableForm.reservation_price}
+                        onChange={(event) => setTableForm((prev) => ({ ...prev, reservation_price: event.target.value }))}
+                      />
+                    </Col>
+                    <Col xs={12}>
+                      <Form.Label className="small text-muted mb-1">
+                        {tx('Описание RU', 'RU tavsif')}
+                      </Form.Label>
+                      <Form.Control
+                        as="textarea"
+                        rows={4}
+                        maxLength={1200}
+                        placeholder={tx('Описание места: вид, зона, условия брони', 'Joy tavsifi: hudud, sharoitlar')}
+                        value={tableForm.description_ru}
+                        onChange={(event) => setTableForm((prev) => ({ ...prev, description_ru: event.target.value, description: event.target.value }))}
+                      />
+                    </Col>
+                    <Col xs={12}>
+                      <Form.Label className="small text-muted mb-1">
+                        {tx('Описание UZ', 'UZ tavsif')}
+                      </Form.Label>
+                      <Form.Control
+                        as="textarea"
+                        rows={4}
+                        maxLength={1200}
+                        placeholder={tx('Описание на узбекском', 'O‘zbekcha tavsif')}
+                        value={tableForm.description_uz}
+                        onChange={(event) => setTableForm((prev) => ({ ...prev, description_uz: event.target.value }))}
+                      />
+                    </Col>
+                    <Col xs={12}>
+                      <Form.Label className="small text-muted mb-1">{tx('Фото места', 'Joy rasmi')}</Form.Label>
+                      <Form.Control type="file" accept="image/*" onChange={handleTablePhotoFileChange} disabled={uploadingTablePhoto} />
+                      <Form.Text className="text-muted">
+                        {uploadingTablePhoto ? tx('Загрузка и сжатие...', 'Yuklash va siqish...') : tx('Реальное фото места для карточки бронирования', 'Bron kartasi uchun joyning real rasmi')}
+                      </Form.Text>
+                    </Col>
+                    {tableForm.photo_url && (
+                      <Col xs={12}>
+                        <div className="admin-reservation-photo-slot mb-2">
+                          <img src={toAbsoluteMediaUrl(tableForm.photo_url)} alt={tx('Фото места', 'Joy rasmi')} className="admin-reservation-photo-slot-img" />
+                        </div>
+                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                          <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview(tableForm.name || tx('Место', 'Joy'), tableForm.photo_url)}>
+                            {tx('Просмотр фото', 'Rasmni ko\'rish')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline-danger"
+                            type="button"
+                            onClick={() => setTableForm((prev) => ({ ...prev, photo_url: '' }))}
+                          >
+                            {tx('Удалить фото', 'Rasmni o\'chirish')}
+                          </Button>
+                        </div>
+                      </Col>
+                    )}
+                  </Row>
                 </div>
-                <Form.Group className="mb-2">
+              </Col>
+              <Col lg={5}>
+                <div className="admin-reservation-place-panel h-100">
+                  <Form.Label className="small text-muted mb-1">{tx('Шаблон элемента', 'Element shabloni')}</Form.Label>
                   <Form.Select
-                    size="sm"
-                    value={templateCategoryFilter}
-                    onChange={(event) => setTemplateCategoryFilter(event.target.value)}
+                    className="mb-3"
+                    value={tableForm.template_id}
+                    onChange={(event) => applyTemplateSelection(event.target.value)}
                   >
-                    {TEMPLATE_CATEGORY_OPTIONS.map((option) => (
-                      <option key={`modal-template-category-${option.value}`} value={option.value}>
-                        {tx(option.ru, option.uz)}
+                    <option value="">{tx('Шаблон (необязательно)', 'Shablon (ixtiyoriy)')}</option>
+                    {templates.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
                       </option>
                     ))}
                   </Form.Select>
-                </Form.Group>
-                <div className="d-flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={!tableForm.template_id ? 'primary' : 'outline-secondary'}
-                    onClick={() => applyTemplateSelection(null)}
-                  >
-                    {tx('Без шаблона', 'Shablonsiz')}
-                  </Button>
-                  {filteredTemplates.map((template) => {
-                    const isActive = Number(tableForm.template_id) === Number(template.id);
-                    const imageUrl = toAbsoluteMediaUrl(template.image_url);
-                    return (
-                      <button
-                        key={template.id}
-                        type="button"
-                        className={`btn p-2 border ${isActive ? 'border-primary bg-primary-subtle' : 'border-light-subtle bg-white'}`}
-                        onClick={() => applyTemplateSelection(template.id)}
-                        style={{
-                          width: 112,
-                          borderRadius: 10,
-                          boxShadow: isActive ? '0 0 0 1px rgba(59,130,246,0.35)' : 'none'
-                        }}
-                        title={`${template.name} • ${template.seats_count || 0}`}
-                      >
-                        <div className="d-flex flex-column align-items-center gap-1">
-                          <div
-                            style={{
-                              width: '100%',
-                              height: 52,
-                              borderRadius: 8,
-                              border: '1px solid #e5e7eb',
-                              background: '#f8fafc',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              overflow: 'hidden'
-                            }}
-                          >
+                  <div className="small fw-semibold text-dark mb-2">
+                    {tx('Галерея элементов', 'Elementlar galereyasi')}
+                  </div>
+                  <Form.Group className="mb-2">
+                    <Form.Select
+                      size="sm"
+                      value={templateCategoryFilter}
+                      onChange={(event) => setTemplateCategoryFilter(event.target.value)}
+                    >
+                      {TEMPLATE_CATEGORY_OPTIONS.map((option) => (
+                        <option key={`modal-template-category-${option.value}`} value={option.value}>
+                          {tx(option.ru, option.uz)}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                  <div className="admin-reservation-place-template-grid">
+                    <button
+                      type="button"
+                      className={`admin-reservation-place-template ${!tableForm.template_id ? 'is-active' : ''}`}
+                      onClick={() => applyTemplateSelection(null)}
+                    >
+                      {tx('Без шаблона', 'Shablonsiz')}
+                    </button>
+                    {filteredTemplates.map((template) => {
+                      const isActive = Number(tableForm.template_id) === Number(template.id);
+                      const imageUrl = toAbsoluteMediaUrl(template.image_url);
+                      return (
+                        <button
+                          key={template.id}
+                          type="button"
+                          className={`admin-reservation-place-template ${isActive ? 'is-active' : ''}`}
+                          onClick={() => applyTemplateSelection(template.id)}
+                          title={`${template.name} • ${template.seats_count || 0}`}
+                        >
+                          <div className="admin-reservation-place-template-thumb">
                             {imageUrl ? (
-                              <img src={imageUrl} alt={template.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                              <img src={imageUrl} alt={template.name} />
                             ) : (
-                              <span style={{ fontSize: 18 }}>🪑</span>
+                              <span>🪑</span>
                             )}
                           </div>
-                          <div className="small text-truncate w-100" style={{ maxWidth: 96 }}>{template.name}</div>
+                          <div className="small text-truncate w-100">{template.name}</div>
                           <div className="small text-muted">{template.seats_count || 0} {tx('мест', 'o\'rin')}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedTemplate && (
+                    <div className="small text-muted mt-2">
+                      {tx('Выбрано', 'Tanlandi')}: <strong>{selectedTemplate.name}</strong>
+                    </div>
+                  )}
                 </div>
-                {selectedTemplate && (
-                  <div className="small text-muted mt-2">
-                    {tx('Выбрано', 'Tanlandi')}: <strong>{selectedTemplate.name}</strong>
-                  </div>
-                )}
               </Col>
-              <Col xs={12}>
-                <Form.Control type="file" accept="image/*" onChange={handleTablePhotoFileChange} disabled={uploadingTablePhoto} />
-                <Form.Text className="text-muted">
-                  {uploadingTablePhoto ? tx('Загрузка и сжатие...', 'Yuklash va siqish...') : tx('Реальное фото места (из файла)', 'Joyning real rasmi (fayldan)')}
-                </Form.Text>
-              </Col>
-              {tableForm.photo_url && (
-                <Col xs={12}>
-                  <div className="admin-reservation-photo-slot mb-2">
-                    <img src={toAbsoluteMediaUrl(tableForm.photo_url)} alt={tx('Фото места', 'Joy rasmi')} className="admin-reservation-photo-slot-img" />
-                  </div>
-                  <div className="d-flex align-items-center gap-2 flex-wrap">
-                    <Button size="sm" variant="outline-info" type="button" onClick={() => openImagePreview(tableForm.name || tx('Место', 'Joy'), tableForm.photo_url)}>
-                      {tx('Просмотр фото', 'Rasmni ko\'rish')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline-danger"
-                      type="button"
-                      onClick={() => setTableForm((prev) => ({ ...prev, photo_url: '' }))}
-                    >
-                      {tx('Удалить фото', 'Rasmni o\'chirish')}
-                    </Button>
-                  </div>
-                </Col>
-              )}
             </Row>
             <div className="small text-muted mt-2">
               {tx('После добавления перетащите место на вкладке "Схемы" в нужную точку.', 'Qo\'shilgandan keyin joyni "Sxemalar" bo\'limida kerakli joyga olib boring.')}
