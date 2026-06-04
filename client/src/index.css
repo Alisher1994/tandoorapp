@@ -4025,13 +4025,7 @@ h6 {
   left: 10px;
   right: 10px;
   z-index: 100;
-  background: var(--surface-color);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-radius: 12px;
-  padding: 4px 10px;
-  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.08);
-  border: 1px solid var(--border-color);
+  padding: 4px 0;
 }
 
 /* Horizontal scrollable floor tabs */
