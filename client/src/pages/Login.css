@@ -197,26 +197,16 @@
   flex-direction: column;
 }
 
-.mobile-brand-header {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 28px;
-}
-
-.mobile-brand-logo-container {
-  background: #0f172a;
-  padding: 12px 24px;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  display: inline-flex;
-  align-items: center;
+.card-brand-header {
+  display: flex;
   justify-content: center;
+  align-items: center;
 }
 
-.mobile-brand-logo {
-  height: 28px;
+.card-brand-logo {
+  height: 32px;
   width: auto;
+  filter: invert(1) brightness(0.2); /* Colors white logo path to dark slate */
 }
 
 /* ===== Premium Glassmorphism Form Card ===== */
@@ -459,26 +449,7 @@
     margin: auto 0;
   }
 
-  .mobile-brand-header {
-    display: flex;
-    margin-top: 16px;
-    margin-bottom: 24px;
-  }
 
-  /* Glassmorphic light mobile logo container */
-  .mobile-brand-logo-container {
-    background: rgba(255, 255, 255, 0.65) !important;
-    backdrop-filter: blur(16px) !important;
-    -webkit-backdrop-filter: blur(16px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.4) !important;
-    padding: 10px 24px;
-    border-radius: 20px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
-  }
-
-  .mobile-brand-logo {
-    filter: invert(1) brightness(0.2); /* Invert logo path to dark slate */
-  }
 
   /* Optimized video columns for mobile */
   .col-1, .col-5 {
@@ -527,13 +498,19 @@
     animation: scrollColumnUpMobile5 44s linear infinite;
   }
 
-  /* Premium glassmorphic card on mobile with more translucency */
+  /* Premium glassmorphic card on mobile with higher opacity for better contrast */
   .login-card {
-    background: rgba(255, 255, 255, 0.45) !important;
+    background: rgba(255, 255, 255, 0.88) !important; /* Whiter background for contrast */
     backdrop-filter: blur(28px) !important;
     -webkit-backdrop-filter: blur(28px) !important;
-    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    border: 1px solid rgba(255, 255, 255, 0.65) !important;
     box-shadow: 0 20px 45px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Make form controls solid white so they pop out clearly against the frosted card */
+  .login-card .form-control {
+    background: #ffffff !important;
+    border: 1px solid rgba(99, 102, 241, 0.22) !important;
   }
 
   .login-page-footer {

@@ -281,29 +281,19 @@ function Login() {
       {/* Right panel: Login Form Panel */}
       <div className="login-form-panel">
         <div className="login-form-wrapper">
-          {/* Mobile-only logo header */}
-          <div className="mobile-brand-header">
-            <div className="mobile-brand-logo-container">
-              <img src="/talablar.svg" alt="Talablar Logo" className="mobile-brand-logo" />
-            </div>
-          </div>
-
           <Card className="shadow-sm login-card">
             <Card.Body className="p-4">
               <div className="text-center mb-4">
+                <div className="card-brand-header mb-3">
+                  <img src="/talablar.svg" alt="Talablar Logo" className="card-brand-logo" />
+                </div>
                 {(loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'moderator' || loginPortal === 'superadmin' || loginPortal === 'customer') && (
-                  <div className="mb-3">
+                  <div className="mb-2">
                     <span className="login-context-chip">
                       {loginPortal === 'customer' ? 'Client Portal' : 'Admin Portal'}
                     </span>
                   </div>
                 )}
-                <h2>{portalTitles[loginPortal] || 'Вход в систему'}</h2>
-                <p className="text-muted">
-                  {loginPortal === 'admin' || loginPortal === 'operator' || loginPortal === 'moderator' || loginPortal === 'superadmin'
-                    ? 'Введите данные администратора'
-                    : 'Введите ваши данные для входа'}
-                </p>
               </div>
 
               {error && <Alert variant="danger">{error}</Alert>}
