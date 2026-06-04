@@ -12,7 +12,7 @@
 
 /* ===== Full-Screen Video Wall Background ===== */
 .login-visual-panel {
-  position: absolute;
+  position: fixed; /* Fixed background ensures it covers the viewport even when scrolling on mobile */
   inset: 0;
   background: #f8fafc;
   overflow: hidden;
@@ -253,9 +253,19 @@
   height: 48px;
   border-radius: 12px;
   border: 1px solid rgba(99, 102, 241, 0.16);
+  background: rgba(255, 255, 255, 0.7);
   font-size: 0.95rem;
   padding: 0 16px;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+/* Premium Autofill styling to match light theme */
+.login-card .form-control:-webkit-autofill,
+.login-card .form-control:-webkit-autofill:hover,
+.login-card .form-control:-webkit-autofill:focus {
+  -webkit-text-fill-color: #1e293b;
+  -webkit-box-shadow: 0 0 0px 1000px #f0f2ff inset;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 .login-card .form-control:focus {
@@ -422,26 +432,136 @@
 
 /* ===== Responsive Adaptability ===== */
 @media (max-width: 991.98px) {
-  .login-visual-panel {
+  .visual-brand-overlay {
     display: none;
   }
   
   .login-split-page {
-    background:
-      radial-gradient(circle at 14% 16%, rgba(88, 80, 236, 0.05), transparent 46%),
-      radial-gradient(circle at 86% 18%, rgba(59, 130, 246, 0.04), transparent 42%),
-      linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    background: #f8fafc;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
   }
 
   .login-form-panel {
     width: 100%;
     margin-left: 0;
-    padding: 24px 16px;
+    padding: 24px 16px 32px 16px;
     background: transparent;
     animation: fadeScaleIn 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .login-form-wrapper {
+    margin: auto 0;
   }
 
   .mobile-brand-header {
     display: flex;
+    margin-top: 16px;
+    margin-bottom: 24px;
   }
+
+  /* Glassmorphic light mobile logo container */
+  .mobile-brand-logo-container {
+    background: rgba(255, 255, 255, 0.65) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    padding: 10px 24px;
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+  }
+
+  .mobile-brand-logo {
+    filter: invert(1) brightness(0.2); /* Invert logo path to dark slate */
+  }
+
+  /* Optimized video columns for mobile */
+  .col-1, .col-5 {
+    display: none; /* Hide edge columns to reduce performance overhead and center layout */
+  }
+  
+  .video-column {
+    width: 28vw;
+    min-width: 100px;
+    max-width: 130px;
+  }
+  
+  .video-wall-scroll {
+    width: 120%;
+    height: 120%;
+    left: -10%;
+    top: -10%;
+    gap: 12px;
+  }
+  
+  .video-wall-mask {
+    gap: 12px;
+    padding: 12px;
+    /* Soften the mask on mobile so the videos are visible above and below the card */
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  }
+  
+  .video-card-wrapper {
+    height: 110px; /* smaller video cards on mobile */
+    border-radius: 10px;
+  }
+
+  /* Apply mobile-specific scrolling translations based on new card height (110px) + gap (12px) = 122px.
+     For 12 items, 122 * 12 = 1464px.
+  */
+  .col-2 .video-track {
+    animation: scrollColumnUpMobile4 36s linear infinite;
+  }
+
+  .col-3 .video-track {
+    animation: scrollColumnUpMobile3 48s linear infinite;
+  }
+
+  .col-4 .video-track {
+    animation: scrollColumnUpMobile5 44s linear infinite;
+  }
+
+  /* Premium glassmorphic card on mobile with more translucency */
+  .login-card {
+    background: rgba(255, 255, 255, 0.45) !important;
+    backdrop-filter: blur(28px) !important;
+    -webkit-backdrop-filter: blur(28px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  .login-page-footer {
+    margin-top: 32px;
+    padding-top: 16px;
+  }
+
+  .footer-links {
+    gap: 8px 16px;
+  }
+
+  .footer-link {
+    font-size: 0.78rem;
+  }
+}
+
+/* ===== Mobile Scrolling Animations ===== */
+@keyframes scrollColumnUpMobile3 {
+  0% { transform: translateY(-220px); } /* starts offset by 2 items (110px * 2) */
+  100% { transform: translateY(-1684px); } /* translates by 12 items (-1464px) */
+}
+
+@keyframes scrollColumnUpMobile4 {
+  0% { transform: translateY(-55px); } /* starts offset by half an item (110px * 0.5) */
+  100% { transform: translateY(-1519px); } /* translates by 12 items (-1464px) */
+}
+
+@keyframes scrollColumnUpMobile5 {
+  0% { transform: translateY(-165px); } /* starts offset by 1.5 items (110px * 1.5) */
+  100% { transform: translateY(-1629px); } /* translates by 12 items (-1464px) */
 }
