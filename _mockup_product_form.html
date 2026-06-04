@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Макет — форма товара (вкладки)</title>
+<style>
+  :root {
+    --primary: #2563eb; --bg: #eef2f8; --surface: #f8fafc;
+    --border: rgba(148, 163, 184, 0.34); --text: #0f172a; --muted: #64748b; --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif;
+    background: var(--bg); color: var(--text); display: flex; flex-direction: column;
+    align-items: center; gap: 18px; padding: 28px 16px 60px; }
+  .page-note { max-width: 820px; width: 100%; font-size: 13px; color: var(--muted);
+    background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  .modal { width: 100%; max-width: 820px; background: #fff; border-radius: 18px;
+    box-shadow: 0 18px 44px rgba(15,23,42,.16); overflow: hidden; display: flex; flex-direction: column; max-height: 88vh; }
+  .modal-head { display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 22px 0; }
+  .modal-head h2 { margin: 0; font-size: 1.35rem; font-weight: 700; }
+  .modal-head .x { width: 36px; height: 36px; border-radius: 10px; border: none; background: transparent;
+    color: #475569; font-size: 20px; cursor: pointer; }
+  .modal-head .x:hover { background: #f1f5f9; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 6px; padding: 14px 22px 0; border-bottom: 1px solid var(--border); }
+  .tab { border: none; background: transparent; padding: 10px 16px; border-radius: 10px 10px 0 0;
+    font-size: 0.95rem; font-weight: 600; color: var(--muted); cursor: pointer; position: relative; display:inline-flex; align-items:center; gap:8px; }
+  .tab.active { color: var(--primary); }
+  .tab.active::after { content:""; position:absolute; left:10px; right:10px; bottom:-1px; height:3px; background: var(--primary); border-radius: 3px 3px 0 0; }
+  .tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); display: none; }
+  .tab.has-dot .dot { display: inline-block; }
+
+  .modal-body { padding: 20px 22px; overflow-y: auto; }
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  .field { margin-bottom: 16px; }
+  label.lbl { display: block; font-size: 0.88rem; font-weight: 600; margin-bottom: 6px; }
+  .req { color: #dc2626; }
+  .hint { font-size: 0.78rem; color: var(--muted); margin-top: 5px; }
+  input.ctl, select.ctl { width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: #fff; font-size: 0.95rem; color: var(--text); outline: none; }
+  input.ctl.sm, select.ctl.sm { height: 40px; font-size: 0.9rem; }
+  input.ctl:focus, select.ctl:focus { border-color: var(--primary); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .flag { font-size: 0.95rem; }
+  .images { display: flex; gap: 14px; flex-wrap: wrap; }
+  .img-slot { width: 110px; height: 110px; border: 1.5px dashed var(--border); border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 28px; background: #fff; cursor: pointer; }
+  .img-slot.sm { width: 64px; height: 64px; font-size: 20px; }
+  .img-slot:first-child { border-color: var(--primary); }
+  .images-note { font-size: 0.78rem; color: var(--muted); margin-top: 8px; }
+
+  .switch { display: inline-flex; align-items: center; gap: 8px; font-size: 0.92rem; color: #334155; cursor: pointer; user-select: none; }
+  .switch .track { width: 38px; height: 22px; border-radius: 999px; background: #cbd5e1; position: relative; transition: background .15s; }
+  .switch .track::after { content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2); transition:left .15s; }
+  .switch.on .track { background: var(--primary); }
+  .switch.on .track::after { left: 18px; }
+
+  .variant-card { border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 12px; background: #fff; }
+  .variant-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .variant-card-head .t { font-weight: 700; font-size: 0.92rem; }
+  .variant-card-head .del { border: none; background: transparent; color: #ef4444; cursor: pointer; font-size: 14px; }
+  .variant-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
+  .variant-extra3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .variant-extra { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; align-items: end; }
+  .add-variant { width: 100%; border: 1.5px dashed var(--border); background: var(--surface); border-radius: 12px;
+    padding: 12px; cursor: pointer; font-weight: 600; color: #334155; }
+  .muted-mini { font-size: 0.75rem; color: var(--muted); }
+  .empty-variants { border: 1.5px dashed var(--border); border-radius: 14px; padding: 28px; text-align: center; color: var(--muted); background: var(--surface); }
+
+  .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px;
+    border-top: 1px solid var(--border); background: var(--surface); }
+  .btn { border: none; border-radius: 12px; padding: 10px 22px; font-weight: 600; font-size: 0.95rem; cursor: pointer; }
+  .btn.ghost { background: #fff; border: 1px solid var(--border); color: #334155; }
+  .btn.primary { background: var(--primary); color: #fff; }
+  .tag { display:inline-block; font-size: 11px; font-weight:700; color:#16a34a; background:#dcfce7; border-radius:999px; padding:2px 8px; margin-left:8px; }
+  @media (max-width: 640px) { .row2,.variant-grid,.variant-extra3,.variant-extra { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <div class="page-note">
+    Макет: форма товара на 3 вкладках. Переключи «Использовать варианты» во вкладке «Варианты товара» — лишние одиночные поля скроются.
+    <span class="tag">пример, не рабочая форма</span>
+  </div>
+
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Добавить товар</h2>
+      <button class="x" title="Закрыть">✕</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="main" onclick="switchTab('main')">Основные</button>
+      <button class="tab" data-tab="extra" onclick="switchTab('extra')">Дополнительные</button>
+      <button class="tab" id="tabVariants" data-tab="variants" onclick="switchTab('variants')">Варианты товара <span class="dot"></span></button>
+    </div>
+
+    <div class="modal-body">
+      <!-- ВКЛАДКА: ОСНОВНЫЕ -->
+      <div class="pane active" id="pane-main">
+        <div class="field">
+          <label class="lbl">Категория <span class="req">*</span></label>
+          <select class="ctl"><option>Выберите категорию</option></select>
+        </div>
+        <div class="field row2">
+          <div>
+            <label class="lbl">Название (RU) <span class="flag">🇷🇺</span></label>
+            <input class="ctl" placeholder="Например: Сосиска" />
+          </div>
+          <div>
+            <label class="lbl">Название (UZ) <span class="flag">🇺🇿</span></label>
+            <input class="ctl" placeholder="Masalan: Sosiska" />
+          </div>
+        </div>
+
+        <div class="field row2" id="mainPriceRow">
+          <div>
+            <label class="lbl">Цена (сум) <span class="req">*</span></label>
+            <input class="ctl" placeholder="0" />
+          </div>
+          <div>
+            <label class="lbl">Единица измерения <span class="req">*</span></label>
+            <select class="ctl"><option>шт</option><option>кг</option><option>л</option></select>
+          </div>
+        </div>
+        <div class="field" id="mainUnitOnly" style="display:none">
+          <label class="lbl">Единица измерения <span class="req">*</span></label>
+          <select class="ctl" style="max-width:340px"><option>шт</option><option>кг</option><option>л</option></select>
+        </div>
+
+        <div class="field" id="mainPhoto">
+          <label class="lbl">Фото (до 5)</label>
+          <div class="images">
+            <div class="img-slot">＋</div><div class="img-slot">＋</div><div class="img-slot">＋</div>
+            <div class="img-slot">＋</div><div class="img-slot">＋</div>
+          </div>
+          <div class="images-note">★ — главное фото, рекомендуемый размер 1080×1080 px, до 10 МБ.</div>
+        </div>
+
+        <div class="field">
+          <span class="switch" onclick="this.classList.toggle('on')"><span class="track"></span> Скрыть из каталога</span>
+        </div>
+      </div>
+
+      <!-- ВКЛАДКА: ДОПОЛНИТЕЛЬНЫЕ -->
+      <div class="pane" id="pane-extra">
+        <div id="extraSingleOnly">
+          <div class="field row2">
+            <div>
+              <label class="lbl">Остаток на складе</label>
+              <input class="ctl" placeholder="Например: 25" />
+              <div class="hint">При учёте остатков товар авто-скрывается у порога. Авто-порог: 2</div>
+            </div>
+            <div>
+              <label class="lbl">Скидка</label>
+              <input class="ctl" placeholder="Цена со скидкой (необязательно)" />
+            </div>
+          </div>
+          <div class="field row2">
+            <div>
+              <label class="lbl">Фасовка</label>
+              <select class="ctl"><option>Без посуды</option></select>
+            </div>
+            <div>
+              <label class="lbl">Шаг заказа</label>
+              <input class="ctl" placeholder="напр.: 1" />
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="max-width:340px">
+          <label class="lbl">Порядок сортировки</label>
+          <input class="ctl" value="0" />
+        </div>
+
+        <div class="hint" style="margin-top:4px">
+          Описание / Сезонность / Штрихкод / ИКПУ показываются здесь, только если включены в «Настройки товаров».
+        </div>
+        <div class="hint" id="extraVariantNote" style="display:none; margin-top:8px; color:#334155">
+          Остаток, цена, скидка, фасовка и шаг заказа задаются для каждого варианта во вкладке «Варианты товара».
+        </div>
+      </div>
+
+      <!-- ВКЛАДКА: ВАРИАНТЫ ТОВАРА -->
+      <div class="pane" id="pane-variants">
+        <div class="field">
+          <span class="switch" id="variantsSwitch" onclick="toggleVariants()"><span class="track"></span> Использовать варианты товара</span>
+          <div class="hint">Например: 0.5 кг / 1 кг, или объём/комплектация. Норма обычно 2–5 вариантов.</div>
+        </div>
+
+        <div id="variantsEmpty" class="empty-variants">
+          Варианты выключены. Включите переключатель выше, чтобы добавить варианты товара.
+        </div>
+
+        <div id="variantsList" style="display:none">
+          <div id="variantCards"></div>
+          <button class="add-variant" onclick="addVariant()">＋ Добавить вариант</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn ghost">Отмена</button>
+      <button class="btn primary">Добавить</button>
+    </div>
+  </div>
+
+<script>
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + name));
+  }
+  function variantCardHTML(n) {
+    return `
+      <div class="variant-card">
+        <div class="variant-card-head"><span class="t">Вариант ${n}</span><button class="del" onclick="removeVariant(this)">🗑 удалить</button></div>
+        <div class="variant-grid">
+          <div><label class="lbl muted-mini">Название варианта</label><input class="ctl sm" placeholder="Напр.: 0.5 кг" /></div>
+          <div><label class="lbl muted-mini">Цена</label><input class="ctl sm" placeholder="0" /></div>
+          <div><label class="lbl muted-mini">Остаток</label><input class="ctl sm" placeholder="25" /></div>
+        </div>
+        <div class="variant-extra3">
+          <div><label class="lbl muted-mini">Фасовка</label><select class="ctl sm"><option>Без посуды</option><option>Контейнер</option></select></div>
+          <div><label class="lbl muted-mini">Норма фасовки</label><input class="ctl sm" placeholder="напр.: 1" /></div>
+          <div><label class="lbl muted-mini">Шаг заказа</label><input class="ctl sm" placeholder="напр.: 1" /></div>
+        </div>
+        <div class="variant-extra">
+          <div><label class="lbl muted-mini">Фото варианта</label><div class="images"><div class="img-slot sm">＋</div></div></div>
+          <div><span class="switch" onclick="this.classList.toggle('on')"><span class="track"></span> Скидка</span></div>
+        </div>
+        <div class="hint">Описание / Штрихкод / ИКПУ варианта — показываются здесь, только если включены в «Настройки товаров».</div>
+      </div>`;
+  }
+  function renumberVariants() {
+    document.querySelectorAll('#variantCards .variant-card-head .t').forEach((el, i) => { el.textContent = 'Вариант ' + (i + 1); });
+  }
+  function addVariant() {
+    const box = document.getElementById('variantCards');
+    const wrap = document.createElement('div');
+    wrap.innerHTML = variantCardHTML(box.children.length + 1).trim();
+    box.appendChild(wrap.firstChild);
+  }
+  function removeVariant(btn) {
+    btn.closest('.variant-card').remove();
+    renumberVariants();
+  }
+  function toggleVariants() {
+    const sw = document.getElementById('variantsSwitch');
+    sw.classList.toggle('on');
+    const on = sw.classList.contains('on');
+    document.getElementById('variantsList').style.display = on ? 'block' : 'none';
+    document.getElementById('variantsEmpty').style.display = on ? 'none' : 'block';
+    // при включении — добавляем первую карточку (если ещё нет)
+    if (on && document.getElementById('variantCards').children.length === 0) addVariant();
+    // подсветка вкладки «Варианты»
+    document.getElementById('tabVariants').classList.toggle('has-dot', on);
+    // в режиме вариантов одиночные Цена/Фото и Остаток/Скидка/Фасовка/Шаг скрываются
+    document.getElementById('mainPriceRow').style.display = on ? 'none' : 'grid';
+    document.getElementById('mainUnitOnly').style.display = on ? 'block' : 'none';
+    document.getElementById('mainPhoto').style.display = on ? 'none' : 'block';
+    document.getElementById('extraSingleOnly').style.display = on ? 'none' : 'block';
+    document.getElementById('extraVariantNote').style.display = on ? 'block' : 'none';
+  }
+</script>
+</body>
+</html>

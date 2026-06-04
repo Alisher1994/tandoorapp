@@ -174,6 +174,39 @@ const resolveWorkingWindow = (workStartTime, workEndTime) => {
   };
 };
 
+const shadeHex = (hex, percent) => {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return null;
+  const num = parseInt(m[1], 16);
+  let r = (num >> 16) & 255;
+  let g = (num >> 8) & 255;
+  let b = num & 255;
+  const t = percent < 0 ? 0 : 255;
+  const p = Math.min(1, Math.abs(percent) / 100);
+  r = Math.round((t - r) * p) + r;
+  g = Math.round((t - g) * p) + g;
+  b = Math.round((t - b) * p) + b;
+  return { r, g, b, hex: `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}` };
+};
+
+const applyStorePrimaryColor = (color) => {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  const overrideVars = ['--primary-color', '--primary-dark', '--primary-light', '--bs-primary', '--bs-primary-rgb'];
+  const base = shadeHex(color, 0);
+  if (!base) {
+    overrideVars.forEach((v) => root.style.removeProperty(v));
+    return;
+  }
+  const dark = shadeHex(color, -16) || base;
+  const light = shadeHex(color, 16) || base;
+  root.style.setProperty('--primary-color', base.hex);
+  root.style.setProperty('--primary-dark', dark.hex);
+  root.style.setProperty('--primary-light', light.hex);
+  root.style.setProperty('--bs-primary', base.hex);
+  root.style.setProperty('--bs-primary-rgb', `${base.r}, ${base.g}, ${base.b}`);
+};
+
 function Reservations() {
   const navigate = useNavigate();
   const { user, isOperator } = useAuth();
@@ -767,6 +800,16 @@ function Reservations() {
       isMounted = false;
     };
   }, [restaurantId, t]);
+
+  useEffect(() => {
+    if (restaurant) {
+      const themeVal = String(restaurant.ui_theme || 'classic').trim().toLowerCase();
+      const fontVal = String(restaurant.ui_font_family || 'sans').trim().toLowerCase();
+      document.documentElement.setAttribute('data-ui-theme', themeVal);
+      document.documentElement.setAttribute('data-ui-font', fontVal);
+      applyStorePrimaryColor(restaurant.ui_primary_color);
+    }
+  }, [restaurant]);
 
   useEffect(() => {
     fetchAvailability();
@@ -1524,62 +1567,30 @@ function Reservations() {
 
             {bookingStep === 'plan' ? (
               <>
-                <section ref={planStageRef} className={`client-res-map-shell ${controlsCollapsed ? 'is-controls-collapsed' : ''} ${selectedTableIds.length > 0 ? 'has-selection' : ''}`}>
-                  <div className={`client-res-controls-overlay ${controlsCollapsed ? 'is-collapsed' : ''}`}>
-                    <div
-                      className="client-res-controls-head"
-                      role="button"
-                      tabIndex={0}
-                      aria-expanded={!controlsCollapsed}
-                      onClick={toggleControlsCollapsed}
-                      onKeyDown={handleControlsHeadKeyDown}
-                    >
-                      <div className="client-res-controls-summary-row">
-                        <div className="client-res-controls-meta">
-                          {controlsCollapsed ? (
-                            <>
-                              <span className="client-res-controls-date-value">{t('Выберите место', 'Joyni tanlang')}</span>
-                              <span className="client-res-controls-floor-line">{selectedFloor?.name || t('Все этажи', 'Barcha qavatlar')}</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="client-res-controls-date-value">{t('Выберите место', 'Joyni tanlang')}</span>
-                              <span className="client-res-controls-floor-line">{t('Этаж и режим просмотра', 'Qavat va ko‘rinish')}</span>
-                            </>
-                          )}
-                        </div>
-                        <div className="client-res-controls-action-slot">
-                          {/* Next button removed from top right. Selection action is now sticky at the bottom. */}
-                        </div>
+                <section ref={planStageRef} className={`client-res-map-shell ${selectedTableIds.length > 0 ? 'has-selection' : ''}`}>
+                  {/* Direct Horizontal Floor Tabs (No Accordion) */}
+                  {floors.length > 0 && (
+                    <div className="client-res-floor-tabs-wrapper">
+                      <div className="client-res-floor-tabs-scroll">
+                        {floors.map((floor) => {
+                          const isActive = Number(floor.id) === Number(selectedFloorId);
+                          return (
+                            <button
+                              key={`reservation-floor-tab-${floor.id}`}
+                              type="button"
+                              className={`client-res-floor-tab-btn ${isActive ? 'is-active' : ''}`}
+                              onClick={() => {
+                                setSelectedFloorId(Number(floor.id));
+                                advanceTutorialStep('floor');
+                              }}
+                            >
+                              {floor.name}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-
-                    {!controlsCollapsed && (
-                      <div className="client-res-controls-stack">
-                        <div className="client-res-overlay-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                          <span className="client-res-overlay-label" style={{ marginBottom: '6px' }}>{t('Этаж', 'Qavat')}</span>
-                          <div className="client-res-floor-tabs-scroll">
-                            {floors.map((floor) => {
-                              const isActive = Number(floor.id) === Number(selectedFloorId);
-                              return (
-                                <button
-                                  key={`reservation-floor-tab-${floor.id}`}
-                                  type="button"
-                                  className={`client-res-floor-tab-btn ${isActive ? 'is-active' : ''}`}
-                                  onClick={() => {
-                                    setSelectedFloorId(Number(floor.id));
-                                    advanceTutorialStep('floor');
-                                  }}
-                                >
-                                  {floor.name}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  )}
 
                   {/* View switcher tabs removed per design requirements */}
 
@@ -1870,7 +1881,16 @@ function Reservations() {
                     <Col lg={5}>
                       <Card className="h-100 border-0 client-res-form-card">
                         <Card.Body>
-                          {/* Date selection hidden from the beginning of the form */}
+                          {/* Date selection field */}
+                          <Form.Group className="mb-3">
+                            <Form.Label>{t('Дата', 'Sana')}</Form.Label>
+                            <Form.Control
+                              type="date"
+                              min={todayDate()}
+                              value={bookingDate}
+                              onChange={(event) => setBookingDate(event.target.value)}
+                            />
+                          </Form.Group>
 
                           <Form.Group className="mb-3">
                             <Form.Label>{t('Время', 'Vaqt')}</Form.Label>

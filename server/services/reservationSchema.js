@@ -68,7 +68,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     seats_count: 1,
     width: 0.8,
     height: 0.8,
-    image_url: '/reservation-furniture/table_round_2.png'
+    image_url: '/reservation-furniture/table_round_1.png'
   },
   {
     code: 'table_square_2',
@@ -78,7 +78,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     seats_count: 2,
     width: 1.0,
     height: 1.0,
-    image_url: '/reservation-furniture/table_square_4.png'
+    image_url: '/reservation-furniture/table_square_2.png'
   },
   {
     code: 'table_rect_4',
@@ -88,7 +88,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     seats_count: 4,
     width: 1.5,
     height: 1.0,
-    image_url: '/reservation-furniture/table_rect_6.png'
+    image_url: '/reservation-furniture/table_rect_4.png'
   },
   {
     code: 'table_rect_8',
@@ -98,7 +98,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     seats_count: 8,
     width: 2.2,
     height: 1.2,
-    image_url: '/reservation-furniture/table_rect_6.png'
+    image_url: '/reservation-furniture/table_rect_8.png'
   },
   {
     code: 'table_sofa_2',
@@ -108,7 +108,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     seats_count: 2,
     width: 1.6,
     height: 1.0,
-    image_url: '/reservation-furniture/table_sofa_4.png'
+    image_url: '/reservation-furniture/table_sofa_2.png'
   },
   {
     code: 'table_sofa_6',
@@ -118,7 +118,7 @@ const SYSTEM_TABLE_TEMPLATES = [
     seats_count: 6,
     width: 2.4,
     height: 1.2,
-    image_url: '/reservation-furniture/table_sofa_4.png'
+    image_url: '/reservation-furniture/table_sofa_6.png'
   },
   {
     code: 'bed_single_1',

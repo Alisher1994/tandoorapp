@@ -3789,7 +3789,7 @@ h6 {
   position: relative;
   height: calc(100dvh - 82px);
   min-height: 500px;
-  padding: 105px 10px 112px; /* Reduced top padding since the view switcher is removed */
+  padding: 68px 10px 112px; /* Reduced top padding since accordion is removed */
   overflow-y: auto;
   overscroll-behavior: contain;
   background: #f6f8fb;
@@ -4973,7 +4973,7 @@ h6 {
   .client-res-list-stage {
     height: calc(100dvh - 72px);
     min-height: 380px;
-    padding: 136px 8px 112px;
+    padding: 78px 8px 112px; /* Reduced top padding since accordion is removed */
   }
 
   .client-res-place-card {
