@@ -4134,13 +4134,12 @@ h6 {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 9;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid #d6deef;
-  border-radius: 12px;
+  background: transparent;
+  border: none;
   padding: 9px 12px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #64748b;
   text-align: center;
   max-width: min(84vw, 320px);
 }
