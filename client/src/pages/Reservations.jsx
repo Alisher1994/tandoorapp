@@ -132,10 +132,10 @@ const formatDateCompact = (dateValue) => {
 const getTableMarkerPalette = ({ selected, available }) => {
   if (selected) {
     return {
-      borderColor: '#4338ca',
-      background: 'rgba(224, 231, 255, 0.98)',
-      textColor: '#ffffff',
-      shadow: '0 0 0 4px rgba(129, 140, 248, 0.24), 0 10px 24px rgba(49, 46, 129, 0.3)'
+      borderColor: 'var(--primary-color)',
+      background: 'var(--surface-color)',
+      textColor: 'var(--primary-color)',
+      shadow: '0 0 0 4px var(--primary-light), 0 10px 24px rgba(15, 23, 42, 0.15)'
     };
   }
   if (available) {
