@@ -3986,7 +3986,7 @@ h6 {
 }
 
 .client-res-view-details-btn {
-  background: var(--accent-soft);
+  background: var(--background-color);
   border: none;
   outline: none;
   color: var(--primary-color);
@@ -4043,8 +4043,8 @@ h6 {
 }
 
 .client-res-floor-tab-btn {
-  background: var(--accent-soft);
-  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  border: none;
   outline: none;
   color: var(--text-secondary);
   font-size: 0.82rem;
@@ -4063,7 +4063,7 @@ h6 {
 
 .client-res-floor-tab-btn.is-active {
   background: var(--primary-color);
-  border-color: var(--primary-color);
+  border: none;
   color: #ffffff;
 }
 
