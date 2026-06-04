@@ -3626,7 +3626,7 @@ h6 {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 0.86rem;
 }
 
@@ -3640,9 +3640,9 @@ h6 {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   scroll-snap-type: x proximity;
-  border: 1px solid #d8e0f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  background: #f8faff;
+  background: var(--background-color);
   padding: 5px 0 4px;
 }
 
@@ -3664,7 +3664,7 @@ h6 {
 .client-res-ruler-tick {
   border: 0;
   background: transparent;
-  color: #64748b;
+  color: var(--text-secondary);
   min-width: 52px;
   padding: 0;
   margin: 0;
@@ -3683,17 +3683,17 @@ h6 {
   width: 2px;
   height: 11px;
   border-radius: 999px;
-  background: #a5b4cf;
+  background: var(--border-color);
 }
 
 .client-res-ruler-tick.is-hour .client-res-ruler-line {
   height: 19px;
-  background: #64748b;
+  background: var(--text-secondary);
 }
 
 .client-res-ruler-tick.is-active .client-res-ruler-line {
   height: 23px;
-  background: #4f46e5;
+  background: var(--primary-color);
 }
 
 .client-res-ruler-tick.is-active {
@@ -3709,11 +3709,11 @@ h6 {
 }
 
 .client-res-ruler-tick.is-hour .client-res-ruler-label {
-  color: #1e293b;
+  color: var(--text-color);
 }
 
 .client-res-ruler-tick.is-active .client-res-ruler-label {
-  color: #312e81;
+  color: var(--primary-color);
 }
 
 .client-res-ruler-end {
