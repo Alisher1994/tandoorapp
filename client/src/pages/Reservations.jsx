@@ -203,7 +203,8 @@ function Reservations() {
   const [showFloorPlan, setShowFloorPlan] = useState(true);
   const [selectedTableIds, setSelectedTableIds] = useState([]);
   const [bookingStep, setBookingStep] = useState('plan');
-  const [bookingViewMode, setBookingViewMode] = useState('plan');
+  const [bookingViewMode, setBookingViewMode] = useState('list');
+  const [viewingTable, setViewingTable] = useState(null);
   const [controlsCollapsed, setControlsCollapsed] = useState(true);
   const [planScale, setPlanScale] = useState(1);
   const [planOffset, setPlanOffset] = useState({ x: 0, y: 0 });
@@ -308,46 +309,41 @@ function Reservations() {
   const bookingTotalCost = useMemo(() => Math.max(0, effectiveReservationFee) + Math.max(0, reservationServiceCost), [effectiveReservationFee, reservationServiceCost]);
   const tutorialSteps = useMemo(() => ([
     {
-      id: 'date',
-      target: 'date',
-      text: t('Шаг 1: выберите дату.', '1-qadam: sanani tanlang.')
-    },
-    {
       id: 'floor',
       target: 'floor',
-      text: t('Шаг 2: выберите этаж.', '2-qadam: qavatni tanlang.')
+      text: t('Шаг 1: выберите этаж.', '1-qadam: qavatni tanlang.')
     },
     {
       id: 'time',
       target: 'time',
-      text: t('Шаг 3: выберите время в шкале.', '3-qadam: vaqtni shkaladan tanlang.')
+      text: t('Шаг 2: выберите время в шкале.', '2-qadam: vaqtni shkaladan tanlang.')
     },
     {
       id: 'table',
       target: 'table',
-      text: t('Шаг 4: выберите место для бронирования. Можно выбрать несколько столов.', '4-qadam: bron uchun joy tanlang. Bir nechta stolni tanlash mumkin.')
+      text: t('Шаг 3: выберите место для бронирования. Можно выбрать несколько столов.', '3-qadam: bron uchun joy tanlang. Bir nechta stolni tanlash mumkin.')
     },
     {
       id: 'next',
       target: 'next',
-      text: t('Шаг 5: нажмите кнопку «Далее».', '5-qadam: «Keyingi» tugmasini bosing.')
+      text: t('Шаг 4: нажмите кнопку «Далее».', '4-qadam: «Keyingi» tugmasini bosing.')
     },
     {
       id: 'duration',
       target: 'duration',
-      text: t('Шаг 6: выберите время «до».', '6-qadam: «Gacha» vaqtini tanlang.')
+      text: t('Шаг 5: выберите время «до».', '5-qadam: «Gacha» vaqtini tanlang.')
     },
     {
       id: 'comment',
       target: 'comment',
-      text: t('Шаг 7: заполните комментарий.', '7-qadam: izohni to‘ldiring.')
+      text: t('Шаг 6: заполните комментарий.', '6-qadam: izohni to‘ldiring.')
     },
     {
       id: 'book',
       target: 'book',
       text: t(
-        'Шаг 8: нажмите «Забронировать». Это учебный режим, заказ не будет создан.',
-        '8-qadam: «Band qilish» ni bosing. Bu o‘quv rejimi, bron yaratilmaydi.'
+        'Шаг 7: нажмите «Забронировать». Это учебный режим, заказ не будет создан.',
+        '7-qadam: «Band qilish» ni bosing. Bu o‘quv rejimi, bron yaratilmaydi.'
       )
     }
   ]), [t]);
@@ -1599,28 +1595,7 @@ function Reservations() {
                     )}
                   </div>
 
-                  <div className="client-res-view-switch" role="tablist" aria-label={t('Режим выбора места', 'Joy tanlash rejimi')}>
-                    {showFloorPlan && (
-                      <button
-                        type="button"
-                        role="tab"
-                        aria-selected={bookingViewMode === 'plan'}
-                        className={bookingViewMode === 'plan' ? 'is-active' : ''}
-                        onClick={() => setBookingViewMode('plan')}
-                      >
-                        {t('План', 'Sxema')}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={bookingViewMode === 'list'}
-                      className={bookingViewMode === 'list' ? 'is-active' : ''}
-                      onClick={() => setBookingViewMode('list')}
-                    >
-                      {t('Список', 'Ro‘yxat')}
-                    </button>
-                  </div>
+                  {/* View switcher tabs removed per design requirements */}
 
                   {showFloorPlan && bookingViewMode === 'plan' ? (
                   <div ref={planViewportRef} className={`client-res-plan-stage ${planGestureMode !== 'idle' ? 'is-gesturing' : ''}`} onWheel={handlePlanWheel} onPointerDown={handlePlanPointerDown} onPointerMove={handlePlanPointerMove} onPointerUp={endPointerSession} onPointerCancel={endPointerSession} onPointerLeave={(event) => { if (event.pointerType === 'mouse') endPointerSession(event); }}>
@@ -1709,9 +1684,6 @@ function Reservations() {
                           const available = Boolean(table.is_available);
                           const tableImageUrl = toAbsoluteMediaUrl(table.photo_url || table.template_image_url);
                           const tablePrice = Math.max(0, asNumber(table.reservation_price, 0));
-                          const tableDescription = (language === 'uz'
-                            ? (table.description_uz || table.description_ru || table.description)
-                            : (table.description_ru || table.description || table.description_uz)) || '';
                           return (
                             <button
                               key={`reservation-place-card-${table.id}`}
@@ -1734,16 +1706,18 @@ function Reservations() {
                                     {tablePrice > 0 ? `${formatMoney(tablePrice)} ${moneyLabel}` : t('Без депозита', 'Depozitsiz')}
                                   </span>
                                 </div>
-                                <div className="client-res-place-meta">
-                                  {table.floor_name || selectedFloor?.name || '—'} · {table.capacity || 0} {t('мест', 'joy')}
-                                </div>
-                                {tableDescription && (
-                                  <div className="client-res-place-description">{tableDescription}</div>
-                                )}
-                                <div className="client-res-place-status">
-                                  {available
-                                    ? (selected ? t('Выбрано', 'Tanlandi') : t('Нажмите, чтобы выбрать', 'Tanlash uchun bosing'))
-                                    : t('Занято', 'Band')}
+                                <div className="client-res-place-action-row">
+                                  <button
+                                    type="button"
+                                    className="client-res-view-details-btn"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setViewingTable(table);
+                                      setBookingStep('place');
+                                    }}
+                                  >
+                                    {t('Просмотр', 'Ko‘rish')}
+                                  </button>
                                 </div>
                               </div>
                             </button>
@@ -1793,43 +1767,62 @@ function Reservations() {
               </>
             ) : bookingStep === 'place' ? (
               <Card className="border-0 shadow-sm mt-3 mb-3 client-res-details-card client-res-place-details-card">
-                <Card.Body>
-                  {!primarySelectedTable ? (
+                <Card.Body className="client-res-place-details-body">
+                  {!viewingTable ? (
                     <Alert variant="warning" className="border-0 mb-0">{t('Место не выбрано', 'Joy tanlanmagan')}</Alert>
                   ) : (
                     <>
                       <div className="client-res-place-details-hero">
-                        {toAbsoluteMediaUrl(primarySelectedTable.photo_url || primarySelectedTable.template_image_url) ? (
+                        {toAbsoluteMediaUrl(viewingTable.photo_url || viewingTable.template_image_url) ? (
                           <img
-                            src={toAbsoluteMediaUrl(primarySelectedTable.photo_url || primarySelectedTable.template_image_url)}
-                            alt={primarySelectedTable.name || t('Место', 'Joy')}
+                            src={toAbsoluteMediaUrl(viewingTable.photo_url || viewingTable.template_image_url)}
+                            alt={viewingTable.name || t('Место', 'Joy')}
                           />
                         ) : (
-                          <span>{extractTableCenterLabel(primarySelectedTable.name, primarySelectedTable.id)}</span>
+                          <span>{extractTableCenterLabel(viewingTable.name, viewingTable.id)}</span>
                         )}
                       </div>
                       <div className="client-res-place-details-head">
                         <div>
-                          <h2>{primarySelectedTable.name}</h2>
+                          <h2>{viewingTable.name}</h2>
                           <div className="client-res-place-details-meta">
-                            {primarySelectedTable.floor_name || selectedFloor?.name || '—'} · {primarySelectedTable.capacity || 0} {t('мест', 'joy')}
+                            {viewingTable.floor_name || selectedFloor?.name || '—'} · {viewingTable.capacity || 0} {t('мест', 'joy')}
                           </div>
                         </div>
                         <div className="client-res-place-details-price">
-                          {Math.max(0, asNumber(primarySelectedTable.reservation_price, 0)) > 0
-                            ? `${formatMoney(primarySelectedTable.reservation_price)} ${moneyLabel}`
+                          {Math.max(0, asNumber(viewingTable.reservation_price, 0)) > 0
+                            ? `${formatMoney(viewingTable.reservation_price)} ${moneyLabel}`
                             : t('Без депозита', 'Depozitsiz')}
                         </div>
                       </div>
-                      {primarySelectedDescription && (
-                        <p className="client-res-place-details-description">{primarySelectedDescription}</p>
+                      
+                      {(viewingTable.description_ru || viewingTable.description || viewingTable.description_uz) && (
+                        <div className="client-res-place-details-description-box mt-3">
+                          <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1e293b', marginBottom: '8px' }}>
+                            {t('Описание', 'Tavsif')}
+                          </h4>
+                          <p className="client-res-place-details-description" style={{ margin: 0 }}>
+                            {(language === 'uz'
+                              ? (viewingTable.description_uz || viewingTable.description_ru || viewingTable.description)
+                              : (viewingTable.description_ru || viewingTable.description || viewingTable.description_uz)) || ''}
+                          </p>
+                        </div>
                       )}
-                      <div className="d-grid gap-2 mt-3">
-                        <Button variant="primary" className="client-res-book-btn" onClick={() => setBookingStep('details')}>
-                          {t('Выбрать дату и время', 'Sana va vaqt tanlash')}
-                        </Button>
-                        <Button variant="outline-secondary" onClick={() => setBookingStep('plan')}>
-                          {t('Назад к списку', 'Ro‘yxatga qaytish')}
+
+                      <div className="client-res-sticky-bottom-bar">
+                        <Button
+                          variant="primary"
+                          className="client-res-book-btn w-100"
+                          onClick={() => {
+                            setSelectedTableIds((prev) => {
+                              const tableId = Number(viewingTable.id);
+                              if (prev.includes(tableId)) return prev;
+                              return allowMultiTable ? [...prev, tableId] : [tableId];
+                            });
+                            setBookingStep('details');
+                          }}
+                        >
+                          {t('Далее', 'Keyingi')}
                         </Button>
                       </div>
                     </>
@@ -1875,27 +1868,7 @@ function Reservations() {
                     <Col lg={5}>
                       <Card className="h-100 border-0 client-res-form-card">
                         <Card.Body>
-                          <Form.Group className="mb-3">
-                            <Form.Label>{t('Дата', 'Sana')}</Form.Label>
-                            <Form.Control
-                              ref={planDateInputRef}
-                              type="date"
-                              value={bookingDate}
-                              min={todayDate()}
-                              onClick={(event) => {
-                                event.currentTarget.showPicker?.();
-                                advanceTutorialStep('date');
-                              }}
-                              onFocus={(event) => event.currentTarget.showPicker?.()}
-                              onChange={(event) => {
-                                const nextDate = String(event.target.value || '').trim();
-                                if (/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
-                                  setBookingDate(nextDate);
-                                  advanceTutorialStep('date');
-                                }
-                              }}
-                            />
-                          </Form.Group>
+                          {/* Date selection hidden from the beginning of the form */}
 
                           <Form.Group className="mb-3">
                             <Form.Label>{t('Время', 'Vaqt')}</Form.Label>

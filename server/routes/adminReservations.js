@@ -702,15 +702,21 @@ router.put('/tables/:id', async (req, res) => {
       params.push(Math.max(0, parseAmount(req.body.reservation_price, 0)));
       updates.push(`reservation_price = $${params.length}`);
     }
-    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'description')) {
-      params.push(String(req.body.description || '').trim().slice(0, 1200) || null);
-      updates.push(`description = $${params.length}`);
-    }
+    let nextDescription = null;
+    let hasDescriptionUpdate = false;
+
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'description_ru')) {
-      const descriptionRu = String(req.body.description_ru || '').trim().slice(0, 1200) || null;
-      params.push(descriptionRu);
+      nextDescription = String(req.body.description_ru || '').trim().slice(0, 1200) || null;
+      hasDescriptionUpdate = true;
+      params.push(nextDescription);
       updates.push(`description_ru = $${params.length}`);
-      params.push(descriptionRu);
+    } else if (Object.prototype.hasOwnProperty.call(req.body || {}, 'description')) {
+      nextDescription = String(req.body.description || '').trim().slice(0, 1200) || null;
+      hasDescriptionUpdate = true;
+    }
+
+    if (hasDescriptionUpdate) {
+      params.push(nextDescription);
       updates.push(`description = $${params.length}`);
     }
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'description_uz')) {
