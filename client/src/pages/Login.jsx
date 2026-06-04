@@ -201,11 +201,19 @@ function Login() {
     }
   };
 
-  const videoListCol1 = [carParts, accessories, dietCompany, carParts, accessories, dietCompany];
-  const videoListCol2 = [butcher, fashionStyle, bakery, butcher, fashionStyle, bakery];
-  const videoListCol3 = [foodProducts, groceries, fisherman, foodProducts, groceries, fisherman];
-  const videoListCol4 = [sportGoods, dentist, construction, sportGoods, dentist, construction];
-  const videoListCol5 = [electronics, florist, equipmentRental, electronics, florist, equipmentRental];
+  const buildTrackList = (vids) => {
+    const list = [];
+    for (let i = 0; i < 8; i++) {
+      list.push(...vids);
+    }
+    return list;
+  };
+
+  const videoListCol1 = buildTrackList([carParts, accessories, dietCompany]);
+  const videoListCol2 = buildTrackList([butcher, fashionStyle, bakery]);
+  const videoListCol3 = buildTrackList([foodProducts, groceries, fisherman]);
+  const videoListCol4 = buildTrackList([sportGoods, dentist, construction]);
+  const videoListCol5 = buildTrackList([electronics, florist, equipmentRental]);
 
   return (
     <div className="login-split-page">

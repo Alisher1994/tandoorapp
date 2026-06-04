@@ -85,27 +85,27 @@
 
 @keyframes scrollColumnUp1 {
   0% { transform: translateY(0); }
-  100% { transform: translateY(-498px); } /* Height of 3 items (150px each) + 3 gaps (16px each) */
+  100% { transform: translateY(-1992px); } /* Height of 12 items (150px each) + 12 gaps (16px each) */
 }
 
 @keyframes scrollColumnUp2 {
   0% { transform: translateY(-150px); }
-  100% { transform: translateY(-648px); }
+  100% { transform: translateY(-2142px); }
 }
 
 @keyframes scrollColumnUp3 {
   0% { transform: translateY(-300px); }
-  100% { transform: translateY(-798px); }
+  100% { transform: translateY(-2292px); }
 }
 
 @keyframes scrollColumnUp4 {
   0% { transform: translateY(-75px); }
-  100% { transform: translateY(-573px); }
+  100% { transform: translateY(-2067px); }
 }
 
 @keyframes scrollColumnUp5 {
   0% { transform: translateY(-225px); }
-  100% { transform: translateY(-723px); }
+  100% { transform: translateY(-2217px); }
 }
 
 .video-card-wrapper {
