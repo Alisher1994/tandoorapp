@@ -9,8 +9,21 @@ import Alert from 'react-bootstrap/Alert';
 import Modal from 'react-bootstrap/Modal';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import receiveOrderAnimation from '../assets/animations/receive-order.lottie?url';
-import droneDelivery from '../assets/animations/drone-delivery.mp4';
-import deliveryTruck from '../assets/animations/delivery-truck.mp4';
+import carParts from '../assets/animations/login_page/car-parts.mp4';
+import accessories from '../assets/animations/login_page/accessories.mp4';
+import dietCompany from '../assets/animations/login_page/diet-company.mp4';
+import butcher from '../assets/animations/login_page/butcher.mp4';
+import fashionStyle from '../assets/animations/login_page/fashion-style.mp4';
+import bakery from '../assets/animations/login_page/bakery.mp4';
+import foodProducts from '../assets/animations/login_page/food-products.mp4';
+import groceries from '../assets/animations/login_page/groceries.mp4';
+import fisherman from '../assets/animations/login_page/fisherman.mp4';
+import sportGoods from '../assets/animations/login_page/sport-goods.mp4';
+import dentist from '../assets/animations/login_page/dentist.mp4';
+import construction from '../assets/animations/login_page/construction.mp4';
+import electronics from '../assets/animations/login_page/electronics.mp4';
+import florist from '../assets/animations/login_page/florist.mp4';
+import equipmentRental from '../assets/animations/login_page/equipment-rental.mp4';
 import axios from 'axios';
 import './Login.css';
 
@@ -188,11 +201,11 @@ function Login() {
     }
   };
 
-  const videoListCol1 = [droneDelivery, deliveryTruck, droneDelivery, droneDelivery, deliveryTruck, droneDelivery];
-  const videoListCol2 = [deliveryTruck, droneDelivery, deliveryTruck, deliveryTruck, deliveryTruck, droneDelivery];
-  const videoListCol3 = [droneDelivery, droneDelivery, deliveryTruck, droneDelivery, droneDelivery, deliveryTruck];
-  const videoListCol4 = [deliveryTruck, droneDelivery, deliveryTruck, droneDelivery, deliveryTruck, droneDelivery];
-  const videoListCol5 = [droneDelivery, deliveryTruck, droneDelivery, deliveryTruck, droneDelivery, deliveryTruck];
+  const videoListCol1 = [carParts, accessories, dietCompany, carParts, accessories, dietCompany];
+  const videoListCol2 = [butcher, fashionStyle, bakery, butcher, fashionStyle, bakery];
+  const videoListCol3 = [foodProducts, groceries, fisherman, foodProducts, groceries, fisherman];
+  const videoListCol4 = [sportGoods, dentist, construction, sportGoods, dentist, construction];
+  const videoListCol5 = [electronics, florist, equipmentRental, electronics, florist, equipmentRental];
 
   return (
     <div className="login-split-page">
