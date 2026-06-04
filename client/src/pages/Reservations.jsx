@@ -1549,47 +1549,33 @@ function Reservations() {
                           )}
                         </div>
                         <div className="client-res-controls-action-slot">
-                          <Button
-                            ref={planNextButtonRef}
-                            variant="primary"
-                            size="sm"
-                            className={`client-res-controls-next-btn ${selectedTableIds.length > 0 ? '' : 'is-hidden'}`}
-                            disabled={loadingAvailability || !selectedFloorId || selectedTableIds.length === 0}
-                            aria-hidden={selectedTableIds.length === 0}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              advanceTutorialStep('next');
-                              setBookingStep('place');
-                            }}
-                          >
-                            {t('Далее', 'Keyingi')}
-                          </Button>
+                          {/* Next button removed from top right. Selection action is now sticky at the bottom. */}
                         </div>
                       </div>
                     </div>
 
                     {!controlsCollapsed && (
                       <div className="client-res-controls-stack">
-                        <div className="client-res-overlay-row">
-                          <span className="client-res-overlay-label">{t('Этаж', 'Qavat')}</span>
-                          <Form.Select
-                            ref={planFloorSelectRef}
-                            className="client-res-overlay-input"
-                            value={selectedFloorId || ''}
-                            onClick={() => advanceTutorialStep('floor')}
-                            onChange={(event) => {
-                              const nextFloorId = Number(event.target.value) || null;
-                              setSelectedFloorId(nextFloorId);
-                              if (nextFloorId) advanceTutorialStep('floor');
-                            }}
-                          >
-                            <option value="">{t('Выберите этаж', 'Qavatni tanlang')}</option>
-                            {floors.map((floor) => (
-                              <option key={`reservation-floor-${floor.id}`} value={floor.id}>
-                                {floor.name}
-                              </option>
-                            ))}
-                          </Form.Select>
+                        <div className="client-res-overlay-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+                          <span className="client-res-overlay-label" style={{ marginBottom: '6px' }}>{t('Этаж', 'Qavat')}</span>
+                          <div className="client-res-floor-tabs-scroll">
+                            {floors.map((floor) => {
+                              const isActive = Number(floor.id) === Number(selectedFloorId);
+                              return (
+                                <button
+                                  key={`reservation-floor-tab-${floor.id}`}
+                                  type="button"
+                                  className={`client-res-floor-tab-btn ${isActive ? 'is-active' : ''}`}
+                                  onClick={() => {
+                                    setSelectedFloorId(Number(floor.id));
+                                    advanceTutorialStep('floor');
+                                  }}
+                                >
+                                  {floor.name}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1764,6 +1750,22 @@ function Reservations() {
                 </section>
 
                 {!isCapacityEnough && selectedTableIds.length > 0 && <Alert variant="warning" className="border-0 mt-2 mb-2">{t('Вместимости выбранных столов недостаточно для указанного количества гостей', 'Tanlangan stollar sig‘imi mehmonlar soni uchun yetarli emas')}</Alert>}
+
+                {selectedTableIds.length > 0 && (
+                  <div className="client-res-sticky-bottom-selection-bar">
+                    <div className="client-res-bottom-selection-info">
+                      <span className="client-res-bottom-selection-label">{t('Выбранные места', 'Tanlangan joylar')}:</span>
+                      <strong className="client-res-bottom-selection-count">{selectedTableIds.length}</strong>
+                    </div>
+                    <Button
+                      variant="primary"
+                      className="client-res-bottom-next-btn"
+                      onClick={() => setBookingStep('details')}
+                    >
+                      {t('Далее', 'Keyingi')}
+                    </Button>
+                  </div>
+                )}
               </>
             ) : bookingStep === 'place' ? (
               <Card className="border-0 shadow-sm mt-3 mb-3 client-res-details-card client-res-place-details-card">
