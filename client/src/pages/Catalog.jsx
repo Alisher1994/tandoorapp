@@ -307,6 +307,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   // 'menu' — обычный каталог; 'showcase' — витрина из конструктора; 'favorites' — избранное.
   const [storefrontView, setStorefrontView] = useState('menu');
   const storefrontViewInitedRef = useRef(false);
+  const storefrontCategoryOpenedFromShowcaseRef = useRef(false);
   // Срок доставки (сегодня + N дней) — конфиг магазина; влияет на кнопку карточки товара.
   const [deliveryLead, setDeliveryLead] = useState({ enabled: false, days: 1 });
   const [storefrontOrderForm, setStorefrontOrderForm] = useState({
@@ -1829,6 +1830,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   }, []);
   const selectStorefrontView = useCallback((view) => {
     setStorefrontView(view);
+    storefrontCategoryOpenedFromShowcaseRef.current = false;
     if (view === 'menu') {
       // «Меню» — на корень каталога.
       setSelectedCategory(null);
@@ -1847,6 +1849,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const handleStorefrontShowcaseCategoryClick = useCallback((categoryId) => {
     const id = Number.parseInt(categoryId, 10);
     setStorefrontView('menu');
+    storefrontCategoryOpenedFromShowcaseRef.current = true;
     if (Number.isInteger(id) && id > 0) {
       setSelectedCategory(id);
       setActiveSubcategoryTab(null);
@@ -1857,6 +1860,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   // Выбор категории из меню «Каталог» (веб): переходим в каталог и фильтруем по категории.
   const handleCatalogMenuSelect = useCallback((categoryId) => {
     setShowCatalogMenu(false);
+    storefrontCategoryOpenedFromShowcaseRef.current = false;
     if (isPublicStorefront) setStorefrontView('menu');
     const id = Number.parseInt(categoryId, 10);
     setSelectedCategory(Number.isInteger(id) && id > 0 ? id : null);
@@ -1870,6 +1874,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     setCatalogSearchQuery('');
     setIsHeaderSearchOpen(false);
     if (isPublicStorefront) {
+      storefrontCategoryOpenedFromShowcaseRef.current = false;
       setStorefrontView(storefrontShowcaseAvailable ? 'showcase' : 'menu');
       setSelectedCategory(null);
       setActiveSubcategoryTab(null);
@@ -3001,6 +3006,14 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       }
     }
     const restoreOffset = categoryListScrollOffsetRef.current;
+    if (isPublicStorefront && storefrontCategoryOpenedFromShowcaseRef.current && storefrontShowcaseAvailable) {
+      storefrontCategoryOpenedFromShowcaseRef.current = false;
+      setStorefrontView('showcase');
+      setSelectedCategory(null);
+      setActiveSubcategoryTab(null);
+      scrollStorefrontToTop();
+      return;
+    }
     setSelectedCategory(null);
     setActiveSubcategoryTab(null);
     requestAnimationFrame(() => {
@@ -4507,11 +4520,18 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       return;
     }
     if (isShowcaseCatalogRoute) {
-      navigate('/', {
-        state: {
-          restoreShowcaseScrollOffset: showcaseEntryScrollOffsetRef.current
-        }
-      });
+      if (isPublicStorefront) {
+        setStorefrontView(storefrontShowcaseAvailable ? 'showcase' : 'menu');
+        setSelectedCategory(null);
+        setActiveSubcategoryTab(null);
+        scrollStorefrontToTop();
+      } else {
+        navigate('/', {
+          state: {
+            restoreShowcaseScrollOffset: showcaseEntryScrollOffsetRef.current
+          }
+        });
+      }
     }
   };
   const shouldShowCatalogTabs = Boolean(

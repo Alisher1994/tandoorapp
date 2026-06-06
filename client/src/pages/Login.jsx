@@ -43,6 +43,9 @@ function Login() {
   const [showAccountChoiceModal, setShowAccountChoiceModal] = useState(false);
   const [accountChoiceMessage, setAccountChoiceMessage] = useState('');
   const [accountChoices, setAccountChoices] = useState([]);
+  const [isCompactVideoWall, setIsCompactVideoWall] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 991.98px)').matches
+  ));
   const { user, login, logout } = useAuth();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(window.location.search);
@@ -153,6 +156,15 @@ function Login() {
     return () => window.clearInterval(timer);
   }, [forgotTimer]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mediaQuery = window.matchMedia('(max-width: 991.98px)');
+    const handleChange = () => setIsCompactVideoWall(mediaQuery.matches);
+    handleChange();
+    mediaQuery.addEventListener?.('change', handleChange);
+    return () => mediaQuery.removeEventListener?.('change', handleChange);
+  }, []);
+
   const requestForgotPasswordCode = async () => {
     if (!username.trim()) {
       setError('Введите логин, чтобы получить код в Telegram');
@@ -203,7 +215,7 @@ function Login() {
 
   const buildTrackList = (vids) => {
     const list = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 4; i++) {
       list.push(...vids);
     }
     return list;
@@ -214,6 +226,26 @@ function Login() {
   const videoListCol3 = buildTrackList([foodProducts, groceries, fisherman]);
   const videoListCol4 = buildTrackList([sportGoods, dentist, construction]);
   const videoListCol5 = buildTrackList([electronics, florist, equipmentRental]);
+  const renderVideoColumn = (className, videos, keyPrefix) => (
+    <div className={`video-column ${className}`}>
+      <div className="video-track">
+        {videos.map((vid, idx) => (
+          <div className="video-card-wrapper" key={`${keyPrefix}-${idx}`}>
+            <video
+              className="video-card-element"
+              src={vid}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              disablePictureInPicture
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="login-split-page">
@@ -221,51 +253,11 @@ function Login() {
       <div className="login-visual-panel">
         <div className="video-wall-mask">
           <div className="video-wall-scroll">
-            <div className="video-column col-1">
-              <div className="video-track">
-                {videoListCol1.map((vid, idx) => (
-                  <div className="video-card-wrapper" key={`col1-${idx}`}>
-                    <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="video-column col-2">
-              <div className="video-track">
-                {videoListCol4.map((vid, idx) => (
-                  <div className="video-card-wrapper" key={`col2-${idx}`}>
-                    <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="video-column col-3">
-              <div className="video-track">
-                {videoListCol3.map((vid, idx) => (
-                  <div className="video-card-wrapper" key={`col3-${idx}`}>
-                    <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="video-column col-4">
-              <div className="video-track">
-                {videoListCol5.map((vid, idx) => (
-                  <div className="video-card-wrapper" key={`col4-${idx}`}>
-                    <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="video-column col-5">
-              <div className="video-track">
-                {videoListCol2.map((vid, idx) => (
-                  <div className="video-card-wrapper" key={`col5-${idx}`}>
-                    <video className="video-card-element" src={vid} autoPlay muted loop playsInline />
-                  </div>
-                ))}
-              </div>
-            </div>
+            {!isCompactVideoWall && renderVideoColumn('col-1', videoListCol1, 'col1')}
+            {renderVideoColumn('col-2', videoListCol4, 'col2')}
+            {renderVideoColumn('col-3', videoListCol3, 'col3')}
+            {renderVideoColumn('col-4', videoListCol5, 'col4')}
+            {!isCompactVideoWall && renderVideoColumn('col-5', videoListCol2, 'col5')}
           </div>
         </div>
 

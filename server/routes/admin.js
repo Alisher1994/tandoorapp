@@ -2226,11 +2226,17 @@ router.put('/restaurant', async (req, res) => {
     const normalizedProductFieldSeasonEnabled = normalizeOptionalBoolean(product_field_season_enabled);
     const normalizedProductFieldBarcodeEnabled = normalizeOptionalBoolean(product_field_barcode_enabled);
     const normalizedProductFieldIkpuEnabled = normalizeOptionalBoolean(product_field_ikpu_enabled);
+    const canManageRestaurantBotToken = req.user.role === 'superadmin';
     const previousBotToken = normalizeRestaurantTokenForCompare(previousRestaurant.telegram_bot_token);
-    const nextBotToken = normalizedBotToken === null
+    const requestedBotToken = normalizedBotToken === null
       ? previousBotToken
       : normalizeRestaurantTokenForCompare(normalizedBotToken);
-    const isTokenChanging = normalizedBotToken !== null && nextBotToken !== previousBotToken;
+    const isTokenChanging = normalizedBotToken !== null && requestedBotToken !== previousBotToken;
+    if (isTokenChanging && !canManageRestaurantBotToken) {
+      return res.status(403).json({ error: 'Bot Token может менять только суперадмин' });
+    }
+    const nextBotToken = canManageRestaurantBotToken ? requestedBotToken : previousBotToken;
+    const normalizedBotTokenForUpdate = canManageRestaurantBotToken ? normalizedBotToken : null;
     const nextNameValidation = validateRestaurantName(name ?? previousRestaurant.name ?? '');
     if (!nextNameValidation.ok) {
       return res.status(400).json({
@@ -2244,7 +2250,7 @@ router.put('/restaurant', async (req, res) => {
     const updateAvailability = await checkRestaurantIdentityAvailability({
       client: pool,
       name: nextNameForCheck,
-      telegramBotToken: normalizedBotToken === null ? previousBotToken : normalizedBotToken,
+      telegramBotToken: normalizedBotTokenForUpdate === null ? previousBotToken : normalizedBotTokenForUpdate,
       telegramGroupId: normalizedGroupId === null ? String(previousRestaurant.telegram_group_id || '').trim() : normalizedGroupId,
       excludeRestaurantId: Number(restaurantId)
     });
@@ -2383,7 +2389,7 @@ router.put('/restaurant', async (req, res) => {
       WHERE id = $77
       RETURNING *
     `, [
-      nextNameForCheck, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotToken, normalizedGroupId,
+      nextNameForCheck, address, phone, logo_url, normalizedLogoDisplayMode, normalizedBotTokenForUpdate, normalizedGroupId,
       start_time, end_time, click_url, payme_url, uzum_url, xazna_url,
       normalizedCashEnabled,
       card_payment_title || null,
@@ -2600,15 +2606,17 @@ router.put('/restaurant', async (req, res) => {
     }
 
     let operatorNotificationResult = null;
-    try {
-      operatorNotificationResult = await notifyRestaurantTokenChanged({
-        restaurantId: result.rows[0].id,
-        restaurantName: result.rows[0].name || previousRestaurant.name,
-        oldToken: previousRestaurant.telegram_bot_token,
-        newToken: result.rows[0].telegram_bot_token
-      });
-    } catch (notifyErr) {
-      console.error('Restaurant token change notification warning:', notifyErr.message);
+    if (isTokenChanging) {
+      try {
+        operatorNotificationResult = await notifyRestaurantTokenChanged({
+          restaurantId: result.rows[0].id,
+          restaurantName: result.rows[0].name || previousRestaurant.name,
+          oldToken: previousRestaurant.telegram_bot_token,
+          newToken: result.rows[0].telegram_bot_token
+        });
+      } catch (notifyErr) {
+        console.error('Restaurant token change notification warning:', notifyErr.message);
+      }
     }
 
     res.json({

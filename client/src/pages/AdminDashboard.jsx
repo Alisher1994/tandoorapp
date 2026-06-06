@@ -3055,6 +3055,7 @@ function AdminDashboard() {
   } = useTimedActionButtonsVisibility();
   const normalizedInitialRestaurantBotToken = (initialRestaurantBotToken || '').trim();
   const normalizedCurrentRestaurantBotToken = (restaurantSettings?.telegram_bot_token || '').trim();
+  const canManageRestaurantBotToken = user?.role === 'superadmin';
   const isRestaurantBotTokenChanged = Boolean(restaurantSettings) &&
     normalizedCurrentRestaurantBotToken !== normalizedInitialRestaurantBotToken;
   const currentRestaurantSettingsSignature = useMemo(
@@ -6218,6 +6219,10 @@ function AdminDashboard() {
 
   const saveRestaurantSettings = async () => {
     if (isTokenSaveLocked) return;
+    if (!canManageRestaurantBotToken && isRestaurantBotTokenChanged) {
+      setAlertMessage({ type: 'warning', text: 'Bot Token может менять только суперадмин' });
+      return;
+    }
     if (isNameTaken || isTokenTaken || isGroupIdTaken || isSlugTaken) {
       setAlertMessage({ type: 'warning', text: 'Исправьте занятые поля (название / Bot Token / Group ID / адрес витрины) перед сохранением' });
       return;
@@ -16590,11 +16595,14 @@ function AdminDashboard() {
                                       className="form-control-custom admin-input-action-control"
                                       value={restaurantSettings.telegram_bot_token || ''}
                                       onChange={e => {
+                                        if (!canManageRestaurantBotToken) return;
                                         setIsRestaurantBotTokenVisible(false);
                                         setTestedBotInfo(null);
                                         setBotProfileLookupError('');
                                         setRestaurantSettings({ ...restaurantSettings, telegram_bot_token: e.target.value });
                                       }}
+                                      readOnly={!canManageRestaurantBotToken}
+                                      disabled={!canManageRestaurantBotToken}
                                     />
                                     <button
                                       type="button"
@@ -16609,7 +16617,9 @@ function AdminDashboard() {
                                   </div>
                                   {!!String(restaurantSettings.telegram_bot_token || '').trim() && (
                                     <Form.Text className={restaurantIdentityAvailability.tokenAvailable ? 'text-success mt-1 d-block' : 'text-danger mt-1 d-block'}>
-                                      {restaurantIdentityAvailability.loading ? 'Проверка...' : (restaurantIdentityAvailability.tokenAvailable ? 'Bot Token доступен' : 'Bot Token уже используется')}
+                                      {!canManageRestaurantBotToken
+                                        ? 'Bot Token управляется суперадмином'
+                                        : (restaurantIdentityAvailability.loading ? 'Проверка...' : (restaurantIdentityAvailability.tokenAvailable ? 'Bot Token доступен' : 'Bot Token уже используется'))}
                                     </Form.Text>
                                   )}
                                 </Form.Group>

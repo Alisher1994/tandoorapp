@@ -6983,8 +6983,9 @@ router.post('/restaurants', async (req, res) => {
     const {
       name, address, phone, logo_url, logo_display_mode, ui_theme, delivery_zone, telegram_bot_token, telegram_group_id,
       operator_registration_code, start_time, end_time, click_url, payme_url, is_delivery_enabled,
+      support_username, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km,
       payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
-      reservation_enabled
+      currency_code, reservation_enabled
     } = req.body;
     const normalizedShowStoreContacts = normalizeBooleanFlag(req.body?.show_store_contacts, false);
     const normalizedBotTokenRaw = telegram_bot_token === undefined || telegram_bot_token === null
@@ -6997,8 +6998,14 @@ router.post('/restaurants', async (req, res) => {
     const normalizedLogoDisplayMode = normalizeLogoDisplayMode(logo_display_mode, 'square');
     const normalizedUiTheme = normalizeUiTheme(ui_theme, 'talablar_blue');
     const activityTypeId = normalizeActivityTypeId(req.body?.activity_type_id);
-    const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(req.body?.currency_code, 'uz');
+    const normalizedCurrencyCode = normalizeRestaurantCurrencyCode(currency_code, 'uz');
     const normalizedSizeVariantsEnabled = normalizeBooleanFlag(req.body?.size_variants_enabled, false);
+    const normalizedSupportUsername = String(support_username || '').trim().replace(/^@+/, '') || null;
+    const normalizedLatitude = latitude === '' || latitude === null || latitude === undefined ? null : Number.parseFloat(latitude);
+    const normalizedLongitude = longitude === '' || longitude === null || longitude === undefined ? null : Number.parseFloat(longitude);
+    const parsedDeliveryBaseRadius = Number.parseFloat(delivery_base_radius);
+    const parsedDeliveryBasePrice = Number.parseFloat(delivery_base_price);
+    const parsedDeliveryPricePerKm = Number.parseFloat(delivery_price_per_km);
 
     const nameValidation = name
       ? validateRestaurantName(name)
@@ -7057,13 +7064,14 @@ router.post('/restaurants', async (req, res) => {
         telegram_bot_token, telegram_group_id, operator_registration_code, start_time, end_time, 
         click_url, payme_url, is_delivery_enabled, service_fee,
         balance, order_cost, activity_type_id, currency_code,
+        support_username, latitude, longitude, delivery_base_radius, delivery_base_price, delivery_price_per_km,
         payme_enabled, payme_merchant_id, payme_api_login, payme_api_password, payme_account_key, payme_test_mode, payme_callback_timeout_ms,
         size_variants_enabled,
         segment_pricing_enabled, delivery_lead_enabled,
         product_field_description_enabled, product_field_season_enabled,
         product_field_barcode_enabled, product_field_ikpu_enabled
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28,
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34,
         false, false,
         true, false,
         false, false)
@@ -7089,6 +7097,12 @@ router.post('/restaurants', async (req, res) => {
       parsedOrderCost,
       activityTypeId,
       normalizedCurrencyCode,
+      normalizedSupportUsername,
+      Number.isFinite(normalizedLatitude) ? normalizedLatitude : null,
+      Number.isFinite(normalizedLongitude) ? normalizedLongitude : null,
+      Number.isFinite(parsedDeliveryBaseRadius) ? parsedDeliveryBaseRadius : 2,
+      Number.isFinite(parsedDeliveryBasePrice) ? parsedDeliveryBasePrice : 5000,
+      Number.isFinite(parsedDeliveryPricePerKm) ? parsedDeliveryPricePerKm : 2000,
       payme_enabled === true || payme_enabled === 'true',
       payme_merchant_id || null,
       payme_api_login || null,
@@ -7099,6 +7113,17 @@ router.post('/restaurants', async (req, res) => {
       normalizedSizeVariantsEnabled
     ]);
 
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'timezone')) {
+      let tzValue = String(req.body.timezone || '').trim();
+      if (tzValue) {
+        try { new Intl.DateTimeFormat('en-US', { timeZone: tzValue }); } catch (_) { tzValue = ''; }
+      }
+      if (tzValue) {
+        await pool.query('ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS timezone VARCHAR(64)').catch(() => {});
+        await pool.query('UPDATE restaurants SET timezone = $1 WHERE id = $2', [tzValue, result.rows[0].id]).catch(() => {});
+        result.rows[0].timezone = tzValue;
+      }
+    }
 
     await pool.query(
       'UPDATE restaurants SET reservation_cost = $1 WHERE id = $2',
