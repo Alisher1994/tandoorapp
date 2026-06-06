@@ -1556,6 +1556,12 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     setShowLanguageSetupModal(false);
   };
 
+  const parseOptionalStockQuantity = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number.parseFloat(String(value).replace(/\s+/g, '').replace(',', '.'));
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  };
+
   const handleAddToCart = (product) => {
     const parseLocalizedNumber = (value, fallback = 0) => {
       if (value === null || value === undefined || value === '') return fallback;
@@ -1571,8 +1577,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
       if (!isInventoryTrackingEnabled || !targetProduct) return null;
       const targetVariantDetails = getSelectedVariantDetails(targetProduct, targetVariant);
       const rawStock = targetVariantDetails?.stock_quantity ?? targetProduct?.stock_quantity;
-      const parsedStock = Number(rawStock);
-      if (!Number.isFinite(parsedStock) || parsedStock < 0) return null;
+      const parsedStock = parseOptionalStockQuantity(rawStock);
+      if (parsedStock === null) return null;
       const inventoryMinThreshold = Number(currentRestaurant?.inventory_min_threshold || 0);
       return Math.max(0, parsedStock - inventoryMinThreshold);
     };
@@ -1644,8 +1650,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     if (!isInventoryTrackingEnabled || !product) return null;
     const variantDetails = getSelectedVariantDetails(product, selectedVariant);
     const rawStock = variantDetails?.stock_quantity ?? product?.stock_quantity;
-    const parsedStock = Number(rawStock);
-    if (!Number.isFinite(parsedStock) || parsedStock < 0) return null;
+    const parsedStock = parseOptionalStockQuantity(rawStock);
+    if (parsedStock === null) return null;
     const inventoryMinThreshold = Number(currentRestaurant?.inventory_min_threshold || 0);
     return Math.max(0, parsedStock - inventoryMinThreshold);
   };
@@ -4568,15 +4574,17 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const activeProductSelectedVariantAvailable = activeProduct
     ? getSelectedVariantAvailability(activeProduct, activeProductSelectedVariant)
     : false;
-  const rawActiveProductStockQuantity = Number(
+  const rawActiveProductStockQuantity = parseOptionalStockQuantity(
     activeProductSelectedVariantDetails?.stock_quantity ?? activeProduct?.stock_quantity
   );
   const inventoryMinThreshold = Number(currentRestaurant?.inventory_min_threshold || 0);
-  const activeProductStockQuantity = Math.max(0, rawActiveProductStockQuantity - inventoryMinThreshold);
+  const activeProductStockQuantity = rawActiveProductStockQuantity === null
+    ? null
+    : Math.max(0, rawActiveProductStockQuantity - inventoryMinThreshold);
   const shouldShowActiveProductStockLine = (
     isInventoryTrackingEnabled
-    && Number.isFinite(rawActiveProductStockQuantity)
-    && rawActiveProductStockQuantity > 0
+    && activeProductStockQuantity !== null
+    && activeProductStockQuantity > 0
   );
   const activeProductUnitLabel = language === 'uz' && activeProduct?.unit_uz
     ? activeProduct.unit_uz
