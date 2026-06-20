@@ -3332,8 +3332,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Handle order confirmation
       if (data.startsWith('confirm_order_')) {
         const orderId = Number(data.split('_')[2]);
-        const operatorName = query.from.first_name || 'Оператор';
         const operatorContext = await getOperatorContext();
+        if (!operatorContext.id) {
+          await safeAnswerCallback({ text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
+          return;
+        }
+        const operatorName = query.from.first_name || 'Оператор';
         const processedByUserId = operatorContext.id;
 
         const current = await getOrderWithItems(orderId);
@@ -3438,8 +3442,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const parts = data.split('_');
         const orderId = Number(parts[2]);
         const nextStatus = parts[3];
-        const operatorName = query.from.first_name || 'Оператор';
         const operatorContext = await getOperatorContext();
+        if (!operatorContext.id) {
+          await safeAnswerCallback({ text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
+          return;
+        }
+        const operatorName = query.from.first_name || 'Оператор';
         const processedByUserId = operatorContext.id;
         const allowed = ['preparing', 'delivering', 'delivered'];
         if (!allowed.includes(nextStatus)) {
@@ -3608,6 +3616,11 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Handle order rejection
       if (data.startsWith('reject_order_')) {
         const orderId = data.split('_')[2];
+        const operatorContext = await getOperatorContext();
+        if (!operatorContext.id) {
+          await safeAnswerCallback({ text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
+          return;
+        }
         const operatorName = query.from.first_name || 'Оператор';
         const operatorTelegramId = query.from.id;
         const originalMessage = query.message.text || '';

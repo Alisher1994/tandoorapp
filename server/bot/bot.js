@@ -3108,6 +3108,13 @@ async function initBot() {
         }
         
         const orderData = orderCheck.rows[0];
+
+        // Verify operator permissions
+        const isAuthorized = await checkOperatorPermissionForOrder(userId, orderData.restaurant_id);
+        if (!isAuthorized) {
+          bot.answerCallbackQuery(callbackQuery.id, { text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
+          return;
+        }
         
         // If restaurant has its own bot token (different from env), skip - multi-bot handles it
         if (orderData.telegram_bot_token && orderData.telegram_bot_token !== activeSuperadminBotToken) {
@@ -3235,22 +3242,34 @@ async function initBot() {
       }
     }
     
-    // Reject order - ask for reason
     else if (data.startsWith('reject_order_')) {
       const orderId = data.replace('reject_order_', '');
       
       // Check if this order belongs to a restaurant with its own bot token
       const orderCheck = await pool.query(`
-        SELECT r.telegram_bot_token 
+        SELECT o.restaurant_id, r.telegram_bot_token 
         FROM orders o 
         LEFT JOIN restaurants r ON o.restaurant_id = r.id 
         WHERE o.id = $1
       `, [orderId]);
       
+      if (orderCheck.rows.length === 0) {
+        bot.answerCallbackQuery(callbackQuery.id, { text: t(callbackLang, 'orderNotFound'), show_alert: true });
+        return;
+      }
+
+      const orderData = orderCheck.rows[0];
+
+      // Verify operator permissions
+      const isAuthorized = await checkOperatorPermissionForOrder(userId, orderData.restaurant_id);
+      if (!isAuthorized) {
+        bot.answerCallbackQuery(callbackQuery.id, { text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
+        return;
+      }
+      
       // If restaurant has its own bot token (different from env), skip - multi-bot handles it
-      if (orderCheck.rows.length > 0 && 
-          orderCheck.rows[0].telegram_bot_token && 
-          orderCheck.rows[0].telegram_bot_token !== activeSuperadminBotToken) {
+      if (orderData.telegram_bot_token && 
+          orderData.telegram_bot_token !== activeSuperadminBotToken) {
         console.log(`⏭️ Skipping reject for order ${orderId} - handled by multi-bot system`);
         return;
       }
@@ -3259,6 +3278,7 @@ async function initBot() {
       registrationStates.set(`reject_${chatId}_${messageId}`, {
         step: 'waiting_reject_reason',
         orderId: orderId,
+        restaurantId: orderData.restaurant_id,
         operatorName: operatorName,
         operatorTelegramId: callbackQuery?.from?.id || null,
         originalMessageId: messageId
@@ -3294,7 +3314,14 @@ async function initBot() {
     // Find rejection state
     for (const [key, state] of registrationStates.entries()) {
       if (key.startsWith(`reject_${chatId}_`) && state.step === 'waiting_reject_reason') {
-        const { orderId, operatorName, operatorTelegramId, originalMessageId } = state;
+        const { orderId, restaurantId, operatorName, operatorTelegramId, originalMessageId } = state;
+        
+        // Verify operator permissions for the replying user
+        const isAuthorized = await checkOperatorPermissionForOrder(userId, restaurantId);
+        if (!isAuthorized) {
+          bot.sendMessage(chatId, '⛔ У вас нет прав оператора для отмены этого заказа.');
+          return;
+        }
         
         try {
           // Check inventory reserved and release it
@@ -3546,6 +3573,26 @@ async function reloadBot() {
   await stopBot();
   await initBot();
   initSuperadminServerMonitoring({ bot });
+}
+
+async function checkOperatorPermissionForOrder(telegramId, orderRestaurantId) {
+  if (!telegramId || !orderRestaurantId) return false;
+  const isSuperadmin = await hasSuperadminAccessByTelegram(telegramId);
+  if (isSuperadmin) return true;
+
+  const result = await pool.query(
+    `SELECT 1
+     FROM users u
+     LEFT JOIN telegram_admin_links tal ON tal.user_id = u.id
+     JOIN operator_restaurants opr ON opr.user_id = u.id
+     WHERE (u.telegram_id = $1 OR tal.telegram_id = $1)
+       AND u.role = 'operator'
+       AND u.is_active = true
+       AND opr.restaurant_id = $2
+     LIMIT 1`,
+    [String(telegramId), orderRestaurantId]
+  );
+  return result.rows.length > 0;
 }
 
 module.exports = { initBot, getBot, reloadBot, stopBot, getActiveSuperadminBotToken };

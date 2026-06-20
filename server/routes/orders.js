@@ -556,6 +556,16 @@ router.post('/', authenticate, async (req, res) => {
     ).catch(() => {});
     await ensureInventorySchema(client);
     await client.query('BEGIN');
+
+    // 1. Rate limiting check (10 seconds)
+    const lastOrderResult = await client.query(
+      `SELECT id FROM orders WHERE user_id = $1 AND created_at > NOW() - INTERVAL '10 seconds' LIMIT 1`,
+      [req.user.id]
+    );
+    if (lastOrderResult.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(429).json({ error: 'Пожалуйста, подождите 10 секунд перед созданием нового заказа.' });
+    }
     
     const {
       items,
@@ -693,79 +703,109 @@ router.post('/', authenticate, async (req, res) => {
         .filter((id) => Number.isInteger(id) && id > 0)
     )];
 
-    const productContainerMap = new Map();
-    if (productIds.length > 0) {
-      const productContainerResult = await client.query(
-        `SELECT
-           p.id AS product_id,
-           COALESCE(NULLIF(cnt.name, ''), '') AS container_name,
-           COALESCE(cnt.price, 0) AS container_price,
-           COALESCE(NULLIF(p.container_norm, 0), 1) AS container_norm,
-           COALESCE(NULLIF(p.name_ru, ''), NULLIF(p.name_uz, ''), '') AS product_name
-         FROM products p
-         LEFT JOIN containers cnt ON cnt.id = p.container_id
-         WHERE p.id = ANY($1::int[])`,
-        [productIds]
-      );
-
-      for (const row of productContainerResult.rows) {
-        productContainerMap.set(Number(row.product_id), {
-          product_name: String(row.product_name || '').trim(),
-          container_name: String(row.container_name || '').trim(),
-          container_price: Math.max(0, toNumeric(row.container_price, 0)),
-          container_norm: normalizeContainerNorm(row.container_norm, 1)
-        });
-      }
+    const hasInvalidProduct = items.some(item => {
+      const pId = Number.parseInt(item?.product_id, 10);
+      return !Number.isInteger(pId) || pId <= 0;
+    });
+    if (hasInvalidProduct || productIds.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'В корзине есть недействительные товары' });
     }
 
-    const normalizedItems = items.map((rawItem) => {
+    const productsResult = await client.query(
+      `SELECT
+         p.id,
+         p.restaurant_id,
+         p.price,
+         p.size_enabled,
+         p.size_options,
+         p.in_stock,
+         COALESCE(NULLIF(p.name_ru, ''), NULLIF(p.name_uz, ''), '') AS name,
+         COALESCE(NULLIF(cnt.name, ''), '') AS container_name,
+         COALESCE(cnt.price, 0) AS container_price,
+         COALESCE(NULLIF(p.container_norm, 0), 1) AS container_norm
+       FROM products p
+       LEFT JOIN containers cnt ON cnt.id = p.container_id
+       WHERE p.id = ANY($1::int[])`,
+      [productIds]
+    );
+
+    if (productsResult.rows.length !== productIds.length) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Некоторые товары в вашей корзине больше не доступны.' });
+    }
+
+    // Apply segment pricing (so we validate against the segment-specific price if any)
+    const { applySegmentPricingToRows } = require('../services/segmentPricing');
+    if (finalRestaurantId) {
+      await applySegmentPricingToRows(productsResult.rows, {
+        restaurantId: finalRestaurantId,
+        userId: req.user.id
+      }).catch((segErr) => console.error('Segment pricing validation error:', segErr.message));
+    }
+
+    const productMap = new Map();
+    for (const prod of productsResult.rows) {
+      if (Number(prod.restaurant_id) !== Number(finalRestaurantId)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Товар "${prod.name}" не принадлежит этому магазину` });
+      }
+      if (!prod.in_stock) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Товара "${prod.name}" нет в наличии` });
+      }
+      productMap.set(prod.id, prod);
+    }
+
+    const normalizedItems = [];
+    for (const rawItem of items) {
+      const pId = Number.parseInt(rawItem?.product_id, 10);
+      const product = productMap.get(pId);
+      
       const quantity = toNumeric(rawItem?.quantity, 0);
-      const price = toNumeric(rawItem?.price, 0);
-      const parsedProductId = Number.parseInt(rawItem?.product_id, 10);
-      const resolvedProductId = Number.isInteger(parsedProductId) && parsedProductId > 0 ? parsedProductId : null;
-      const productConfig = resolvedProductId ? (productContainerMap.get(resolvedProductId) || null) : null;
-
-      const rawContainerPrice = toNumeric(rawItem?.container_price, NaN);
-      const rawContainerNorm = toNumeric(rawItem?.container_norm, NaN);
-      const requestedContainerName = String(rawItem?.container_name || '').trim();
-
-      let resolvedContainerPrice = Number.isFinite(rawContainerPrice)
-        ? Math.max(0, rawContainerPrice)
-        : NaN;
-      if ((!Number.isFinite(resolvedContainerPrice) || resolvedContainerPrice <= 0) && (productConfig?.container_price || 0) > 0) {
-        resolvedContainerPrice = productConfig.container_price;
-      }
-      if (!Number.isFinite(resolvedContainerPrice) || resolvedContainerPrice < 0) {
-        resolvedContainerPrice = 0;
-      }
-
-      let resolvedContainerNorm = Number.isFinite(rawContainerNorm)
-        ? normalizeContainerNorm(rawContainerNorm, 1)
-        : NaN;
-      if (!Number.isFinite(resolvedContainerNorm) || resolvedContainerNorm <= 0) {
-        resolvedContainerNorm = normalizeContainerNorm(productConfig?.container_norm, 1);
-      }
-
-      const resolvedContainerName = requestedContainerName || productConfig?.container_name || null;
-      const resolvedProductName = String(rawItem?.product_name || '').trim()
-        || productConfig?.product_name
-        || 'Товар';
-      const resolvedUnit = String(rawItem?.unit || '').trim() || 'шт';
+      const clientPrice = toNumeric(rawItem?.price, 0);
       const selectedVariant = normalizeSelectedVariant(rawItem?.selected_variant ?? rawItem?.selectedVariant);
 
-      return {
+      // Verify price
+      let expectedPrice = toNumeric(product.price, 0);
+      if (product.size_enabled && Array.isArray(product.size_options) && selectedVariant) {
+        const matchingOption = product.size_options.find(opt => 
+          normalizeSelectedVariant(opt?.name) === selectedVariant
+        );
+        if (matchingOption) {
+          expectedPrice = toNumeric(matchingOption.price, 0);
+        } else {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: `Выбранный вариант "${selectedVariant}" для товара "${product.name}" не существует` });
+        }
+      }
+
+      if (Math.abs(clientPrice - expectedPrice) > 0.01) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: `Несоответствие цены для товара "${product.name}". Пожалуйста, обновите корзину.` });
+      }
+
+      // Force container config from DB
+      const resolvedContainerPrice = Math.max(0, toNumeric(product.container_price, 0));
+      const resolvedContainerNorm = normalizeContainerNorm(product.container_norm, 1);
+      const resolvedContainerName = product.container_name || null;
+
+      const resolvedProductName = product.name || 'Товар';
+      const resolvedUnit = String(rawItem?.unit || '').trim() || 'шт';
+
+      normalizedItems.push({
         ...rawItem,
-        product_id: resolvedProductId,
+        product_id: pId,
         product_name: resolvedProductName,
         selected_variant: selectedVariant,
         quantity,
-        price,
+        price: expectedPrice,
         unit: resolvedUnit,
         container_name: resolvedContainerName,
         container_price: resolvedContainerPrice,
         container_norm: resolvedContainerNorm
-      };
-    });
+      });
+    }
 
     const requestedFulfillmentType = normalizeFulfillmentType(fulfillment_type, 'delivery');
     const isPickupEnabled = restaurantSettings?.is_pickup_enabled !== false;
