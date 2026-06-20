@@ -1776,6 +1776,8 @@ function SuperAdminDashboard() {
   const [catalogCopySourceRestaurantId, setCatalogCopySourceRestaurantId] = useState('');
   const [catalogCopySourceRestaurantSearch, setCatalogCopySourceRestaurantSearch] = useState('');
   const [catalogCopySourceSearchFocused, setCatalogCopySourceSearchFocused] = useState(false);
+  const [catalogCopySourceResults, setCatalogCopySourceResults] = useState([]);
+  const [catalogCopySourceResultsLoading, setCatalogCopySourceResultsLoading] = useState(false);
   const [catalogCopyTreeLoading, setCatalogCopyTreeLoading] = useState(false);
   const [catalogCopySubmitting, setCatalogCopySubmitting] = useState(false);
   const [catalogCopyTree, setCatalogCopyTree] = useState({ categories: [], products: [] });
@@ -6761,9 +6763,13 @@ function SuperAdminDashboard() {
 
   const restaurantsFilterOptions = useMemo(() => {
     const term = restaurantsSelectSearch.trim().toLowerCase();
-    const source = restaurants?.restaurants || [];
+    const source = Array.isArray(allRestaurants) && allRestaurants.length > 0
+      ? allRestaurants
+      : (restaurants?.restaurants || []);
     const filtered = source.filter((restaurant) => (
-      !term || restaurant.name?.toLowerCase().includes(term)
+      !term ||
+      restaurant.name?.toLowerCase().includes(term) ||
+      String(restaurant.id).includes(term)
     ));
 
     if (!restaurantsSelectFilter) return filtered;
@@ -6772,7 +6778,7 @@ function SuperAdminDashboard() {
     if (!selected || filtered.some((restaurant) => restaurant.id === selected.id)) return filtered;
 
     return [selected, ...filtered];
-  }, [restaurants, restaurantsSelectSearch, restaurantsSelectFilter]);
+  }, [allRestaurants, restaurants, restaurantsSelectSearch, restaurantsSelectFilter]);
   const restaurantsActivityTypeFilterOptions = useMemo(() => {
     const source = restaurants?.restaurants || [];
     const unique = new Map();
@@ -6890,7 +6896,9 @@ function SuperAdminDashboard() {
     const normalizedNameFilter = String(restaurantsNameFilter || '').trim().toLowerCase();
     return source.filter((restaurant) => {
       const nameMatch = !normalizedNameFilter ||
-        String(restaurant.name || '').toLowerCase().includes(normalizedNameFilter);
+        String(restaurant.name || '').toLowerCase().includes(normalizedNameFilter) ||
+        String(restaurant.id || '').toLowerCase().includes(normalizedNameFilter) ||
+        String(restaurant.telegram_bot_username || '').toLowerCase().includes(normalizedNameFilter);
       const selectedMatch = !restaurantsSelectFilter || String(restaurant.id) === String(restaurantsSelectFilter);
       const workflowMeta = deriveRestaurantWorkflowMeta(restaurant);
       const effectiveStatus = normalizeRestaurantWorkflowStatusValue(workflowMeta.effective, 'new');
@@ -7045,9 +7053,11 @@ function SuperAdminDashboard() {
   ]);
   const catalogCopySourceOptions = useMemo(() => {
     const targetId = Number(catalogCopyTargetRestaurant?.id || 0);
-    const baseSource = Array.isArray(allRestaurants) && allRestaurants.length
-      ? allRestaurants
-      : (Array.isArray(restaurants?.restaurants) ? restaurants.restaurants : []);
+    const baseSource = Array.isArray(catalogCopySourceResults) && catalogCopySourceResults.length > 0
+      ? catalogCopySourceResults
+      : (Array.isArray(allRestaurants) && allRestaurants.length > 0
+        ? allRestaurants
+        : (Array.isArray(restaurants?.restaurants) ? restaurants.restaurants : []));
     return baseSource
       .filter((item) => Number(item?.id) !== targetId)
       .map((item) => ({
@@ -7056,7 +7066,8 @@ function SuperAdminDashboard() {
         search: `${item.name || ''} ${item.id || ''}`.toLowerCase()
       }))
       .sort((a, b) => a.label.localeCompare(b.label, 'ru'));
-  }, [allRestaurants, restaurants, catalogCopyTargetRestaurant?.id]);
+  }, [catalogCopySourceResults, allRestaurants, restaurants, catalogCopyTargetRestaurant?.id]);
+
   const filteredCatalogCopySourceOptions = useMemo(() => {
     const query = String(catalogCopySourceRestaurantSearch || '').trim().toLowerCase();
     if (!query) {
@@ -7066,6 +7077,20 @@ function SuperAdminDashboard() {
       .filter((item) => item.search.includes(query))
       .slice(0, CATALOG_COPY_SOURCE_SEARCH_LIMIT);
   }, [catalogCopySourceOptions, catalogCopySourceRestaurantSearch]);
+
+  useEffect(() => {
+    if (!showCatalogCopyModal) return;
+
+    const delayDebounceFn = setTimeout(() => {
+      const selected = catalogCopySourceOptions.find((opt) => opt.value === catalogCopySourceRestaurantId);
+      if (selected && selected.label === catalogCopySourceRestaurantSearch) {
+        return;
+      }
+      fetchCatalogCopySourceResults(catalogCopySourceRestaurantSearch);
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [catalogCopySourceRestaurantSearch, showCatalogCopyModal]);
 
   useEffect(() => {
     const visibleIds = new Set((paginatedRestaurants || []).map((item) => Number(item?.id)).filter((id) => Number.isFinite(id) && id > 0));
@@ -9324,11 +9349,35 @@ function SuperAdminDashboard() {
     }));
   };
 
+  const fetchCatalogCopySourceResults = async (searchQuery) => {
+    setCatalogCopySourceResultsLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/superadmin/restaurants`, {
+        params: {
+          search: searchQuery || undefined,
+          limit: 100,
+          compact: 1
+        },
+        timeout: SUPERADMIN_REQUEST_TIMEOUT_MS
+      });
+      const list = Array.isArray(response.data)
+        ? response.data
+        : (response.data?.restaurants || []);
+      setCatalogCopySourceResults(list);
+    } catch (err) {
+      console.error('Fetch catalog copy source results error:', err);
+    } finally {
+      setCatalogCopySourceResultsLoading(false);
+    }
+  };
+
   const openCatalogCopyModal = (restaurant) => {
     setCatalogCopyTargetRestaurant(restaurant || null);
     setCatalogCopySourceRestaurantId('');
     setCatalogCopySourceRestaurantSearch('');
     setCatalogCopySourceSearchFocused(false);
+    setCatalogCopySourceResults([]);
+    fetchCatalogCopySourceResults('');
     setCatalogCopyTree({ categories: [], products: [] });
     setCatalogCopySelectedCategoryIds([]);
     setCatalogCopySelectedProductIds([]);
@@ -22387,7 +22436,11 @@ function SuperAdminDashboard() {
                 />
                 {catalogCopySourceSearchFocused && (
                   <div className="border rounded bg-white" style={{ maxHeight: 220, overflowY: 'auto', position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 6, zIndex: 2200 }}>
-                    {!filteredCatalogCopySourceOptions.length ? (
+                    {catalogCopySourceResultsLoading ? (
+                      <div className="px-3 py-2 text-muted small">
+                        {language === 'uz' ? "Qidirilmoqda..." : 'Поиск...'}
+                      </div>
+                    ) : !filteredCatalogCopySourceOptions.length ? (
                       <div className="px-3 py-2 text-muted small">
                         {language === 'uz' ? "Do‘kon topilmadi" : 'Магазин не найден'}
                       </div>
