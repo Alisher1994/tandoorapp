@@ -3110,7 +3110,8 @@ async function initBot() {
         const orderData = orderCheck.rows[0];
 
         // Verify operator permissions
-        const isAuthorized = await checkOperatorPermissionForOrder(userId, orderData.restaurant_id);
+        const isFromAuthorizedGroup = orderData.telegram_group_id && String(chatId) === String(orderData.telegram_group_id);
+        const isAuthorized = isFromAuthorizedGroup || await checkOperatorPermissionForOrder(userId, orderData.restaurant_id);
         if (!isAuthorized) {
           bot.answerCallbackQuery(callbackQuery.id, { text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
           return;
@@ -3247,7 +3248,7 @@ async function initBot() {
       
       // Check if this order belongs to a restaurant with its own bot token
       const orderCheck = await pool.query(`
-        SELECT o.restaurant_id, r.telegram_bot_token 
+        SELECT o.restaurant_id, r.telegram_bot_token, r.telegram_group_id 
         FROM orders o 
         LEFT JOIN restaurants r ON o.restaurant_id = r.id 
         WHERE o.id = $1
@@ -3261,7 +3262,8 @@ async function initBot() {
       const orderData = orderCheck.rows[0];
 
       // Verify operator permissions
-      const isAuthorized = await checkOperatorPermissionForOrder(userId, orderData.restaurant_id);
+      const isFromAuthorizedGroup = orderData.telegram_group_id && String(chatId) === String(orderData.telegram_group_id);
+      const isAuthorized = isFromAuthorizedGroup || await checkOperatorPermissionForOrder(userId, orderData.restaurant_id);
       if (!isAuthorized) {
         bot.answerCallbackQuery(callbackQuery.id, { text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
         return;
@@ -3317,7 +3319,13 @@ async function initBot() {
         const { orderId, restaurantId, operatorName, operatorTelegramId, originalMessageId } = state;
         
         // Verify operator permissions for the replying user
-        const isAuthorized = await checkOperatorPermissionForOrder(userId, restaurantId);
+        const groupCheckResult = await pool.query(
+          `SELECT telegram_group_id FROM restaurants WHERE id = $1`,
+          [restaurantId]
+        );
+        const telegramGroupId = groupCheckResult.rows[0]?.telegram_group_id;
+        const isFromAuthorizedGroup = telegramGroupId && String(chatId) === String(telegramGroupId);
+        const isAuthorized = isFromAuthorizedGroup || await checkOperatorPermissionForOrder(userId, restaurantId);
         if (!isAuthorized) {
           bot.sendMessage(chatId, '⛔ У вас нет прав оператора для отмены этого заказа.');
           return;

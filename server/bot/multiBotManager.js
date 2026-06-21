@@ -3212,6 +3212,22 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         }
       };
 
+      const checkOperatorPermission = async () => {
+        const operatorContext = await getOperatorContext();
+        if (operatorContext.id) {
+          return { authorized: true, id: operatorContext.id, language: operatorContext.language };
+        }
+        const groupResult = await pool.query(
+          `SELECT telegram_group_id FROM restaurants WHERE id = $1`,
+          [restaurantId]
+        );
+        const groupChatId = groupResult.rows[0]?.telegram_group_id;
+        if (groupChatId && String(chatId) === String(groupChatId)) {
+          return { authorized: true, id: null, language: operatorContext.language };
+        }
+        return { authorized: false, id: null, language: operatorContext.language };
+      };
+
       const getOrderWithItems = async (orderId) => {
         let orderResult;
         try {
@@ -3278,8 +3294,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Handle manual receipt print from inline button
       if (data.startsWith('print_order_')) {
         const orderId = Number(data.split('_')[2]);
-        const operatorContext = await getOperatorContext();
-        if (!operatorContext.id) {
+        const permission = await checkOperatorPermission();
+        if (!permission.authorized) {
           await safeAnswerCallback({ text: '⛔ Только оператор может печатать чек', show_alert: true });
           return;
         }
@@ -3332,13 +3348,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Handle order confirmation
       if (data.startsWith('confirm_order_')) {
         const orderId = Number(data.split('_')[2]);
-        const operatorContext = await getOperatorContext();
-        if (!operatorContext.id) {
+        const permission = await checkOperatorPermission();
+        if (!permission.authorized) {
           await safeAnswerCallback({ text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
           return;
         }
         const operatorName = query.from.first_name || 'Оператор';
-        const processedByUserId = operatorContext.id;
+        const processedByUserId = permission.id;
 
         const current = await getOrderWithItems(orderId);
         if (!current) {
@@ -3442,13 +3458,13 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const parts = data.split('_');
         const orderId = Number(parts[2]);
         const nextStatus = parts[3];
-        const operatorContext = await getOperatorContext();
-        if (!operatorContext.id) {
+        const permission = await checkOperatorPermission();
+        if (!permission.authorized) {
           await safeAnswerCallback({ text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
           return;
         }
         const operatorName = query.from.first_name || 'Оператор';
-        const processedByUserId = operatorContext.id;
+        const processedByUserId = permission.id;
         const allowed = ['preparing', 'delivering', 'delivered'];
         if (!allowed.includes(nextStatus)) {
           await safeAnswerCallback({ text: '⚠️ Неизвестный шаг', show_alert: false });
@@ -3616,8 +3632,8 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       // Handle order rejection
       if (data.startsWith('reject_order_')) {
         const orderId = data.split('_')[2];
-        const operatorContext = await getOperatorContext();
-        if (!operatorContext.id) {
+        const permission = await checkOperatorPermission();
+        if (!permission.authorized) {
           await safeAnswerCallback({ text: '⛔ У вас нет прав оператора для этого действия.', show_alert: true });
           return;
         }
