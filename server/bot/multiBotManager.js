@@ -2264,12 +2264,24 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
       const replyOrderMatch = replyText.match(/причин[а-я\s]*отмены заказа\s*#(\d+)/i);
       const repliedToBot = Number(msg.reply_to_message?.from?.id || 0) === Number(bot?.id || 0);
       if (repliedToBot && replyOrderMatch?.[1]) {
-        const orderId = Number(replyOrderMatch[1]);
+        const orderIdOrNumber = replyOrderMatch[1];
         const operatorName = msg.from?.first_name || 'Оператор';
-        console.log(`[group-cancel-fallback] ${restaurantName} order=${orderId} chat=${chatId} user=${userId}`);
+        console.log(`[group-cancel-fallback] ${restaurantName} order=${orderIdOrNumber} chat=${chatId} user=${userId}`);
         try {
+          // Resolve actual database ID and display order number
+          const orderRes = await pool.query(
+            `SELECT id, order_number FROM orders WHERE id = $1 OR order_number = $2 LIMIT 1`,
+            [Number(orderIdOrNumber) || -1, String(orderIdOrNumber)]
+          );
+          if (orderRes.rows.length === 0) {
+            await bot.sendMessage(chatId, '❌ Заказ не найден');
+            return;
+          }
+          const realOrderId = orderRes.rows[0].id;
+          const displayOrderNum = orderRes.rows[0].order_number || orderIdOrNumber;
+
           await cancelOrderFromGroupReason({
-            orderId,
+            orderId: realOrderId,
             reason: text,
             operatorTelegramId: userId,
             operatorName,
@@ -2277,7 +2289,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           });
           await bot.sendMessage(
             chatId,
-            `❌ <b>Заказ #${orderId} отменен</b>\n\nПричина: ${text}\nОператор: ${operatorName}`,
+            `❌ <b>Заказ #${displayOrderNum} отменен</b>\n\nПричина: ${text}\nОператор: ${operatorName}`,
             { parse_mode: 'HTML' }
           );
         } catch (error) {
@@ -2480,7 +2492,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
 
     // Handle rejection reason
     if (state.step === 'waiting_rejection_reason') {
-      const { orderId, messageId, operatorName, groupChatId, operatorTelegramId } = state;
+      const { orderId, orderNumber, messageId, operatorName, groupChatId, operatorTelegramId } = state;
 
       try {
         await cancelOrderFromGroupReason({
@@ -2492,8 +2504,9 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           messageId
         });
 
+        const displayOrderId = orderNumber || orderId;
         bot.sendMessage(chatId,
-          `❌ <b>Заказ #${orderId} отменен</b>\n\nПричина: ${text}\nОператор: ${operatorName}`,
+          `❌ <b>Заказ #${displayOrderId} отменен</b>\n\nПричина: ${text}\nОператор: ${operatorName}`,
           { parse_mode: 'HTML' }
         );
 
@@ -3641,10 +3654,21 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         const operatorTelegramId = query.from.id;
         const originalMessage = query.message.text || '';
 
+        let orderNumber = orderId;
+        try {
+          const orderRes = await pool.query('SELECT order_number FROM orders WHERE id = $1', [orderId]);
+          if (orderRes.rows.length > 0) {
+            orderNumber = orderRes.rows[0].order_number || orderId;
+          }
+        } catch (dbErr) {
+          console.error('Failed to fetch order number for reject prompt:', dbErr.message);
+        }
+
         // Use chatId (group chat) in state key so we can find it when operator types
         registrationStates.set(getStateKey(userId, chatId), {
           step: 'waiting_rejection_reason',
           orderId,
+          orderNumber,
           operatorName,
           operatorTelegramId,
           messageId: query.message.message_id,
@@ -3652,7 +3676,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           originalMessage
         });
 
-        bot.sendMessage(chatId, `📝 Ответьте на это сообщение и укажите причину отмены заказа #${orderId}:`, {
+        bot.sendMessage(chatId, `📝 Ответьте на это сообщение и укажите причину отмены заказа #${orderNumber}:`, {
           reply_markup: {
             force_reply: true,
             selective: true
