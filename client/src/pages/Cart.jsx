@@ -39,8 +39,8 @@ const toNumber = (value, fallback = 0) => {
 };
 const toEnabledFlag = (value) => value === true || value === 'true' || value === 1 || value === '1';
 const normalizeVariantKey = (value) => String(value || '').trim().toLowerCase();
-const resolveCartItemStockLimit = (item) => {
-  if (!item) return null;
+const resolveCartItemStockLimit = (item, isTrackingEnabled, threshold = 0) => {
+  if (!item || !isTrackingEnabled) return null;
   const variantOptions = Array.isArray(item?.size_options) ? item.size_options : [];
   const selectedVariantKey = normalizeVariantKey(item?.selected_variant);
   const selectedVariantDetails = selectedVariantKey
@@ -52,7 +52,7 @@ const resolveCartItemStockLimit = (item) => {
   const rawStock = selectedVariantDetails?.stock_quantity ?? item?.stock_quantity;
   const parsedStock = Number(rawStock);
   if (!Number.isFinite(parsedStock) || parsedStock < 0) return null;
-  return parsedStock;
+  return Math.max(0, parsedStock - threshold);
 };
 const deriveAddressTitle = (value) => {
   const text = String(value || '').trim();
@@ -276,16 +276,16 @@ function Cart() {
 
   useEffect(() => {
     if (!isInventoryTrackingEnabled || cart.length === 0) return;
+    const threshold = toNumber(restaurant?.inventory_min_threshold, 0);
     cart.forEach((item) => {
-      const stockLimit = resolveCartItemStockLimit(item);
-      if (!Number.isFinite(stockLimit)) return;
+      const stockLimit = resolveCartItemStockLimit(item, isInventoryTrackingEnabled, threshold);
+      if (stockLimit === null) return;
       const currentQty = Number(item?.quantity || 0);
-      if (!Number.isFinite(currentQty)) return;
       if (currentQty > stockLimit) {
         updateQuantity(item.id, stockLimit, item.selected_variant);
       }
     });
-  }, [cart, isInventoryTrackingEnabled, updateQuantity]);
+  }, [cart, isInventoryTrackingEnabled, restaurant?.inventory_min_threshold, updateQuantity]);
 
   // Fetch restaurant info for receipt and delivery availability
   useEffect(() => {
@@ -1375,7 +1375,8 @@ function Cart() {
             <Card.Body className="p-0">
               {cart.map((item, index) => {
                 const quantityStep = resolveQuantityStep(item);
-                const stockLimit = isInventoryTrackingEnabled ? resolveCartItemStockLimit(item) : null;
+                const threshold = toNumber(restaurant?.inventory_min_threshold, 0);
+                const stockLimit = resolveCartItemStockLimit(item, isInventoryTrackingEnabled, threshold);
                 const isAtStockLimit = Number.isFinite(stockLimit) && Number(item?.quantity || 0) >= stockLimit;
 
                 return (

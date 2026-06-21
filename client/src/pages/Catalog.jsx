@@ -523,6 +523,19 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     };
   }, [isPublicStorefront, publicRestaurantId, setCartOverrideRestaurantId, setFavoritesOverrideRestaurantId]);
 
+  // Auto-adjust guest cart quantities if they exceed current stock limits
+  useEffect(() => {
+    if (!isInventoryTrackingEnabled || cart.length === 0) return;
+    cart.forEach((item) => {
+      const stockLimit = resolveProductStockLimit(item, item.selected_variant);
+      if (stockLimit === null) return;
+      const currentQty = Number(item?.quantity || 0);
+      if (currentQty > stockLimit) {
+        updateQuantity(item.id, stockLimit, item.selected_variant);
+      }
+    });
+  }, [cart, isInventoryTrackingEnabled, currentRestaurant]);
+
   // Load restaurants (for header/logo and operator selection); re-sync when active shop changes (tabs / Telegram)
   useEffect(() => {
     fetchRestaurants();
@@ -7001,6 +7014,8 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                           const qty = Number(item.quantity) || 0;
                           const price = Number(item.price) || 0;
                           const step = resolveQuantityStep(item) || 1;
+                          const stockLimit = resolveProductStockLimit(item, item.selected_variant);
+                          const isAtStockLimit = isInventoryTrackingEnabled && Number.isFinite(stockLimit) && qty >= stockLimit;
                           const imgSrc = item.image_url
                             ? (item.image_url.startsWith('http') ? item.image_url : `${API_URL.replace('/api', '')}${item.image_url}`)
                             : '';
@@ -7037,8 +7052,14 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                                   >−</HoldRepeatButton>
                                   <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 600, fontSize: '0.9rem' }}>{qty}</span>
                                   <HoldRepeatButton
-                                    onTrigger={() => updateQuantity(item.id, qty + step, item.selected_variant)}
-                                    style={{ border: 'none', background: 'transparent', padding: '2px 8px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}
+                                    disabled={isAtStockLimit}
+                                    style={{ border: 'none', background: 'transparent', padding: '2px 8px', fontSize: '1rem', fontWeight: 700, color: '#0f172a', opacity: isAtStockLimit ? 0.45 : 1 }}
+                                    onTrigger={() => {
+                                      const nextQtyRaw = qty + step;
+                                      const nextQty = Number.isFinite(stockLimit) ? Math.min(nextQtyRaw, stockLimit) : nextQtyRaw;
+                                      if (nextQty <= qty) return;
+                                      updateQuantity(item.id, nextQty, item.selected_variant);
+                                    }}
                                   >+</HoldRepeatButton>
                                 </div>
                                 <button
