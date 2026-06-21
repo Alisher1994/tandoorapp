@@ -523,19 +523,6 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     };
   }, [isPublicStorefront, publicRestaurantId, setCartOverrideRestaurantId, setFavoritesOverrideRestaurantId]);
 
-  // Auto-adjust guest cart quantities if they exceed current stock limits
-  useEffect(() => {
-    if (!isInventoryTrackingEnabled || cart.length === 0) return;
-    cart.forEach((item) => {
-      const stockLimit = resolveProductStockLimit(item, item.selected_variant);
-      if (stockLimit === null) return;
-      const currentQty = Number(item?.quantity || 0);
-      if (currentQty > stockLimit) {
-        updateQuantity(item.id, stockLimit, item.selected_variant);
-      }
-    });
-  }, [cart, isInventoryTrackingEnabled, currentRestaurant]);
-
   // Load restaurants (for header/logo and operator selection); re-sync when active shop changes (tabs / Telegram)
   useEffect(() => {
     fetchRestaurants();
@@ -1736,6 +1723,20 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     return null;
   }, [restaurants, selectedRestaurant, isPublicStorefront, publicRestaurantMeta, publicRestaurantId]);
   const isInventoryTrackingEnabled = currentRestaurant?.inventory_tracking_enabled === true;
+
+  // Auto-adjust guest cart quantities if they exceed current stock limits
+  useEffect(() => {
+    if (!isInventoryTrackingEnabled || cart.length === 0) return;
+    cart.forEach((item) => {
+      const stockLimit = resolveProductStockLimit(item, item.selected_variant);
+      if (stockLimit === null) return;
+      const currentQty = Number(item?.quantity || 0);
+      if (currentQty > stockLimit) {
+        updateQuantity(item.id, stockLimit, item.selected_variant);
+      }
+    });
+  }, [cart, isInventoryTrackingEnabled, currentRestaurant]);
+
   const isMenuLiquidGlassEnabled = currentRestaurant?.menu_liquid_glass_enabled === true;
   const menuLiquidGlassOpacity = normalizeMenuGlassOpacity(
     currentRestaurant?.menu_liquid_glass_opacity,
