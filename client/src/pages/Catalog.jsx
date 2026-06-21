@@ -1284,7 +1284,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const getProductSizeOptions = (product) => {
     return getProductVariantOptions(product).map((variant) => variant.name);
   };
-  const getSelectedVariantForProduct = (product) => {
+  function getSelectedVariantForProduct(product) {
     const variants = getProductVariantOptions(product);
     const options = variants.map((variant) => variant.name);
     if (!options.length) return null;
@@ -1294,29 +1294,68 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     if (selected && options.some((item) => item.toLowerCase() === selected.toLowerCase())) {
       return options.find((item) => item.toLowerCase() === selected.toLowerCase()) || selected;
     }
-    const firstInStockVariant = variants.find((variant) => variant?.in_stock !== false);
+    const firstInStockVariant = variants.find((variant) => {
+      const inStock = variant?.in_stock !== false;
+      if (!inStock) return false;
+      if (isInventoryTrackingEnabled) {
+        const threshold = Number(currentRestaurant?.inventory_min_threshold || 0);
+        const parsedStock = parseOptionalStockQuantity(variant?.stock_quantity);
+        if (parsedStock !== null && parsedStock <= threshold) return false;
+      }
+      return true;
+    });
     return firstInStockVariant?.name || options[0];
-  };
-  const getSelectedVariantDetails = (product, selectedVariant = null) => {
+  }
+
+  function getSelectedVariantDetails(product, selectedVariant = null) {
     const variants = getProductVariantOptions(product);
     if (!variants.length) return null;
     const selectedName = String(selectedVariant || getSelectedVariantForProduct(product) || '').trim().toLowerCase();
-    const fallbackVariant = variants.find((variant) => variant?.in_stock !== false) || variants[0];
+    const fallbackVariant = variants.find((variant) => {
+      const inStock = variant?.in_stock !== false;
+      if (!inStock) return false;
+      if (isInventoryTrackingEnabled) {
+        const threshold = Number(currentRestaurant?.inventory_min_threshold || 0);
+        const parsedStock = parseOptionalStockQuantity(variant?.stock_quantity);
+        if (parsedStock !== null && parsedStock <= threshold) return false;
+      }
+      return true;
+    }) || variants[0];
     if (!selectedName) return fallbackVariant;
     return variants.find((variant) => String(variant.name || '').trim().toLowerCase() === selectedName) || fallbackVariant;
-  };
-  const getSelectedVariantAvailability = (product, selectedVariant = null) => {
+  }
+
+  function getSelectedVariantAvailability(product, selectedVariant = null) {
     const variant = getSelectedVariantDetails(product, selectedVariant);
-    if (variant) return variant.in_stock !== false;
-    return product?.in_stock !== false;
-  };
-  const getProductOverallAvailability = (product) => {
+    const inStock = variant ? (variant.in_stock !== false) : (product?.in_stock !== false);
+    if (!inStock) return false;
+    if (isInventoryTrackingEnabled) {
+      const threshold = Number(currentRestaurant?.inventory_min_threshold || 0);
+      const stockQty = variant ? variant.stock_quantity : product?.stock_quantity;
+      const parsedStock = parseOptionalStockQuantity(stockQty);
+      if (parsedStock !== null && parsedStock <= threshold) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function getProductOverallAvailability(product) {
     const variants = getProductVariantOptions(product);
     if (variants.length > 0) {
-      return variants.some((variant) => variant?.in_stock !== false);
+      return variants.some((variant) => getSelectedVariantAvailability(product, variant.name));
     }
-    return product?.in_stock !== false;
-  };
+    const inStock = product?.in_stock !== false;
+    if (!inStock) return false;
+    if (isInventoryTrackingEnabled) {
+      const threshold = Number(currentRestaurant?.inventory_min_threshold || 0);
+      const parsedStock = parseOptionalStockQuantity(product?.stock_quantity);
+      if (parsedStock !== null && parsedStock <= threshold) {
+        return false;
+      }
+    }
+    return true;
+  }
   const getSelectedVariantPriceMeta = (product, selectedVariant = null) => {
     const variant = getSelectedVariantDetails(product, selectedVariant);
     if (variant && Number.isFinite(Number(variant.price)) && Number(variant.price) > 0) {
@@ -1556,11 +1595,11 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     setShowLanguageSetupModal(false);
   };
 
-  const parseOptionalStockQuantity = (value) => {
+  function parseOptionalStockQuantity(value) {
     if (value === null || value === undefined || value === '') return null;
     const parsed = Number.parseFloat(String(value).replace(/\s+/g, '').replace(',', '.'));
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-  };
+  }
 
   const handleAddToCart = (product) => {
     const parseLocalizedNumber = (value, fallback = 0) => {
@@ -1618,7 +1657,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     if (cappedAddQty <= 0) return;
     addToCart({
       ...product,
-      restaurant_id: selectedRestaurant,
+      restaurant_id: Number(publicRestaurantId) || Number(selectedRestaurant),
       price: variantPrice,
       description_ru: language === 'uz' ? (product?.description_ru || selectedVariantDescription) : selectedVariantDescription,
       description_uz: language === 'uz' ? selectedVariantDescription : (product?.description_uz || selectedVariantDescription),
@@ -1636,7 +1675,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const handleToggleFavorite = (product) => {
     toggleFavorite({
       ...product,
-      restaurant_id: selectedRestaurant
+      restaurant_id: Number(publicRestaurantId) || Number(selectedRestaurant)
     });
   };
 
@@ -1675,10 +1714,14 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     });
     return map;
   }, [categories]);
-  const currentRestaurant = useMemo(
-    () => restaurants.find((restaurant) => Number(restaurant.id) === Number(selectedRestaurant)) || null,
-    [restaurants, selectedRestaurant]
-  );
+  const currentRestaurant = useMemo(() => {
+    const matched = restaurants.find((restaurant) => Number(restaurant.id) === Number(selectedRestaurant));
+    if (matched) return matched;
+    if (isPublicStorefront && publicRestaurantMeta && Number(publicRestaurantMeta.id) === Number(selectedRestaurant || publicRestaurantId)) {
+      return publicRestaurantMeta;
+    }
+    return null;
+  }, [restaurants, selectedRestaurant, isPublicStorefront, publicRestaurantMeta, publicRestaurantId]);
   const isInventoryTrackingEnabled = currentRestaurant?.inventory_tracking_enabled === true;
   const isMenuLiquidGlassEnabled = currentRestaurant?.menu_liquid_glass_enabled === true;
   const menuLiquidGlassOpacity = normalizeMenuGlassOpacity(
@@ -6205,7 +6248,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                           const sizeValue = variant?.name || '';
                           if (!sizeValue) return null;
                           const isActiveVariant = String(getSelectedVariantForProduct(activeProduct)).toLowerCase() === String(sizeValue).toLowerCase();
-                          const isVariantAvailable = variant?.in_stock !== false;
+                          const isVariantAvailable = getSelectedVariantAvailability(activeProduct, sizeValue);
                           return (
                             <button
                               key={`details-size-${activeProduct?.id}-${sizeValue}`}
