@@ -3386,7 +3386,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         });
         if (!billingResult.ok) {
           const currencyCode = await resolveRestaurantCurrencyCode(pool, current.order.restaurant_id, 'uz');
-          const currencyLabel = getCurrencyLabelByCode(currencyCode, operatorContext.language || 'ru');
+          const currencyLabel = getCurrencyLabelByCode(currencyCode, permission.language || 'ru');
           const text = billingResult.code === 'INSUFFICIENT_BALANCE'
             ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} ${currencyLabel}\nНужно: ${formatMoney(billingResult.requiredAmount)} ${currencyLabel}`
             : (billingResult.error || '❌ Не удалось принять заказ');
@@ -3409,7 +3409,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
             botToken: current.order.telegram_bot_token,
             groupId: current.order.telegram_group_id,
             currentBalance: billingResult.remainingBalance,
-            language: operatorContext.language
+            language: permission.language
           });
         }
 
@@ -3509,7 +3509,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           });
           if (!billingResult.ok) {
             const currencyCode = await resolveRestaurantCurrencyCode(pool, current.order.restaurant_id, 'uz');
-            const currencyLabel = getCurrencyLabelByCode(currencyCode, operatorContext.language || 'ru');
+            const currencyLabel = getCurrencyLabelByCode(currencyCode, permission.language || 'ru');
             const text = billingResult.code === 'INSUFFICIENT_BALANCE'
               ? `❌ Недостаточно средств на балансе магазина\nБаланс: ${formatMoney(billingResult.balanceBefore)} ${currencyLabel}\nНужно: ${formatMoney(billingResult.requiredAmount)} ${currencyLabel}`
               : (billingResult.error || '❌ Не удалось перевести заказ в обработку');
@@ -3532,7 +3532,7 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
               botToken: current.order.telegram_bot_token,
               groupId: current.order.telegram_group_id,
               currentBalance: billingResult.remainingBalance,
-              language: operatorContext.language
+              language: permission.language
             });
           }
 
