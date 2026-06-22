@@ -3246,10 +3246,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         try {
           orderResult = await pool.query(`
             SELECT o.*, u.telegram_id, r.telegram_bot_token, r.telegram_group_id, r.send_balance_after_confirm,
-                   r.click_url, r.payme_url, r.uzum_url, r.xazna_url
+                   r.click_url, r.payme_url, r.uzum_url, r.xazna_url,
+                   pb.full_name AS processed_by_name
             FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
             LEFT JOIN restaurants r ON o.restaurant_id = r.id
+            LEFT JOIN users pb ON o.processed_by = pb.id
             WHERE o.id = $1
             LIMIT 1
           `, [orderId]);
@@ -3258,10 +3260,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
           orderResult = await pool.query(`
             SELECT o.*, u.telegram_id, r.telegram_bot_token, r.telegram_group_id,
                    false AS send_balance_after_confirm,
-                   r.click_url, r.payme_url, r.uzum_url, r.xazna_url
+                   r.click_url, r.payme_url, r.uzum_url, r.xazna_url,
+                   pb.full_name AS processed_by_name
             FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
             LEFT JOIN restaurants r ON o.restaurant_id = r.id
+            LEFT JOIN users pb ON o.processed_by = pb.id
             WHERE o.id = $1
             LIMIT 1
           `, [orderId]);
@@ -3376,6 +3380,25 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         }
         if (current.order.status !== 'new' || current.order.processed_at) {
           await safeAnswerCallback({ text: '⚠️ Заказ уже подтвержден', show_alert: false });
+          try {
+            const statusKey = current.order.status;
+            const keyboardStage =
+              statusKey === 'preparing' ? 'preparing' :
+              statusKey === 'delivering' ? 'delivering' :
+              statusKey === 'delivered' ? 'done' :
+              statusKey === 'accepted' ? 'accepted' : 'done';
+
+            await editGroupOrderMessage({
+              order: current.order,
+              items: current.items,
+              statusKey: statusKey,
+              operatorName: current.order.processed_by_name || 'Оператор',
+              keyboardStage,
+              revealSensitive: true
+            });
+          } catch (syncError) {
+            console.error('Failed to sync stuck Telegram order notification:', syncError.message);
+          }
           return;
         }
 
