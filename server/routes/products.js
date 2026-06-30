@@ -2639,6 +2639,7 @@ router.get('/restaurants/list', async (req, res) => {
       reservation_allow_multi_table: r.reservation_allow_multi_table !== false,
       telegram_bot_username: telegramBotUsername ? `@${telegramBotUsername}` : ''
     });
+    });
     res.json(restaurants);
   } catch (error) {
     console.error('Restaurants list error:', error);
