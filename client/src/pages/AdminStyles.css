@@ -15796,7 +15796,7 @@ h1, h2, h3, h4, h5, h6,
 .offcanvas,
 .dropdown-menu,
 .popover {
-    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-family: "Onest", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 /* --- 1.3 Premium scrollbars (page scrollbar stays hidden via html/body rules above) --- */

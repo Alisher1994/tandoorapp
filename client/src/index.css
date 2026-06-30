@@ -1754,6 +1754,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+input, button, select, textarea {
+  font-family: inherit;
+}
+
 h1,
 h2,
 h3,
