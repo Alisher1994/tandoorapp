@@ -9019,6 +9019,7 @@ function SuperAdminDashboard() {
         reservation_enabled: restaurant.reservation_enabled === true,
         size_variants_enabled: restaurant.size_variants_enabled === true,
         show_store_contacts: restaurant.show_store_contacts === true,
+        mobile_product_columns: Number.isInteger(restaurant.mobile_product_columns) ? restaurant.mobile_product_columns : 2,
         latitude: restaurant.latitude || '',
         longitude: restaurant.longitude || '',
         delivery_base_radius: restaurant.hasOwnProperty('delivery_base_radius') ? parseFloat(restaurant.delivery_base_radius) : 3,
@@ -9058,6 +9059,7 @@ function SuperAdminDashboard() {
         reservation_enabled: false,
         size_variants_enabled: false,
         show_store_contacts: false,
+        mobile_product_columns: 2,
         latitude: '',
         longitude: '',
         delivery_base_radius: 3,
@@ -22753,7 +22755,7 @@ function SuperAdminDashboard() {
                     </div>
                   </div>
 
-                  <Form.Group className="mb-3">
+                   <Form.Group className="mb-3">
                     <Form.Label className="fw-medium text-secondary">Валюта магазина</Form.Label>
                     <CountryCurrencyDropdown
                       language={language}
@@ -22761,6 +22763,19 @@ function SuperAdminDashboard() {
                       selectedOption={countryCurrencyOptions.find((option) => option.code === (restaurantForm.currency_code || 'uz')) || countryCurrencyOptions[0] || null}
                       onChange={(code) => setRestaurantForm({ ...restaurantForm, currency_code: code })}
                     />
+                  </Form.Group>
+
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-medium text-secondary">
+                      {language === 'uz' ? "Mobil telefonda ustunlar soni" : 'Количество колонок на мобильном'}
+                    </Form.Label>
+                    <Form.Select
+                      value={Number(restaurantForm.mobile_product_columns || 2)}
+                      onChange={(e) => setRestaurantForm({ ...restaurantForm, mobile_product_columns: Number(e.target.value) })}
+                    >
+                      <option value={2}>{language === 'uz' ? "2 ta ustun" : '2 колонки'}</option>
+                      <option value={3}>{language === 'uz' ? "3 ta ustun" : '3 колонки'}</option>
+                    </Form.Select>
                   </Form.Group>
 
                   <Form.Group className="mb-3">

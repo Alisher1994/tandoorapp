@@ -1005,6 +1005,7 @@ router.get('/categories', async (req, res) => {
           ON o.restaurant_id = $1
          AND o.category_id = c.id
         WHERE c.is_active = true
+          AND c.restaurant_id = $1
         ORDER BY c.name_ru
       `, [restaurantId]);
 

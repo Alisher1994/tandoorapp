@@ -16,8 +16,14 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
 });
 
-pool.on('connect', () => {
+pool.on('connect', (client) => {
   console.log('✅ Connected to PostgreSQL database');
+  client.query(`
+    SET idle_in_transaction_session_timeout = '60s';
+    SET lock_timeout = '10s';
+  `).catch((err) => {
+    console.warn('⚠️ Failed to apply PostgreSQL session timeouts:', err.message);
+  });
 });
 
 pool.on('error', (err) => {

@@ -2490,6 +2490,20 @@ router.put('/restaurant', async (req, res) => {
       ).catch(() => {});
     }
 
+    // Update mobile_product_columns
+    if (req.body.mobile_product_columns !== undefined) {
+      const cols = Number.parseInt(req.body.mobile_product_columns, 10);
+      if (cols === 2 || cols === 3) {
+        await pool.query(
+          'UPDATE restaurants SET mobile_product_columns = $1 WHERE id = $2',
+          [cols, Number(restaurantId)]
+        ).catch((err) => console.error('Failed to update mobile_product_columns:', err));
+        if (result.rows[0]) {
+          result.rows[0].mobile_product_columns = cols;
+        }
+      }
+    }
+
     const normalizedPickupEnabled = normalizeOptionalBoolean(is_pickup_enabled);
     if (normalizedPickupEnabled !== null) {
       const pickupResult = await pool.query(
@@ -5570,7 +5584,9 @@ router.get('/categories', async (req, res) => {
     const params = [
       Number.isInteger(restaurantId) && restaurantId > 0 ? restaurantId : null
     ];
-    const whereClause = includeInactive ? '' : 'WHERE c.is_active = true';
+    const whereClause = includeInactive
+      ? 'WHERE c.restaurant_id = $1'
+      : 'WHERE c.is_active = true AND c.restaurant_id = $1';
     const result = await pool.query(`
       SELECT
         c.*,

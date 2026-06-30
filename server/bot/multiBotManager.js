@@ -2464,6 +2464,12 @@ function setupBotHandlers(bot, restaurantId, restaurantName, botToken) {
         await cleanupFlowMessages(chatId, stateKey);
         registrationStates.delete(stateKey);
 
+        await setPrivateChatMenuButton({
+          chatId,
+          webAppUrl: loginUrl,
+          lang: userLang
+        });
+
         await bot.sendMessage(chatId,
           `✅ Регистрация успешна!\n\n` +
           `🏪 Магазин: <b>${restaurantName}</b>\n` +

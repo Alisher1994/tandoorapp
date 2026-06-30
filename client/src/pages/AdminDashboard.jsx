@@ -6173,6 +6173,7 @@ function AdminDashboard() {
         ui_font_family: normalizeUiFontFamily(response.data?.ui_font_family, 'sans'),
         menu_view_mode: normalizeMenuViewMode(response.data?.menu_view_mode, 'grid_categories'),
         catalog_card_mode: normalizeCatalogCardMode(response.data?.catalog_card_mode, 'wide'),
+        mobile_product_columns: Number.isInteger(response.data?.mobile_product_columns) ? response.data.mobile_product_columns : 2,
         menu_liquid_glass_enabled: response.data?.menu_liquid_glass_enabled === true,
         menu_height_lock_enabled: response.data?.menu_height_lock_enabled === true,
         menu_liquid_glass_opacity: normalizeMenuGlassOpacity(
@@ -6265,6 +6266,11 @@ function AdminDashboard() {
           savedSettings?.catalog_card_mode,
           restaurantSettings?.catalog_card_mode || 'wide'
         ),
+        mobile_product_columns: Number.isInteger(savedSettings?.mobile_product_columns)
+          ? savedSettings.mobile_product_columns
+          : (Number.isInteger(restaurantSettings?.mobile_product_columns)
+            ? restaurantSettings.mobile_product_columns
+            : 2),
         menu_liquid_glass_enabled: savedSettings?.menu_liquid_glass_enabled === true
           ? true
           : Boolean(restaurantSettings?.menu_liquid_glass_enabled),
@@ -15844,6 +15850,35 @@ function AdminDashboard() {
                                   </div>
                                   <Form.Text className="text-muted d-block mt-2">
                                     {language === 'uz' ? "Menyu va mijoz vitrinasidagi mahsulot kartochkalariga ta'sir qiladi." : 'Влияет на карточки товаров в меню и в витрине клиента.'}
+                                  </Form.Text>
+                                </Form.Group>
+                              </div>
+
+                              <div className="admin-settings-surface-block">
+                                <Form.Group className="mb-0">
+                                  <Form.Label className="small fw-bold text-muted text-uppercase mb-2">
+                                    {language === 'uz' ? "Mobil telefonda ustunlar soni" : 'Количество колонок на мобильном'}
+                                  </Form.Label>
+                                  <div className="d-flex gap-3">
+                                    <Form.Check
+                                      type="radio"
+                                      id="mobile-cols-2"
+                                      name="mobile-cols"
+                                      label={language === 'uz' ? "2 ta ustun" : '2 колонки'}
+                                      checked={Number(restaurantSettings.mobile_product_columns || 2) === 2}
+                                      onChange={() => setRestaurantSettings({ ...restaurantSettings, mobile_product_columns: 2 })}
+                                    />
+                                    <Form.Check
+                                      type="radio"
+                                      id="mobile-cols-3"
+                                      name="mobile-cols"
+                                      label={language === 'uz' ? "3 ta ustun" : '3 колонки'}
+                                      checked={Number(restaurantSettings.mobile_product_columns) === 3}
+                                      onChange={() => setRestaurantSettings({ ...restaurantSettings, mobile_product_columns: 3 })}
+                                    />
+                                  </div>
+                                  <Form.Text className="text-muted d-block mt-2">
+                                    {language === 'uz' ? "Mobil telefonda menyudagi tovarlar ustunlari sonini belgilaydi." : 'Задает количество колонок для товаров в мобильной версии меню.'}
                                   </Form.Text>
                                 </Form.Group>
                               </div>

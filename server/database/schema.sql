@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS restaurants (
   admin_comment TEXT,
   workflow_status VARCHAR(32) DEFAULT 'new' CHECK (workflow_status IN ('new', 'negotiation', 'queue', 'token', 'store_settings', 'products', 'homonym', 'active', 'inactive')),
   is_active BOOLEAN DEFAULT true,
+  mobile_product_columns INTEGER DEFAULT 2,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

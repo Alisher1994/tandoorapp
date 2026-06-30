@@ -254,6 +254,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   const catalogHeaderRef = useRef(null);
   const catalogSearchInputRef = useRef(null);
   const categoryListScrollOffsetRef = useRef(0);
+  const productDetailsScrollOffsetRef = useRef(0);
   const isDataFetchInProgressRef = useRef(false);
   const catalogFetchIdRef = useRef(0);
   const lastActiveRestaurantForCatalogRef = useRef(null);
@@ -1748,7 +1749,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
   );
   const menuLiquidGlassOpacityAlpha = menuLiquidGlassOpacity / 100;
   const storeLogoFallbackUrl = resolveImageUrl(
-    currentRestaurant?.logo_url || user?.active_restaurant_logo || ''
+    currentRestaurant?.logo_url || ''
   );
   const renderStoreLogoFallback = ({
     wrapperStyle = {},
@@ -1798,6 +1799,10 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     () => normalizeCatalogCardMode(currentRestaurant?.catalog_card_mode, 'wide'),
     [currentRestaurant]
   );
+  const productColXs = useMemo(() => {
+    const cols = Number(currentRestaurant?.mobile_product_columns);
+    return cols === 3 ? 4 : 6;
+  }, [currentRestaurant]);
   // Витрина (/showcase/catalog) всегда работает как режим «Папки категорий»,
   // независимо от menu_view_mode магазина: входим в категорию -> видим
   // подкатегории как папки/карточки, а если их нет — товары этой категории.
@@ -3018,6 +3023,20 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     }
   }, []);
 
+  useEffect(() => {
+    if (selectedCategory === null && !loading) {
+      const offset = categoryListScrollOffsetRef.current;
+      if (offset > 0) {
+        const timer = setTimeout(() => {
+          restoreScrollOffset(offset);
+          categoryListScrollOffsetRef.current = 0;
+        }, 120);
+        return () => clearTimeout(timer);
+      }
+    }
+    return undefined;
+  }, [selectedCategory, loading]);
+
   const openLevel2Category = (categoryId) => {
     if (selectedCategory === null) {
       categoryListScrollOffsetRef.current = getCurrentScrollOffset();
@@ -3880,6 +3899,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     productHeroSwipeTriggeredRef.current = false;
     productHeroTouchStartXRef.current = null;
     productHeroTouchStartYRef.current = null;
+    const targetOffset = productDetailsScrollOffsetRef.current;
+    if (targetOffset > 0) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          restoreScrollOffset(targetOffset);
+          productDetailsScrollOffsetRef.current = 0;
+        });
+      });
+    }
   };
 
   const loadProductDetails = async (productId, fallbackProduct = null) => {
@@ -3981,6 +4009,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
 
   const openProductDetailsModal = (product) => {
     if (!product?.id) return;
+    productDetailsScrollOffsetRef.current = getCurrentScrollOffset();
     setSelectedProductSummary(product);
     setShowProductDetailsModal(true);
     resetProductDetailsState();
@@ -4574,7 +4603,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
     return <PageSkeleton fullscreen label="Загрузка магазинов" cards={8} />;
   }
 
-  const isCategoryView = !isSingleListMode && selectedCategory !== null;
+  const isCategoryView = selectedCategory !== null;
   const isShowcaseCatalogRoute = isShowcaseCatalog;
   const shouldShowHeaderBackButton = isCategoryView || isShowcaseCatalogRoute;
   const handleHeaderBackAction = () => {
@@ -5437,7 +5466,15 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
             ) && (
                 <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                   {renderAdBannerCarousel()}
-                  <div className="mb-3">
+                  <div className="mb-3 d-flex align-items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={closeLevel2Category}
+                      className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 rounded-3"
+                      style={{ padding: '4px 10px', fontSize: '0.8rem', fontWeight: 600 }}
+                    >
+                      ← {language === 'uz' ? 'Orqaga' : 'Назад'}
+                    </button>
                     <h6 className="mb-0 fw-bold text-dark">{getCategoryName(selectedCategoryNode)}</h6>
                   </div>
 
@@ -5552,7 +5589,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                     <section className="mb-1">
                       <Row className="g-3">
                         {nestedDirectProducts.map((product) => (
-                          <Col key={product.id} xs={6} md={4} lg={3} xxl={2}>
+                          <Col key={product.id} xs={productColXs} md={4} lg={3} xxl={2}>
                             {renderProductCard(product)}
                           </Col>
                         ))}
@@ -5569,6 +5606,18 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
             ) && (
                 <div className={hasCartTotalBanner ? 'pt-2 pb-3' : 'py-3'}>
                   {renderAdBannerCarousel()}
+                  {selectedCategory !== null && (
+                    <div className="mb-3">
+                      <button
+                        type="button"
+                        onClick={closeLevel2Category}
+                        className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 rounded-3"
+                        style={{ padding: '4px 10px', fontSize: '0.8rem', fontWeight: 600 }}
+                      >
+                        ← {language === 'uz' ? 'Orqaga' : 'Назад'}
+                      </button>
+                    </div>
+                  )}
                   <>
                     {/* Заголовок выбранной категории уже выводится секцией ниже
                         (section.title), отдельный дублирующий заголовок убран. */}
@@ -5630,7 +5679,7 @@ function Catalog({ publicStorefront = false, publicRestaurantId = null, publicBo
                         <h6 className="mb-3 text-muted fw-bold">{section.title}</h6>
                         <Row className="g-3">
                           {section.products.map((product) => (
-                            <Col key={product.id} xs={6} md={4} lg={3} xxl={2}>
+                            <Col key={product.id} xs={productColXs} md={4} lg={3} xxl={2}>
                               {renderProductCard(product)}
                             </Col>
                           ))}
