@@ -16630,7 +16630,7 @@ function AdminDashboard() {
                                                         : (language === 'uz' ? 'Barcha mahsulotlar' : 'Все товары')}
                                                   </div>
                                                   <div
-                                                    className={`admin-appearance-live-products ${appearancePreviewCardMode === 'portrait' ? 'is-portrait' : 'is-wide'}`}
+                                                    className={`admin-appearance-live-products ${appearancePreviewCardMode === 'portrait' ? 'is-portrait' : 'is-wide'} ${Number(restaurantSettings?.mobile_product_columns) === 3 ? 'has-3-cols' : ''}`}
                                                   >
                                                     {(appearancePreviewActiveTab === 'favorites'
                                                       ? appearancePreviewFavoriteProducts
