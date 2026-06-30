@@ -920,6 +920,7 @@ const buildRestaurantSettingsSignature = (settings) => {
     ui_font_family: normalizeUiFontFamily(settings.ui_font_family, 'sans'),
     menu_view_mode: normalizeMenuViewMode(settings.menu_view_mode, 'grid_categories'),
     catalog_card_mode: normalizeCatalogCardMode(settings.catalog_card_mode, 'wide'),
+    mobile_product_columns: Number.isInteger(settings.mobile_product_columns) ? settings.mobile_product_columns : 2,
     menu_liquid_glass_enabled: normalizeSettingsBoolean(settings.menu_liquid_glass_enabled, false),
     menu_height_lock_enabled: normalizeSettingsBoolean(settings.menu_height_lock_enabled, false),
     menu_liquid_glass_opacity: normalizeMenuGlassOpacity(

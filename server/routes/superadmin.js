@@ -7161,6 +7161,14 @@ router.post('/restaurants', async (req, res) => {
       }
     }
 
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'mobile_product_columns')) {
+      const cols = Number.parseInt(req.body.mobile_product_columns, 10);
+      if (cols === 2 || cols === 3) {
+        await pool.query('UPDATE restaurants SET mobile_product_columns = $1 WHERE id = $2', [cols, result.rows[0].id]).catch(() => {});
+        result.rows[0].mobile_product_columns = cols;
+      }
+    }
+
     await pool.query(
       'UPDATE restaurants SET reservation_cost = $1 WHERE id = $2',
       [parsedReservationCost, result.rows[0].id]
@@ -7487,6 +7495,19 @@ router.put('/restaurants/:id', async (req, res) => {
       'UPDATE restaurants SET reservation_cost = $1 WHERE id = $2',
       [parsedReservationCost, req.params.id]
     );
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'mobile_product_columns')) {
+      const cols = Number.parseInt(req.body.mobile_product_columns, 10);
+      if (cols === 2 || cols === 3) {
+        await pool.query(
+          'UPDATE restaurants SET mobile_product_columns = $1 WHERE id = $2',
+          [cols, Number(req.params.id)]
+        ).catch(() => {});
+        if (result.rows[0]) {
+          result.rows[0].mobile_product_columns = cols;
+        }
+      }
+    }
 
     const reservationEnabled = reservation_enabled === true || reservation_enabled === 'true';
     await ensureRestaurantReservationSettingsRow(pool, req.params.id);
