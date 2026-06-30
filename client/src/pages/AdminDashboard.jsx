@@ -4935,6 +4935,28 @@ function AdminDashboard() {
         });
         return;
       }
+      if (mainTab === 'categories') {
+        fetchData({
+          includeOrders: false,
+          includeAllOrders: false,
+          includeProducts: false,
+          includeCategories: true,
+          includeContainers: false,
+          includeFeedbackStats: false
+        });
+        return;
+      }
+      if (mainTab === 'showcase') {
+        fetchData({
+          includeOrders: false,
+          includeAllOrders: false,
+          includeProducts: true,
+          includeCategories: true,
+          includeContainers: false,
+          includeFeedbackStats: false
+        });
+        return;
+      }
       if (mainTab === 'containers') {
         fetchData({
           includeOrders: false,
@@ -4947,7 +4969,7 @@ function AdminDashboard() {
         return;
       }
 
-      // Tabs like settings/showcase/feedback/clients/help/printers do not require
+      // Tabs like settings/feedback/clients/help/printers do not require
       // the initial blocking loader; otherwise skeleton can stay forever.
       setLoading(false);
     };
