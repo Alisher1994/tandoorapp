@@ -48,6 +48,42 @@ const {
   normalizePrintFormSettingsPayload
 } = require('../services/printFormSettings');
 const { ensureCheckConstraint } = require('../database/constraintHelpers');
+
+async function copyTemplateCategoriesToRestaurant(clientOrPool, restaurantId) {
+  const templateRes = await clientOrPool.query(
+    'SELECT * FROM categories WHERE restaurant_id IS NULL ORDER BY id ASC'
+  );
+  const templates = templateRes.rows;
+  if (templates.length === 0) return;
+
+  const idMapping = new Map();
+
+  async function copyCategory(cat) {
+    if (idMapping.has(cat.id)) return idMapping.get(cat.id);
+
+    let newParentId = null;
+    if (cat.parent_id) {
+      const parentCat = templates.find(c => c.id === cat.parent_id);
+      if (parentCat) {
+        newParentId = await copyCategory(parentCat);
+      }
+    }
+
+    const insertRes = await clientOrPool.query(
+      `INSERT INTO categories (restaurant_id, name_ru, name_uz, image_url, sort_order, is_active, parent_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id`,
+      [restaurantId, cat.name_ru, cat.name_uz, cat.image_url, cat.sort_order, cat.is_active, newParentId]
+    );
+    const newId = insertRes.rows[0].id;
+    idMapping.set(cat.id, newId);
+    return newId;
+  }
+
+  for (const cat of templates) {
+    await copyCategory(cat);
+  }
+}
 const {
   sendServerStatsToChat,
   refreshSuperadminServerMonitoringSchedule,
@@ -7154,6 +7190,14 @@ router.post('/restaurants', async (req, res) => {
       reservation_service_cost: parsedReservationCost
     };
 
+    // Copy template categories to the new restaurant
+    try {
+      await copyTemplateCategoriesToRestaurant(pool, result.rows[0].id);
+      console.log(`Successfully copied template categories to new restaurant #${result.rows[0].id}`);
+    } catch (copyErr) {
+      console.error('Error copying template categories to new restaurant:', copyErr);
+    }
+
     // Отвечаем сразу; перезапуск ботов и лог делаем в фоне, чтобы не ждать Telegram API.
     res.status(201).json(restaurant);
 
@@ -9076,8 +9120,12 @@ router.get('/categories', async (req, res) => {
     const includeInactive = ['1', 'true', 'yes'].includes(
       String(req.query.include_inactive || '').toLowerCase()
     );
-    const categoriesFilter = includeInactive ? '' : 'WHERE c.is_active = true';
-    const subcategoriesFilter = includeInactive ? '' : 'AND sc.is_active = true';
+    const categoriesFilter = includeInactive 
+      ? 'WHERE c.restaurant_id IS NULL' 
+      : 'WHERE c.is_active = true AND c.restaurant_id IS NULL';
+    const subcategoriesFilter = includeInactive 
+      ? 'AND sc.restaurant_id IS NULL' 
+      : 'AND sc.is_active = true AND sc.restaurant_id IS NULL';
     const result = await pool.query(`
       SELECT
         c.*,
@@ -9097,9 +9145,9 @@ router.get('/categories', async (req, res) => {
 // Добавить категорию
 router.post('/categories', async (req, res) => {
   try {
-    const { name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id } = req.body;
+    const { name_ru, name_uz, image_url, sort_order, parent_id } = req.body;
     const normalizedParentId = normalizeCategoryId(parent_id);
-    const normalizedRestaurantId = normalizeCategoryId(restaurant_id);
+    const normalizedRestaurantId = null; // Always null for global templates
     const normalizedNameRu = normalizeCategoryName(name_ru);
     const normalizedNameUz = normalizeCategoryName(name_uz);
     const normalizedSortOrder = normalizeCategorySortOrder(sort_order, 0);
@@ -9159,9 +9207,9 @@ router.post('/categories', async (req, res) => {
 // Обновить категорию
 router.put('/categories/:id', async (req, res) => {
   try {
-    const { name_ru, name_uz, image_url, sort_order, parent_id, restaurant_id } = req.body;
+    const { name_ru, name_uz, image_url, sort_order, parent_id } = req.body;
     const normalizedParentId = normalizeCategoryId(parent_id);
-    const normalizedRestaurantId = normalizeCategoryId(restaurant_id);
+    const normalizedRestaurantId = null; // Always null for global templates
     const categoryId = Number.parseInt(req.params.id, 10);
     const normalizedNameRu = normalizeCategoryName(name_ru);
     const normalizedNameUz = normalizeCategoryName(name_uz);
@@ -9177,6 +9225,9 @@ router.put('/categories/:id', async (req, res) => {
       return res.status(404).json({ error: 'Категория не найдена' });
     }
     const oldCategory = oldResult.rows[0];
+    if (oldCategory.restaurant_id !== null) {
+      return res.status(403).json({ error: 'Нельзя редактировать категорию конкретного ресторана через глобальный интерфейс' });
+    }
 
     if (normalizedParentId && normalizedParentId === categoryId) {
       return res.status(400).json({ error: 'Категория не может быть родителем самой себя' });
@@ -9260,6 +9311,9 @@ router.delete('/categories/:id', async (req, res) => {
       return res.status(404).json({ error: 'Категория не найдена' });
     }
     const category = categoryResult.rows[0];
+    if (category.restaurant_id !== null) {
+      return res.status(403).json({ error: 'Нельзя удалить категорию конкретного ресторана через глобальный интерфейс' });
+    }
 
     // Check for products in category
     const productsCheck = await pool.query(

@@ -5622,14 +5622,15 @@ router.get('/categories', async (req, res) => {
 // Добавить категорию
 router.post('/categories', async (req, res) => {
   try {
-    if (req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Изменение структуры категорий доступно только суперадмину' });
+    if (req.user.role !== 'superadmin' && req.user.role !== 'admin' && req.user.role !== 'operator') {
+      return res.status(403).json({ error: 'Доступ запрещен' });
     }
-    const { name_ru, name_uz, image_url, sort_order, printer_id } = req.body;
+    const { name_ru, name_uz, image_url, sort_order, printer_id, parent_id } = req.body;
     const restaurantId = req.user.active_restaurant_id;
     const normalizedNameRu = normalizeCategoryName(name_ru);
     const normalizedNameUz = normalizeCategoryName(name_uz);
     const normalizedSortOrder = normalizeCategorySortOrder(sort_order, 0);
+    const normalizedParentId = parent_id ? Number.parseInt(parent_id, 10) : null;
 
     if (!restaurantId) {
       return res.status(400).json({ error: 'Выберите ресторан' });
@@ -5639,8 +5640,40 @@ router.post('/categories', async (req, res) => {
       return res.status(400).json({ error: 'Название категории обязательно' });
     }
 
+    if (normalizedParentId) {
+      const parentCheck = await pool.query('SELECT id, restaurant_id FROM categories WHERE id = $1', [normalizedParentId]);
+      if (parentCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Родительская категория не найдена' });
+      }
+      if (parentCheck.rows[0].restaurant_id !== restaurantId) {
+        return res.status(400).json({ error: 'Родительская категория должна принадлежать тому же ресторану' });
+      }
+
+      // Check level depth
+      let parentLevel = 0;
+      try {
+        let currentId = normalizedParentId;
+        const visited = new Set();
+        while (currentId) {
+          if (visited.has(currentId)) throw new Error('CYCLE');
+          visited.add(currentId);
+          const resL = await pool.query('SELECT parent_id FROM categories WHERE id = $1', [currentId]);
+          if (resL.rows.length === 0) throw new Error('NOT_FOUND');
+          const pId = resL.rows[0].parent_id;
+          parentLevel++;
+          currentId = pId;
+        }
+      } catch (e) {
+        return res.status(400).json({ error: 'Ошибка иерархии категорий (цикл или не найдена)' });
+      }
+
+      if (parentLevel + 1 > 3) {
+        return res.status(400).json({ error: 'Максимальная вложенность категорий: 3 уровня' });
+      }
+    }
+
     const conflict = await findAdminCategoryNameConflict({
-      parentId: null,
+      parentId: normalizedParentId,
       restaurantId,
       nameRu: normalizedNameRu,
       nameUz: normalizedNameUz
@@ -5653,10 +5686,10 @@ router.post('/categories', async (req, res) => {
     }
 
     const result = await pool.query(`
-      INSERT INTO categories(restaurant_id, name_ru, name_uz, image_url, sort_order, printer_id)
-VALUES($1, $2, $3, $4, $5, $6)
-RETURNING *
-  `, [restaurantId, normalizedNameRu, normalizedNameUz || null, image_url, normalizedSortOrder, printer_id || null]);
+      INSERT INTO categories(restaurant_id, name_ru, name_uz, image_url, sort_order, printer_id, parent_id)
+      VALUES($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [restaurantId, normalizedNameRu, normalizedNameUz || null, image_url, normalizedSortOrder, printer_id || null, normalizedParentId]);
 
     const category = result.rows[0];
 
@@ -5683,13 +5716,15 @@ RETURNING *
 // Обновить категорию
 router.put('/categories/:id', async (req, res) => {
   try {
-    if (req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Изменение названия категории доступно только суперадмину' });
+    if (req.user.role !== 'superadmin' && req.user.role !== 'admin' && req.user.role !== 'operator') {
+      return res.status(403).json({ error: 'Доступ запрещен' });
     }
-    const { name_ru, name_uz, image_url, sort_order, printer_id } = req.body;
+    const { name_ru, name_uz, image_url, sort_order, printer_id, parent_id } = req.body;
     const normalizedNameRu = normalizeCategoryName(name_ru);
     const normalizedNameUz = normalizeCategoryName(name_uz);
     const normalizedSortOrder = normalizeCategorySortOrder(sort_order, 0);
+    const normalizedParentId = parent_id ? Number.parseInt(parent_id, 10) : null;
+    const categoryId = Number.parseInt(req.params.id, 10);
 
     if (!normalizedNameRu) {
       return res.status(400).json({ error: 'Название категории обязательно' });
@@ -5707,12 +5742,69 @@ router.put('/categories/:id', async (req, res) => {
       return res.status(403).json({ error: 'Нет доступа к этой категории' });
     }
 
+    const restaurantId = oldCategory.restaurant_id;
+
+    if (normalizedParentId) {
+      if (normalizedParentId === categoryId) {
+        return res.status(400).json({ error: 'Категория не может быть родителем самой себя' });
+      }
+      const parentCheck = await pool.query('SELECT id, restaurant_id FROM categories WHERE id = $1', [normalizedParentId]);
+      if (parentCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Родительская категория не найдена' });
+      }
+      if (parentCheck.rows[0].restaurant_id !== restaurantId) {
+        return res.status(400).json({ error: 'Родительская категория должна принадлежать тому же ресторану' });
+      }
+
+      // Check for cycles and nested depth
+      let parentLevel = 0;
+      try {
+        let currentId = normalizedParentId;
+        const visited = new Set();
+        while (currentId) {
+          if (currentId === categoryId) throw new Error('CYCLE');
+          if (visited.has(currentId)) throw new Error('CYCLE');
+          visited.add(currentId);
+          const resL = await pool.query('SELECT parent_id FROM categories WHERE id = $1', [currentId]);
+          if (resL.rows.length === 0) throw new Error('NOT_FOUND');
+          const pId = resL.rows[0].parent_id;
+          parentLevel++;
+          currentId = pId;
+        }
+      } catch (e) {
+        return res.status(400).json({ error: 'Ошибка иерархии категорий (цикл или не найдена)' });
+      }
+
+      // Check subtree depth of updated category
+      let subtreeDepth = 1;
+      try {
+        const allCatsRes = await pool.query('SELECT id, parent_id FROM categories WHERE restaurant_id = $1', [restaurantId]);
+        const allCats = allCatsRes.rows;
+        function getDepth(id) {
+          const children = allCats.filter(c => c.parent_id === id);
+          if (children.length === 0) return 1;
+          let maxChildDepth = 0;
+          for (const child of children) {
+            maxChildDepth = Math.max(maxChildDepth, getDepth(child.id));
+          }
+          return 1 + maxChildDepth;
+        }
+        subtreeDepth = getDepth(categoryId);
+      } catch (e) {
+        // Fallback
+      }
+
+      if (parentLevel + subtreeDepth > 3) {
+        return res.status(400).json({ error: 'Превышена максимальная глубина вложенности: 3 уровня' });
+      }
+    }
+
     const conflict = await findAdminCategoryNameConflict({
-      parentId: oldCategory.parent_id ?? null,
+      parentId: normalizedParentId,
       restaurantId: oldCategory.restaurant_id,
       nameRu: normalizedNameRu,
       nameUz: normalizedNameUz,
-      excludeId: Number.parseInt(req.params.id, 10)
+      excludeId: categoryId
     });
     if (conflict) {
       if (conflict.field === 'name_ru') {
@@ -5723,10 +5815,10 @@ router.put('/categories/:id', async (req, res) => {
 
     const result = await pool.query(`
       UPDATE categories SET
-name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4, printer_id = $5, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6
-RETURNING *
-  `, [normalizedNameRu, normalizedNameUz || null, image_url, normalizedSortOrder, printer_id || null, req.params.id]);
+        name_ru = $1, name_uz = $2, image_url = $3, sort_order = $4, printer_id = $5, parent_id = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING *
+    `, [normalizedNameRu, normalizedNameUz || null, image_url, normalizedSortOrder, printer_id || null, normalizedParentId, categoryId]);
 
     const category = result.rows[0];
 
@@ -5754,8 +5846,8 @@ RETURNING *
 // Удалить категорию
 router.delete('/categories/:id', async (req, res) => {
   try {
-    if (req.user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Удаление категории доступно только суперадмину' });
+    if (req.user.role !== 'superadmin' && req.user.role !== 'admin' && req.user.role !== 'operator') {
+      return res.status(403).json({ error: 'Доступ запрещен' });
     }
     // Get category and check access
     const categoryResult = await pool.query('SELECT * FROM categories WHERE id = $1', [req.params.id]);
@@ -5778,6 +5870,18 @@ router.delete('/categories/:id', async (req, res) => {
     if (parseInt(productsCheck.rows[0].count) > 0) {
       return res.status(400).json({
         error: 'Нельзя удалить категорию, в которой есть товары. Сначала удалите или переместите товары.'
+      });
+    }
+
+    // Check for subcategories
+    const subcatsCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM categories WHERE parent_id = $1',
+      [req.params.id]
+    );
+
+    if (parseInt(subcatsCheck.rows[0].count) > 0) {
+      return res.status(400).json({
+        error: 'Нельзя удалить категорию, у которой есть подкатегории. Сначала удалите подкатегории.'
       });
     }
 

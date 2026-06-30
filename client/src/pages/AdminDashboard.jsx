@@ -2080,6 +2080,459 @@ function ShowcaseBuilderTab() {
   );
 }
 
+function CategoriesManagerTab({ categories, reloadCategories, language, t, setAlert }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedNodes, setExpandedNodes] = useState({});
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState('create');
+  const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({
+    id: null,
+    name_ru: '',
+    name_uz: '',
+    image_url: '',
+    sort_order: 0,
+    parent_id: null
+  });
+
+  const toggleExpand = (id) => {
+    setExpandedNodes(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const getLocalizedName = (cat) => {
+    if (!cat) return '';
+    return language === 'uz' ? (cat.name_uz || cat.name_ru || '') : (cat.name_ru || cat.name_uz || '');
+  };
+
+  const rootCategories = useMemo(() => {
+    return categories.filter(c => c.parent_id === null);
+  }, [categories]);
+
+  const getChildCategories = useCallback((parentId) => {
+    return categories.filter(c => c.parent_id === parentId);
+  }, [categories]);
+
+  const hasChildren = useCallback((id) => {
+    return categories.some(c => c.parent_id === id);
+  }, [categories]);
+
+  const handleOpenCreate = (parentId = null) => {
+    setForm({
+      id: null,
+      name_ru: '',
+      name_uz: '',
+      image_url: '',
+      sort_order: 0,
+      parent_id: parentId
+    });
+    setModalMode('create');
+    setShowModal(true);
+  };
+
+  const handleOpenEdit = (cat) => {
+    setForm({
+      id: cat.id,
+      name_ru: cat.name_ru || '',
+      name_uz: cat.name_uz || '',
+      image_url: cat.image_url || '',
+      sort_order: cat.sort_order || 0,
+      parent_id: cat.parent_id
+    });
+    setModalMode('edit');
+    setShowModal(true);
+  };
+
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await axios.post(`${API_URL}/upload/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const uploadedUrl = response.data?.url || response.data?.imageUrl || '';
+      setForm(prev => ({ ...prev, image_url: uploadedUrl }));
+      setAlert({ type: 'success', text: language === 'uz' ? 'Rasm yuklandi' : 'Изображение загружено' });
+    } catch (err) {
+      setAlert({
+        type: 'danger',
+        text: err?.response?.data?.error || (language === 'uz' ? 'Rasm yuklashda xatolik' : 'Ошибка загрузки изображения')
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!form.name_ru.trim()) {
+      setAlert({ type: 'danger', text: language === 'uz' ? 'Nom (RU) kiritilishi shart' : 'Название (RU) обязательно' });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      if (modalMode === 'edit') {
+        await axios.put(`${API_URL}/admin/categories/${form.id}`, form);
+        setAlert({ type: 'success', text: language === 'uz' ? 'Kategoriya yangilandi' : 'Категория обновлена' });
+      } else {
+        await axios.post(`${API_URL}/admin/categories`, form);
+        setAlert({ type: 'success', text: language === 'uz' ? 'Kategoriya yaratildi' : 'Категория добавлена' });
+      }
+      setShowModal(false);
+      await reloadCategories();
+    } catch (err) {
+      setAlert({
+        type: 'danger',
+        text: err?.response?.data?.error || (language === 'uz' ? 'Xatolik yuz berdi' : 'Произошла ошибка')
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (cat) => {
+    const kids = getChildCategories(cat.id);
+    if (kids.length > 0) {
+      setAlert({
+        type: 'danger',
+        text: language === 'uz'
+          ? "O'chirish mumkin emas: unda ost-kategoriyalar bor"
+          : 'Нельзя удалить: у категории есть подкатегории'
+      });
+      return;
+    }
+    const hasProducts = Number(cat.products_count || 0) > 0;
+    if (hasProducts) {
+      setAlert({
+        type: 'danger',
+        text: language === 'uz'
+          ? "O'chirish mumkin emas: unda tovarlar bor"
+          : 'Нельзя удалить: в категории есть товары'
+      });
+      return;
+    }
+
+    const confirmText = language === 'uz'
+      ? `"${getLocalizedName(cat)}" kategoriyasini o'chirishni tasdiqlaysizmi?`
+      : `Удалить категорию "${getLocalizedName(cat)}"?`;
+    if (!window.confirm(confirmText)) return;
+
+    try {
+      await axios.delete(`${API_URL}/admin/categories/${cat.id}`);
+      setAlert({ type: 'success', text: language === 'uz' ? "Kategoriya o'chirildi" : 'Категория успешно удалена' });
+      await reloadCategories();
+    } catch (err) {
+      setAlert({
+        type: 'danger',
+        text: err?.response?.data?.error || (language === 'uz' ? 'O\'chirishda xatolik' : 'Ошибка при удалении')
+      });
+    }
+  };
+
+  const filteredCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return categories.filter(c => {
+      const nameRu = (c.name_ru || '').toLowerCase();
+      const nameUz = (c.name_uz || '').toLowerCase();
+      return nameRu.includes(q) || nameUz.includes(q);
+    });
+  }, [categories, searchQuery]);
+
+  const renderTreeNode = (cat, depth = 0) => {
+    const children = getChildCategories(cat.id);
+    const hasKids = children.length > 0;
+    const isExpanded = !!expandedNodes[cat.id];
+    const name = getLocalizedName(cat);
+    const indentStyle = { paddingLeft: `${depth * 28}px` };
+
+    return (
+      <div key={`cat-tree-node-${cat.id}`} className="admin-cat-tree-node-wrapper">
+        <div className={`admin-cat-tree-row d-flex align-items-center justify-content-between py-2 border-bottom ${depth > 0 ? 'admin-cat-tree-child' : 'admin-cat-tree-root'}`} style={indentStyle}>
+          <div className="d-flex align-items-center gap-2">
+            {hasKids ? (
+              <button
+                type="button"
+                className="btn btn-link btn-sm p-0 text-secondary admin-cat-tree-toggle-btn"
+                onClick={() => toggleExpand(cat.id)}
+              >
+                <i className={`bi bi-chevron-${isExpanded ? 'down' : 'right'} fs-6`}></i>
+              </button>
+            ) : (
+              <span className="admin-cat-tree-bullet-placeholder" />
+            )}
+            
+            <div className="admin-cat-image-thumb">
+              {cat.image_url ? (
+                <img src={cat.image_url} alt="" className="rounded-1" style={{ width: '28px', height: '28px', objectFit: 'cover' }} />
+              ) : (
+                <i className="bi bi-folder2 text-primary fs-5"></i>
+              )}
+            </div>
+
+            <div className="admin-cat-info">
+              <span className="fw-semibold admin-cat-name-label">{name}</span>
+              {language === 'uz' && cat.name_ru && cat.name_ru !== cat.name_uz && (
+                <small className="text-muted d-block extra-small">RU: {cat.name_ru}</small>
+              )}
+              {language !== 'uz' && cat.name_uz && cat.name_ru !== cat.name_uz && (
+                <small className="text-muted d-block extra-small">UZ: {cat.name_uz}</small>
+              )}
+            </div>
+            
+            {cat.sort_order !== null && cat.sort_order !== undefined && (
+              <Badge bg="light" className="text-muted font-monospace border ms-2">
+                #{cat.sort_order}
+              </Badge>
+            )}
+          </div>
+
+          <div className="d-flex align-items-center gap-2 admin-cat-row-actions">
+            {depth < 2 && (
+              <Button
+                variant="outline-primary"
+                size="sm"
+                className="py-1 px-2 d-flex align-items-center gap-1 border-0"
+                onClick={() => handleOpenCreate(cat.id)}
+                title={language === 'uz' ? 'Ost-kategoriya qo\'shish' : 'Добавить подкатегорию'}
+              >
+                <Plus size={14} />
+                <span className="d-none d-md-inline small">{language === 'uz' ? 'Ost-kategoriya' : 'Подкатегория'}</span>
+              </Button>
+            )}
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              className="p-1 border-0"
+              onClick={() => handleOpenEdit(cat)}
+              title={t('edit')}
+            >
+              <Pencil size={14} />
+            </Button>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              className="p-1 border-0"
+              disabled={hasKids || Number(cat.products_count || 0) > 0}
+              onClick={() => handleDelete(cat)}
+              title={t('delete')}
+            >
+              <Trash2 size={14} />
+            </Button>
+          </div>
+        </div>
+
+        {hasKids && isExpanded && (
+          <div className="admin-cat-tree-children-container">
+            {children.map(child => renderTreeNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="admin-categories-tab-host py-2">
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+          <h4 className="fw-bold mb-1">{language === 'uz' ? 'Kategoriyalar' : 'Категории меню'}</h4>
+          <p className="text-muted small mb-0">
+            {language === 'uz'
+              ? 'Menyu uchun kategoriyalar tuzilmasini (3 bosqichgacha) boshqaring.'
+              : 'Управление структурой категорий вашего меню (до 3 уровней вложенности).'}
+          </p>
+        </div>
+        <Button
+          variant="primary"
+          className="btn-primary-custom d-flex align-items-center gap-2 align-self-start align-self-md-center"
+          onClick={() => handleOpenCreate(null)}
+        >
+          <Plus size={16} />
+          <span>{language === 'uz' ? 'Kategoriya qo\'shish' : 'Добавить категорию'}</span>
+        </Button>
+      </div>
+
+      <Card className="border-0 shadow-sm mb-4">
+        <Card.Body className="p-3">
+          <div className="position-relative">
+            <Form.Control
+              type="text"
+              placeholder={language === 'uz' ? 'Kategoriya nomini qidirish...' : 'Поиск категорий по названию...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="ps-5"
+            />
+            <div className="position-absolute top-50 start-0 translate-middle-y ps-3 text-muted">
+              <SearchIcon size={18} />
+            </div>
+          </div>
+        </Card.Body>
+      </Card>
+
+      <Card className="border-0 shadow-sm">
+        <Card.Body className="p-0">
+          {searchQuery.trim() ? (
+            filteredCategories.length === 0 ? (
+              <div className="text-center text-muted py-5">
+                {language === 'uz' ? 'Kategoriyalar topilmadi' : 'Категории не найдены'}
+              </div>
+            ) : (
+              <div className="p-3">
+                {filteredCategories.map(cat => {
+                  return (
+                    <div key={`search-result-${cat.id}`} className="d-flex align-items-center justify-content-between py-2 border-bottom">
+                      <div className="d-flex align-items-center gap-2">
+                        {cat.image_url ? (
+                          <img src={cat.image_url} alt="" className="rounded-1" style={{ width: '28px', height: '28px', objectFit: 'cover' }} />
+                        ) : (
+                          <i className="bi bi-folder2 text-primary fs-5"></i>
+                        )}
+                        <div>
+                          <span className="fw-semibold">{getLocalizedName(cat)}</span>
+                          <small className="text-muted d-block extra-small">{cat.full_path}</small>
+                        </div>
+                      </div>
+                      <div className="d-flex align-items-center gap-2">
+                        <Button
+                          variant="outline-secondary"
+                          size="sm"
+                          className="p-1 border-0"
+                          onClick={() => handleOpenEdit(cat)}
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          className="p-1 border-0"
+                          disabled={hasChildren(cat.id) || Number(cat.products_count || 0) > 0}
+                          onClick={() => handleDelete(cat)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            rootCategories.length === 0 ? (
+              <div className="text-center text-muted py-5">
+                {language === 'uz' ? 'Kategoriyalar ro‘yxati bo‘sh' : 'Список категорий пуст'}
+              </div>
+            ) : (
+              <div className="admin-cat-tree-container p-3">
+                {rootCategories.map(cat => renderTreeNode(cat, 0))}
+              </div>
+            )
+          )}
+        </Card.Body>
+      </Card>
+
+      <Modal show={showModal} onHide={() => setShowModal(false)} centered className="admin-modal">
+        <Form onSubmit={handleSubmit}>
+          <Modal.Header closeButton className="border-0">
+            <Modal.Title className="fw-bold">
+              {modalMode === 'edit'
+                ? (language === 'uz' ? 'Kategoriyani tahrirlash' : 'Редактировать категорию')
+                : (language === 'uz' ? 'Kategoriya qo\'shish' : 'Добавить категорию')}
+            </Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {form.parent_id && (
+              <div className="alert alert-light border d-flex align-items-center gap-2 py-2 mb-3">
+                <i className="bi bi-info-circle text-primary"></i>
+                <span className="small text-muted">
+                  {language === 'uz' ? 'Ota kategoriya:' : 'Родительская категория:'}{' '}
+                  <strong>{getLocalizedName(categories.find(c => c.id === form.parent_id))}</strong>
+                </span>
+              </div>
+            )}
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-semibold small">{language === 'uz' ? 'Nomi (RU)' : 'Название (RU)'} <span className="text-danger">*</span></Form.Label>
+              <Form.Control
+                type="text"
+                value={form.name_ru}
+                onChange={(e) => setForm(prev => ({ ...prev, name_ru: e.target.value }))}
+                required
+                placeholder="например, Горячие блюда"
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-semibold small">{language === 'uz' ? 'Nomi (UZ)' : 'Название (UZ)'}</Form.Label>
+              <Form.Control
+                type="text"
+                value={form.name_uz}
+                onChange={(e) => setForm(prev => ({ ...prev, name_uz: e.target.value }))}
+                placeholder="masalan, Issiq taomlar"
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-semibold small">{language === 'uz' ? 'Kategoriya rasmi' : 'Изображение категории'}</Form.Label>
+              <div className="d-flex align-items-center gap-3">
+                <div className="admin-category-image-preview border rounded d-flex align-items-center justify-content-center bg-light" style={{ width: '60px', height: '60px', overflow: 'hidden' }}>
+                  {form.image_url ? (
+                    <img src={form.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <i className="bi bi-image text-muted fs-3"></i>
+                  )}
+                </div>
+                <div className="flex-fill">
+                  <Form.Control
+                    type="text"
+                    value={form.image_url}
+                    onChange={(e) => setForm(prev => ({ ...prev, image_url: e.target.value }))}
+                    placeholder="URL ссылки на изображение"
+                    className="mb-2"
+                  />
+                  <Form.Group>
+                    <Form.Control
+                      type="file"
+                      size="sm"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(e.target.files[0])}
+                      disabled={uploading}
+                    />
+                    {uploading && <small className="text-muted"><Spinner size="sm" animation="border" className="me-1" /> Загрузка...</small>}
+                  </Form.Group>
+                </div>
+              </div>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-semibold small">{language === 'uz' ? 'Saralash tartibi' : 'Порядок сортировки'}</Form.Label>
+              <Form.Control
+                type="number"
+                value={form.sort_order}
+                onChange={(e) => setForm(prev => ({ ...prev, sort_order: parseInt(e.target.value) || 0 }))}
+              />
+              <Form.Text className="text-muted">
+                {language === 'uz'
+                  ? 'Kichik raqamlar ro‘yxatda birinchi bo‘lib chiqadi.'
+                  : 'Категории с меньшим числом отображаются первыми в меню.'}
+              </Form.Text>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer className="border-0 pt-0">
+            <Button variant="light" onClick={() => setShowModal(false)} disabled={submitting}>
+              {language === 'uz' ? 'Bekor qilish' : 'Отмена'}
+            </Button>
+            <Button variant="primary" type="submit" disabled={submitting || uploading} className="btn-primary-custom">
+              {submitting ? <Spinner size="sm" animation="border" /> : (language === 'uz' ? 'Saqlash' : 'Сохранить')}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+    </div>
+  );
+}
+
 // Single editable row in the Segments table.
 function AdminDashboard() {
   const normalizeAdminOrderForUI = (order) => ({
@@ -3443,6 +3896,7 @@ function AdminDashboard() {
     }
 
     tabs.products = { label: t('products'), icon: Boxes };
+    tabs.categories = { label: language === 'uz' ? "Kategoriyalar" : 'Категории', icon: Layers };
     tabs.showcase = { label: language === 'uz' ? "Menyu konstruktori" : 'Конструктор меню', icon: LayoutGrid };
     tabs.containers = { label: t('containers'), icon: Package };
     tabs.feedback = { label: language === 'uz' ? 'Fikr-mulohaza' : 'Отзывы', icon: MessageCircle };
@@ -14058,6 +14512,16 @@ function AdminDashboard() {
                   }}
                 />
 
+              </Tab>
+
+              <Tab eventKey="categories" title={renderAdminSidebarTabTitle('categories')}>
+                <CategoriesManagerTab
+                  categories={categories}
+                  reloadCategories={loadCategoriesForProducts}
+                  language={language}
+                  t={t}
+                  setAlert={setAlertMessage}
+                />
               </Tab>
 
               <Tab eventKey="showcase" title={renderAdminSidebarTabTitle('showcase')}>
