@@ -184,7 +184,7 @@ const UI_FONT_FAMILY_VALUES = new Set([
 const UI_FONT_FAMILY_OPTIONS = [
   {
     value: 'sans',
-    label: 'Manrope',
+    label: 'Onest',
     group: 'Sans',
     sample: 'Быстрый заказ и удобный каталог'
   },
@@ -310,7 +310,7 @@ const UI_FONT_FAMILY_OPTIONS = [
   }
 ];
 const UI_FONT_FAMILY_PREVIEW_STYLES = Object.freeze({
-  sans: "'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  sans: "'Onest', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
   inter: "'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
   roboto: "'Roboto', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
   open_sans: "'Open Sans', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -2274,7 +2274,7 @@ function CategoriesManagerTab({ categories, reloadCategories, language, t, setAl
             </div>
 
             <div className="admin-cat-info">
-              <span className="fw-semibold admin-cat-name-label">{name}</span>
+              <span className="admin-cat-name-label" style={{ fontWeight: 'normal', fontSize: '14px' }}>{name}</span>
               {language === 'uz' && cat.name_ru && cat.name_ru !== cat.name_uz && (
                 <small className="text-muted d-block extra-small">RU: {cat.name_ru}</small>
               )}
@@ -2391,7 +2391,7 @@ function CategoriesManagerTab({ categories, reloadCategories, language, t, setAl
                           <i className="bi bi-folder2 text-primary fs-5"></i>
                         )}
                         <div>
-                          <span className="fw-semibold">{getLocalizedName(cat)}</span>
+                          <span style={{ fontWeight: 'normal', fontSize: '14px' }}>{getLocalizedName(cat)}</span>
                           <small className="text-muted d-block extra-small">{cat.full_path}</small>
                         </div>
                       </div>

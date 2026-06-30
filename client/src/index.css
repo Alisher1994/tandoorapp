@@ -1,5 +1,5 @@
 :root {
-  --app-font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  --app-font-family: 'Onest', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   --primary-color: #475569;
   --primary-dark: #334155;
   --primary-light: #64748b;
@@ -1485,7 +1485,7 @@
 }
 
 :root[data-ui-font="sans"] {
-  --app-font-family: 'Manrope', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  --app-font-family: 'Onest', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 :root[data-ui-font="inter"] {

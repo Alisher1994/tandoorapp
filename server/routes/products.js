@@ -2603,6 +2603,7 @@ router.get('/restaurants/list', async (req, res) => {
       ui_primary_color: normalizeUiPrimaryColor(r.ui_primary_color),
       menu_view_mode: normalizeMenuViewMode(r.menu_view_mode, 'grid_categories'),
       catalog_card_mode: normalizeCatalogCardMode(r.catalog_card_mode, 'wide'),
+      mobile_product_columns: Number.isInteger(r.mobile_product_columns) ? r.mobile_product_columns : 2,
       menu_liquid_glass_enabled: normalizeBooleanFlag(r.menu_liquid_glass_enabled, false),
       menu_height_lock_enabled: normalizeBooleanFlag(r.menu_height_lock_enabled, false),
       menu_liquid_glass_opacity: normalizeMenuGlassOpacity(r.menu_liquid_glass_opacity, MENU_GLASS_OPACITY_DEFAULT),
