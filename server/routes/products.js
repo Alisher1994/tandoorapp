@@ -2638,8 +2638,7 @@ router.get('/restaurants/list', async (req, res) => {
       reservation_service_cost: Number.isFinite(Number.parseFloat(r.reservation_service_cost)) ? Number.parseFloat(r.reservation_service_cost) : 0,
       reservation_allow_multi_table: r.reservation_allow_multi_table !== false,
       telegram_bot_username: telegramBotUsername ? `@${telegramBotUsername}` : ''
-      });
-    }));
+    });
     res.json(restaurants);
   } catch (error) {
     console.error('Restaurants list error:', error);
