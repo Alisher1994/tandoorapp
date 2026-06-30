@@ -1514,9 +1514,14 @@ router.get('/restaurant/:id', async (req, res) => {
     const cashEnabled = r.cash_enabled === undefined || r.cash_enabled === null
       ? true
       : isEnabledFlag(r.cash_enabled);
-    const telegramBotUsername = normalizeTelegramBotUsername(r.telegram_bot_username)
-      || await resolveTelegramBotUsernameByToken(r.telegram_bot_token);
-    persistRestaurantBotUsername(r.id, telegramBotUsername, r.telegram_bot_username);
+    let telegramBotUsername = normalizeTelegramBotUsername(r.telegram_bot_username);
+    if (!telegramBotUsername && r.telegram_bot_token) {
+      resolveTelegramBotUsernameByToken(r.telegram_bot_token).then((resolved) => {
+        if (resolved) {
+          persistRestaurantBotUsername(r.id, resolved, r.telegram_bot_username);
+        }
+      }).catch(() => {});
+    }
     res.json({
       id: r.id,
       name: r.name,
@@ -2370,7 +2375,8 @@ router.get('/share/:id', async (req, res) => {
         p.thumb_url,
         p.product_images,
         p.size_options,
-        r.telegram_bot_token
+        r.telegram_bot_token,
+        r.telegram_bot_username
       FROM products p
       LEFT JOIN restaurants r ON r.id = p.restaurant_id
       WHERE p.id = $1
@@ -2387,7 +2393,12 @@ router.get('/share/:id', async (req, res) => {
     const restaurantId = Number.isInteger(requestedRestaurantId) && requestedRestaurantId > 0
       ? requestedRestaurantId
       : Number.parseInt(row.restaurant_id, 10);
-    const botUsername = await resolveTelegramBotUsernameByToken(row.telegram_bot_token);
+    
+    let botUsername = normalizeTelegramBotUsername(row.telegram_bot_username);
+    if (!botUsername && row.telegram_bot_token) {
+      botUsername = await resolveTelegramBotUsernameByToken(row.telegram_bot_token);
+      persistRestaurantBotUsername(row.restaurant_id, botUsername, row.telegram_bot_username);
+    }
     const startPayload = Number.isInteger(restaurantId) && restaurantId > 0
       ? `product_${restaurantId}_${productId}`
       : `product_${productId}`;
@@ -2587,11 +2598,17 @@ router.get('/restaurants/list', async (req, res) => {
       ORDER BY r.name
     `);
     // Return only safe public fields
-    const restaurants = await Promise.all(result.rows.map(async (r) => {
+    const restaurants = result.rows.map((r) => {
       const serviceFee = Number.parseFloat(r.service_fee ?? 0);
-      const telegramBotUsername = normalizeTelegramBotUsername(r.telegram_bot_username)
-        || await resolveTelegramBotUsernameByToken(r.telegram_bot_token);
-      persistRestaurantBotUsername(r.id, telegramBotUsername, r.telegram_bot_username);
+      let telegramBotUsername = normalizeTelegramBotUsername(r.telegram_bot_username);
+      if (!telegramBotUsername && r.telegram_bot_token) {
+        // Resolve in background and persist for future requests
+        resolveTelegramBotUsernameByToken(r.telegram_bot_token).then((resolved) => {
+          if (resolved) {
+            persistRestaurantBotUsername(r.id, resolved, r.telegram_bot_username);
+          }
+        }).catch(() => {});
+      }
       return ({
       id: r.id,
       name: r.name,
