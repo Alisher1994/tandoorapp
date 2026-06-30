@@ -3252,7 +3252,10 @@ function AdminDashboard() {
     const nonEmptyCategoryIds = new Set();
     const collectAncestors = (categoryId) => {
       let currentId = categoryId;
+      const visited = new Set();
       while (Number.isInteger(currentId)) {
+        if (visited.has(currentId)) break;
+        visited.add(currentId);
         if (nonEmptyCategoryIds.has(currentId)) break;
         nonEmptyCategoryIds.add(currentId);
         currentId = categoriesById.get(currentId)?.parentId ?? null;
@@ -5603,10 +5606,16 @@ function AdminDashboard() {
       const getSortDisplay = (c) => `[${c.sort_order !== null && c.sort_order !== undefined ? c.sort_order : '-'}] `;
       let path = getSortDisplay(cat) + cat.name_ru;
       let current = cat;
+      const visited = new Set([cat.id]);
       while (current.parent_id) {
+        if (visited.has(current.parent_id)) {
+          console.warn('Circular dependency detected in categories for category ID:', current.parent_id);
+          break;
+        }
         const parent = categoriesData.find(c => c.id === current.parent_id);
         if (parent) {
           path = `${getSortDisplay(parent)}${parent.name_ru} > ${path}`;
+          visited.add(parent.id);
           current = parent;
         } else {
           break;
@@ -5620,10 +5629,15 @@ function AdminDashboard() {
       const getSortVal = (c) => (c.sort_order === null || c.sort_order === undefined) ? 9999 : c.sort_order;
       let path = [String(getSortVal(cat)).padStart(5, '0') + cat.name_ru];
       let current = cat;
+      const visited = new Set([cat.id]);
       while (current.parent_id) {
+        if (visited.has(current.parent_id)) {
+          break;
+        }
         const parent = categoriesData.find(c => c.id === current.parent_id);
         if (parent) {
           path.unshift(String(getSortVal(parent)).padStart(5, '0') + parent.name_ru);
+          visited.add(parent.id);
           current = parent;
         } else {
           break;
