@@ -27,6 +27,7 @@ const { initStoreCloseReportWorker } = require('./services/storeCloseReportWorke
 const { initScheduledDeliveryReminderWorker } = require('./services/scheduledDeliveryReminderWorker');
 const { initSuperadminServerMonitoring } = require('./services/superadminServerMonitoring');
 const { logSecurityEvent } = require('./services/securityEvents');
+const { initCleanupWorker } = require('./services/cleanupWorker');
 
 const http = require('http');
 const printerManager = require('./services/printerManager');
@@ -536,6 +537,9 @@ async function startServer() {
 
     // Initialize scheduled delivery reminder worker
     initScheduledDeliveryReminderWorker();
+
+    // Initialize background cleanup worker (runs every 24 hours to prevent disk bloat)
+    initCleanupWorker();
   });
 }
 
