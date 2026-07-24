@@ -9,6 +9,10 @@
 const fs = require('fs');
 const path = require('path');
 const pool = require('../database/connection');
+const {
+  addUploadBasename,
+  collectJsonUploadReferences
+} = require('./uploadReferences');
 
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // Run once every 24 hours
 const RETENTION_HOURS = 24; // Keep files uploaded in the last 24h
@@ -35,23 +39,9 @@ async function getReferencedFiles() {
       const res = await pool.query(query);
       for (const row of res.rows) {
         if (isJsonb) {
-          const val = row[colName];
-          if (Array.isArray(val)) {
-            for (const item of val) {
-              if (item && typeof item === 'string') {
-                referenced.add(path.basename(item));
-              } else if (item && typeof item === 'object' && item.image_url) {
-                referenced.add(path.basename(item.image_url));
-              } else if (item && typeof item === 'object' && item.url) {
-                referenced.add(path.basename(item.url));
-              }
-            }
-          }
+          collectJsonUploadReferences(row[colName], referenced);
         } else {
-          const val = row[colName];
-          if (val && typeof val === 'string') {
-            referenced.add(path.basename(val));
-          }
+          addUploadBasename(referenced, row[colName]);
         }
       }
     } catch (e) {
@@ -63,6 +53,7 @@ async function getReferencedFiles() {
   await addFromQuery('SELECT image_url, thumb_url FROM products', 'image_url');
   await addFromQuery('SELECT image_url, thumb_url FROM products', 'thumb_url');
   await addFromQuery('SELECT product_images FROM products WHERE product_images IS NOT NULL', 'product_images', true);
+  await addFromQuery('SELECT size_options FROM products WHERE size_options IS NOT NULL', 'size_options', true);
   await addFromQuery('SELECT image_url, thumb_url FROM global_products', 'image_url');
   await addFromQuery('SELECT image_url, thumb_url FROM global_products', 'thumb_url');
   await addFromQuery('SELECT product_images FROM global_products WHERE product_images IS NOT NULL', 'product_images', true);

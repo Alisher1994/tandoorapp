@@ -14260,6 +14260,14 @@ function AdminDashboard() {
                                     src={thumbSourceResolved}
                                     alt={product.name_ru}
                                     className="admin-product-mobile-photo"
+                                    onLoad={(event) => {
+                                      event.currentTarget.hidden = false;
+                                      event.currentTarget.parentElement?.classList.remove('is-image-missing');
+                                    }}
+                                    onError={(event) => {
+                                      event.currentTarget.hidden = true;
+                                      event.currentTarget.parentElement?.classList.add('is-image-missing');
+                                    }}
                                   />
                                 ) : (
                                   <span className="admin-product-mobile-photo-empty">+</span>

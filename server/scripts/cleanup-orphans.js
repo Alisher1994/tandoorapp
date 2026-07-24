@@ -13,6 +13,10 @@
 const path = require('path');
 const fs = require('fs');
 const { Pool } = require('pg');
+const {
+  addUploadBasename,
+  collectJsonUploadReferences
+} = require('../services/uploadReferences');
 
 const dryRun = !process.argv.includes('--delete');
 const retentionHours = 24; // Keep files uploaded in the last 24h
@@ -45,23 +49,9 @@ async function getReferencedFiles() {
       const res = await pool.query(query);
       for (const row of res.rows) {
         if (isJsonb) {
-          const val = row[colName];
-          if (Array.isArray(val)) {
-            for (const item of val) {
-              if (item && typeof item === 'string') {
-                referenced.add(path.basename(item));
-              } else if (item && typeof item === 'object' && item.image_url) {
-                referenced.add(path.basename(item.image_url));
-              } else if (item && typeof item === 'object' && item.url) {
-                referenced.add(path.basename(item.url));
-              }
-            }
-          }
+          collectJsonUploadReferences(row[colName], referenced);
         } else {
-          const val = row[colName];
-          if (val && typeof val === 'string') {
-            referenced.add(path.basename(val));
-          }
+          addUploadBasename(referenced, row[colName]);
         }
       }
     } catch (e) {
@@ -77,6 +67,7 @@ async function getReferencedFiles() {
 
   // 2. Products JSONB array
   await addFromQuery('SELECT product_images FROM products WHERE product_images IS NOT NULL', 'product_images', true);
+  await addFromQuery('SELECT size_options FROM products WHERE size_options IS NOT NULL', 'size_options', true);
 
   // 3. Global products (templates)
   await addFromQuery('SELECT image_url, thumb_url FROM global_products', 'image_url');

@@ -301,6 +301,12 @@ app.use('/uploads', express.static(uploadsPath, {
     }
   }
 }));
+// Missing media must not fall through to the React application. Returning
+// index.html with 200 makes browsers try to decode HTML as an image.
+app.use('/uploads', (req, res) => {
+  applyNoStoreHeaders(res);
+  res.status(404).json({ error: 'Uploaded file not found' });
+});
 
 // Root route for Railway health check
 app.get('/', (req, res) => {
